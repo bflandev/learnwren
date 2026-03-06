@@ -2,9 +2,9 @@
 > **DOCUMENT STATUS: DRAFT**
 > This document is a living specification and is subject to change. All content is considered provisional until formally approved by project stakeholders.
 
-# Technical Architecture: Teachify
+# Technical Architecture: Learn Wren
 
-This document outlines the recommended technical architecture for the Teachify platform. The architecture is designed to be modular, scalable, and self-hostable, using open-source technologies wherever possible.
+This document outlines the recommended technical architecture for the Learn Wren platform. The architecture is designed to be modular, scalable, and self-hostable, using open-source technologies wherever possible.
 
 ---
 
