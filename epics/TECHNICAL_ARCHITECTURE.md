@@ -15,7 +15,7 @@ graph TD
     subgraph "Firebase Platform"
         A[Web Browser] --> B[Firebase Hosting];
         B --> C[Angular Frontend];
-        C --> D[NestJS Backend (Cloud Functions)];
+        C --> D[NestJS Backend via Cloud Functions];
     end
 
     subgraph "Firebase Services"
@@ -24,13 +24,13 @@ graph TD
         D --> G[Firebase Authentication];
     end
 
-    subgraph "Video Pipeline (3rd Party)"
-        D --> H[Transcoding & DRM Service (e.g., Coconut/Mux)];
+    subgraph "Video Pipeline - Third Party"
+        D --> H[Transcoding and DRM Service];
         H --> F;
     end
 
-    subgraph "DRM & Playback"
-        C --> I[Video Player (Shaka/Video.js)];
+    subgraph "DRM and Playback"
+        C --> I[Video Player - Shaka or Video.js];
         I --> F;
         I --> H;
     end
