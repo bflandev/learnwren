@@ -1,6 +1,6 @@
 > [!NOTE]
 > **PROJECT STATUS: SPECIFICATION PHASE**
-> This repository contains the product and technical specifications for **Teachifye), an open-source, self-hosted educational video platform. The project is currently in the planning and specification phase. No code has been written yet.
+> This repository contains the product and technical specifications for **Teachify**, an open-source, self-hosted educational video platform. The project is currently in the planning and specification phase. No code has been written yet.
 
 # Teachify: Open-Source Educational Video Platform
 
