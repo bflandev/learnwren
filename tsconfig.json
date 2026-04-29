@@ -2,5 +2,12 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {},
   "files": [],
-  "references": []
+  "references": [
+    {
+      "path": "./libs/shared-data-models"
+    },
+    {
+      "path": "./apps/web-e2e"
+    }
+  ]
 }

@@ -12,6 +12,7 @@ node_modules/
 # Build outputs
 dist/
 .angular
+*.tsbuildinfo
 
 vite.config.*.timestamp*
 __screenshots__/

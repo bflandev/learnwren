@@ -1,6 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "outDir": "../../dist/out-tsc",
     "types": ["node"]
   },
   "include": ["playwright.config.ts", "src/**/*.ts"]

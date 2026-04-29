@@ -31,7 +31,7 @@
   ],
   "references": [
     {
-      "path": "../../libs/shared-data-models"
+      "path": "../../libs/shared-data-models/tsconfig.lib.json"
     }
   ]
 }
