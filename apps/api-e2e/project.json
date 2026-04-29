@@ -5,13 +5,16 @@
   "implicitDependencies": ["api"],
   "targets": {
     "e2e": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/{e2eProjectRoot}"],
+      "executor": "nx:run-commands",
+      "outputs": [
+        "{workspaceRoot}/dist/.playwright/apps/api-e2e/test-output",
+        "{workspaceRoot}/dist/.playwright/apps/api-e2e/playwright-report"
+      ],
       "options": {
-        "jestConfig": "apps/api-e2e/jest.config.cts",
-        "passWithNoTests": true
+        "cwd": "apps/api-e2e",
+        "command": "playwright test"
       },
-      "dependsOn": ["api:build", "api:serve"]
+      "dependsOn": ["api:build"]
     }
   }
 }
