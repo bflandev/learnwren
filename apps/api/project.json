@@ -43,6 +43,15 @@
       "dependsOn": ["prune-lockfile", "copy-workspace-modules"],
       "executor": "nx:noop"
     },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/api",
+        "command": "tsc --build tsconfig.app.json --emitDeclarationOnly"
+      },
+      "cache": true
+    },
     "serve": {
       "continuous": true,
       "executor": "@nx/js:node",
