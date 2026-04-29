@@ -6,6 +6,17 @@
     "node": ">=22 <23"
   },
   "private": true,
+  "scripts": {
+    "start:web": "nx serve web",
+    "start:api": "nx serve api",
+    "start": "nx run-many -t serve -p web,api --parallel",
+    "build": "nx run-many -t build",
+    "test": "nx run-many -t test",
+    "lint": "nx run-many -t lint",
+    "e2e": "nx run-many -t e2e",
+    "typecheck": "nx run-many -t typecheck",
+    "affected": "nx affected -t lint test build"
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "nx"
