@@ -51,7 +51,57 @@ Run `pnpm emulators` in one terminal and `pnpm start` in another. Both apps conn
 
 The Emulator UI dashboard is at `http://127.0.0.1:4000`. Use it to inspect Firestore data, manage Auth users, and browse Storage buckets while the apps are running.
 
-The wiring is hardcoded against emulators in this slice. Environment-driven config (real-project IDs, production toggle) arrives with the auth spec.
+By default, both apps point at the emulators. To target the real Firebase project instead, see **Real-project mode** below.
+
+## Real-project mode
+
+`apps/web` and `apps/api` read `LEARNWREN_FIREBASE_TARGET` at startup. When the variable is unset, empty, or any value other than `production`, the apps target the local emulators (the default — no real credentials required). Setting `LEARNWREN_FIREBASE_TARGET=production` switches both apps to the real Firebase project.
+
+### Prerequisites (one-time)
+
+Before the real-project mode works at all, the following must be true in the Firebase console for the project named in `.firebaserc`'s `production` alias:
+
+- The project is on the **Blaze** plan.
+- **Authentication** has Email/Password enabled.
+- **Firestore** is created in **Native mode**.
+- **Cloud Storage** has a default bucket.
+- A **Web app** is registered via `firebase --project <id> apps:create WEB "Learn Wren Web"`; the SDK config is captured via `firebase --project <id> apps:sdkconfig WEB <appId>`.
+- A **service account JSON** is downloaded from the Firebase console (Project Settings → Service accounts → Generate new private key) and saved to a path outside the repo. See `docs/secrets.md` § Service-account JSON for local-against-prod runs.
+- The **`learnwren` 1Password vault** has `Web SDK Config` and `Admin SDK Config` items populated. See `docs/secrets.md` for the field list.
+
+### Run
+
+Run the api against the real project:
+
+```bash
+LEARNWREN_FIREBASE_TARGET=production \
+  pnpm secrets:run -- pnpm start:api
+```
+
+Run the web app against the real project:
+
+```bash
+LEARNWREN_FIREBASE_TARGET=production \
+  pnpm secrets:run -- pnpm start:web
+```
+
+Run both:
+
+```bash
+LEARNWREN_FIREBASE_TARGET=production \
+  pnpm secrets:run -- pnpm start
+```
+
+A single `[learnwren] Firebase target = production` warning logs at boot in each app. Hot-reloading the env var is not supported — restart the process.
+
+### Verify
+
+- `apps/api`: hit `GET http://localhost:3333/api/firestore-smoke`. The handler writes a doc to the real Firestore `_smoke` collection. After verification, **delete the resulting document from the Firebase console** so the live project doesn't accumulate smoke garbage.
+- `apps/web`: open `http://localhost:4200`, expand **Dev tools**, click **Run Firestore smoke**. Browser DevTools → Network shows traffic to `firestore.googleapis.com` (not `127.0.0.1:8080`).
+
+### Switching back
+
+Open a fresh terminal (or `unset LEARNWREN_FIREBASE_TARGET`) and restart the apps. They return to emulator mode.
 
 ## Secrets
 
