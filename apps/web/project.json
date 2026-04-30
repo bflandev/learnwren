@@ -6,9 +6,18 @@
   "sourceRoot": "apps/web/src",
   "tags": [],
   "targets": {
+    "generate-environment": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsx tools/web/build-environment.ts",
+        "cwd": "{workspaceRoot}"
+      },
+      "outputs": ["{workspaceRoot}/apps/web/src/environments/environment.ts"]
+    },
     "build": {
       "executor": "@angular/build:application",
       "outputs": ["{options.outputPath}"],
+      "dependsOn": ["generate-environment"],
       "options": {
         "outputPath": "dist/apps/web",
         "browser": "apps/web/src/main.ts",
@@ -49,6 +58,7 @@
     "serve": {
       "continuous": true,
       "executor": "@angular/build:dev-server",
+      "dependsOn": ["generate-environment"],
       "configurations": {
         "production": {
           "buildTarget": "web:build:production"
@@ -60,10 +70,12 @@
       "defaultConfiguration": "development"
     },
     "lint": {
-      "executor": "@nx/eslint:lint"
+      "executor": "@nx/eslint:lint",
+      "dependsOn": ["generate-environment"]
     },
     "test": {
       "executor": "@angular/build:unit-test",
+      "dependsOn": ["generate-environment"],
       "options": {}
     },
     "serve-static": {
