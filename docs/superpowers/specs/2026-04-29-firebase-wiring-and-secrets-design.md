@@ -102,13 +102,12 @@ Append to root `package.json`:
   "scripts": {
     "emulators": "firebase emulators:start",
     "secrets:render": "op inject -i .env.tpl -o .env",
-    "secrets:run": "op run --env-file=.env.tpl --"
+    "secrets:run": "op run --env-file=.env.tpl"
   }
 }
 ```
 
-The trailing `--` on `secrets:run` forwards args:
-`pnpm secrets:run -- pnpm test` runs the test command with secrets injected at the process boundary, never written to disk.
+`pnpm secrets:run -- pnpm test` runs the test command with secrets injected at the process boundary, never written to disk. (pnpm forwards everything after the user's `--` as arguments to the script's command, so no trailing `--` is needed inside the script itself.)
 
 ## 2. `firebase.json`, `.firebaserc`, and Rules
 
