@@ -17,6 +17,9 @@ function buildFakeFirestore() {
     exists: true,
     data: () => writes.at(-1)?.data,
   }));
+  // The path argument to doc() is intentionally not asserted here — the fake's
+  // single shared {set, get} pair is path-blind. Path correctness is the job of
+  // Task 7's manual emulator round-trip verification, not this unit test.
   const doc = vi.fn(() => ({ set, get }));
   return {
     collection: vi.fn(() => ({ doc })),

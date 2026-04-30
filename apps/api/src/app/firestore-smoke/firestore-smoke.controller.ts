@@ -28,7 +28,7 @@ export class FirestoreSmokeController {
     return {
       docId,
       written,
-      readBack: snap.exists ? (snap.data() as SmokeDoc | undefined) : undefined,
+      readBack: snap.exists ? (snap.data() as SmokeDoc) : undefined,
     };
   }
 }
