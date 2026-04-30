@@ -12,13 +12,17 @@
 
 Render `.env` from `.env.tpl`:
 
-    pnpm secrets:render
+```bash
+pnpm secrets:render
+```
 
 Re-run after rotating a secret or adding a new entry to `.env.tpl`.
 
 Run a one-off command with secrets injected at the process boundary (never written to disk):
 
-    pnpm secrets:run -- <command>
+```bash
+pnpm secrets:run -- <command>
+```
 
 `.env` is gitignored. Never commit it.
 
@@ -30,7 +34,7 @@ Vault: `learnwren`
 |---|---|---|---|
 | `Workspace` | `name` | Canary; value `learnwren-dev`; proves the pipeline works | this spec |
 
-Future entries land here as later specs introduce them.
+The `Workspace.name` field is referenced from `.env.tpl` as `op://learnwren/Workspace/name`. Future entries land here as later specs introduce them.
 
 ## Adding a secret
 
