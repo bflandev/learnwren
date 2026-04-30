@@ -7,6 +7,8 @@ import {
   FIRESTORE,
 } from './firebase.tokens';
 
+// TODO(auth-spec): replace hardcoded emulator hosts and project ID with
+// environment-driven config when the real Firebase project arrives.
 const DEFAULT_EMULATOR_HOSTS = {
   FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099',
   FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080',
@@ -24,16 +26,11 @@ function applyEmulatorEnvDefaults(): void {
 }
 
 function ensureFirebaseAppInitialized(): admin.app.App {
-  // TODO(auth-spec): replace hardcoded emulator hosts and project ID with
-  // environment-driven config when the real Firebase project arrives.
-  if (admin.apps.length === 0) {
-    return admin.initializeApp({ projectId: EMULATOR_PROJECT_ID });
-  }
   const existing = admin.apps[0];
-  if (!existing) {
-    return admin.initializeApp({ projectId: EMULATOR_PROJECT_ID });
+  if (existing) {
+    return existing;
   }
-  return existing;
+  return admin.initializeApp({ projectId: EMULATOR_PROJECT_ID });
 }
 
 @Module({})
