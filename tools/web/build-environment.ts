@@ -70,8 +70,10 @@ function render(mode: 'emulator' | 'production', config: FirebaseConfig): string
 // Regenerate with: pnpm exec nx run web:generate-environment
 // Source of truth: tools/web/build-environment.ts + the LEARNWREN_* env vars.
 
+import type { FirebaseTargetMode } from './firebase-target';
+
 export const environment = {
-  firebaseTargetMode: ${JSON.stringify(mode)} as const,
+  firebaseTargetMode: ${JSON.stringify(mode)} as FirebaseTargetMode,
   firebase: ${JSON.stringify(config, null, 2)},
   emulatorHosts: ${JSON.stringify(EMULATOR_HOSTS, null, 2)},
 } as const;

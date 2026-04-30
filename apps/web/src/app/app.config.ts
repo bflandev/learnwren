@@ -20,32 +20,51 @@ import {
   provideStorage,
 } from '@angular/fire/storage';
 
+import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 
-// TODO(auth-spec): replace the hardcoded demo project ID and emulator hosts
-// with environment-driven config when the real Firebase project arrives.
-const FIREBASE_CONFIG = { projectId: 'demo-learnwren' } as const;
+const { firebaseTargetMode, firebase, emulatorHosts } = environment;
+
+if (firebaseTargetMode === 'production') {
+  // Single, deliberate signal that we're not pointed at the emulator.
+  // eslint-disable-next-line no-console
+  console.warn('[learnwren] Firebase target = production');
+}
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(appRoutes),
-    provideFirebaseApp(() => initializeApp(FIREBASE_CONFIG)),
+    provideFirebaseApp(() => initializeApp(firebase)),
     provideAuth(() => {
       const auth = getAuth();
-      connectAuthEmulator(auth, 'http://127.0.0.1:9099', {
-        disableWarnings: true,
-      });
+      if (firebaseTargetMode === 'emulator') {
+        connectAuthEmulator(auth, emulatorHosts.auth, {
+          disableWarnings: true,
+        });
+      }
       return auth;
     }),
     provideFirestore(() => {
       const db = getFirestore();
-      connectFirestoreEmulator(db, '127.0.0.1', 8080);
+      if (firebaseTargetMode === 'emulator') {
+        connectFirestoreEmulator(
+          db,
+          emulatorHosts.firestore.host,
+          emulatorHosts.firestore.port,
+        );
+      }
       return db;
     }),
     provideStorage(() => {
       const storage = getStorage();
-      connectStorageEmulator(storage, '127.0.0.1', 9199);
+      if (firebaseTargetMode === 'emulator') {
+        connectStorageEmulator(
+          storage,
+          emulatorHosts.storage.host,
+          emulatorHosts.storage.port,
+        );
+      }
       return storage;
     }),
   ],
