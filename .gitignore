@@ -18,3 +18,10 @@ vite.config.*.timestamp*
 __screenshots__/
 
 vitest.config.*.timestamp*
+
+# Firebase emulator debug logs (emitted on each `pnpm emulators` run)
+firestore-debug.log
+firebase-debug.log
+
+# Rendered secrets — never commit. .env.tpl is the source of truth.
+.env

@@ -18,7 +18,7 @@
     "affected": "nx affected -t lint test build typecheck",
     "emulators": "firebase emulators:start",
     "secrets:render": "op inject -i .env.tpl -o .env",
-    "secrets:run": "op run --env-file=.env.tpl --"
+    "secrets:run": "op run --env-file=.env.tpl"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
