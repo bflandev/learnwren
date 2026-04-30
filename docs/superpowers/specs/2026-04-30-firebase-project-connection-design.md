@@ -57,10 +57,17 @@ The user is expected to complete the following in the Firebase console before th
 2. **Authentication** → enable Email/Password sign-in. Other providers (Google, etc.) are decided by the auth spec.
 3. **Firestore Database** → create in **Native mode**, region recorded in `docs/secrets.md` Vault Contract notes. Initial rules left at default (this spec replaces them on first deploy from the deploy spec; until then they don't matter — the emulator is the rule oracle for local dev).
 4. **Cloud Storage** → create the default bucket in the same region as Firestore.
-5. **Project Settings → Your apps → Add Web app.** Capture the SDK config snippet. The fields `apiKey`, `authDomain`, `projectId`, `appId`, `storageBucket`, `messagingSenderId` go into the 1Password vault per §6.
-6. **Project ID** is captured from Project Settings (it is the lowercase string used in URLs, distinct from the human display name).
+5. **Web app registered.** Use the CLI rather than navigating the console UI (which Firebase reorganizes periodically):
 
-The Admin SDK does **not** require a separate web-app registration — Cloud Functions runtime injects ADC for the project's default service account automatically. For local-against-prod runs of `apps/api`, the user generates a service-account JSON via Project Settings → Service accounts → "Generate new private key", stores it outside the repo, and references its absolute path via `FIREBASE_SERVICE_ACCOUNT_JSON_PATH` (added to `.env.tpl` — value path lives in 1Password as a non-secret file pointer; the JSON itself stays on disk, never in 1Password).
+   ```
+   firebase --project <project-id> apps:create WEB "Learn Wren Web"
+   firebase --project <project-id> apps:sdkconfig WEB <appId-from-previous-output>
+   ```
+
+   The `apps:sdkconfig` output yields the six fields (`apiKey`, `authDomain`, `projectId`, `appId`, `storageBucket`, `messagingSenderId`) that go into the 1Password vault per §6. `measurementId`, `projectNumber`, and `version` from the same output are not needed.
+6. **Project ID** is the lowercase string in the project URL (also visible via `firebase projects:list`), distinct from the human display name.
+
+The Admin SDK does **not** require a separate web-app registration — Cloud Functions runtime injects ADC for the project's default service account automatically. For local-against-prod runs of `apps/api`, the user generates a service-account JSON (the Firebase console exposes this under Project Settings → Service accounts at the time of writing; if the UI moves, the same key can be created via the GCP console for the same project), stores it outside the repo, and references its absolute path via `FIREBASE_SERVICE_ACCOUNT_JSON_PATH`. The path lives in the developer's shell init; the JSON itself stays on disk, never in 1Password and never in git.
 
 These prerequisites are also captured as a checklist in `docs/development.md` so a new teammate doesn't need to read this spec.
 

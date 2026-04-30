@@ -63,8 +63,16 @@ This plan assumes the user has already done the following in the Firebase consol
 2. **Authentication** → Email/Password sign-in enabled.
 3. **Firestore Database** → created in **Native mode**, region recorded.
 4. **Cloud Storage** → default bucket created in the same region.
-5. **Project Settings → Your apps → Add Web app.** SDK config snippet captured (apiKey, authDomain, projectId, appId, storageBucket, messagingSenderId).
-6. **Service account JSON** generated via Project Settings → Service accounts → "Generate new private key". File saved to `~/.learnwren/service-account.json` (or any absolute path outside the repo). User has this path memorized for export as `FIREBASE_SERVICE_ACCOUNT_JSON_PATH` later.
+5. **Web app registered** via the CLI (the console UI moves; the CLI doesn't):
+
+   ```
+   firebase login                                                  # one-time
+   firebase --project <project-id> apps:create WEB "Learn Wren Web"
+   firebase --project <project-id> apps:sdkconfig WEB <appId-from-create-output>
+   ```
+
+   The `apps:sdkconfig` output yields the six fields (`apiKey`, `authDomain`, `projectId`, `appId`, `storageBucket`, `messagingSenderId`) needed for the 1Password vault.
+6. **Service account JSON** downloaded from the Firebase console (Project Settings → Service accounts → "Generate new private key" at time of writing — or via the GCP console for the same project if the Firebase UI has moved). File saved to `~/.learnwren/service-account.json` (or any absolute path outside the repo). User has this path memorized for export as `FIREBASE_SERVICE_ACCOUNT_JSON_PATH` later.
 7. **1Password vault `learnwren`** populated with two new items (item names exact, fields exact):
    - `Web SDK Config`: fields `apiKey`, `authDomain`, `projectId`, `appId`, `storageBucket`, `messagingSenderId`.
    - `Admin SDK Config`: fields `projectId`, `firestoreRegion` (the latter is documentation-only).
@@ -1291,8 +1299,8 @@ Before the real-project mode works at all, the following must be true in the Fir
 - **Authentication** has Email/Password enabled.
 - **Firestore** is created in **Native mode**.
 - **Cloud Storage** has a default bucket.
-- A **Web app** is registered (Project Settings → Your apps → Add Web app); the SDK config snippet is captured.
-- A **service account JSON** is generated (Project Settings → Service accounts → Generate new private key) and saved to a path outside the repo. See `docs/secrets.md` § Service-account JSON for local-against-prod runs.
+- A **Web app** is registered via `firebase --project <id> apps:create WEB "Learn Wren Web"`; the SDK config is captured via `firebase --project <id> apps:sdkconfig WEB <appId>`.
+- A **service account JSON** is downloaded from the Firebase console (Project Settings → Service accounts → Generate new private key) and saved to a path outside the repo. See `docs/secrets.md` § Service-account JSON for local-against-prod runs.
 - The **`learnwren` 1Password vault** has `Web SDK Config` and `Admin SDK Config` items populated. See `docs/secrets.md` for the field list.
 
 ### Run
