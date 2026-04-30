@@ -57,7 +57,14 @@ function required(name: string): string {
 
 function buildConfig(mode: 'emulator' | 'production'): FirebaseConfig {
   if (mode === 'emulator') {
-    return { projectId: EMULATOR_PROJECT_ID };
+    // Firebase Web SDK ≥12 requires apiKey to be present (any non-empty
+    // string) even when Auth is going to be emulator-targeted — without
+    // it, getAuth() throws auth/invalid-api-key at boot. The emulator
+    // doesn't validate the value.
+    return {
+      apiKey: 'fake-api-key-emulator-only',
+      projectId: EMULATOR_PROJECT_ID,
+    };
   }
   return {
     apiKey:            required('LEARNWREN_WEB_FIREBASE_API_KEY'),
