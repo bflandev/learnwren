@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "demo-learnwren"
+    "default": "demo-learnwren",
+    "production": "learn-wren"
   }
 }
