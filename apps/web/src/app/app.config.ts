@@ -23,9 +23,7 @@ import {
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 
-const { firebaseTargetMode, firebase, emulatorHosts } = environment;
-
-if (firebaseTargetMode === 'production') {
+if (environment.firebaseTargetMode === 'production') {
   // Single, deliberate signal that we're not pointed at the emulator.
   // eslint-disable-next-line no-console
   console.warn('[learnwren] Firebase target = production');
@@ -35,11 +33,11 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(appRoutes),
-    provideFirebaseApp(() => initializeApp(firebase)),
+    provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideAuth(() => {
       const auth = getAuth();
-      if (firebaseTargetMode === 'emulator') {
-        connectAuthEmulator(auth, emulatorHosts.auth, {
+      if (environment.firebaseTargetMode === 'emulator') {
+        connectAuthEmulator(auth, environment.emulatorHosts.auth, {
           disableWarnings: true,
         });
       }
@@ -47,22 +45,22 @@ export const appConfig: ApplicationConfig = {
     }),
     provideFirestore(() => {
       const db = getFirestore();
-      if (firebaseTargetMode === 'emulator') {
+      if (environment.firebaseTargetMode === 'emulator') {
         connectFirestoreEmulator(
           db,
-          emulatorHosts.firestore.host,
-          emulatorHosts.firestore.port,
+          environment.emulatorHosts.firestore.host,
+          environment.emulatorHosts.firestore.port,
         );
       }
       return db;
     }),
     provideStorage(() => {
       const storage = getStorage();
-      if (firebaseTargetMode === 'emulator') {
+      if (environment.firebaseTargetMode === 'emulator') {
         connectStorageEmulator(
           storage,
-          emulatorHosts.storage.host,
-          emulatorHosts.storage.port,
+          environment.emulatorHosts.storage.host,
+          environment.emulatorHosts.storage.port,
         );
       }
       return storage;
