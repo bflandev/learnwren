@@ -2,16 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // _smoke: dev-only emulator wire smoke test for the Firebase wiring spec.
-    // Only intended for the demo-learnwren emulator project.
-    // Production deploys must remove or re-gate this rule.
-    match /_smoke/{docId} {
-      allow read, write: if true;
-    }
-
-    // Deny-by-default. Per-collection rules and the
+    // Deploy-safe rules. Per-collection rules and the
     // isAuthenticated/isOwner/isAdmin/hasRole helpers are introduced
-    // in the auth spec, not this one.
+    // in the auth spec, not this one. The emulator path uses
+    // firestore.emulator.rules which adds a smoke-test escape hatch.
     match /{document=**} {
       allow read, write: if false;
     }

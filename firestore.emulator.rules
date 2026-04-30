@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // _smoke: dev-only emulator wire smoke test.
+    // This file is the rules oracle ONLY for the Firebase emulator suite.
+    // The deploy-safe rules file is firestore.rules, which omits this block.
+    // firebase.json points at firestore.emulator.rules so emulator runs see this rule.
+    match /_smoke/{docId} {
+      allow read, write: if true;
+    }
+
+    // Deny-by-default. Per-collection rules and the
+    // isAuthenticated/isOwner/isAdmin/hasRole helpers are introduced
+    // in the auth spec, not this one.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
