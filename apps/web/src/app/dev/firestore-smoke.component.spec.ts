@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 import { FirestoreSmokeComponent } from './firestore-smoke.component';
 
+// Scope: render only. Behavioural coverage of run() (setDoc/getDoc against
+// the real Firestore handle) is delegated to the manual emulator round-trip
+// in the firebase-wiring-and-secrets plan, not asserted here.
 describe('FirestoreSmokeComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({

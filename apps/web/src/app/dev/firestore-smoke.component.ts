@@ -44,6 +44,8 @@ interface SmokeResult {
 export class FirestoreSmokeComponent {
   private readonly firestore = inject(Firestore);
 
+  // TODO(auth-spec): replace isDevMode() with !environment.production once
+  // environment files exist. Functionally equivalent until then.
   protected readonly devMode = isDevMode();
   protected readonly busy = signal(false);
   protected readonly result = signal<SmokeResult | null>(null);
