@@ -4,7 +4,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 
 > [!NOTE]
 > **PROJECT STATUS: EARLY DEVELOPMENT**
-> The monorepo and a minimal "hello world" slice for both apps are in place. Firebase, Firestore, authentication, and the video/DRM pipeline are not yet wired up — those are tracked in upcoming design specs under `docs/superpowers/specs/`.
+> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, and the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`) are wired up. Authentication, per-collection rules, and the video/DRM pipeline are not yet wired — those are tracked in upcoming design specs under `docs/superpowers/specs/`.
 
 ---
 
@@ -20,19 +20,24 @@ learnwren/
 │   ├── api/            # NestJS API — exposes GET /api/health
 │   └── api-e2e/        # Playwright E2E tests for api
 ├── libs/
-│   └── shared-data-models/  # TS types shared between web and api
+│   ├── shared-data-models/  # TS types shared between web and api
+│   └── api-firebase/        # NestJS module wrapping firebase-admin (env-driven)
+├── tools/
+│   └── web/                 # Build-time generator for apps/web/src/environments/environment.ts
 └── docs/
     ├── epics/          # Product specs (epics & user stories)
     ├── use-cases/      # Cockburn-style use cases for MVP scope (EP-01..06)
-    ├── superpowers/    # Design specs
-    └── development.md  # Local development reference
+    ├── superpowers/    # Design specs, plans, and post-implementation summaries
+    ├── development.md  # Local development reference
+    └── secrets.md      # 1Password vault contract and workflow
 ```
 
 | Project | Type | Stack |
 | :--- | :--- | :--- |
-| `web` | Application | Angular 21, Tailwind, SCSS |
-| `api` | Application | NestJS 11, Webpack |
+| `web` | Application | Angular 21, AngularFire 21, Tailwind, SCSS |
+| `api` | Application | NestJS 11, firebase-admin, Webpack |
 | `shared-data-models` | Library | TypeScript types (consumed by `web` and `api`) |
+| `api-firebase` | Library | NestJS module providing the firebase-admin handle (emulator/production mode-switching) |
 | `web-e2e`, `api-e2e` | E2E suite | Playwright |
 
 The planned production deployment targets are Firebase Hosting (web) and Firebase Cloud Functions (api), backed by Firestore, Cloud Storage, and Firebase Authentication. See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./docs/epics/TECHNICAL_ARCHITECTURE.md).
@@ -45,6 +50,8 @@ The planned production deployment targets are Firebase Hosting (web) and Firebas
 
 - **Node.js 22** (LTS) — pinned in `.nvmrc`. Install with `nvm install 22 && nvm use 22` or Volta.
 - **pnpm** — activate via Corepack: `corepack enable && corepack prepare pnpm@latest --activate`.
+- **Java 21+** — required by the Firebase Emulator Suite. macOS: `brew install --cask temurin` (or `brew install openjdk@21`).
+- **1Password CLI ≥ 2.x** — used by the secrets pipeline. macOS: `brew install --cask 1password-cli`, then `op signin` to an account with access to the `learnwren` vault. See [`docs/secrets.md`](./docs/secrets.md).
 
 ### Install
 
@@ -52,9 +59,15 @@ The planned production deployment targets are Firebase Hosting (web) and Firebas
 pnpm install
 ```
 
-### Run
+### Run (default: emulator mode)
 
-Run both apps in parallel (Angular on `:4200`, NestJS on `:3333`):
+Boot the Firebase Emulator Suite in one terminal:
+
+```bash
+pnpm emulators
+```
+
+Run both apps in parallel (Angular on `:4200`, NestJS on `:3333`) in another:
 
 ```bash
 pnpm start
@@ -67,11 +80,24 @@ pnpm start:web   # Angular SPA on http://localhost:4200
 pnpm start:api   # NestJS API on http://localhost:3333/api
 ```
 
-Verify the API is up:
+Verify the wiring end-to-end:
 
 ```bash
 curl http://localhost:3333/api/health
+curl http://localhost:3333/api/firestore-smoke
 ```
+
+The web app's **Dev tools → Run Firestore smoke** button exercises the same write path through the client SDK against the emulator. No real Firebase credentials are needed for local development — both apps target the reserved `demo-learnwren` project ID against the local emulator suite.
+
+### Run against the real Firebase project
+
+`apps/web` and `apps/api` read `LEARNWREN_FIREBASE_TARGET` at startup; setting it to `production` flips both apps to the real `learn-wren` project. This requires the one-time prerequisites in [`docs/development.md`](./docs/development.md#real-project-mode) (1Password vault populated, service-account JSON path exported, etc.).
+
+```bash
+LEARNWREN_FIREBASE_TARGET=production pnpm secrets:run -- pnpm start
+```
+
+A single `[learnwren] Firebase target = production` warning logs at boot in each app. Hot-reloading the env var is not supported — restart the process.
 
 ### Scripts
 
@@ -82,12 +108,15 @@ All scripts run from the repo root and delegate to Nx.
 | `pnpm start` | Serve `web` and `api` in parallel. |
 | `pnpm start:web` | Serve the Angular SPA only. |
 | `pnpm start:api` | Serve the NestJS API only. |
+| `pnpm emulators` | Start the Firebase Emulator Suite (Auth, Firestore, Storage, UI). |
 | `pnpm build` | Build all buildable projects to `dist/`. |
 | `pnpm test` | Run all Vitest unit tests. |
 | `pnpm lint` | Run ESLint across all projects. |
 | `pnpm typecheck` | Type-check all projects. |
 | `pnpm e2e` | Run the Playwright E2E suites (sequential). |
 | `pnpm affected` | Run lint + test + build + typecheck only for projects affected by the current branch. |
+| `pnpm secrets:render` | Render `.env` from `.env.tpl` via 1Password. |
+| `pnpm secrets:run -- <cmd>` | Run a command with secrets injected in-memory (no `.env` written). |
 
 To target a single project, invoke Nx directly — e.g. `pnpm nx test web`, `pnpm nx build api`, `pnpm nx lint shared-data-models`.
 
