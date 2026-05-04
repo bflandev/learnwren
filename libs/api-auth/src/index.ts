@@ -1,1 +1,1 @@
-export * from './lib/api-auth';
+export * from './lib/password-policy.service';
