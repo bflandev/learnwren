@@ -9,7 +9,9 @@ import {
   EmailAlreadyExistsException,
   InvalidDisplayNameException,
   InvalidEmailException,
+  InvalidIdTokenException,
   InternalAuthException,
+  RecentSignInRequiredException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -189,5 +191,87 @@ describe('AuthService.register', () => {
       emailVerificationSent: false,
     });
     expect(auth.deleteUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService.createSessionCookie', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('verifies the ID token then mints a session cookie with 5-day expiresIn', async () => {
+    const auth = {
+      ...buildFakeAuth(),
+      verifyIdToken: vi.fn(async () => ({ uid: 'uid-123', role: 'STUDENT' })),
+      createSessionCookie: vi.fn(async () => 'cookie.value.here'),
+    };
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth as unknown as FakeAuth, firestore);
+
+    const result = await service.createSessionCookie('id.token.value');
+
+    expect(auth.verifyIdToken).toHaveBeenCalledWith('id.token.value', true);
+    expect(auth.createSessionCookie).toHaveBeenCalledWith('id.token.value', {
+      expiresIn: 5 * 24 * 60 * 60 * 1000,
+    });
+    expect(result).toEqual({
+      cookie: 'cookie.value.here',
+      uid: 'uid-123',
+      role: 'STUDENT',
+      maxAgeSeconds: 5 * 24 * 60 * 60,
+    });
+  });
+
+  it('throws InvalidIdTokenException when verifyIdToken rejects', async () => {
+    const auth = {
+      ...buildFakeAuth(),
+      verifyIdToken: vi.fn(async () => {
+        throw new Error('expired');
+      }),
+      createSessionCookie: vi.fn(),
+    };
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth as unknown as FakeAuth, firestore);
+
+    await expect(service.createSessionCookie('bad')).rejects.toMatchObject({
+      code: 'INVALID_ID_TOKEN',
+    });
+    expect(auth.createSessionCookie).not.toHaveBeenCalled();
+  });
+
+  it('throws RecentSignInRequiredException when createSessionCookie says token is too old', async () => {
+    const auth = {
+      ...buildFakeAuth(),
+      verifyIdToken: vi.fn(async () => ({ uid: 'uid-123', role: 'STUDENT' })),
+      createSessionCookie: vi.fn(async () => {
+        const e = new Error('id token is too old');
+        (e as unknown as { code: string }).code = 'auth/id-token-expired';
+        throw e;
+      }),
+    };
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth as unknown as FakeAuth, firestore);
+
+    await expect(service.createSessionCookie('stale.token')).rejects.toMatchObject({
+      code: 'RECENT_SIGN_IN_REQUIRED',
+    });
+  });
+
+  it('throws InvalidIdTokenException for argument-error from createSessionCookie', async () => {
+    const auth = {
+      ...buildFakeAuth(),
+      verifyIdToken: vi.fn(async () => ({ uid: 'uid-123', role: 'STUDENT' })),
+      createSessionCookie: vi.fn(async () => {
+        const e = new Error('bad');
+        (e as unknown as { code: string }).code = 'auth/argument-error';
+        throw e;
+      }),
+    };
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth as unknown as FakeAuth, firestore);
+
+    await expect(service.createSessionCookie('bad.token')).rejects.toMatchObject({
+      code: 'INVALID_ID_TOKEN',
+    });
   });
 });

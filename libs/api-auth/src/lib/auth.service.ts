@@ -7,14 +7,16 @@ import {
   FIRESTORE,
   type FirestoreHandle,
 } from '@learnwren/api-firebase';
-import type { ISODateString, UserId } from '@learnwren/shared-data-models';
+import type { ISODateString, UserId, UserRole } from '@learnwren/shared-data-models';
 
 import { PasswordPolicyService } from './password-policy.service';
 import {
   EmailAlreadyExistsException,
   InvalidDisplayNameException,
   InvalidEmailException,
+  InvalidIdTokenException,
   InternalAuthException,
+  RecentSignInRequiredException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -30,8 +32,17 @@ export interface RegisterResult {
   emailVerificationSent: boolean;
 }
 
+export interface SessionCookieResult {
+  cookie: string;
+  uid: UserId;
+  role: UserRole;
+  maxAgeSeconds: number;
+}
+
 const DISPLAY_NAME_MAX = 80;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SESSION_COOKIE_EXPIRES_IN_MS = 5 * 24 * 60 * 60 * 1000;
+const SESSION_COOKIE_MAX_AGE_SECONDS = SESSION_COOKIE_EXPIRES_IN_MS / 1000;
 
 @Injectable()
 export class AuthService {
@@ -115,6 +126,39 @@ export class AuthService {
 
     this.logger.log(`[auth] register uid=${uid}`);
     return { uid, email: input.email, emailVerificationSent };
+  }
+
+  async createSessionCookie(idToken: string): Promise<SessionCookieResult> {
+    let decoded: adminAuth.DecodedIdToken;
+    try {
+      decoded = await this.auth.verifyIdToken(idToken, true);
+    } catch (err) {
+      this.logger.warn(`[auth] session verifyIdToken failed: ${String(err)}`);
+      throw new InvalidIdTokenException();
+    }
+
+    let cookie: string;
+    try {
+      cookie = await this.auth.createSessionCookie(idToken, {
+        expiresIn: SESSION_COOKIE_EXPIRES_IN_MS,
+      });
+    } catch (err) {
+      const code = this.isFirebaseError(err) ? err.code : '';
+      if (code === 'auth/id-token-expired' || /recent sign-in/i.test(String(err))) {
+        this.logger.warn(`[auth] session createSessionCookie stale token uid=${decoded.uid}`);
+        throw new RecentSignInRequiredException();
+      }
+      this.logger.warn(`[auth] session createSessionCookie failed uid=${decoded.uid}: ${String(err)}`);
+      throw new InvalidIdTokenException();
+    }
+
+    this.logger.log(`[auth] session uid=${decoded.uid}`);
+    return {
+      cookie,
+      uid: decoded.uid as UserId,
+      role: decoded['role'] as UserRole,
+      maxAgeSeconds: SESSION_COOKIE_MAX_AGE_SECONDS,
+    };
   }
 
   private isFirebaseError(err: unknown): err is { code: string } {
