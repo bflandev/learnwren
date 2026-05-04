@@ -317,7 +317,7 @@ The guard is exported from `libs/api-auth` so other modules can `@UseGuards(Fire
 ### 3.7 Cookie parsing and dev proxy
 
 - `apps/api/src/main.ts` adds `app.use(cookieParser())` before the Nest router. `cookie-parser` is added as a runtime dependency.
-- `apps/web/proxy.conf.json` (new) forwards `/api/**` to `http://127.0.0.1:5001/.../api` (the Functions emulator) and is wired into `apps/web/project.json`'s `serve` target via `proxyConfig`. The emulator path component is the project ID + region (e.g., `demo-learnwren/us-central1/api`); we'll resolve the exact form during plan execution since `apps/api` is not yet a Cloud Function — for this slice, it runs as a plain Node server on `http://127.0.0.1:3000`, and the proxy points there. When the api-as-Cloud-Function spec lands, the proxy target updates to the emulator URL.
+- `apps/web/proxy.conf.json` (new) forwards `/api/**` to `http://127.0.0.1:5001/.../api` (the Functions emulator) and is wired into `apps/web/project.json`'s `serve` target via `proxyConfig`. The emulator path component is the project ID + region (e.g., `demo-learnwren/us-central1/api`); we'll resolve the exact form during plan execution since `apps/api` is not yet a Cloud Function — for this slice, it runs as a plain Node server on `http://127.0.0.1:3333`, and the proxy points there. When the api-as-Cloud-Function spec lands, the proxy target updates to the emulator URL.
 
 ### 3.8 Error envelope
 
@@ -579,7 +579,7 @@ Executed during plan execution and recorded in the post-impl summary:
 - **Verification-link sender.** Firebase's default verification email comes from `noreply@<project>.firebaseapp.com`. Branded sender (`noreply@learn-wren.com`) requires SMTP config in the Firebase console. Out of scope; flagged for the email-templating spec.
 - **Custom-claim staleness.** Custom claims are baked into the ID token at issuance. After `setCustomUserClaims`, existing tokens stay stale until the next refresh (up to 1 hour). For *registration* and *role changes* that immediately follow a session-mint, the force-refresh in §1.3 handles it. For *out-of-band* role changes (e.g., admin promotes user-X while user-X is logged in), the next role-aware request from user-X may see the stale claim until the ID token rotates. The instructor-approval spec will need to handle this — likely by force-refreshing on the affected user's next request, or by short-circuiting via a Firestore-doc check on critical paths.
 - **`__session` name collision.** The cookie name `__session` is special-cased by Firebase Hosting. We do not use it for any other purpose. If a future spec needs another cookie, it must be a non-prefixed name and will not survive the Hosting rewrite path; that spec must address the implication.
-- **Dev-server proxy target.** For this slice the proxy points at `http://127.0.0.1:3000` (the plain Node server `nx serve api` already runs). When the api-as-Cloud-Function spec lands, the target shifts to the Functions emulator URL (`http://127.0.0.1:5001/<projectId>/<region>/api`) and `apps/web/proxy.conf.json` is updated then. No work in this slice depends on the future form.
+- **Dev-server proxy target.** For this slice the proxy points at `http://127.0.0.1:3333` (the plain Node server `nx serve api` already runs). When the api-as-Cloud-Function spec lands, the target shifts to the Functions emulator URL (`http://127.0.0.1:5001/<projectId>/<region>/api`) and `apps/web/proxy.conf.json` is updated then. No work in this slice depends on the future form.
 
 ## 8. Follow-ups Explicitly Not in Scope
 
