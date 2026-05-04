@@ -1,11 +1,6 @@
-export * from './lib/password-policy.service';
-export * from './lib/session-cookie.helper';
-export * from './lib/errors/auth-error.codes';
-export * from './lib/errors/auth.exception';
-export * from './lib/auth.exception-filter';
-export * from './lib/auth.service';
-export * from './lib/firebase-session.guard';
-export * from './lib/types/authenticated-request';
-export * from './lib/auth.controller';
-export * from './lib/dto/register.dto';
-export * from './lib/dto/session.dto';
+export { AuthModule } from './lib/auth.module';
+export { FirebaseSessionGuard } from './lib/firebase-session.guard';
+export type {
+  AuthenticatedRequest,
+  AuthenticatedUser,
+} from './lib/types/authenticated-request';

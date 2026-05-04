@@ -13,6 +13,7 @@
     "strictNullChecks": true,
     "noImplicitAny": true,
     "strictBindCallApply": true,
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true
   },
@@ -32,6 +33,9 @@
     "src/**/*.spec.jsx"
   ],
   "references": [
+    {
+      "path": "../../libs/api-auth/tsconfig.lib.json"
+    },
     {
       "path": "../../libs/api-firebase/tsconfig.lib.json"
     },
