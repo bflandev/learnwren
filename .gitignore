@@ -2,6 +2,7 @@
 .nx/
 .claude/worktrees
 .claude/settings.local.json
+.worktrees/
 
 # macOS
 .DS_Store
