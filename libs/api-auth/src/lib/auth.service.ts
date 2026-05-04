@@ -39,6 +39,14 @@ export interface SessionCookieResult {
   maxAgeSeconds: number;
 }
 
+export interface MeResponse {
+  uid: UserId;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  emailVerified: boolean;
+}
+
 const DISPLAY_NAME_MAX = 80;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SESSION_COOKIE_EXPIRES_IN_MS = 5 * 24 * 60 * 60 * 1000;
@@ -158,6 +166,39 @@ export class AuthService {
       uid: decoded.uid as UserId,
       role: decoded['role'] as UserRole,
       maxAgeSeconds: SESSION_COOKIE_MAX_AGE_SECONDS,
+    };
+  }
+
+  async logoutSideEffects(sessionCookie: string | undefined): Promise<void> {
+    if (!sessionCookie) return;
+    try {
+      const decoded = await this.auth.verifySessionCookie(sessionCookie, true);
+      await this.auth.revokeRefreshTokens(decoded['uid']);
+      this.logger.log(`[auth] logout uid=${decoded['uid']}`);
+    } catch (err) {
+      this.logger.log(`[auth] logout silent (cookie invalid): ${String(err)}`);
+    }
+  }
+
+  async getMe(
+    uid: UserId,
+    fromCookie: { email: string; emailVerified: boolean },
+  ): Promise<MeResponse> {
+    const snap = await this.firestore.collection('users').doc(uid).get();
+    if (!snap.exists) {
+      this.logger.error(`[auth] getMe missing users/${uid}`);
+      throw new InternalAuthException();
+    }
+    const data = snap.data() as {
+      displayName: string;
+      role: UserRole;
+    };
+    return {
+      uid,
+      email: fromCookie.email,
+      displayName: data.displayName,
+      role: data.role,
+      emailVerified: fromCookie.emailVerified,
     };
   }
 

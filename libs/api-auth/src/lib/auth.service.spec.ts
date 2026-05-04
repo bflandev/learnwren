@@ -275,3 +275,101 @@ describe('AuthService.createSessionCookie', () => {
     });
   });
 });
+
+describe('AuthService.logoutSideEffects', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('verifies the cookie then revokes refresh tokens for the uid', async () => {
+    const auth = {
+      ...buildFakeAuth(),
+      verifySessionCookie: vi.fn(async () => ({ uid: 'uid-abc' })),
+      revokeRefreshTokens: vi.fn(async () => undefined),
+    };
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth as unknown as FakeAuth, firestore);
+
+    await service.logoutSideEffects('valid.cookie');
+
+    expect(auth.verifySessionCookie).toHaveBeenCalledWith('valid.cookie', true);
+    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('uid-abc');
+  });
+
+  it('is a no-op when the cookie is undefined', async () => {
+    const auth = {
+      ...buildFakeAuth(),
+      verifySessionCookie: vi.fn(),
+      revokeRefreshTokens: vi.fn(),
+    };
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth as unknown as FakeAuth, firestore);
+
+    await service.logoutSideEffects(undefined);
+    expect(auth.verifySessionCookie).not.toHaveBeenCalled();
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+  });
+
+  it('silently swallows verifySessionCookie failures (does not call revoke)', async () => {
+    const auth = {
+      ...buildFakeAuth(),
+      verifySessionCookie: vi.fn(async () => {
+        throw new Error('expired');
+      }),
+      revokeRefreshTokens: vi.fn(),
+    };
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth as unknown as FakeAuth, firestore);
+
+    await expect(service.logoutSideEffects('expired.cookie')).resolves.toBeUndefined();
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService.getMe', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reads the users/{uid} doc and returns the merged shape', async () => {
+    const docData = {
+      id: 'uid-xyz',
+      email: 'me@example.com',
+      displayName: 'Me',
+      role: 'STUDENT',
+      createdAt: '2026-05-04T00:00:00.000Z',
+      updatedAt: '2026-05-04T00:00:00.000Z',
+    };
+    const get = vi.fn(async () => ({ exists: true, data: () => docData }));
+    const docFn = vi.fn(() => ({ get }));
+    const collectionFn = vi.fn(() => ({ doc: docFn }));
+    const firestore = { collection: collectionFn, _set: vi.fn() } as unknown as FakeFirestore;
+    const auth = buildFakeAuth();
+    const service = await buildModule(auth, firestore);
+
+    const result = await service.getMe('uid-xyz', { email: 'me@example.com', emailVerified: true });
+
+    expect(collectionFn).toHaveBeenCalledWith('users');
+    expect(docFn).toHaveBeenCalledWith('uid-xyz');
+    expect(result).toEqual({
+      uid: 'uid-xyz',
+      email: 'me@example.com',
+      displayName: 'Me',
+      role: 'STUDENT',
+      emailVerified: true,
+    });
+  });
+
+  it('throws InternalAuthException when the users/{uid} doc is missing', async () => {
+    const get = vi.fn(async () => ({ exists: false, data: () => undefined }));
+    const docFn = vi.fn(() => ({ get }));
+    const collectionFn = vi.fn(() => ({ doc: docFn }));
+    const firestore = { collection: collectionFn, _set: vi.fn() } as unknown as FakeFirestore;
+    const auth = buildFakeAuth();
+    const service = await buildModule(auth, firestore);
+
+    await expect(
+      service.getMe('uid-missing', { email: 'x@y.z', emailVerified: false }),
+    ).rejects.toMatchObject({ code: 'INTERNAL' });
+  });
+});
