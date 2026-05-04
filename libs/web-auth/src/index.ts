@@ -4,5 +4,6 @@ export * from './lib/web-auth/web-auth';
 export * from './lib/auth.service';
 export * from './lib/auth.guard';
 export * from './lib/login-page/login-page.component';
+export * from './lib/register-page/register-page.component';
 export * from './lib/types/authenticated-user';
 export * from './lib/types/api-error';
