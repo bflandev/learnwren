@@ -111,14 +111,63 @@ Secrets live in the 1Password vault `learnwren`. The committed `.env.tpl` refere
 
 - `@angular/fire` is currently pinned at `21.0.0-rc.0` because no stable Angular 21–compatible release exists yet. Bump to `@angular/fire@^21.x` (with a non-RC version) when GA ships.
 
+## Auth dev workflow
+
+The auth slice (UC-01-01 register + UC-01-02 login) is wired end to end. The plumbing lives in `libs/api-auth` (NestJS) and `libs/web-auth` (Angular) per `docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`.
+
+### API endpoints
+
+All under prefix `/api/auth`:
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `POST` | `/auth/register` | `{email, password, displayName}` → `201 {uid, email, emailVerificationSent}`. Validates policy server-side, creates Auth user + Firestore `users/{uid}` doc + `role: 'STUDENT'` claim, sends verification email. |
+| `POST` | `/auth/session` | `{idToken}` → `200 {uid, role}` plus `Set-Cookie: __session=...`. Verifies the ID token then mints a 5-day session cookie. |
+| `POST` | `/auth/logout` | Clears `__session` and revokes refresh tokens. Always `204`. Idempotent. |
+| `GET` | `/auth/me` | Reads the cookie, looks up `users/{uid}`, returns the merged shape `{uid, email, displayName, role, emailVerified}`. Guarded by `FirebaseSessionGuard`. |
+
+Errors are wrapped in `{ error: { code, message, details? } }`. Codes: `INVALID_EMAIL`, `WEAK_PASSWORD`, `INVALID_DISPLAY_NAME`, `EMAIL_ALREADY_EXISTS`, `INVALID_ID_TOKEN`, `RECENT_SIGN_IN_REQUIRED`, `UNAUTHENTICATED`, `INTERNAL`.
+
+### Web routes
+
+| Path | Component | Notes |
+| :--- | :--- | :--- |
+| `/login` | `LoginPageComponent` | Lazy-loaded from `@learnwren/web-auth`. |
+| `/register` | `RegisterPageComponent` | Lazy-loaded; client-side `passwordPolicyValidator` mirrors the server rules. |
+| `/dashboard` | `DashboardComponent` | Protected by `authGuard`. Stub greeting + sign-out button. |
+
+### Cookie
+
+The session cookie is named `__session` (HttpOnly, Secure, SameSite=Strict, Path=/, Max-Age=432000). The name is fixed because Firebase Hosting only forwards the `__session` cookie to a Cloud Function — choosing it now means the future Hosting-rewrite spec doesn't have to rename anything.
+
+### Local proxy
+
+The Angular dev server proxies `/api/**` to `http://127.0.0.1:3333` (the local NestJS server) via `apps/web/proxy.conf.json`. This keeps cookies first-party in dev and removes any need for CORS middleware.
+
+### Manual smoke
+
+With `pnpm emulators` and `pnpm start` running:
+
+1. Visit `http://localhost:4200/register`.
+2. Fill in display name, email, and password (e.g. `Aa1!aaaaaaaa`). Submit.
+3. Expect redirect to `/dashboard` with the welcome message.
+4. Auth emulator UI (`http://localhost:4000/auth`) shows the new user.
+5. Firestore emulator UI shows the `users/{uid}` document with `role: 'STUDENT'`.
+6. Click "Sign out" → redirect to `/login`. Sign in again with the same credentials → back to `/dashboard`.
+
+### What's deferred
+
+Email-verification gating, brute-force lockout, profile editing, instructor-role request, admin promotion, account deletion, password reset, social auth, App Check, and public-profile reads are explicitly out of scope for this slice. See the spec's "Non-Goals" and "Follow-ups Explicitly Not in Scope" sections.
+
 ## What is and is not wired up
 
-Current state: the monorepo exists, both apps run, and Firebase emulators are wired in.
+Current state: the monorepo exists, both apps run, Firebase emulators are wired in, and the auth slice (register + login + session cookie + protected route) is functional.
 
 - The Angular app renders a placeholder hero at `/` plus a dev-only "Dev tools" disclosure with a Firestore smoke widget.
-- The NestJS app exposes `GET /api/health` and `GET /api/firestore-smoke`.
+- The NestJS app exposes `GET /api/health`, `GET /api/firestore-smoke`, and the four `/api/auth/**` endpoints.
 - Both apps import types from `@learnwren/shared-data-models`.
-- `apps/api` consumes `@learnwren/api-firebase` for the firebase-admin handle.
-- Firestore and Storage rules are deny-by-default; only `_smoke/{docId}` is readable/writable.
+- `apps/api` consumes `@learnwren/api-firebase` and `@learnwren/api-auth`.
+- `apps/web` consumes `@learnwren/web-auth` for the auth service, guard, interceptor, and pages.
+- Firestore rules carry the four helpers (`isAuthenticated`, `isOwner`, `hasRole`, `isAdmin`) and the `/users/{userId}` rule.
 
-**Auth flows, per-collection rules, and DTO/validation are not yet wired.** Those are the subjects of the next two specs.
+**Profile editing, instructor-role requests, and admin tooling are not yet wired.** Those are the subjects of follow-up specs.
