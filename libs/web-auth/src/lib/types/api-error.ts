@@ -1,0 +1,17 @@
+export type ApiAuthErrorCode =
+  | 'INVALID_EMAIL'
+  | 'WEAK_PASSWORD'
+  | 'INVALID_DISPLAY_NAME'
+  | 'EMAIL_ALREADY_EXISTS'
+  | 'INVALID_ID_TOKEN'
+  | 'RECENT_SIGN_IN_REQUIRED'
+  | 'UNAUTHENTICATED'
+  | 'INTERNAL';
+
+export interface ApiAuthErrorBody {
+  error: {
+    code: ApiAuthErrorCode;
+    message: string;
+    details?: { unmetRequirements?: string[] };
+  };
+}
