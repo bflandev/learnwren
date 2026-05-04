@@ -70,6 +70,9 @@
       "continuous": true,
       "executor": "@angular/build:dev-server",
       "dependsOn": ["generate-environment"],
+      "options": {
+        "proxyConfig": "apps/web/proxy.conf.json"
+      },
       "configurations": {
         "production": {
           "buildTarget": "web:build:production"

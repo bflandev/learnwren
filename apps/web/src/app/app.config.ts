@@ -1,7 +1,10 @@
 import {
   ApplicationConfig,
+  inject,
+  provideAppInitializer,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { initializeApp, provideFirebaseApp } from '@angular/fire/app';
 import {
@@ -20,6 +23,11 @@ import {
   provideStorage,
 } from '@angular/fire/storage';
 
+import {
+  AuthService,
+  withCredentialsInterceptor,
+} from '@learnwren/web-auth';
+
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 
@@ -33,6 +41,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(appRoutes),
+    provideHttpClient(withInterceptors([withCredentialsInterceptor])),
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideAuth(() => {
       const auth = getAuth();
@@ -64,6 +73,15 @@ export const appConfig: ApplicationConfig = {
         );
       }
       return storage;
+    }),
+    provideAppInitializer(async () => {
+      const auth = inject(AuthService);
+      try {
+        await auth.refresh();
+      } catch {
+        // Bootstrap probe failed — leave currentUser as undefined and let the
+        // guard or first route attempt re-trigger refresh.
+      }
     }),
   ],
 };

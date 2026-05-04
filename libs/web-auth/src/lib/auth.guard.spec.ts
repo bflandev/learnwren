@@ -11,7 +11,7 @@ function buildState(url: string): RouterStateSnapshot {
 
 describe('authGuard', () => {
   it('triggers refresh when currentUser is undefined and allows when authenticated', async () => {
-    const refresh = vi.fn(async () => {});
+    const refresh = vi.fn(async () => undefined);
     const auth = {
       currentUser: vi.fn().mockReturnValueOnce(undefined).mockReturnValueOnce({ uid: 'a' }),
       refresh,
