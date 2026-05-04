@@ -11,6 +11,9 @@
     },
     {
       "path": "./libs/api-firebase"
+    },
+    {
+      "path": "./libs/api-auth"
     }
   ]
 }
