@@ -6,3 +6,6 @@ export * from './lib/auth.exception-filter';
 export * from './lib/auth.service';
 export * from './lib/firebase-session.guard';
 export * from './lib/types/authenticated-request';
+export * from './lib/auth.controller';
+export * from './lib/dto/register.dto';
+export * from './lib/dto/session.dto';
