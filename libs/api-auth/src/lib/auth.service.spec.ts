@@ -713,3 +713,46 @@ describe('AuthService.requestPasswordReset', () => {
     expect(spies.clear).not.toHaveBeenCalled();
   });
 });
+
+describe('AuthService.unlock', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  async function build(redeemResult: { status: 'ok' | 'invalid' | 'expired' }) {
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const rest = buildFakeRestClient();
+    const { repo: attempts, spies } = buildAttemptsMock();
+    spies.redeemUnlockToken = vi.fn(async () => redeemResult);
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        PasswordPolicyService,
+        { provide: FIREBASE_AUTH, useValue: auth },
+        { provide: FIRESTORE, useValue: firestore },
+        { provide: FirebaseAuthRestClient, useValue: rest },
+        { provide: AuthAttemptsRepository, useValue: attempts },
+      ],
+    }).compile();
+    return moduleRef.get(AuthService);
+  }
+
+  it('returns void on a valid token', async () => {
+    const service = await build({ status: 'ok' });
+    await expect(service.unlock('GOOD-TOKEN')).resolves.toBeUndefined();
+  });
+
+  it('throws INVALID_UNLOCK_TOKEN on an unknown token', async () => {
+    const service = await build({ status: 'invalid' });
+    await expect(service.unlock('BAD-TOKEN')).rejects.toBeInstanceOf(
+      InvalidUnlockTokenException,
+    );
+  });
+
+  it('throws UNLOCK_TOKEN_EXPIRED on a token whose lock has elapsed', async () => {
+    const service = await build({ status: 'expired' });
+    await expect(service.unlock('OLD-TOKEN')).rejects.toBeInstanceOf(
+      UnlockTokenExpiredException,
+    );
+  });
+});

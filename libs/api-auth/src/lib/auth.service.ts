@@ -20,7 +20,9 @@ import {
   InvalidDisplayNameException,
   InvalidEmailException,
   InternalAuthException,
+  InvalidUnlockTokenException,
   TooManyRequestsException,
+  UnlockTokenExpiredException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -382,6 +384,18 @@ export class AuthService {
       throw new InternalAuthException();
     }
     // Note: deliberate no-op on lockout state. See spec §1.5 / §E.2(ii).
+  }
+
+  async unlock(token: string): Promise<void> {
+    const result = await this.attempts.redeemUnlockToken(token);
+    if (result.status === 'ok') {
+      this.logger.log('[auth] unlock redeemed');
+      return;
+    }
+    if (result.status === 'expired') {
+      throw new UnlockTokenExpiredException();
+    }
+    throw new InvalidUnlockTokenException();
   }
 
   private isFirebaseError(err: unknown): err is { code: string } {
