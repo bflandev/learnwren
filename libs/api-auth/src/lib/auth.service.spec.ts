@@ -284,7 +284,8 @@ describe('AuthService.logoutSideEffects', () => {
   it('verifies the cookie then revokes refresh tokens for the uid', async () => {
     const auth = {
       ...buildFakeAuth(),
-      verifySessionCookie: vi.fn(async () => ({ uid: 'uid-abc' })),
+      // iat far in the past → no second-boundary sleep needed.
+      verifySessionCookie: vi.fn(async () => ({ uid: 'uid-abc', iat: 1000 })),
       revokeRefreshTokens: vi.fn(async () => undefined),
     };
     const firestore = buildFakeFirestore();
@@ -294,6 +295,33 @@ describe('AuthService.logoutSideEffects', () => {
 
     expect(auth.verifySessionCookie).toHaveBeenCalledWith('valid.cookie', true);
     expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('uid-abc');
+  });
+
+  it('sleeps to the next second boundary before revoking when the cookie was minted in the current wall-second', async () => {
+    vi.useFakeTimers();
+    // Pin clock to 1_700_000_000_250ms — 250ms into second 1_700_000_000.
+    vi.setSystemTime(new Date(1_700_000_000_250));
+    const auth = {
+      ...buildFakeAuth(),
+      // iat == current wall-second → must sleep until the next second.
+      verifySessionCookie: vi.fn(async () => ({ uid: 'uid-abc', iat: 1_700_000_000 })),
+      revokeRefreshTokens: vi.fn(async () => undefined),
+    };
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth as unknown as FakeAuth, firestore);
+
+    const pending = service.logoutSideEffects('valid.cookie');
+    // Verify hasn't been called yet (it's awaited synchronously); revoke must wait.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+    // Advance just under the boundary — still no revoke.
+    await vi.advanceTimersByTimeAsync(749);
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+    // Cross the 750ms boundary (1000 − 250) — revoke now fires.
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('uid-abc');
+    vi.useRealTimers();
   });
 
   it('is a no-op when the cookie is undefined', async () => {

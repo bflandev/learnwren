@@ -173,6 +173,20 @@ export class AuthService {
     if (!sessionCookie) return;
     try {
       const decoded = await this.auth.verifySessionCookie(sessionCookie, true);
+      // Firebase compares cookie.iat (seconds) < tokensValidAfterTime
+      // (seconds) at second precision. If revoke fires in the same wall-second
+      // the cookie was minted, the strict-less-than check still validates
+      // the cookie and the spec contract (§3.5) breaks. Wait until the next
+      // second so revokeRefreshTokens lands strictly after cookie.iat.
+      const cookieIatSec = decoded['iat'] as number | undefined;
+      if (typeof cookieIatSec === 'number') {
+        const nowMs = Date.now();
+        if (Math.floor(nowMs / 1000) <= cookieIatSec) {
+          await new Promise<void>((resolve) =>
+            setTimeout(resolve, 1000 - (nowMs % 1000)),
+          );
+        }
+      }
       await this.auth.revokeRefreshTokens(decoded['uid']);
       this.logger.log(`[auth] logout uid=${decoded['uid']}`);
     } catch (err) {
