@@ -4,120 +4,157 @@ import {
 } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { Auth } from '@angular/fire/auth';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 
 import { AuthService } from './auth.service';
 
-const fakeFirebaseUser = {
-  getIdToken: vi.fn(async () => 'fresh.id.token'),
+const baseUser = {
+  uid: 'u-1',
+  email: 'a@b.c',
+  displayName: 'A',
+  role: 'STUDENT' as const,
+  emailVerified: true,
 };
 
-const signInWithEmailAndPasswordMock = vi.fn(async () => ({
-  user: fakeFirebaseUser,
-}));
-const signOutMock = vi.fn(async () => undefined);
-
-vi.mock('@angular/fire/auth', async (orig) => {
-  const actual = (await orig<typeof import('@angular/fire/auth')>());
-  return {
-    ...actual,
-    signInWithEmailAndPassword: (...args: unknown[]) =>
-      signInWithEmailAndPasswordMock(...args),
-    signOut: (...args: unknown[]) => signOutMock(...args),
-  };
-});
-
-describe('AuthService', () => {
+describe('AuthService.login', () => {
+  let svc: AuthService;
   let httpMock: HttpTestingController;
-  let service: AuthService;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    fakeFirebaseUser.getIdToken.mockResolvedValue('fresh.id.token');
-
     TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: Auth, useValue: {} as unknown as Auth },
-        AuthService,
-      ],
+      providers: [provideHttpClient(), provideHttpClientTesting()],
     });
-
-    service = TestBed.inject(AuthService);
+    svc = TestBed.inject(AuthService);
     httpMock = TestBed.inject(HttpTestingController);
   });
 
-  it('register posts then signs in then exchanges then refreshes', async () => {
-    const promise = service.register({
+  it('happy path: posts /auth/login, sets currentUser, returns ok', async () => {
+    const promise = svc.login('a@b.c', 'pw');
+    const req = httpMock.expectOne({ method: 'POST', url: '/api/auth/login' });
+    expect(req.request.body).toEqual({ email: 'a@b.c', password: 'pw' });
+    req.flush({ uid: 'u-1', role: 'STUDENT', displayName: 'A', emailVerified: true });
+    // currentUser refresh is via /auth/me
+    const me = httpMock.expectOne({ method: 'GET', url: '/api/auth/me' });
+    me.flush(baseUser);
+    const result = await promise;
+    expect(result).toEqual({ ok: true });
+    expect(svc.currentUser()).toEqual(baseUser);
+  });
+
+  it('returns ok=false with code on 401', async () => {
+    const promise = svc.login('a@b.c', 'pw');
+    const req = httpMock.expectOne({ method: 'POST', url: '/api/auth/login' });
+    req.flush({ error: { code: 'INVALID_CREDENTIALS' } }, { status: 401, statusText: 'Unauthorized' });
+    const result = await promise;
+    expect(result).toEqual({ ok: false, code: 'INVALID_CREDENTIALS' });
+    expect(svc.currentUser()).toBeNull();
+  });
+
+  it('returns ok=false with EMAIL_NOT_VERIFIED on 403', async () => {
+    const promise = svc.login('a@b.c', 'pw');
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'EMAIL_NOT_VERIFIED', details: { resendAvailable: true } } },
+      { status: 403, statusText: 'Forbidden' },
+    );
+    expect(await promise).toEqual({
+      ok: false,
+      code: 'EMAIL_NOT_VERIFIED',
+      details: { resendAvailable: true },
+    });
+  });
+
+  it('returns ok=false with ACCOUNT_LOCKED on 423', async () => {
+    const promise = svc.login('a@b.c', 'pw');
+    httpMock.expectOne('/api/auth/login').flush(
+      {
+        error: {
+          code: 'ACCOUNT_LOCKED',
+          details: { unlockAvailableAt: '2026-05-06T01:00:00.000Z' },
+        },
+      },
+      { status: 423, statusText: 'Locked' },
+    );
+    expect(await promise).toEqual({
+      ok: false,
+      code: 'ACCOUNT_LOCKED',
+      details: { unlockAvailableAt: '2026-05-06T01:00:00.000Z' },
+    });
+  });
+});
+
+describe('AuthService.register', () => {
+  let svc: AuthService;
+  let httpMock: HttpTestingController;
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    svc = TestBed.inject(AuthService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  it('happy path: posts /auth/register, then refreshes currentUser via /auth/me', async () => {
+    const promise = svc.register({ email: 'a@b.c', password: 'pw', displayName: 'A' });
+    httpMock.expectOne('/api/auth/register').flush({
+      uid: 'u-1',
       email: 'a@b.c',
-      password: 'Aa1!aaaaaaaa',
-      displayName: 'A',
+      role: 'STUDENT',
+      emailVerified: false,
     });
+    httpMock.expectOne('/api/auth/me').flush({ ...baseUser, emailVerified: false });
+    expect(await promise).toEqual({ ok: true });
+    expect(svc.currentUser()?.emailVerified).toBe(false);
+  });
+});
 
-    const reg = httpMock.expectOne('/api/auth/register');
-    expect(reg.request.method).toBe('POST');
-    reg.flush({ uid: 'uid-1', email: 'a@b.c', emailVerificationSent: true });
-
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const session = httpMock.expectOne('/api/auth/session');
-    expect(session.request.method).toBe('POST');
-    expect(session.request.body).toEqual({ idToken: 'fresh.id.token' });
-    session.flush({ uid: 'uid-1', role: 'STUDENT' });
-
-    const me = httpMock.expectOne('/api/auth/me');
-    expect(me.request.method).toBe('GET');
-    me.flush({
-      uid: 'uid-1', email: 'a@b.c', displayName: 'A',
-      role: 'STUDENT', emailVerified: false,
+describe('AuthService.resendVerification / requestPasswordReset / unlock', () => {
+  let svc: AuthService;
+  let httpMock: HttpTestingController;
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
     });
-
-    await promise;
-    expect(service.currentUser()?.uid).toBe('uid-1');
-    expect(signInWithEmailAndPasswordMock).toHaveBeenCalledWith({}, 'a@b.c', 'Aa1!aaaaaaaa');
-    expect(fakeFirebaseUser.getIdToken).toHaveBeenCalledWith(true);
+    svc = TestBed.inject(AuthService);
+    httpMock = TestBed.inject(HttpTestingController);
   });
 
-  it('login skips /auth/register and runs the rest of the flow', async () => {
-    const promise = service.login({ email: 'a@b.c', password: 'Aa1!aaaaaaaa' });
-
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const session = httpMock.expectOne('/api/auth/session');
-    session.flush({ uid: 'uid-1', role: 'STUDENT' });
-
-    const me = httpMock.expectOne('/api/auth/me');
-    me.flush({
-      uid: 'uid-1', email: 'a@b.c', displayName: 'A',
-      role: 'STUDENT', emailVerified: false,
-    });
-
+  it('resendVerification posts to /auth/resend-verification', async () => {
+    const promise = svc.resendVerification('a@b.c');
+    const req = httpMock.expectOne('/api/auth/resend-verification');
+    expect(req.request.body).toEqual({ email: 'a@b.c' });
+    req.flush(null, { status: 202, statusText: 'Accepted' });
     await promise;
-    expect(service.currentUser()?.uid).toBe('uid-1');
-    httpMock.verify();
   });
 
-  it('refresh sets currentUser to null on 401', async () => {
-    const promise = service.refresh();
-    const me = httpMock.expectOne('/api/auth/me');
-    me.flush({ error: { code: 'UNAUTHENTICATED', message: 'no' } }, { status: 401, statusText: 'Unauthorized' });
+  it('requestPasswordReset posts to /auth/request-password-reset', async () => {
+    const promise = svc.requestPasswordReset('a@b.c');
+    const req = httpMock.expectOne('/api/auth/request-password-reset');
+    expect(req.request.body).toEqual({ email: 'a@b.c' });
+    req.flush(null, { status: 202, statusText: 'Accepted' });
     await promise;
-    expect(service.currentUser()).toBeNull();
   });
 
-  it('logout clears the signal even when the API call fails', async () => {
-    service['currentUserSignal'].set({
-      uid: 'uid-1', email: 'a@b.c', displayName: 'A', role: 'STUDENT', emailVerified: false,
-    });
-    const promise = service.logout();
-    const out = httpMock.expectOne('/api/auth/logout');
-    out.flush({ error: { code: 'INTERNAL', message: 'x' } }, { status: 500, statusText: 'Server error' });
-    await promise;
-    expect(service.currentUser()).toBeNull();
-    expect(signOutMock).toHaveBeenCalled();
+  it('unlock posts to /auth/unlock and returns ok on 204', async () => {
+    const promise = svc.unlock('TOK');
+    const req = httpMock.expectOne('/api/auth/unlock');
+    expect(req.request.body).toEqual({ token: 'TOK' });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    expect(await promise).toEqual({ ok: true });
+  });
+
+  it('unlock returns ok=false with INVALID_UNLOCK_TOKEN on 400', async () => {
+    const promise = svc.unlock('BAD');
+    httpMock
+      .expectOne('/api/auth/unlock')
+      .flush({ error: { code: 'INVALID_UNLOCK_TOKEN' } }, { status: 400, statusText: 'Bad Request' });
+    expect(await promise).toEqual({ ok: false, code: 'INVALID_UNLOCK_TOKEN' });
+  });
+
+  it('unlock returns ok=false with UNLOCK_TOKEN_EXPIRED on 410', async () => {
+    const promise = svc.unlock('OLD');
+    httpMock
+      .expectOne('/api/auth/unlock')
+      .flush({ error: { code: 'UNLOCK_TOKEN_EXPIRED' } }, { status: 410, statusText: 'Gone' });
+    expect(await promise).toEqual({ ok: false, code: 'UNLOCK_TOKEN_EXPIRED' });
   });
 });

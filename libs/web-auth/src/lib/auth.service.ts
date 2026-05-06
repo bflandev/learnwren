@@ -1,67 +1,75 @@
-import { HttpClient } from '@angular/common/http';
-import {
-  Injectable,
-  Signal,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
-import {
-  Auth,
-  signInWithEmailAndPassword,
-  signOut,
-} from '@angular/fire/auth';
-import { from, switchMap, tap } from 'rxjs';
-import { firstValueFrom } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { firstValueFrom, switchMap, tap } from 'rxjs';
 
 import type { AuthenticatedUser } from './types/authenticated-user';
+import type { ApiAuthErrorBody } from './types/api-error';
 
-interface RegisterInput {
+export interface RegisterInput {
   email: string;
   password: string;
   displayName: string;
 }
 
-interface LoginInput {
-  email: string;
-  password: string;
-}
+export type LoginErrorCode =
+  | 'INVALID_CREDENTIALS'
+  | 'EMAIL_NOT_VERIFIED'
+  | 'ACCOUNT_LOCKED'
+  | 'WEAK_PASSWORD'
+  | 'EMAIL_ALREADY_EXISTS'
+  | 'INTERNAL';
+
+export type LoginResult =
+  | { ok: true }
+  | { ok: false; code: LoginErrorCode; details?: Record<string, unknown> };
+
+export type UnlockResult =
+  | { ok: true }
+  | { ok: false; code: 'INVALID_UNLOCK_TOKEN' | 'UNLOCK_TOKEN_EXPIRED' | 'INTERNAL' };
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly firebaseAuth = inject(Auth);
   private readonly http = inject(HttpClient);
-
   private readonly currentUserSignal = signal<AuthenticatedUser | null | undefined>(undefined);
 
-  readonly currentUser: Signal<AuthenticatedUser | null | undefined> = this.currentUserSignal.asReadonly();
+  readonly currentUser: Signal<AuthenticatedUser | null | undefined> =
+    this.currentUserSignal.asReadonly();
   readonly isAuthenticated = computed(() => Boolean(this.currentUserSignal()));
 
-  async register(input: RegisterInput): Promise<void> {
-    await firstValueFrom(
-      this.http.post('/api/auth/register', input).pipe(
-        switchMap(() => this.sessionAndRefreshObservable(input.email, input.password)),
-      ),
-    );
+  async register(input: RegisterInput): Promise<LoginResult> {
+    try {
+      await firstValueFrom(
+        this.http.post('/api/auth/register', input).pipe(
+          switchMap(() => this.http.get<AuthenticatedUser>('/api/auth/me')),
+          tap(me => this.currentUserSignal.set(me)),
+        ),
+      );
+      return { ok: true };
+    } catch (err) {
+      return this.toLoginErr(err);
+    }
   }
 
-  async login(input: LoginInput): Promise<void> {
-    await firstValueFrom(
-      this.sessionAndRefreshObservable(input.email, input.password),
-    );
+  async login(email: string, password: string): Promise<LoginResult> {
+    try {
+      await firstValueFrom(
+        this.http.post('/api/auth/login', { email, password }).pipe(
+          switchMap(() => this.http.get<AuthenticatedUser>('/api/auth/me')),
+          tap(me => this.currentUserSignal.set(me)),
+        ),
+      );
+      return { ok: true };
+    } catch (err) {
+      this.currentUserSignal.set(null);
+      return this.toLoginErr(err);
+    }
   }
 
   async logout(): Promise<void> {
     try {
       await firstValueFrom(this.http.post('/api/auth/logout', {}));
     } catch {
-      // Cookie clear is server-side; even if the call fails, we proceed
-      // to clear the local session so the UI reflects logged-out state.
-    }
-    try {
-      await signOut(this.firebaseAuth);
-    } catch {
-      /* swallow — keep going to clear the signal */
+      // Server-side cookie clear is best-effort; we still clear local state.
     }
     this.currentUserSignal.set(null);
   }
@@ -81,21 +89,47 @@ export class AuthService {
     }
   }
 
-  private sessionAndRefreshObservable(email: string, password: string) {
-    return from(signInWithEmailAndPassword(this.firebaseAuth, email, password)).pipe(
-      switchMap(cred => from(cred.user.getIdToken(true))),
-      switchMap(idToken => this.http.post('/api/auth/session', { idToken })),
-      switchMap(() => this.http.get<AuthenticatedUser>('/api/auth/me')),
-      tap(me => this.currentUserSignal.set(me as AuthenticatedUser)),
-    );
+  async resendVerification(email: string): Promise<void> {
+    await firstValueFrom(this.http.post('/api/auth/resend-verification', { email }));
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    await firstValueFrom(this.http.post('/api/auth/request-password-reset', { email }));
+  }
+
+  async unlock(token: string): Promise<UnlockResult> {
+    try {
+      await firstValueFrom(this.http.post('/api/auth/unlock', { token }));
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof HttpErrorResponse) {
+        const code = (err.error as ApiAuthErrorBody | undefined)?.error?.code;
+        if (code === 'INVALID_UNLOCK_TOKEN' || code === 'UNLOCK_TOKEN_EXPIRED') {
+          return { ok: false, code };
+        }
+      }
+      return { ok: false, code: 'INTERNAL' };
+    }
+  }
+
+  private toLoginErr(err: unknown): LoginResult {
+    if (err instanceof HttpErrorResponse) {
+      const body = err.error as ApiAuthErrorBody | undefined;
+      const code = body?.error?.code;
+      if (
+        code === 'INVALID_CREDENTIALS' ||
+        code === 'EMAIL_NOT_VERIFIED' ||
+        code === 'ACCOUNT_LOCKED' ||
+        code === 'WEAK_PASSWORD' ||
+        code === 'EMAIL_ALREADY_EXISTS'
+      ) {
+        return { ok: false, code, details: body?.error?.details };
+      }
+    }
+    return { ok: false, code: 'INTERNAL' };
   }
 
   private isHttpStatus(err: unknown, status: number): boolean {
-    return (
-      typeof err === 'object' &&
-      err !== null &&
-      'status' in err &&
-      (err as { status: number }).status === status
-    );
+    return err instanceof HttpErrorResponse && err.status === status;
   }
 }

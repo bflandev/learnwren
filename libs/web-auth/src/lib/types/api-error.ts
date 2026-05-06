@@ -6,12 +6,18 @@ export type ApiAuthErrorCode =
   | 'INVALID_ID_TOKEN'
   | 'RECENT_SIGN_IN_REQUIRED'
   | 'UNAUTHENTICATED'
+  | 'INVALID_CREDENTIALS'
+  | 'EMAIL_NOT_VERIFIED'
+  | 'ACCOUNT_LOCKED'
+  | 'TOO_MANY_REQUESTS'
+  | 'INVALID_UNLOCK_TOKEN'
+  | 'UNLOCK_TOKEN_EXPIRED'
   | 'INTERNAL';
 
 export interface ApiAuthErrorBody {
   error: {
     code: ApiAuthErrorCode;
     message: string;
-    details?: { unmetRequirements?: string[] };
+    details?: Record<string, unknown>;
   };
 }
