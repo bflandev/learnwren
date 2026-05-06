@@ -15,6 +15,9 @@ dist/
 .angular
 *.tsbuildinfo
 
+# Test coverage artifacts (regenerate via `pnpm crap:coverage`)
+coverage/
+
 vite.config.*.timestamp*
 __screenshots__/
 

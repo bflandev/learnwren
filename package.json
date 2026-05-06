@@ -16,6 +16,9 @@
     "e2e": "nx run web-e2e:e2e && nx run api-e2e:e2e",
     "typecheck": "nx run-many -t typecheck",
     "affected": "nx affected -t lint test build typecheck",
+    "crap:coverage": "nx run-many -t test --coverage --coverage.reportOnFailure=true --projects=api-auth,api-firebase,web-auth,shared-data-models,api --skip-nx-cache --parallel=1 || true",
+    "crap:report": "node tools/crap/crap.mjs",
+    "crap": "pnpm crap:coverage && pnpm crap:report",
     "emulators": "firebase emulators:start",
     "secrets:render": "op inject -i .env.tpl -o .env",
     "secrets:run": "op run --env-file=.env.tpl"
