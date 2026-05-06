@@ -1,6 +1,27 @@
 import { expect, test } from '@playwright/test';
+import { createHash } from 'node:crypto';
+import * as admin from 'firebase-admin';
 
 const API_BASE = 'http://localhost:3333/api';
+
+if (admin.apps.length === 0) {
+  process.env['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099';
+  process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
+  admin.initializeApp({ projectId: 'demo-learnwren' });
+}
+
+async function markEmailVerified(uid: string): Promise<void> {
+  await admin.auth().updateUser(uid, { emailVerified: true });
+}
+
+async function readAuthAttempts(emailHash: string): Promise<{ unlockToken: string } | null> {
+  const snap = await admin.firestore().collection('auth_attempts').doc(emailHash).get();
+  if (!snap.exists) return null;
+  return snap.data() as { unlockToken: string };
+}
+
+const emailHash = (email: string) =>
+  createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
 
 const uniqueEmail = () => `auth-e2e-${Date.now()}-${Math.floor(Math.random() * 1000)}@example.com`;
 
@@ -75,4 +96,135 @@ test('register rejects a weak password with WEAK_PASSWORD and unmetRequirements'
   const body = await reg.json();
   expect(body.error.code).toBe('WEAK_PASSWORD');
   expect(body.error.details.unmetRequirements).toContain('MIN_LENGTH');
+});
+
+test('lockout flow: 3 wrong passwords → 423 → unlock token works → login succeeds', async ({ request }) => {
+  const email = uniqueEmail();
+  const password = 'Aa1!aaaaaaaa';
+  const reg = await request.post(`${API_BASE}/auth/register`, {
+    data: { email, password, displayName: 'Locker' },
+  });
+  expect(reg.status()).toBe(201);
+  await markEmailVerified((await reg.json()).uid);
+
+  for (let i = 0; i < 2; i++) {
+    const r = await request.post(`${API_BASE}/auth/login`, {
+      data: { email, password: 'wrong-1!aaaaaaa' },
+    });
+    expect(r.status()).toBe(401);
+    expect((await r.json()).error.code).toBe('INVALID_CREDENTIALS');
+  }
+
+  const third = await request.post(`${API_BASE}/auth/login`, {
+    data: { email, password: 'wrong-1!aaaaaaa' },
+  });
+  expect(third.status()).toBe(423);
+  expect((await third.json()).error.code).toBe('ACCOUNT_LOCKED');
+
+  const attempt = await request.post(`${API_BASE}/auth/login`, {
+    data: { email, password },
+  });
+  expect(attempt.status()).toBe(423);
+
+  const stored = await readAuthAttempts(emailHash(email));
+  expect(stored?.unlockToken).toBeTruthy();
+
+  const unlock = await request.post(`${API_BASE}/auth/unlock`, {
+    data: { token: stored!.unlockToken },
+  });
+  expect(unlock.status()).toBe(204);
+
+  const ok = await request.post(`${API_BASE}/auth/login`, { data: { email, password } });
+  expect(ok.status()).toBe(200);
+});
+
+test('verification gate: unverified login → 403 → flip emailVerified → 200', async ({ request }) => {
+  const email = uniqueEmail();
+  const password = 'Aa1!aaaaaaaa';
+  const reg = await request.post(`${API_BASE}/auth/register`, {
+    data: { email, password, displayName: 'Gated' },
+  });
+  expect(reg.status()).toBe(201);
+
+  const blocked = await request.post(`${API_BASE}/auth/login`, { data: { email, password } });
+  expect(blocked.status()).toBe(403);
+  expect((await blocked.json()).error.code).toBe('EMAIL_NOT_VERIFIED');
+
+  await markEmailVerified((await reg.json()).uid);
+
+  const ok = await request.post(`${API_BASE}/auth/login`, { data: { email, password } });
+  expect(ok.status()).toBe(200);
+});
+
+test('resend-verification throttle: second call within 60s returns 429', async ({ request }) => {
+  const email = uniqueEmail();
+  const reg = await request.post(`${API_BASE}/auth/register`, {
+    data: { email, password: 'Aa1!aaaaaaaa', displayName: 'R' },
+  });
+  expect(reg.status()).toBe(201);
+
+  const first = await request.post(`${API_BASE}/auth/resend-verification`, { data: { email } });
+  expect(first.status()).toBe(202);
+
+  const second = await request.post(`${API_BASE}/auth/resend-verification`, { data: { email } });
+  expect(second.status()).toBe(429);
+});
+
+test('password-reset request: returns 202 for any email', async ({ request }) => {
+  const email = uniqueEmail();
+  const reg = await request.post(`${API_BASE}/auth/register`, {
+    data: { email, password: 'Aa1!aaaaaaaa', displayName: 'Reset' },
+  });
+  expect(reg.status()).toBe(201);
+
+  const real = await request.post(`${API_BASE}/auth/request-password-reset`, { data: { email } });
+  expect(real.status()).toBe(202);
+
+  const ghost = await request.post(`${API_BASE}/auth/request-password-reset`, {
+    data: { email: 'nobody-' + email },
+  });
+  expect(ghost.status()).toBe(202);
+});
+
+test('reset request does NOT clear an active lockout', async ({ request }) => {
+  const email = uniqueEmail();
+  const password = 'Aa1!aaaaaaaa';
+  const reg = await request.post(`${API_BASE}/auth/register`, {
+    data: { email, password, displayName: 'L+R' },
+  });
+  expect(reg.status()).toBe(201);
+  await markEmailVerified((await reg.json()).uid);
+
+  for (let i = 0; i < 3; i++) {
+    await request.post(`${API_BASE}/auth/login`, {
+      data: { email, password: 'wrong-1!aaaaaaa' },
+    });
+  }
+
+  const reset = await request.post(`${API_BASE}/auth/request-password-reset`, { data: { email } });
+  expect(reset.status()).toBe(202);
+
+  const stillLocked = await request.post(`${API_BASE}/auth/login`, { data: { email, password } });
+  expect(stillLocked.status()).toBe(423);
+});
+
+test('enumeration resistance: ghost email and unverified email yield identical login responses', async ({ request }) => {
+  const ghost = await request.post(`${API_BASE}/auth/login`, {
+    data: { email: 'ghost-' + uniqueEmail(), password: 'Aa1!aaaaaaaa' },
+  });
+  expect(ghost.status()).toBe(401);
+  expect((await ghost.json()).error.code).toBe('INVALID_CREDENTIALS');
+
+  // An unverified extant user with a wrong password also reports INVALID_CREDENTIALS
+  // (the verification gate is checked AFTER the password is verified correct).
+  const realEmail = uniqueEmail();
+  const reg = await request.post(`${API_BASE}/auth/register`, {
+    data: { email: realEmail, password: 'Aa1!aaaaaaaa', displayName: 'X' },
+  });
+  expect(reg.status()).toBe(201);
+  const wrong = await request.post(`${API_BASE}/auth/login`, {
+    data: { email: realEmail, password: 'definitely-Wrong-1!' },
+  });
+  expect(wrong.status()).toBe(401);
+  expect((await wrong.json()).error.code).toBe('INVALID_CREDENTIALS');
 });
