@@ -639,3 +639,77 @@ describe('AuthService.resendVerification', () => {
     );
   });
 });
+
+describe('AuthService.requestPasswordReset', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  async function build(opts: {
+    getUserResult?: unknown | 'not-found';
+    throttle?: { throttled: boolean };
+  }) {
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const rest = buildFakeRestClient();
+    const { repo: attempts, spies } = buildAttemptsMock();
+    spies.recordPasswordResetRequest = vi.fn(async () => opts.throttle ?? { throttled: false });
+
+    if (opts.getUserResult === 'not-found') {
+      (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
+        async () => {
+          throw Object.assign(new Error('not-found'), { code: 'auth/user-not-found' });
+        },
+      );
+    } else {
+      (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
+        async () => opts.getUserResult ?? { uid: 'uid-123', email: 'alice@example.com' },
+      );
+    }
+    (auth as unknown as { generatePasswordResetLink: ReturnType<typeof vi.fn> }).generatePasswordResetLink =
+      vi.fn(async () => 'https://reset/abc');
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        PasswordPolicyService,
+        { provide: FIREBASE_AUTH, useValue: auth },
+        { provide: FIRESTORE, useValue: firestore },
+        { provide: FirebaseAuthRestClient, useValue: rest },
+        { provide: AuthAttemptsRepository, useValue: attempts },
+      ],
+    }).compile();
+    return { service: moduleRef.get(AuthService), auth, spies };
+  }
+
+  it('throws TOO_MANY_REQUESTS when within throttle window', async () => {
+    const { service } = await build({ throttle: { throttled: true } });
+    await expect(
+      service.requestPasswordReset('alice@example.com'),
+    ).rejects.toBeInstanceOf(TooManyRequestsException);
+  });
+
+  it('returns silently when user does not exist', async () => {
+    const { service, auth } = await build({ getUserResult: 'not-found' });
+    await expect(service.requestPasswordReset('ghost@example.com')).resolves.toBeUndefined();
+    expect(
+      (auth as unknown as { generatePasswordResetLink: ReturnType<typeof vi.fn> })
+        .generatePasswordResetLink,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('generates a reset link when user exists', async () => {
+    const { service, auth } = await build({});
+    await service.requestPasswordReset('alice@example.com');
+    const fn = (auth as unknown as { generatePasswordResetLink: ReturnType<typeof vi.fn> })
+      .generatePasswordResetLink;
+    expect(fn).toHaveBeenCalledWith(
+      'alice@example.com',
+      expect.objectContaining({ url: expect.stringContaining('reset=ok') }),
+    );
+  });
+
+  it('does NOT clear lockout state when called for a locked email', async () => {
+    const { service, spies } = await build({});
+    await service.requestPasswordReset('alice@example.com');
+    expect(spies.clear).not.toHaveBeenCalled();
+  });
+});

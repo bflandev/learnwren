@@ -353,6 +353,37 @@ export class AuthService {
     }
   }
 
+  async requestPasswordReset(email: string): Promise<void> {
+    const emailHash = this.attempts.emailHash(email);
+
+    const throttle = await this.attempts.recordPasswordResetRequest(emailHash);
+    if (throttle.throttled) {
+      throw new TooManyRequestsException();
+    }
+
+    try {
+      await this.auth.getUserByEmail(email);
+    } catch (err) {
+      if (this.isFirebaseError(err) && err.code === 'auth/user-not-found') {
+        return;
+      }
+      throw err;
+    }
+
+    try {
+      await this.auth.generatePasswordResetLink(email, {
+        url: this.continueUrl('/login?reset=ok'),
+      });
+      this.logger.log(`[auth] password-reset requested emailHash=${emailHash}`);
+    } catch (err) {
+      this.logger.error(
+        `[auth] password-reset generateLink failed emailHash=${emailHash}: ${String(err)}`,
+      );
+      throw new InternalAuthException();
+    }
+    // Note: deliberate no-op on lockout state. See spec §1.5 / §E.2(ii).
+  }
+
   private isFirebaseError(err: unknown): err is { code: string } {
     return typeof err === 'object' && err !== null && 'code' in err;
   }
