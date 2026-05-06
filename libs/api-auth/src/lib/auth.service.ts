@@ -10,6 +10,7 @@ import {
 import type { ISODateString, UserId, UserRole } from '@learnwren/shared-data-models';
 
 import { AuthAttemptsRepository } from './auth-attempts.repository';
+import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
 import {
@@ -79,6 +80,7 @@ export class AuthService {
     @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
     private readonly restClient: FirebaseAuthRestClient,
     private readonly attempts: AuthAttemptsRepository,
+    @Inject(EMAIL_TRANSPORT) private readonly emailTransport: EmailTransport,
   ) {}
 
   async register(input: RegisterInput): Promise<RegisterResult> {
@@ -196,11 +198,10 @@ export class AuthService {
       if (err instanceof InvalidCredentialsException) {
         const failure = await this.attempts.recordFailure(emailHash);
         if (failure.locked) {
-          // Caller (Task 13 controller) is responsible for sending the unlock email
-          // — fire-and-forget here would couple AuthService to email plumbing.
           this.logger.log(
-            `[auth] lockout fired emailHash=${emailHash} unlockToken=${failure.unlockToken?.slice(0, 6)}…`,
+            `[auth] lockout fired emailHash=${emailHash} unlockToken=${failure.unlockToken!.slice(0, 6)}…`,
           );
+          await this.dispatchUnlockEmail(input.email, failure.unlockToken!, failure.lockedUntil!);
           throw new AccountLockedException(failure.lockedUntil!);
         }
         this.logger.log(`[auth] login failed code=INVALID_CREDENTIALS emailHash=${emailHash}`);
@@ -396,6 +397,36 @@ export class AuthService {
       throw new UnlockTokenExpiredException();
     }
     throw new InvalidUnlockTokenException();
+  }
+
+  private async dispatchUnlockEmail(
+    email: string,
+    unlockToken: string,
+    unlockAvailableAt: Date,
+  ): Promise<void> {
+    // Resolve the canonical email address from Firebase to avoid sending to
+    // a typo'd address that happened to match the brute-force attempt.
+    let to: string;
+    try {
+      const userRecord = await this.auth.getUserByEmail(email);
+      to = userRecord.email!;
+    } catch {
+      // The lock fired against a non-existent account (typo or malicious
+      // probing). Don't send an email anywhere; lock is in place regardless.
+      return;
+    }
+
+    try {
+      await this.emailTransport.sendUnlockEmail({
+        to,
+        unlockUrl: `${this.continueUrl('/auth/unlock')}?token=${unlockToken}`,
+        unlockAvailableAt,
+      });
+    } catch (err) {
+      // Email is best-effort — the lock is enforced regardless. Surface the
+      // failure in logs so operators can investigate transport health.
+      this.logger.error(`[auth] unlock-email send failed: ${String(err)}`);
+    }
   }
 
   private isFirebaseError(err: unknown): err is { code: string } {

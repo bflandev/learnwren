@@ -5,6 +5,7 @@ import { FIREBASE_AUTH, FIRESTORE } from '@learnwren/api-firebase';
 
 import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { AuthService } from './auth.service';
+import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
 import {
@@ -89,6 +90,7 @@ async function buildModule(
       { provide: FIREBASE_AUTH, useValue: auth },
       { provide: FIRESTORE, useValue: firestore },
       { provide: FirebaseAuthRestClient, useValue: rest },
+      { provide: EMAIL_TRANSPORT, useValue: { sendUnlockEmail: vi.fn(async () => undefined) } },
     ],
   }).compile();
   return moduleRef.get(AuthService);
@@ -414,6 +416,7 @@ describe('AuthService.login', () => {
         { provide: FIRESTORE, useValue: firestore },
         { provide: FirebaseAuthRestClient, useValue: rest },
         { provide: AuthAttemptsRepository, useValue: attempts },
+        { provide: EMAIL_TRANSPORT, useValue: { sendUnlockEmail: vi.fn(async () => undefined) } },
       ],
     }).compile();
     return moduleRef.get(AuthService);
@@ -604,6 +607,7 @@ describe('AuthService.resendVerification', () => {
         { provide: FIRESTORE, useValue: firestore },
         { provide: FirebaseAuthRestClient, useValue: rest },
         { provide: AuthAttemptsRepository, useValue: attempts },
+        { provide: EMAIL_TRANSPORT, useValue: { sendUnlockEmail: vi.fn(async () => undefined) } },
       ],
     }).compile();
     return { service: moduleRef.get(AuthService), auth, spies };
@@ -675,6 +679,7 @@ describe('AuthService.requestPasswordReset', () => {
         { provide: FIRESTORE, useValue: firestore },
         { provide: FirebaseAuthRestClient, useValue: rest },
         { provide: AuthAttemptsRepository, useValue: attempts },
+        { provide: EMAIL_TRANSPORT, useValue: { sendUnlockEmail: vi.fn(async () => undefined) } },
       ],
     }).compile();
     return { service: moduleRef.get(AuthService), auth, spies };
@@ -732,6 +737,7 @@ describe('AuthService.unlock', () => {
         { provide: FIRESTORE, useValue: firestore },
         { provide: FirebaseAuthRestClient, useValue: rest },
         { provide: AuthAttemptsRepository, useValue: attempts },
+        { provide: EMAIL_TRANSPORT, useValue: { sendUnlockEmail: vi.fn(async () => undefined) } },
       ],
     }).compile();
     return moduleRef.get(AuthService);
@@ -754,5 +760,115 @@ describe('AuthService.unlock', () => {
     await expect(service.unlock('OLD-TOKEN')).rejects.toBeInstanceOf(
       UnlockTokenExpiredException,
     );
+  });
+});
+
+describe('AuthService.login — lock-fired email send', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function fsWithUser(uid = 'uid-123', role = 'STUDENT', displayName = 'Alice'): FakeFirestore {
+    const fs = buildFakeFirestore();
+    fs.collection = vi.fn(() => ({
+      doc: vi.fn(() => ({
+        get: vi.fn(async () => ({
+          exists: true,
+          data: () => ({ id: uid, displayName, role }),
+        })),
+        set: fs._set,
+      })),
+    })) as unknown as FakeFirestore['collection'];
+    return fs;
+  }
+
+  it('sends the unlock email when the third failure transitions to locked', async () => {
+    const { repo: attempts, spies } = buildAttemptsMock();
+    const lockedUntil = new Date(Date.now() + 15 * 60_000);
+    spies.recordFailure = vi.fn(async () => ({
+      locked: true,
+      unlockToken: 'utok-XYZ',
+      lockedUntil,
+    }));
+
+    const auth = buildFakeAuth();
+    const firestore = fsWithUser();
+    const rest = {
+      signInWithPassword: vi.fn(async () => {
+        throw new InvalidCredentialsException();
+      }),
+    } as unknown as FirebaseAuthRestClient;
+
+    const sendUnlockEmail = vi.fn(async () => undefined);
+    const emailTransport = { sendUnlockEmail } as unknown as EmailTransport;
+
+    // Resolve email from emailHash by mocking auth.getUserByEmail
+    (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
+      async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true }),
+    );
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        PasswordPolicyService,
+        { provide: FIREBASE_AUTH, useValue: auth },
+        { provide: FIRESTORE, useValue: firestore },
+        { provide: FirebaseAuthRestClient, useValue: rest },
+        { provide: AuthAttemptsRepository, useValue: attempts },
+        { provide: EMAIL_TRANSPORT, useValue: emailTransport },
+      ],
+    }).compile();
+    const service = moduleRef.get(AuthService);
+
+    await expect(
+      service.login({ email: 'alice@example.com', password: 'pw' }),
+    ).rejects.toBeInstanceOf(AccountLockedException);
+
+    expect(sendUnlockEmail).toHaveBeenCalledWith({
+      to: 'alice@example.com',
+      unlockUrl: expect.stringContaining('/auth/unlock?token=utok-XYZ'),
+      unlockAvailableAt: lockedUntil,
+    });
+  });
+
+  it('does not crash when the email transport fails (lock still fires)', async () => {
+    const { repo: attempts, spies } = buildAttemptsMock();
+    const lockedUntil = new Date(Date.now() + 15 * 60_000);
+    spies.recordFailure = vi.fn(async () => ({
+      locked: true,
+      unlockToken: 'utok',
+      lockedUntil,
+    }));
+
+    const auth = buildFakeAuth();
+    const firestore = fsWithUser();
+    const rest = {
+      signInWithPassword: vi.fn(async () => {
+        throw new InvalidCredentialsException();
+      }),
+    } as unknown as FirebaseAuthRestClient;
+    const emailTransport = {
+      sendUnlockEmail: vi.fn(async () => {
+        throw new Error('SMTP down');
+      }),
+    } as unknown as EmailTransport;
+    (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
+      async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true }),
+    );
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        PasswordPolicyService,
+        { provide: FIREBASE_AUTH, useValue: auth },
+        { provide: FIRESTORE, useValue: firestore },
+        { provide: FirebaseAuthRestClient, useValue: rest },
+        { provide: AuthAttemptsRepository, useValue: attempts },
+        { provide: EMAIL_TRANSPORT, useValue: emailTransport },
+      ],
+    }).compile();
+    const service = moduleRef.get(AuthService);
+
+    await expect(
+      service.login({ email: 'alice@example.com', password: 'pw' }),
+    ).rejects.toBeInstanceOf(AccountLockedException);
   });
 });
