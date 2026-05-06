@@ -5,131 +5,184 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { SessionCookieHelper } from './session-cookie.helper';
 import { FirebaseSessionGuard } from './firebase-session.guard';
+import {
+  AccountLockedException,
+  EmailNotVerifiedException,
+  InvalidCredentialsException,
+  InvalidUnlockTokenException,
+  TooManyRequestsException,
+  UnlockTokenExpiredException,
+} from './errors/auth.exception';
 
-interface FakeResponse {
-  setHeader: ReturnType<typeof vi.fn>;
-  status: ReturnType<typeof vi.fn>;
+function buildResMock() {
+  const headers: Record<string, string> = {};
+  return {
+    headers,
+    setHeader: vi.fn((k: string, v: string) => {
+      headers[k] = v;
+    }),
+  };
 }
 
-function buildResponse(): FakeResponse {
-  const status = vi.fn(() => ({ json: vi.fn() }));
-  return { setHeader: vi.fn(), status };
+async function buildController(authServiceMock: Partial<AuthService>) {
+  const moduleRef = await Test.createTestingModule({
+    controllers: [AuthController],
+    providers: [
+      { provide: AuthService, useValue: authServiceMock },
+      SessionCookieHelper,
+    ],
+  })
+    .overrideGuard(FirebaseSessionGuard)
+    .useValue({ canActivate: () => true })
+    .compile();
+  return moduleRef.get(AuthController);
 }
 
-describe('AuthController', () => {
-  it('register delegates to AuthService.register and returns the result', async () => {
-    const service = {
-      register: vi.fn(async () => ({
-        uid: 'uid-1',
-        email: 'a@b.c',
-        emailVerificationSent: true,
-      })),
-    } as unknown as AuthService;
-    const moduleRef = await Test.createTestingModule({
-      controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: service },
-        SessionCookieHelper,
-      ],
-    })
-      .overrideGuard(FirebaseSessionGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-    const controller = moduleRef.get(AuthController);
-
-    const result = await controller.register({
+describe('AuthController.register', () => {
+  it('sets the session cookie from the AuthService result', async () => {
+    const register = vi.fn(async () => ({
+      uid: 'uid-1',
       email: 'a@b.c',
-      password: 'Aa1!aaaaaaaa',
-      displayName: 'A',
-    });
-    expect(service.register).toHaveBeenCalled();
-    expect(result).toEqual({ uid: 'uid-1', email: 'a@b.c', emailVerificationSent: true });
-  });
-
-  it('session sets the __session cookie via Set-Cookie and returns uid + role', async () => {
-    const service = {
-      createSessionCookie: vi.fn(async () => ({
-        cookie: 'cookie.value',
-        uid: 'uid-1',
-        role: 'STUDENT',
-        maxAgeSeconds: 432000,
-      })),
-    } as unknown as AuthService;
-    const moduleRef = await Test.createTestingModule({
-      controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: service },
-        SessionCookieHelper,
-      ],
-    })
-      .overrideGuard(FirebaseSessionGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-    const controller = moduleRef.get(AuthController);
-    const res = buildResponse();
-
-    const result = await controller.session({ idToken: 'id.token' }, res as never);
-
-    expect(result).toEqual({ uid: 'uid-1', role: 'STUDENT' });
+      role: 'STUDENT',
+      cookie: 'COOKIE',
+      maxAgeSeconds: 432000,
+      emailVerificationSent: true,
+    }));
+    const ctrl = await buildController({ register } as never);
+    const res = buildResMock();
+    const body = await ctrl.register(
+      { email: 'a@b.c', password: 'Aa1!aaaaaaaa', displayName: 'A' } as never,
+      res as never,
+    );
+    expect(body).toEqual({ uid: 'uid-1', role: 'STUDENT', email: 'a@b.c', emailVerified: false });
     expect(res.setHeader).toHaveBeenCalledWith(
       'Set-Cookie',
-      '__session=cookie.value; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=432000',
+      expect.stringContaining('__session=COOKIE'),
+    );
+  });
+});
+
+describe('AuthController.login', () => {
+  it('sets the session cookie on success', async () => {
+    const login = vi.fn(async () => ({
+      uid: 'uid-1',
+      email: 'a@b.c',
+      role: 'STUDENT',
+      displayName: 'A',
+      emailVerified: true,
+      cookie: 'COOKIE',
+      maxAgeSeconds: 432000,
+    }));
+    const ctrl = await buildController({ login } as never);
+    const res = buildResMock();
+    const body = await ctrl.login({ email: 'a@b.c', password: 'pw' } as never, res as never);
+    expect(body).toEqual({ uid: 'uid-1', role: 'STUDENT', displayName: 'A', emailVerified: true });
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Set-Cookie',
+      expect.stringContaining('__session=COOKIE'),
     );
   });
 
-  it('logout clears the cookie and returns 204', async () => {
-    const service = {
-      logoutSideEffects: vi.fn(async () => undefined),
-    } as unknown as AuthService;
-    const moduleRef = await Test.createTestingModule({
-      controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: service },
-        SessionCookieHelper,
-      ],
-    })
-      .overrideGuard(FirebaseSessionGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-    const controller = moduleRef.get(AuthController);
-    const res = buildResponse();
+  it.each([
+    () => new InvalidCredentialsException(),
+    () => new EmailNotVerifiedException(),
+    () => new AccountLockedException(new Date('2026-05-06T01:00:00.000Z')),
+  ])('propagates %s without setting a cookie', async (factory) => {
+    const ex = factory();
+    const login = vi.fn(async () => {
+      throw ex;
+    });
+    const ctrl = await buildController({ login } as never);
+    const res = buildResMock();
+    await expect(
+      ctrl.login({ email: 'a@b.c', password: 'pw' } as never, res as never),
+    ).rejects.toBe(ex);
+    expect(res.setHeader).not.toHaveBeenCalled();
+  });
+});
 
-    await controller.logout({ cookies: { __session: 'old' } } as never, res as never);
+describe('AuthController.resendVerification', () => {
+  it('returns void on 202', async () => {
+    const resendVerification = vi.fn(async () => undefined);
+    const ctrl = await buildController({ resendVerification } as never);
+    await expect(
+      ctrl.resendVerification({ email: 'a@b.c' } as never),
+    ).resolves.toBeUndefined();
+  });
 
-    expect(service.logoutSideEffects).toHaveBeenCalledWith('old');
+  it('propagates TooManyRequestsException', async () => {
+    const resendVerification = vi.fn(async () => {
+      throw new TooManyRequestsException();
+    });
+    const ctrl = await buildController({ resendVerification } as never);
+    await expect(
+      ctrl.resendVerification({ email: 'a@b.c' } as never),
+    ).rejects.toBeInstanceOf(TooManyRequestsException);
+  });
+});
+
+describe('AuthController.requestPasswordReset', () => {
+  it('returns void on 202', async () => {
+    const requestPasswordReset = vi.fn(async () => undefined);
+    const ctrl = await buildController({ requestPasswordReset } as never);
+    await expect(
+      ctrl.requestPasswordReset({ email: 'a@b.c' } as never),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe('AuthController.unlock', () => {
+  it('returns void on 204', async () => {
+    const unlock = vi.fn(async () => undefined);
+    const ctrl = await buildController({ unlock } as never);
+    await expect(ctrl.unlock({ token: 'tok' } as never)).resolves.toBeUndefined();
+  });
+
+  it.each([
+    () => new InvalidUnlockTokenException(),
+    () => new UnlockTokenExpiredException(),
+  ])('propagates %s', async (factory) => {
+    const ex = factory();
+    const unlock = vi.fn(async () => {
+      throw ex;
+    });
+    const ctrl = await buildController({ unlock } as never);
+    await expect(ctrl.unlock({ token: 'tok' } as never)).rejects.toBe(ex);
+  });
+});
+
+describe('AuthController.logout', () => {
+  it('clears the cookie and calls logoutSideEffects', async () => {
+    const logoutSideEffects = vi.fn(async () => undefined);
+    const ctrl = await buildController({ logoutSideEffects } as never);
+    const res = buildResMock();
+
+    await ctrl.logout({ cookies: { __session: 'old' } } as never, res as never);
+
+    expect(logoutSideEffects).toHaveBeenCalledWith('old');
     expect(res.setHeader).toHaveBeenCalledWith(
       'Set-Cookie',
       '__session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0',
     );
   });
+});
 
-  it('me reads request.user (populated by the guard) and returns the merged response', async () => {
-    const service = {
-      getMe: vi.fn(async () => ({
-        uid: 'uid-1',
-        email: 'a@b.c',
-        displayName: 'A',
-        role: 'STUDENT',
-        emailVerified: true,
-      })),
-    } as unknown as AuthService;
-    const moduleRef = await Test.createTestingModule({
-      controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: service },
-        SessionCookieHelper,
-      ],
-    })
-      .overrideGuard(FirebaseSessionGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-    const controller = moduleRef.get(AuthController);
+describe('AuthController.me', () => {
+  it('reads request.user (populated by the guard) and returns the merged response', async () => {
+    const getMe = vi.fn(async () => ({
+      uid: 'uid-1',
+      email: 'a@b.c',
+      displayName: 'A',
+      role: 'STUDENT',
+      emailVerified: true,
+    }));
+    const ctrl = await buildController({ getMe } as never);
 
-    const result = await controller.me({
+    const result = await ctrl.me({
       user: { uid: 'uid-1', email: 'a@b.c', role: 'STUDENT', emailVerified: true },
     } as never);
 
-    expect(service.getMe).toHaveBeenCalledWith('uid-1', {
+    expect(getMe).toHaveBeenCalledWith('uid-1', {
       email: 'a@b.c',
       emailVerified: true,
     });

@@ -13,8 +13,11 @@ import type { Request, Response } from 'express';
 
 import { AuthExceptionFilter } from './auth.exception-filter';
 import { AuthService, type MeResponse } from './auth.service';
+import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { SessionDto } from './dto/session.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { UnlockDto } from './dto/unlock.dto';
 import { FirebaseSessionGuard } from './firebase-session.guard';
 import { SessionCookieHelper } from './session-cookie.helper';
 import type { AuthenticatedRequest } from './types/authenticated-request';
@@ -22,12 +25,15 @@ import type { AuthenticatedRequest } from './types/authenticated-request';
 interface RegisterResponseBody {
   uid: string;
   email: string;
-  emailVerificationSent: boolean;
+  role: string;
+  emailVerified: boolean;
 }
 
-interface SessionResponseBody {
+interface LoginResponseBody {
   uid: string;
   role: string;
+  displayName: string;
+  emailVerified: true;
 }
 
 @Controller('auth')
@@ -39,33 +45,66 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  async register(@Body() dto: RegisterDto): Promise<RegisterResponseBody> {
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<RegisterResponseBody> {
     const result = await this.authService.register({
       email: dto.email,
       password: dto.password,
       displayName: dto.displayName,
     });
+    res.setHeader(
+      'Set-Cookie',
+      this.sessionCookieHelper.toSetCookie(result.cookie, {
+        maxAgeSeconds: result.maxAgeSeconds,
+      }),
+    );
     return {
       uid: result.uid,
       email: result.email,
-      emailVerificationSent: result.emailVerificationSent,
+      role: result.role,
+      emailVerified: false, // freshly-registered accounts are unverified by definition
     };
   }
 
-  @Post('session')
+  @Post('login')
   @HttpCode(200)
-  async session(
-    @Body() dto: SessionDto,
+  async login(
+    @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<SessionResponseBody> {
-    const minted = await this.authService.createSessionCookie(dto.idToken);
+  ): Promise<LoginResponseBody> {
+    const result = await this.authService.login({ email: dto.email, password: dto.password });
     res.setHeader(
       'Set-Cookie',
-      this.sessionCookieHelper.toSetCookie(minted.cookie, {
-        maxAgeSeconds: minted.maxAgeSeconds,
+      this.sessionCookieHelper.toSetCookie(result.cookie, {
+        maxAgeSeconds: result.maxAgeSeconds,
       }),
     );
-    return { uid: minted.uid, role: minted.role };
+    return {
+      uid: result.uid,
+      role: result.role,
+      displayName: result.displayName,
+      emailVerified: result.emailVerified,
+    };
+  }
+
+  @Post('resend-verification')
+  @HttpCode(202)
+  async resendVerification(@Body() dto: ResendVerificationDto): Promise<void> {
+    await this.authService.resendVerification(dto.email);
+  }
+
+  @Post('request-password-reset')
+  @HttpCode(202)
+  async requestPasswordReset(@Body() dto: RequestPasswordResetDto): Promise<void> {
+    await this.authService.requestPasswordReset(dto.email);
+  }
+
+  @Post('unlock')
+  @HttpCode(204)
+  async unlock(@Body() dto: UnlockDto): Promise<void> {
+    await this.authService.unlock(dto.token);
   }
 
   @Post('logout')
