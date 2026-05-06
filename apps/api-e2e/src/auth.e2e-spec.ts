@@ -1,23 +1,10 @@
 import { expect, test } from '@playwright/test';
 
 const API_BASE = 'http://localhost:3333/api';
-const AUTH_EMULATOR = 'http://127.0.0.1:9099';
 
 const uniqueEmail = () => `auth-e2e-${Date.now()}-${Math.floor(Math.random() * 1000)}@example.com`;
 
-async function signInViaAuthEmulator(email: string, password: string): Promise<string> {
-  const url = `${AUTH_EMULATOR}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-api-key`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password, returnSecureToken: true }),
-  });
-  expect(res.ok).toBe(true);
-  const body = (await res.json()) as { idToken: string };
-  return body.idToken;
-}
-
-test('register → session → me → logout end-to-end against the emulator suite', async ({ request }) => {
+test('register → me → logout end-to-end (cookie set on register)', async ({ request }) => {
   const email = uniqueEmail();
   const password = 'Aa1!aaaaaaaa';
   const displayName = 'E2E Tester';
@@ -27,22 +14,10 @@ test('register → session → me → logout end-to-end against the emulator sui
   });
   expect(reg.status()).toBe(201);
   const regBody = await reg.json();
+  expect(regBody).toMatchObject({ email, role: 'STUDENT', emailVerified: false });
   expect(regBody.uid).toEqual(expect.any(String));
-  expect(regBody.email).toBe(email);
 
-  const dup = await request.post(`${API_BASE}/auth/register`, {
-    data: { email, password, displayName },
-  });
-  expect(dup.status()).toBe(409);
-  expect((await dup.json()).error.code).toBe('EMAIL_ALREADY_EXISTS');
-
-  const idToken = await signInViaAuthEmulator(email, password);
-
-  const session = await request.post(`${API_BASE}/auth/session`, {
-    data: { idToken },
-  });
-  expect(session.status()).toBe(200);
-  const sessionCookie = session.headers()['set-cookie'];
+  const sessionCookie = reg.headers()['set-cookie'];
   expect(sessionCookie).toContain('__session=');
   expect(sessionCookie).toContain('HttpOnly');
   expect(sessionCookie).toContain('SameSite=Strict');
@@ -61,6 +36,7 @@ test('register → session → me → logout end-to-end against the emulator sui
     email,
     displayName,
     role: 'STUDENT',
+    emailVerified: false,
   });
 
   const out = await request.post(`${API_BASE}/auth/logout`, {
@@ -72,6 +48,22 @@ test('register → session → me → logout end-to-end against the emulator sui
     headers: { cookie: cookieHeader },
   });
   expect(meAfter.status()).toBe(401);
+});
+
+test('register rejects duplicate email with EMAIL_ALREADY_EXISTS', async ({ request }) => {
+  const email = uniqueEmail();
+  const password = 'Aa1!aaaaaaaa';
+  const displayName = 'Dup';
+  const first = await request.post(`${API_BASE}/auth/register`, {
+    data: { email, password, displayName },
+  });
+  expect(first.status()).toBe(201);
+
+  const dup = await request.post(`${API_BASE}/auth/register`, {
+    data: { email, password, displayName },
+  });
+  expect(dup.status()).toBe(409);
+  expect((await dup.json()).error.code).toBe('EMAIL_ALREADY_EXISTS');
 });
 
 test('register rejects a weak password with WEAK_PASSWORD and unmetRequirements', async ({ request }) => {
