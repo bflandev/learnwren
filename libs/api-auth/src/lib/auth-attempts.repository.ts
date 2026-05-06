@@ -102,6 +102,7 @@ export class AuthAttemptsRepository {
     if (query.empty) return { status: 'invalid' };
 
     const docSnap = query.docs[0];
+    if (!docSnap) return { status: 'invalid' };
     const data = docSnap.data() as AuthAttemptsDoc;
 
     if (this.isExpiredLock(data.lockedUntil)) {
