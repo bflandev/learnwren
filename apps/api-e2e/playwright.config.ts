@@ -16,6 +16,10 @@ const baseURL = process.env['BASE_URL'] || 'http://localhost:3333';
  */
 export default defineConfig({
   ...nxE2EPreset(__filename, { testDir: './src' }),
+  // Picks up *.spec.ts, *.test.ts, and *.e2e-spec.ts. Default Playwright glob
+  // omits the hyphenated `-spec` form, which silently skipped the auth and
+  // firestore-rules suites.
+  testMatch: '**/*.@(spec|e2e-spec|test).?(c|m)[jt]s?(x)',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     baseURL,
