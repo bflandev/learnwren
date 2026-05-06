@@ -83,3 +83,32 @@ test('authenticated client cannot create, update, or delete /users/{anyUid}', as
   await assertFails(setDoc(doc(ctx.firestore(), 'users', 'A'), { id: 'A', role: 'STUDENT' }));
   await assertFails(deleteDoc(doc(ctx.firestore(), 'users', 'A')));
 });
+
+test('anonymous client cannot read /auth_attempts/{anyHash}', async () => {
+  const ctx = testEnv.unauthenticatedContext();
+  await assertFails(getDoc(doc(ctx.firestore(), 'auth_attempts', 'abcd1234')));
+});
+
+test('anonymous client cannot write /auth_attempts/{anyHash}', async () => {
+  const ctx = testEnv.unauthenticatedContext();
+  await assertFails(
+    setDoc(doc(ctx.firestore(), 'auth_attempts', 'abcd1234'), { failedCount: 1 }),
+  );
+});
+
+test('authenticated client cannot read /auth_attempts/{anyHash}', async () => {
+  const ctx = testEnv.authenticatedContext('A', { role: 'STUDENT' });
+  await assertFails(getDoc(doc(ctx.firestore(), 'auth_attempts', 'abcd1234')));
+});
+
+test('authenticated client cannot write /auth_attempts/{anyHash}', async () => {
+  const ctx = testEnv.authenticatedContext('A', { role: 'STUDENT' });
+  await assertFails(
+    setDoc(doc(ctx.firestore(), 'auth_attempts', 'abcd1234'), { failedCount: 1 }),
+  );
+});
+
+test('admin cannot read /auth_attempts/{anyHash}', async () => {
+  const ctx = testEnv.authenticatedContext('admin-1', { role: 'ADMIN' });
+  await assertFails(getDoc(doc(ctx.firestore(), 'auth_attempts', 'abcd1234')));
+});
