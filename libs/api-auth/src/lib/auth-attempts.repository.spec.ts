@@ -141,30 +141,48 @@ describe('AuthAttemptsRepository.recordFailure', () => {
     const result = await repo.recordFailure('hash-1');
     expect(result.locked).toBe(false);
     expect(fs._docs.get('hash-1')?.['failedCount']).toBe(1);
+    // Pins the collection name `auth_attempts` — a StringLiteral mutant
+    // dropping it to '' would write to `firestore.collection('').doc(hash)`
+    // and tests would still pass without this check.
+    expect(fs.collection).toHaveBeenCalledWith('auth_attempts');
   });
 
-  it('increments to 2 on second failure', async () => {
+  it('increments to 2 on second failure and preserves firstFailureAt', async () => {
+    const original = '2026-05-06T00:00:00.000Z';
     const fs = buildFakeFirestore({
-      'hash-1': { failedCount: 1, firstFailureAt: '2026-05-06T00:00:00.000Z' },
+      'hash-1': { failedCount: 1, firstFailureAt: original },
     });
     const repo = await buildRepo(fs);
     const result = await repo.recordFailure('hash-1');
     expect(result.locked).toBe(false);
     expect(fs._docs.get('hash-1')?.['failedCount']).toBe(2);
+    // `data.firstFailureAt = data.firstFailureAt ?? nowIso` — the LogicalOperator
+    // mutant (?? → &&) would overwrite the original timestamp with nowIso here.
+    expect(fs._docs.get('hash-1')?.['firstFailureAt']).toBe(original);
   });
 
-  it('locks on third failure with lockedUntil + unlockToken', async () => {
-    const fs = buildFakeFirestore({
-      'hash-1': { failedCount: 2, firstFailureAt: '2026-05-06T00:00:00.000Z' },
-    });
-    const repo = await buildRepo(fs);
-    const result = await repo.recordFailure('hash-1');
-    expect(result.locked).toBe(true);
-    expect(result.unlockToken).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(result.lockedUntil).toBeInstanceOf(Date);
-    const doc = fs._docs.get('hash-1')!;
-    expect(doc['failedCount']).toBe(3);
-    expect(doc['unlockToken']).toBe(result.unlockToken);
+  it('locks on third failure with lockedUntil exactly LOCKOUT_MS in the future', async () => {
+    // Pins LOCKOUT_MS = 15 * 60 * 1000 (15 minutes). ArithmeticOperator mutants
+    // on the constant or on `now + LOCKOUT_MS` would shift the value.
+    vi.useFakeTimers();
+    const frozen = new Date('2026-05-06T12:00:00.000Z');
+    vi.setSystemTime(frozen);
+    try {
+      const fs = buildFakeFirestore({
+        'hash-1': { failedCount: 2, firstFailureAt: '2026-05-06T00:00:00.000Z' },
+      });
+      const repo = await buildRepo(fs);
+      const result = await repo.recordFailure('hash-1');
+      expect(result.locked).toBe(true);
+      expect(result.unlockToken).toMatch(/^[A-Za-z0-9_-]+$/);
+      expect(result.lockedUntil).toBeInstanceOf(Date);
+      expect(result.lockedUntil!.getTime()).toBe(frozen.getTime() + 15 * 60 * 1000);
+      const doc = fs._docs.get('hash-1')!;
+      expect(doc['failedCount']).toBe(3);
+      expect(doc['unlockToken']).toBe(result.unlockToken);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('treats an auto-expired LOCKED doc as fresh on next failure', async () => {
@@ -202,6 +220,30 @@ describe('AuthAttemptsRepository.redeemUnlockToken', () => {
     const fs = buildFakeFirestore();
     const repo = await buildRepo(fs);
     expect(await repo.redeemUnlockToken('nope')).toEqual({ status: 'invalid' });
+  });
+
+  it('queries the `unlockToken` field with `==` (not any other field/op)', async () => {
+    // A StringLiteral mutant on the field name or operator would keep the
+    // shape of the query but break semantics. Capture the where() args.
+    const whereSpy = vi.fn(() => ({
+      limit: vi.fn(() => ({
+        get: vi.fn(async () => ({ empty: true, docs: [] })),
+      })),
+    }));
+    const fakeCollection = vi.fn(() => ({
+      doc: vi.fn(() => ({ get: vi.fn(), set: vi.fn(), delete: vi.fn() })),
+      where: whereSpy,
+    }));
+    const fakeFirestore = {
+      collection: fakeCollection,
+      runTransaction: vi.fn(),
+      _docs: new Map(),
+      _queryHits: new Map(),
+    } as unknown as FakeFirestore;
+    const repo = await buildRepo(fakeFirestore);
+
+    await repo.redeemUnlockToken('the-token');
+    expect(whereSpy).toHaveBeenCalledWith('unlockToken', '==', 'the-token');
   });
 
   it('returns ok and deletes the doc on a valid, non-expired token', async () => {
@@ -251,6 +293,24 @@ describe('AuthAttemptsRepository throttle helpers', () => {
     expect(await repo.recordResendVerification('hash-1')).toEqual({ throttled: false });
   });
 
+  it('recordResendVerification is NOT throttled at the exact 60_000ms boundary', async () => {
+    // The check is strict `<`. At exactly the boundary, throttled=false. A
+    // mutant flipping `<` to `<=` would throttle at the boundary too.
+    vi.useFakeTimers();
+    const now = new Date('2026-05-06T12:00:00.000Z');
+    vi.setSystemTime(now);
+    try {
+      const exactBoundary = new Date(now.getTime() - 60_000).toISOString();
+      const fs = buildFakeFirestore({
+        'hash-1': { lastResendVerificationAt: exactBoundary },
+      });
+      const repo = await buildRepo(fs);
+      expect(await repo.recordResendVerification('hash-1')).toEqual({ throttled: false });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('recordPasswordResetRequest mirrors the same throttle behavior', async () => {
     const recent = new Date(Date.now() - 30_000).toISOString();
     const fs = buildFakeFirestore({
@@ -258,5 +318,44 @@ describe('AuthAttemptsRepository throttle helpers', () => {
     });
     const repo = await buildRepo(fs);
     expect(await repo.recordPasswordResetRequest('hash-1')).toEqual({ throttled: true });
+  });
+});
+
+describe('AuthAttemptsRepository.read — lock expiry boundary', () => {
+  it('treats lockedUntil === Date.now() as expired (uses `<=` not `<`)', async () => {
+    // The boundary check is `lockedUntil.getTime() <= Date.now()`. A mutant
+    // flipping `<=` to `<` would treat the exact-equality case as still locked.
+    vi.useFakeTimers();
+    const now = new Date('2026-05-06T12:00:00.000Z');
+    vi.setSystemTime(now);
+    try {
+      const fs = buildFakeFirestore({
+        'hash-1': {
+          failedCount: 3,
+          lockedUntil: now.toISOString(),
+          unlockToken: 'tok',
+        },
+      });
+      const repo = await buildRepo(fs);
+      // Equal-to-now should be treated as expired → read returns null and the
+      // doc is lazily deleted.
+      expect(await repo.read('hash-1')).toBeNull();
+      expect(fs._docs.has('hash-1')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('treats lockedUntil === null as not expired (preserves the doc)', async () => {
+    // `if (!lockedUntil) return false;` — without that early return, a null
+    // lockedUntil flows into `new Date(null).getTime()` (== 0) and would be
+    // wrongly treated as expired.
+    const fs = buildFakeFirestore({
+      'hash-1': { failedCount: 1, firstFailureAt: '2026-05-06T00:00:00.000Z', lockedUntil: null },
+    });
+    const repo = await buildRepo(fs);
+    const doc = await repo.read('hash-1');
+    expect(doc).not.toBeNull();
+    expect(fs._docs.has('hash-1')).toBe(true);
   });
 });

@@ -20,6 +20,8 @@ The report:
 
 Auth code targets **90%+** mutation score per the mutation-testing skill. Treat survivors as latent bugs, not as cosmetic gaps.
 
+The current score is **88.94% headline** / **97.10% after equivalent-mutant classification** — meeting the auth target. The classifier (in `tools/mutation/report.mjs`) auto-detects three equivalent patterns: (1) string literals inside logger calls (single- and multi-line), (2) `Logger` constructor names, (3) catch blocks whose body is only logging. Other survivors require manual review.
+
 ## CRAP score
 
 [`crap-report.md`](./crap-report.md) ranks methods by **Change Risk Anti-Pattern** score (Savoia & Evans):

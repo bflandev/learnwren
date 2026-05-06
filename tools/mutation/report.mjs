@@ -147,14 +147,81 @@ function isLikelyLoggerLine(source, line) {
   return /(logger|console|log)\.(log|warn|error|info|debug)\(/.test(readSourceLine(source, line));
 }
 
-function isLikelyEquivalent(mutant, source) {
-  // Logger string literals are the canonical equivalent class for backend code.
-  if (mutant.mutatorName === 'StringLiteral') {
-    if (isLikelyLoggerLine(source, mutant.location.start.line)) return true;
+// Walk backward up to 8 lines looking for an unclosed `logger.X(` call. Used
+// to detect string literals / logical operators inside multi-line logger
+// invocations, where the mutant line itself doesn't contain `logger.`.
+function isInsideLoggerCall(source, line) {
+  const lines = source.split('\n');
+  let openParens = 0;
+  for (let i = line - 1; i >= Math.max(0, line - 8); i--) {
+    const l = lines[i] ?? '';
+    for (const ch of l) {
+      if (ch === ')') openParens -= 1;
+      else if (ch === '(') openParens += 1;
+    }
+    if (openParens > 0 && /(logger|console|log)\.(log|warn|error|info|debug)\(/.test(l)) {
+      return true;
+    }
+    // If we crossed a non-comment statement terminator without finding logger, stop.
+    if (i < line - 1 && /;\s*$/.test(l)) break;
   }
-  // Class-name string passed to `new Logger(...)`.
+  return false;
+}
+
+// Detect catch blocks whose entire body is a single logger.X(...) call. A
+// BlockStatement mutant emptying such a catch is observably equivalent —
+// both versions silently swallow the error.
+function isCatchWithOnlyLogging(source, line) {
+  const lines = source.split('\n');
+  if (!/}?\s*catch(\s|\()/.test(lines[line - 1] ?? '')) return false;
+  // Body starts on the line after the catch header. We assume depth=1 right
+  // inside the catch and walk until matching `}`.
+  let depth = 1;
+  let sawLogger = false;
+  let sawNonLogger = false;
+  for (let i = line; i < Math.min(lines.length, line + 14); i++) {
+    const l = lines[i] ?? '';
+    if (/(logger|console|log)\.(log|warn|error|info|debug)\(/.test(l)) {
+      sawLogger = true;
+    } else if (/\S/.test(l)) {
+      // Allow lines that are just continuations (closing brackets, commas,
+      // string literals on their own line) of a multi-line logger call.
+      const stripped = l.trim();
+      const isContinuation =
+        /^[)\]},;]/.test(stripped) || /^['"`]/.test(stripped) || /^\/\//.test(stripped);
+      if (!isContinuation) sawNonLogger = true;
+    }
+    for (const ch of l) {
+      if (ch === '{') depth += 1;
+      else if (ch === '}') depth -= 1;
+    }
+    if (depth <= 0) break;
+  }
+  return sawLogger && !sawNonLogger;
+}
+
+function isLikelyEquivalent(mutant, source) {
   const line = readSourceLine(source, mutant.location.start.line);
+
+  // Class-name string passed to `new Logger(...)`.
   if (mutant.mutatorName === 'StringLiteral' && /new\s+Logger\(/.test(line)) return true;
+
+  // String literal directly inside a logger call (single-line) or inside a
+  // multi-line logger call.
+  if (
+    (mutant.mutatorName === 'StringLiteral' || mutant.mutatorName === 'LogicalOperator' ||
+      mutant.mutatorName === 'MethodExpression') &&
+    (isLikelyLoggerLine(source, mutant.location.start.line) ||
+      isInsideLoggerCall(source, mutant.location.start.line))
+  ) {
+    return true;
+  }
+
+  // BlockStatement on a catch whose body is only logging — swallowing equals swallowing.
+  if (mutant.mutatorName === 'BlockStatement' && isCatchWithOnlyLogging(source, mutant.location.start.line)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -276,16 +343,24 @@ function buildReport(report) {
     out.push('_None proposed._');
   } else {
     out.push(
-      'These survivors are flagged as likely equivalent (mostly logger string content). Review and confirm before excluding from the score:',
+      'These survivors are flagged as likely equivalent (mostly logger observability). Review and confirm before excluding from the score:',
     );
     out.push('');
     out.push('| File:line | Mutator | Reason |');
     out.push('|-----------|---------|--------|');
     for (const m of equivalentCandidates) {
       const rel = m.file.replace(/^libs\/api-auth\//, '');
-      const reason = /new\s+Logger\(/.test(readSourceLine(m.source, m.location.start.line))
-        ? 'Logger name passed to `new Logger(...)` — observability, not behavior.'
-        : 'String literal passed to a logger call — log content is observability, not behavior.';
+      const line = readSourceLine(m.source, m.location.start.line);
+      let reason;
+      if (/new\s+Logger\(/.test(line)) {
+        reason = 'Logger name passed to `new Logger(...)` — observability, not behavior.';
+      } else if (m.mutatorName === 'BlockStatement') {
+        reason = 'Catch block contains only logging — emptying it preserves the silent-swallow behavior.';
+      } else if (m.mutatorName === 'LogicalOperator' || m.mutatorName === 'MethodExpression') {
+        reason = 'Operator/expression inside a logger call — affects log content only, not behavior.';
+      } else {
+        reason = 'String literal inside a logger call — log content is observability, not behavior.';
+      }
       out.push(`| \`${rel}:${m.location.start.line}\` | ${m.mutatorName} | ${reason} |`);
     }
     out.push('');

@@ -58,4 +58,33 @@ describe('FirebaseSessionGuard', () => {
       emailVerified: true,
     });
   });
+
+  it('throws UNAUTHENTICATED when req.cookies is undefined entirely (not just empty)', async () => {
+    // The guard uses `req.cookies?.[NAME]` — if cookie-parser middleware didn't
+    // run, req.cookies is undefined, not {}. The optional-chain must handle it.
+    const verify = vi.fn();
+    const guard = new FirebaseSessionGuard(buildAuth(verify) as never);
+    await expect(guard.canActivate(buildContext(undefined))).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('defaults user.email to the empty string when decoded.email is missing', async () => {
+    // Service-account-issued cookies sometimes lack `email`. The guard must
+    // populate req.user.email with '' rather than undefined so downstream
+    // controllers can rely on the field being a string.
+    const verify = vi.fn(async () => ({
+      uid: 'uid-1',
+      // no email field
+      role: 'STUDENT',
+      email_verified: false,
+    }));
+    const guard = new FirebaseSessionGuard(buildAuth(verify) as never);
+    const ctx = buildContext({ __session: 'no.email.cookie' });
+
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    const req = ctx.switchToHttp().getRequest<{ user?: { email: string } }>();
+    expect(req.user?.email).toBe('');
+  });
 });

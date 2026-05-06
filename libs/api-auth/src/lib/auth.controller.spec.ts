@@ -55,9 +55,23 @@ describe('AuthController.register', () => {
       res as never,
     );
     expect(body).toEqual({ uid: 'uid-1', role: 'STUDENT', email: 'a@b.c', emailVerified: false });
+    // Pin the exact body forwarded to the service so an empty-object mutant
+    // cannot replace the destructured request fields.
+    expect(register).toHaveBeenCalledWith({
+      email: 'a@b.c',
+      password: 'Aa1!aaaaaaaa',
+      displayName: 'A',
+    });
     expect(res.setHeader).toHaveBeenCalledWith(
       'Set-Cookie',
       expect.stringContaining('__session=COOKIE'),
+    );
+    // Pin the cookie's Max-Age — derived from maxAgeSeconds passed to
+    // toSetCookie's options object. An ObjectLiteral mutant on `{ maxAgeSeconds }`
+    // would drop the field and fall through to the helper's default.
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Set-Cookie',
+      expect.stringContaining('Max-Age=432000'),
     );
   });
 });
@@ -77,9 +91,14 @@ describe('AuthController.login', () => {
     const res = buildResMock();
     const body = await ctrl.login({ email: 'a@b.c', password: 'pw' } as never, res as never);
     expect(body).toEqual({ uid: 'uid-1', role: 'STUDENT', displayName: 'A', emailVerified: true });
+    expect(login).toHaveBeenCalledWith({ email: 'a@b.c', password: 'pw' });
     expect(res.setHeader).toHaveBeenCalledWith(
       'Set-Cookie',
       expect.stringContaining('__session=COOKIE'),
+    );
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Set-Cookie',
+      expect.stringContaining('Max-Age=432000'),
     );
   });
 
@@ -122,12 +141,16 @@ describe('AuthController.resendVerification', () => {
 });
 
 describe('AuthController.requestPasswordReset', () => {
-  it('returns void on 202', async () => {
+  it('forwards the email to the service and returns void on 202', async () => {
+    // The handler body must call authService.requestPasswordReset(dto.email).
+    // A BlockStatement mutant emptying the function body would still resolve
+    // void, so we assert the side effect explicitly.
     const requestPasswordReset = vi.fn(async () => undefined);
     const ctrl = await buildController({ requestPasswordReset } as never);
     await expect(
       ctrl.requestPasswordReset({ email: 'a@b.c' } as never),
     ).resolves.toBeUndefined();
+    expect(requestPasswordReset).toHaveBeenCalledWith('a@b.c');
   });
 });
 
@@ -160,6 +183,23 @@ describe('AuthController.logout', () => {
     await ctrl.logout({ cookies: { __session: 'old' } } as never, res as never);
 
     expect(logoutSideEffects).toHaveBeenCalledWith('old');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Set-Cookie',
+      '__session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0',
+    );
+  });
+
+  it('passes undefined to logoutSideEffects when req.cookies is missing entirely', async () => {
+    // The controller uses `req.cookies?.[NAME]` — without optional chaining
+    // it would throw on requests where cookie-parser hasn't run. Verifies
+    // the optional chain isn't dropped.
+    const logoutSideEffects = vi.fn(async () => undefined);
+    const ctrl = await buildController({ logoutSideEffects } as never);
+    const res = buildResMock();
+
+    await ctrl.logout({} as never, res as never);
+
+    expect(logoutSideEffects).toHaveBeenCalledWith(undefined);
     expect(res.setHeader).toHaveBeenCalledWith(
       'Set-Cookie',
       '__session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0',

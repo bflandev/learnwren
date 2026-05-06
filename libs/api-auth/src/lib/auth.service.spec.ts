@@ -99,6 +99,7 @@ async function buildModule(
 describe('AuthService.register', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env['LEARNWREN_PUBLIC_URL'];
   });
 
   const validInput = {
@@ -139,6 +140,35 @@ describe('AuthService.register', () => {
       maxAgeSeconds: 5 * 24 * 60 * 60,
       emailVerificationSent: true,
     });
+  });
+
+  it('rollback: mintSessionCookie verifyIdToken failure produces InternalAuthException + delete', async () => {
+    // Inside mintSessionCookie, a failed verifyIdToken must rethrow as
+    // InternalAuthException. A BlockStatement mutant emptying that catch
+    // would let register return without a cookie or with an unrelated error.
+    const auth = buildFakeAuth({
+      verifyIdToken: vi.fn(async () => {
+        throw new Error('verifyIdToken failed');
+      }),
+    });
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+
+    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+  });
+
+  it('rollback: mintSessionCookie createSessionCookie failure produces InternalAuthException + delete', async () => {
+    const auth = buildFakeAuth({
+      createSessionCookie: vi.fn(async () => {
+        throw new Error('createSessionCookie failed');
+      }),
+    });
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+
+    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
   });
 
   it('rollback: signInWithPassword failure deletes the just-created user', async () => {
@@ -186,6 +216,125 @@ describe('AuthService.register', () => {
       InvalidEmailException,
     );
     expect(auth.createUser).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['leading garbage', 'xx alice@example.com'],
+    ['trailing garbage', 'alice@example.com extra'],
+    ['no @', 'aliceexample.com'],
+    ['no .', 'alice@examplecom'],
+  ])('rejects with InvalidEmailException — %s', async (_label, badEmail) => {
+    // Pins the EMAIL_REGEX anchors `^...$` so a Regex mutant dropping either
+    // anchor is caught — it would otherwise accept emails with surrounding text.
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+
+    await expect(service.register({ ...validInput, email: badEmail })).rejects.toBeInstanceOf(
+      InvalidEmailException,
+    );
+    expect(auth.createUser).not.toHaveBeenCalled();
+  });
+
+  it('rejects with InvalidDisplayNameException when displayName exceeds 80 characters', async () => {
+    // Pins the upper bound: a ConditionalExpression mutant that strips this
+    // guard would let arbitrarily long names through to Firebase.
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+    const tooLong = 'a'.repeat(81);
+
+    await expect(
+      service.register({ ...validInput, displayName: tooLong }),
+    ).rejects.toBeInstanceOf(InvalidDisplayNameException);
+    expect(auth.createUser).not.toHaveBeenCalled();
+  });
+
+  it('accepts a displayName at the 80-character boundary', async () => {
+    // Lower-bound counterpart: displayName.length === 80 is valid; the guard
+    // is `> DISPLAY_NAME_MAX`, not `>=`.
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const rest = buildFakeRestClient();
+    const service = await buildModule(auth, firestore, rest);
+    const justFits = 'a'.repeat(80);
+
+    await expect(
+      service.register({ ...validInput, displayName: justFits }),
+    ).resolves.toMatchObject({ uid: 'uid-123' });
+  });
+
+  it('maps a non-email-already-exists Firebase error to InternalAuthException with rollback skipped', async () => {
+    // The catch branches on `err.code === 'auth/email-already-exists'` —
+    // mutants flipping this to `true` or `||` would either misclassify any
+    // failure as duplicate-email or strip the magic-code guard. Send a
+    // different code through and assert it falls through to internal error.
+    const auth = buildFakeAuth({
+      createUser: vi.fn(async () => {
+        const e = new Error('quota');
+        (e as unknown as { code: string }).code = 'auth/quota-exceeded';
+        throw e;
+      }),
+    });
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+
+    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    // No user was created, so no rollback to call.
+    expect(auth.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('does not crash when a non-object value is thrown by createUser', async () => {
+    // `isFirebaseError` checks `typeof err === 'object' && err !== null`.
+    // Without those guards, `'code' in err` would TypeError on a primitive
+    // throw — register would reject with a TypeError instead of
+    // InternalAuthException.
+    const auth = buildFakeAuth({
+      createUser: vi.fn(async () => {
+        throw 'string-not-error';
+      }),
+    });
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+
+    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+  });
+
+  it('writes the user doc to `users/{uid}` with role STUDENT and the validated email/displayName', async () => {
+    // Pins both the collection path and the doc shape: ObjectLiteral / String
+    // mutants would either drop fields from the set payload or change the
+    // collection name (e.g. `''` instead of `'users'`).
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+
+    await service.register(validInput);
+
+    expect(firestore.collection).toHaveBeenCalledWith('users');
+    expect(firestore._set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'uid-123',
+        email: validInput.email,
+        displayName: validInput.displayName,
+        role: 'STUDENT',
+      }),
+    );
+  });
+
+  it('grants the STUDENT custom claim and sends the verification link to the registered email', async () => {
+    // Pins setCustomUserClaims args (the `'STUDENT'` string) and the
+    // generateEmailVerificationLink options object (its url field).
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+
+    await service.register(validInput);
+
+    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('uid-123', { role: 'STUDENT' });
+    expect(auth.generateEmailVerificationLink).toHaveBeenCalledWith(
+      validInput.email,
+      { url: 'http://localhost:4200/login' },
+    );
   });
 
   it('maps auth/email-already-exists to EmailAlreadyExistsException with no rollback', async () => {
@@ -266,6 +415,34 @@ describe('AuthService.logoutSideEffects', () => {
 
     expect(auth.verifySessionCookie).toHaveBeenCalledWith('valid.cookie', true);
     expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('uid-abc');
+  });
+
+  it('does NOT sleep when cookie iat is far in the past', async () => {
+    // Pins the boundary check `Math.floor(nowMs/1000) <= cookieIatSec`. A
+    // ConditionalExpression mutant flipping it to `true` would force a
+    // setTimeout for any cookie, blocking logout up to a second. With fake
+    // timers and no advance, the original code resolves immediately; the
+    // mutant would only resolve after timers are advanced.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-05-06T12:00:00.000Z'));
+      const auth = {
+        ...buildFakeAuth(),
+        verifySessionCookie: vi.fn(async () => ({ uid: 'uid-abc', iat: 1000 })),
+        revokeRefreshTokens: vi.fn(async () => undefined),
+      };
+      const firestore = buildFakeFirestore();
+      const service = await buildModule(auth as unknown as FakeAuth, firestore);
+
+      const pending = service.logoutSideEffects('valid.cookie');
+      // Drain microtasks only — no real time elapses.
+      await vi.advanceTimersByTimeAsync(0);
+      await pending;
+
+      expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('uid-abc');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('sleeps to the next second boundary before revoking when the cookie was minted in the current wall-second', async () => {
@@ -546,6 +723,89 @@ describe('AuthService.login', () => {
     await expect(service.login(validInput)).rejects.toBeInstanceOf(AccountLockedException);
   });
 
+  it('reads the user doc at users/{uid} and verifies the ID token with checkRevoked=true', async () => {
+    // Pins both collection name and the verifyIdToken second arg. A
+    // BooleanLiteral mutant flipping `true` to `false` would silently disable
+    // revocation checking — a security regression.
+    const auth = buildFakeAuth({
+      verifyIdToken: vi.fn(async () => ({
+        uid: 'uid-123',
+        email: 'alice@example.com',
+        role: 'STUDENT',
+        email_verified: true,
+      })),
+    });
+    (auth as unknown as { getUser: ReturnType<typeof vi.fn> }).getUser = vi.fn(async () => ({
+      uid: 'uid-123',
+      email: 'alice@example.com',
+      emailVerified: true,
+      displayName: 'Alice',
+    }));
+    const firestore = fsWithUser();
+    const rest = buildFakeRestClient('ID-TOKEN');
+    const { repo: attempts } = buildAttemptsMock();
+    const service = await buildLoginModule(auth, firestore, rest, attempts);
+
+    await service.login(validInput);
+
+    // verifyIdToken is called twice: once for the email-verification gate at
+    // login (must be checkRevoked=true) and once inside mintSessionCookie.
+    // Pin the first call specifically — a BooleanLiteral mutant flipping the
+    // gate's `true` to `false` would silently disable revocation checking.
+    expect(auth.verifyIdToken).toHaveBeenNthCalledWith(1, 'ID-TOKEN', true);
+    expect(firestore.collection).toHaveBeenCalledWith('users');
+  });
+
+  it('throws InternalAuthException when the user doc is missing on login', async () => {
+    // The `if (!userDoc.exists)` guard rejects logins for users that exist in
+    // Firebase Auth but not Firestore. A ConditionalExpression mutant flipping
+    // it to `false` would let a malformed account return a session.
+    const auth = buildFakeAuth({
+      verifyIdToken: vi.fn(async () => ({
+        uid: 'uid-orphan',
+        email: 'alice@example.com',
+        role: 'STUDENT',
+        email_verified: true,
+      })),
+    });
+    (auth as unknown as { getUser: ReturnType<typeof vi.fn> }).getUser = vi.fn(async () => ({
+      uid: 'uid-orphan',
+      email: 'alice@example.com',
+      emailVerified: true,
+      displayName: 'Alice',
+    }));
+    const fs = buildFakeFirestore();
+    fs.collection = vi.fn(() => ({
+      doc: vi.fn(() => ({
+        get: vi.fn(async () => ({ exists: false, data: () => undefined })),
+        set: fs._set,
+      })),
+    })) as unknown as FakeFirestore['collection'];
+    const rest = buildFakeRestClient('ID-TOKEN');
+    const { repo: attempts } = buildAttemptsMock();
+    const service = await buildLoginModule(auth, fs, rest, attempts);
+
+    await expect(service.login(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+  });
+
+  it('propagates a non-InvalidCredentials error from REST without incrementing failure counter', async () => {
+    // The `if (err instanceof InvalidCredentialsException)` branch records a
+    // failure attempt; a ConditionalExpression mutant flipping it to `true`
+    // would record a failure for any upstream error (e.g. transient network).
+    const { repo: attempts, spies } = buildAttemptsMock();
+    const auth = buildFakeAuth();
+    const firestore = fsWithUser();
+    const rest = {
+      signInWithPassword: vi.fn(async () => {
+        throw new InternalAuthException();
+      }),
+    } as unknown as FirebaseAuthRestClient;
+    const service = await buildLoginModule(auth, firestore, rest, attempts);
+
+    await expect(service.login(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    expect(spies.recordFailure).not.toHaveBeenCalled();
+  });
+
   it('throws EMAIL_NOT_VERIFIED without incrementing the counter when emailVerified=false', async () => {
     const { repo: attempts, spies } = buildAttemptsMock();
     const auth = buildFakeAuth({
@@ -574,7 +834,10 @@ describe('AuthService.login', () => {
 });
 
 describe('AuthService.resendVerification', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env['LEARNWREN_PUBLIC_URL'];
+  });
 
   async function buildResendModule(opts: {
     getUserResult?: unknown | 'not-found';
@@ -637,15 +900,49 @@ describe('AuthService.resendVerification', () => {
   it('generates a verification link when user exists and is unverified', async () => {
     const { service, auth } = await buildResendModule({});
     await service.resendVerification('alice@example.com');
+    // Pin the exact URL — kills LogicalOperator + StringLiteral mutants on
+    // the `process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200'`
+    // default, and ObjectLiteral mutants on the link options.
     expect(auth.generateEmailVerificationLink).toHaveBeenCalledWith(
       'alice@example.com',
-      expect.objectContaining({ url: expect.stringContaining('/login') }),
+      { url: 'http://localhost:4200/login' },
+    );
+  });
+
+  it('propagates a non-user-not-found Firebase error from getUserByEmail (does not silently succeed)', async () => {
+    // The catch only swallows `auth/user-not-found` for enumeration resistance.
+    // A ConditionalExpression mutant flipping the guard to `true` would
+    // silently swallow ANY Firebase error and return success.
+    const { service, auth } = await buildResendModule({});
+    (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
+      async () => {
+        throw Object.assign(new Error('quota'), { code: 'auth/quota-exceeded' });
+      },
+    );
+    await expect(service.resendVerification('alice@example.com')).rejects.toMatchObject({
+      code: 'auth/quota-exceeded',
+    });
+  });
+
+  it('throws InternalAuthException when generateEmailVerificationLink fails', async () => {
+    // The catch around the Firebase call rethrows InternalAuthException. A
+    // BlockStatement mutant emptying the catch body would let the original
+    // failure bubble up unmapped — losing the consistent error contract.
+    const { service, auth } = await buildResendModule({});
+    auth.generateEmailVerificationLink = vi.fn(async () => {
+      throw new Error('Admin SDK timeout');
+    });
+    await expect(service.resendVerification('alice@example.com')).rejects.toBeInstanceOf(
+      InternalAuthException,
     );
   });
 });
 
 describe('AuthService.requestPasswordReset', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env['LEARNWREN_PUBLIC_URL'];
+  });
 
   async function build(opts: {
     getUserResult?: unknown | 'not-found';
@@ -706,9 +1003,36 @@ describe('AuthService.requestPasswordReset', () => {
     await service.requestPasswordReset('alice@example.com');
     const fn = (auth as unknown as { generatePasswordResetLink: ReturnType<typeof vi.fn> })
       .generatePasswordResetLink;
+    // Pin the full URL so a StringLiteral mutant cannot drop `?reset=ok` (the
+    // signal the front-end uses to render the success state).
     expect(fn).toHaveBeenCalledWith(
       'alice@example.com',
-      expect.objectContaining({ url: expect.stringContaining('reset=ok') }),
+      { url: 'http://localhost:4200/login?reset=ok' },
+    );
+  });
+
+  it('propagates a non-user-not-found Firebase error from getUserByEmail (does not silently succeed)', async () => {
+    const { service, auth } = await build({});
+    (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
+      async () => {
+        throw Object.assign(new Error('quota'), { code: 'auth/quota-exceeded' });
+      },
+    );
+    await expect(service.requestPasswordReset('alice@example.com')).rejects.toMatchObject({
+      code: 'auth/quota-exceeded',
+    });
+  });
+
+  it('throws InternalAuthException when generatePasswordResetLink fails', async () => {
+    // Same contract as resendVerification — the catch must rethrow as
+    // InternalAuthException, not let the Admin SDK error bubble up unmapped.
+    const { service, auth } = await build({});
+    (auth as unknown as { generatePasswordResetLink: ReturnType<typeof vi.fn> })
+      .generatePasswordResetLink = vi.fn(async () => {
+      throw new Error('Admin SDK timeout');
+    });
+    await expect(service.requestPasswordReset('alice@example.com')).rejects.toBeInstanceOf(
+      InternalAuthException,
     );
   });
 
@@ -827,6 +1151,57 @@ describe('AuthService.login — lock-fired email send', () => {
       unlockUrl: expect.stringContaining('/auth/unlock?token=utok-XYZ'),
       unlockAvailableAt: lockedUntil,
     });
+  });
+
+  it('does NOT send an unlock email when the locked-out email maps to no user', async () => {
+    // dispatchUnlockEmail catches getUserByEmail and returns. A BlockStatement
+    // mutant emptying the catch block would skip the early return and call
+    // sendUnlockEmail with `to=undefined`, sending mail nowhere (or worse,
+    // spraying it through the transport).
+    const { repo: attempts, spies } = buildAttemptsMock();
+    const lockedUntil = new Date(Date.now() + 15 * 60_000);
+    spies.recordFailure = vi.fn(async () => ({
+      locked: true,
+      unlockToken: 'utok',
+      lockedUntil,
+    }));
+
+    const auth = buildFakeAuth();
+    const firestore = fsWithUser();
+    const rest = {
+      signInWithPassword: vi.fn(async () => {
+        throw new InvalidCredentialsException();
+      }),
+    } as unknown as FirebaseAuthRestClient;
+    const sendUnlockEmail = vi.fn(async () => undefined);
+    const emailTransport = { sendUnlockEmail } as unknown as EmailTransport;
+
+    // The brute-force attempt was against a typo'd address: getUserByEmail
+    // throws auth/user-not-found.
+    (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
+      async () => {
+        throw Object.assign(new Error('not found'), { code: 'auth/user-not-found' });
+      },
+    );
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        PasswordPolicyService,
+        { provide: FIREBASE_AUTH, useValue: auth },
+        { provide: FIRESTORE, useValue: firestore },
+        { provide: FirebaseAuthRestClient, useValue: rest },
+        { provide: AuthAttemptsRepository, useValue: attempts },
+        { provide: EMAIL_TRANSPORT, useValue: emailTransport },
+      ],
+    }).compile();
+    const service = moduleRef.get(AuthService);
+
+    await expect(
+      service.login({ email: 'typo@example.com', password: 'pw' }),
+    ).rejects.toBeInstanceOf(AccountLockedException);
+
+    expect(sendUnlockEmail).not.toHaveBeenCalled();
   });
 
   it('does not crash when the email transport fails (lock still fires)', async () => {

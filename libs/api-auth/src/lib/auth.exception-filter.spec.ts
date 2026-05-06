@@ -74,6 +74,24 @@ describe('AuthExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith({
       error: { code: 'UNAUTHENTICATED', message: 'unauth msg' },
     });
+    // Vitest's toHaveBeenCalledWith treats { details: undefined } as matching
+    // { } — so explicitly check the body has no details key when the exception
+    // doesn't carry any. Without this, an `if (true)` mutant on `if (details)`
+    // can slip through.
+    const body = (json.mock.calls[0]![0] as { error: Record<string, unknown> }).error;
+    expect(Object.prototype.hasOwnProperty.call(body, 'details')).toBe(false);
+  });
+
+  it('emits the exact INTERNAL message for unknown errors (not just any string)', () => {
+    // Pins the user-facing message so that a StringLiteral mutant on
+    // 'An internal error occurred.' cannot replace it with the empty string
+    // and still pass.
+    const { host, status, json } = buildHost();
+    filter.catch(new Error('boom'), host);
+    expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith({
+      error: { code: 'INTERNAL', message: 'An internal error occurred.' },
+    });
   });
 });
 
