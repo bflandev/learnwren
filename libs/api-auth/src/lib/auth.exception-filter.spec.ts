@@ -3,8 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AuthExceptionFilter } from './auth.exception-filter';
 import {
+  AccountLockedException,
   AuthException,
   EmailAlreadyExistsException,
+  EmailNotVerifiedException,
+  InvalidCredentialsException,
+  InvalidUnlockTokenException,
+  TooManyRequestsException,
+  UnlockTokenExpiredException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -67,6 +73,50 @@ describe('AuthExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(401);
     expect(json).toHaveBeenCalledWith({
       error: { code: 'UNAUTHENTICATED', message: 'unauth msg' },
+    });
+  });
+});
+
+describe('AuthExceptionFilter — hardening exceptions', () => {
+  function makeHost(captured: { status?: number; body?: unknown }) {
+    const res = {
+      status: vi.fn((code: number) => {
+        captured.status = code;
+        return res;
+      }),
+      json: vi.fn((body: unknown) => {
+        captured.body = body;
+      }),
+    };
+    return {
+      switchToHttp: () => ({ getResponse: () => res }),
+    } as unknown as Parameters<AuthExceptionFilter['catch']>[1];
+  }
+
+  it.each([
+    [new InvalidCredentialsException(), 401, 'INVALID_CREDENTIALS', undefined],
+    [new EmailNotVerifiedException(), 403, 'EMAIL_NOT_VERIFIED', { resendAvailable: true }],
+    [
+      new AccountLockedException(new Date('2026-05-06T01:00:00.000Z')),
+      423,
+      'ACCOUNT_LOCKED',
+      { unlockAvailableAt: '2026-05-06T01:00:00.000Z' },
+    ],
+    [new TooManyRequestsException(), 429, 'TOO_MANY_REQUESTS', undefined],
+    [new InvalidUnlockTokenException(), 400, 'INVALID_UNLOCK_TOKEN', undefined],
+    [
+      new UnlockTokenExpiredException(),
+      410,
+      'UNLOCK_TOKEN_EXPIRED',
+      { canRequestPasswordReset: true },
+    ],
+  ])('maps %s', (exception, status, code, details) => {
+    const filter = new AuthExceptionFilter();
+    const captured: { status?: number; body?: unknown } = {};
+    filter.catch(exception, makeHost(captured));
+    expect(captured.status).toBe(status);
+    expect(captured.body).toMatchObject({
+      error: details ? { code, details } : { code },
     });
   });
 });

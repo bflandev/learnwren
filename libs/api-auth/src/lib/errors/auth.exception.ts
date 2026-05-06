@@ -3,6 +3,9 @@ import type { PolicyRequirement } from '../password-policy.service';
 
 export interface AuthErrorDetails {
   unmetRequirements?: PolicyRequirement[];
+  resendAvailable?: boolean;
+  unlockAvailableAt?: string;
+  canRequestPasswordReset?: boolean;
 }
 
 export class AuthException extends Error {
@@ -64,5 +67,47 @@ export class UnauthenticatedException extends AuthException {
 export class InternalAuthException extends AuthException {
   constructor() {
     super('INTERNAL', 'An internal error occurred.', 500);
+  }
+}
+
+export class InvalidCredentialsException extends AuthException {
+  constructor() {
+    super('INVALID_CREDENTIALS', 'Invalid email or password.', 401);
+  }
+}
+
+export class EmailNotVerifiedException extends AuthException {
+  constructor() {
+    super('EMAIL_NOT_VERIFIED', 'Please verify your email address before logging in.', 403, {
+      resendAvailable: true,
+    });
+  }
+}
+
+export class AccountLockedException extends AuthException {
+  constructor(unlockAvailableAt: Date) {
+    super('ACCOUNT_LOCKED', 'Account is temporarily locked.', 423, {
+      unlockAvailableAt: unlockAvailableAt.toISOString(),
+    });
+  }
+}
+
+export class TooManyRequestsException extends AuthException {
+  constructor() {
+    super('TOO_MANY_REQUESTS', 'Too many requests. Please try again shortly.', 429);
+  }
+}
+
+export class InvalidUnlockTokenException extends AuthException {
+  constructor() {
+    super('INVALID_UNLOCK_TOKEN', 'Unlock token is invalid.', 400);
+  }
+}
+
+export class UnlockTokenExpiredException extends AuthException {
+  constructor() {
+    super('UNLOCK_TOKEN_EXPIRED', 'Unlock token has expired.', 410, {
+      canRequestPasswordReset: true,
+    });
   }
 }
