@@ -15,6 +15,9 @@ import {
   InvalidDisplayNameException,
   InvalidEmailException,
   InternalAuthException,
+  InvalidUnlockTokenException,
+  TooManyRequestsException,
+  UnlockTokenExpiredException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -368,34 +371,34 @@ describe('AuthService.getMe', () => {
   });
 });
 
+function buildAttemptsMock(): {
+  repo: AuthAttemptsRepository;
+  spies: {
+    emailHash: ReturnType<typeof vi.fn>;
+    read: ReturnType<typeof vi.fn>;
+    recordFailure: ReturnType<typeof vi.fn>;
+    clear: ReturnType<typeof vi.fn>;
+    redeemUnlockToken: ReturnType<typeof vi.fn>;
+    recordResendVerification: ReturnType<typeof vi.fn>;
+    recordPasswordResetRequest: ReturnType<typeof vi.fn>;
+  };
+} {
+  const spies = {
+    emailHash: vi.fn(() => 'HASH'),
+    read: vi.fn(async () => null),
+    recordFailure: vi.fn(async () => ({ locked: false })),
+    clear: vi.fn(async () => undefined),
+    redeemUnlockToken: vi.fn(async () => ({ status: 'invalid' as const })),
+    recordResendVerification: vi.fn(async () => ({ throttled: false })),
+    recordPasswordResetRequest: vi.fn(async () => ({ throttled: false })),
+  };
+  return { repo: spies as unknown as AuthAttemptsRepository, spies };
+}
+
 describe('AuthService.login', () => {
   beforeEach(() => vi.clearAllMocks());
 
   const validInput = { email: 'alice@example.com', password: 'Aa1!aaaaaaaa' };
-
-  function buildAttemptsMock(): {
-    repo: AuthAttemptsRepository;
-    spies: {
-      emailHash: ReturnType<typeof vi.fn>;
-      read: ReturnType<typeof vi.fn>;
-      recordFailure: ReturnType<typeof vi.fn>;
-      clear: ReturnType<typeof vi.fn>;
-      redeemUnlockToken: ReturnType<typeof vi.fn>;
-      recordResendVerification: ReturnType<typeof vi.fn>;
-      recordPasswordResetRequest: ReturnType<typeof vi.fn>;
-    };
-  } {
-    const spies = {
-      emailHash: vi.fn(() => 'HASH'),
-      read: vi.fn(async () => null),
-      recordFailure: vi.fn(async () => ({ locked: false })),
-      clear: vi.fn(async () => undefined),
-      redeemUnlockToken: vi.fn(async () => ({ status: 'invalid' as const })),
-      recordResendVerification: vi.fn(async () => ({ throttled: false })),
-      recordPasswordResetRequest: vi.fn(async () => ({ throttled: false })),
-    };
-    return { repo: spies as unknown as AuthAttemptsRepository, spies };
-  }
 
   async function buildLoginModule(
     auth: FakeAuth,
@@ -564,5 +567,75 @@ describe('AuthService.login', () => {
     expect(spies.recordFailure).not.toHaveBeenCalled();
     expect(spies.clear).not.toHaveBeenCalled();
     expect(auth.createSessionCookie).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService.resendVerification', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  async function buildResendModule(opts: {
+    getUserResult?: unknown | 'not-found';
+    throttle?: { throttled: boolean };
+  }) {
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const rest = buildFakeRestClient();
+    const { repo: attempts, spies } = buildAttemptsMock();
+    spies.recordResendVerification = vi.fn(async () => opts.throttle ?? { throttled: false });
+
+    if (opts.getUserResult === 'not-found') {
+      (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
+        async () => {
+          throw Object.assign(new Error('user-not-found'), { code: 'auth/user-not-found' });
+        },
+      );
+    } else {
+      (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
+        async () => opts.getUserResult ?? { uid: 'uid-123', email: 'alice@example.com', emailVerified: false },
+      );
+    }
+    auth.generateEmailVerificationLink = vi.fn(async () => 'https://verify/abc');
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        PasswordPolicyService,
+        { provide: FIREBASE_AUTH, useValue: auth },
+        { provide: FIRESTORE, useValue: firestore },
+        { provide: FirebaseAuthRestClient, useValue: rest },
+        { provide: AuthAttemptsRepository, useValue: attempts },
+      ],
+    }).compile();
+    return { service: moduleRef.get(AuthService), auth, spies };
+  }
+
+  it('throws TOO_MANY_REQUESTS when within throttle window', async () => {
+    const { service } = await buildResendModule({ throttle: { throttled: true } });
+    await expect(service.resendVerification('alice@example.com')).rejects.toBeInstanceOf(
+      TooManyRequestsException,
+    );
+  });
+
+  it('returns silently when user does not exist', async () => {
+    const { service, auth } = await buildResendModule({ getUserResult: 'not-found' });
+    await expect(service.resendVerification('ghost@example.com')).resolves.toBeUndefined();
+    expect(auth.generateEmailVerificationLink).not.toHaveBeenCalled();
+  });
+
+  it('returns silently when user is already verified', async () => {
+    const { service, auth } = await buildResendModule({
+      getUserResult: { uid: 'uid-123', email: 'alice@example.com', emailVerified: true },
+    });
+    await expect(service.resendVerification('alice@example.com')).resolves.toBeUndefined();
+    expect(auth.generateEmailVerificationLink).not.toHaveBeenCalled();
+  });
+
+  it('generates a verification link when user exists and is unverified', async () => {
+    const { service, auth } = await buildResendModule({});
+    await service.resendVerification('alice@example.com');
+    expect(auth.generateEmailVerificationLink).toHaveBeenCalledWith(
+      'alice@example.com',
+      expect.objectContaining({ url: expect.stringContaining('/login') }),
+    );
   });
 });

@@ -20,6 +20,7 @@ import {
   InvalidDisplayNameException,
   InvalidEmailException,
   InternalAuthException,
+  TooManyRequestsException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -313,6 +314,43 @@ export class AuthService {
       role: data.role,
       emailVerified: fromCookie.emailVerified,
     };
+  }
+
+  async resendVerification(email: string): Promise<void> {
+    const emailHash = this.attempts.emailHash(email);
+
+    const throttle = await this.attempts.recordResendVerification(emailHash);
+    if (throttle.throttled) {
+      throw new TooManyRequestsException();
+    }
+
+    let userRecord: adminAuth.UserRecord;
+    try {
+      userRecord = await this.auth.getUserByEmail(email);
+    } catch (err) {
+      if (this.isFirebaseError(err) && err.code === 'auth/user-not-found') {
+        // Enumeration resistance: silent success.
+        return;
+      }
+      throw err;
+    }
+
+    if (userRecord.emailVerified) {
+      // Already verified — silent success (don't leak verification status).
+      return;
+    }
+
+    try {
+      await this.auth.generateEmailVerificationLink(email, {
+        url: this.continueUrl('/login'),
+      });
+      this.logger.log(`[auth] resend-verification sent emailHash=${emailHash}`);
+    } catch (err) {
+      this.logger.error(
+        `[auth] resend-verification generateLink failed emailHash=${emailHash}: ${String(err)}`,
+      );
+      throw new InternalAuthException();
+    }
   }
 
   private isFirebaseError(err: unknown): err is { code: string } {
