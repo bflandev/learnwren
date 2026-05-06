@@ -53,6 +53,7 @@ export class AuthController {
   }
 
   @Post('session')
+  @HttpCode(200)
   async session(
     @Body() dto: SessionDto,
     @Res({ passthrough: true }) res: Response,
