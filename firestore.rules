@@ -25,6 +25,10 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /auth_attempts/{emailHash} {
+      allow read, write: if false;
+    }
+
     // Deny-by-default for everything else.
     match /{document=**} {
       allow read, write: if false;
