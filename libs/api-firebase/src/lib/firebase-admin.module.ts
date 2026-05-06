@@ -4,6 +4,7 @@ import * as admin from 'firebase-admin';
 import {
   FIREBASE_AUTH,
   FIREBASE_STORAGE,
+  FIREBASE_WEB_API_KEY,
   FIRESTORE,
 } from './firebase.tokens';
 
@@ -81,8 +82,21 @@ export class FirebaseAdminModule {
         { provide: FIRESTORE, useFactory: () => app.firestore() },
         { provide: FIREBASE_AUTH, useFactory: () => app.auth() },
         { provide: FIREBASE_STORAGE, useFactory: () => app.storage() },
+        {
+          provide: FIREBASE_WEB_API_KEY,
+          useFactory: () => {
+            const key = process.env['FIREBASE_WEB_API_KEY'];
+            if (mode === 'production' && !key) {
+              throw new Error(
+                '[FirebaseAdminModule] LEARNWREN_FIREBASE_TARGET=production requires FIREBASE_WEB_API_KEY to be set.',
+              );
+            }
+            // In emulator mode, the Auth emulator accepts any key string.
+            return key ?? 'fake-api-key';
+          },
+        },
       ],
-      exports: [FIRESTORE, FIREBASE_AUTH, FIREBASE_STORAGE],
+      exports: [FIRESTORE, FIREBASE_AUTH, FIREBASE_STORAGE, FIREBASE_WEB_API_KEY],
     };
   }
 }

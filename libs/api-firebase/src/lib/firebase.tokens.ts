@@ -8,3 +8,6 @@ export type FirestoreHandle = firestore.Firestore;
 export type FirebaseAuthHandle = auth.Auth;
 export type FirebaseStorageHandle = storage.Storage;
 export type FirebaseAppHandle = app.App;
+
+export const FIREBASE_WEB_API_KEY = Symbol.for('learnwren.api-firebase.web-api-key');
+export type FirebaseWebApiKey = string;
