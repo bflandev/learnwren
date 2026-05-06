@@ -1,0 +1,25 @@
+<section class="mx-auto mt-12 max-w-md rounded border border-slate-200 bg-white p-6 space-y-3">
+  <h1 class="text-xl font-semibold">Check your email</h1>
+  <p class="text-sm text-slate-700">
+    We sent a verification email
+    @if (email()) { to <strong>{{ email() }}</strong> }
+    . Click the link in that email to verify your address.
+  </p>
+
+  @if (resentAt()) {
+    <p class="text-sm text-emerald-700">Verification email sent.</p>
+  }
+
+  <button
+    type="button"
+    class="rounded border border-slate-300 px-3 py-1.5 text-sm disabled:opacity-50"
+    [disabled]="busy() || cooldownActive() || !email()"
+    (click)="resend()"
+  >
+    @if (busy()) { Sending… } @else { Didn't get the email? Resend }
+  </button>
+
+  <p class="text-sm text-slate-700">
+    <a routerLink="/dashboard" class="text-blue-700 underline">Continue to dashboard</a>
+  </p>
+</section>
