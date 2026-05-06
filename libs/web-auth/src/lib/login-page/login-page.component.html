@@ -23,8 +23,47 @@
       />
     </label>
 
-    @if (error()) {
-      <p class="text-sm text-red-700" role="alert">{{ error() }}</p>
+    @switch (errorState().kind) {
+      @case ('invalid') {
+        <p class="text-sm text-red-700" role="alert">Invalid email or password.</p>
+      }
+      @case ('unverified') {
+        <div role="alert" class="space-y-1">
+          <p class="text-sm text-red-700">
+            Please verify your email address before logging in.
+          </p>
+          @if (unverifiedState()?.resendSent) {
+            <p class="text-sm text-emerald-700">Verification email sent. Check your inbox.</p>
+          } @else {
+            <button
+              type="button"
+              class="text-sm text-blue-700 underline"
+              (click)="resendVerification()"
+            >
+              Resend verification email
+            </button>
+          }
+        </div>
+      }
+      @case ('locked') {
+        <div role="alert" class="space-y-1">
+          <p class="text-sm text-red-700">
+            Your account is temporarily locked. Try again at
+            {{ unlockAvailableAtLocal(lockedState()?.unlockAvailableAt ?? '') }},
+            or check your email to unlock now.
+          </p>
+          @if (justResetPassword()) {
+            <p class="text-sm text-amber-700">
+              If you've just reset your password, use the unlock link in your
+              "account locked" email or wait until
+              {{ unlockAvailableAtLocal(lockedState()?.unlockAvailableAt ?? '') }}.
+            </p>
+          }
+        </div>
+      }
+      @case ('generic') {
+        <p class="text-sm text-red-700" role="alert">{{ genericState()?.message }}</p>
+      }
     }
 
     <button
@@ -37,6 +76,10 @@
   </form>
 
   <p class="mt-4 text-sm text-slate-700">
+    <a routerLink="/forgot-password" class="text-blue-700 underline">Forgot password?</a>
+  </p>
+
+  <p class="mt-2 text-sm text-slate-700">
     No account? <a routerLink="/register" class="text-blue-700 underline">Register</a>
   </p>
 </section>

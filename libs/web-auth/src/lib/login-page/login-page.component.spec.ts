@@ -1,56 +1,98 @@
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ActivatedRoute, provideRouter } from '@angular/router';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { of } from 'rxjs';
 
 import { LoginPageComponent } from './login-page.component';
-import { AuthService } from '../auth.service';
 
-describe('LoginPageComponent', () => {
-  let component: LoginPageComponent;
-  const navigateByUrl = vi.fn();
-  const login = vi.fn();
+function setup(queryParamMap: Map<string, string> = new Map()) {
+  TestBed.configureTestingModule({
+    imports: [LoginPageComponent],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideRouter([]),
+      { provide: ActivatedRoute, useValue: { queryParamMap: of({ get: (k: string) => queryParamMap.get(k) ?? null }) } },
+    ],
+  });
+  const fixture = TestBed.createComponent(LoginPageComponent);
+  fixture.detectChanges();
+  return {
+    fixture,
+    httpMock: TestBed.inject(HttpTestingController),
+  };
+}
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    login.mockResolvedValue(undefined);
+describe('LoginPageComponent error states', () => {
+  beforeEach(() => vi.clearAllMocks());
 
-    TestBed.configureTestingModule({
-      imports: [LoginPageComponent],
-      providers: [
-        { provide: AuthService, useValue: { login } },
-        { provide: Router, useValue: { navigateByUrl, createUrlTree: () => ({}), serializeUrl: () => '' } },
-        { provide: ActivatedRoute, useValue: { snapshot: {} } },
-      ],
-    });
-    component = TestBed.createComponent(LoginPageComponent).componentInstance;
+  it('renders "Invalid email or password" on 401', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const submitPromise = cmp.submit();
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'INVALID_CREDENTIALS' } },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+    await submitPromise;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Invalid email or password.');
   });
 
-  it('submits the form and navigates to /dashboard on success', async () => {
-    component.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa' });
-    await component.submit();
-    expect(login).toHaveBeenCalledWith({ email: 'a@b.c', password: 'Aa1!aaaaaaaa' });
-    expect(navigateByUrl).toHaveBeenCalledWith('/dashboard');
+  it('renders the resend affordance on 403 EMAIL_NOT_VERIFIED', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const submitPromise = cmp.submit();
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'EMAIL_NOT_VERIFIED', details: { resendAvailable: true } } },
+      { status: 403, statusText: 'Forbidden' },
+    );
+    await submitPromise;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Please verify your email address',
+    );
+    expect(fixture.nativeElement.textContent).toContain('Resend verification email');
   });
 
-  it('shows the generic prose for auth/wrong-password (UC-01-02 ext 4a)', async () => {
-    login.mockRejectedValueOnce({ code: 'auth/wrong-password' });
-    component.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa' });
-    await component.submit();
-    expect(component.error()).toBe('Invalid email or password.');
-    expect(navigateByUrl).not.toHaveBeenCalled();
+  it('renders the lockout time on 423 ACCOUNT_LOCKED', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const submitPromise = cmp.submit();
+    const unlockAvailableAt = new Date('2026-05-06T01:00:00.000Z').toISOString();
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'ACCOUNT_LOCKED', details: { unlockAvailableAt } } },
+      { status: 423, statusText: 'Locked' },
+    );
+    await submitPromise;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('temporarily locked');
   });
 
-  it('shows the generic prose for auth/user-not-found', async () => {
-    login.mockRejectedValueOnce({ code: 'auth/user-not-found' });
-    component.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa' });
-    await component.submit();
-    expect(component.error()).toBe('Invalid email or password.');
-  });
-
-  it('shows the fallback prose for unknown errors', async () => {
-    login.mockRejectedValueOnce(new Error('boom'));
-    component.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa' });
-    await component.submit();
-    expect(component.error()).toBe('Something went wrong. Please try again.');
+  it('shows the just-reset hint when ?reset=ok and lockout fires', async () => {
+    const { fixture, httpMock } = setup(new Map([['reset', 'ok']]));
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const submitPromise = cmp.submit();
+    httpMock.expectOne('/api/auth/login').flush(
+      {
+        error: {
+          code: 'ACCOUNT_LOCKED',
+          details: { unlockAvailableAt: '2026-05-06T01:00:00.000Z' },
+        },
+      },
+      { status: 423, statusText: 'Locked' },
+    );
+    await submitPromise;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain("just reset your password");
   });
 });
