@@ -4,7 +4,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 
 > [!NOTE]
 > **PROJECT STATUS: EARLY DEVELOPMENT**
-> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, and the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`) are wired up. Authentication, per-collection rules, and the video/DRM pipeline are not yet wired — those are tracked in upcoming design specs under `docs/superpowers/specs/`.
+> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), and the auth slice (register / login / session cookie / protected route) are wired up. Profile editing, instructor-role requests, and the video/DRM pipeline are not yet wired — those are tracked in upcoming design specs under `docs/superpowers/specs/`.
 
 ---
 
@@ -21,7 +21,9 @@ learnwren/
 │   └── api-e2e/        # Playwright E2E tests for api
 ├── libs/
 │   ├── shared-data-models/  # TS types shared between web and api
-│   └── api-firebase/        # NestJS module wrapping firebase-admin (env-driven)
+│   ├── api-firebase/        # NestJS module wrapping firebase-admin (env-driven)
+│   ├── api-auth/            # NestJS auth module (register, session cookie, guard, DTOs)
+│   └── web-auth/            # Angular auth lib (signal-based service, guard, pages)
 ├── tools/
 │   └── web/                 # Build-time generator for apps/web/src/environments/environment.ts
 └── docs/
@@ -38,7 +40,9 @@ learnwren/
 | `api` | Application | NestJS 11, firebase-admin, Webpack |
 | `shared-data-models` | Library | TypeScript types (consumed by `web` and `api`) |
 | `api-firebase` | Library | NestJS module providing the firebase-admin handle (emulator/production mode-switching) |
-| `web-e2e`, `api-e2e` | E2E suite | Playwright |
+| `api-auth` | Library | NestJS `AuthModule`: controller, service, `FirebaseSessionGuard`, DTOs, error envelope |
+| `web-auth` | Library | Angular standalone components, signal-based `AuthService`, `authGuard`, interceptor |
+| `web-e2e`, `api-e2e` | E2E suite | Playwright (api-e2e covers `/auth/**` end-to-end + Firestore rules) |
 
 The planned production deployment targets are Firebase Hosting (web) and Firebase Cloud Functions (api), backed by Firestore, Cloud Storage, and Firebase Authentication. See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./docs/epics/TECHNICAL_ARCHITECTURE.md).
 
@@ -88,6 +92,27 @@ curl http://localhost:3333/api/firestore-smoke
 ```
 
 The web app's **Dev tools → Run Firestore smoke** button exercises the same write path through the client SDK against the emulator. No real Firebase credentials are needed for local development — both apps target the reserved `demo-learnwren` project ID against the local emulator suite.
+
+### Try the auth flow (emulator mode)
+
+With both `pnpm emulators` and `pnpm start` running:
+
+1. Visit `http://localhost:4200/register`.
+2. Submit a display name, an email, and a password meeting the policy (12+ chars, upper, lower, digit, special — e.g. `Aa1!aaaaaaaa`).
+3. You'll land on `/dashboard` showing your display name and `STUDENT` role.
+4. Confirm the user appears in the Auth emulator UI at `http://localhost:4000/auth`, the `users/{uid}` doc shows up in the Firestore emulator UI, and the verification email link is in the Auth emulator's inbox.
+5. Click **Sign out** → redirect to `/login`. Sign back in → redirect to `/dashboard`.
+
+The API endpoints exposed by this slice:
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `POST` | `/api/auth/register` | Creates Auth user + `users/{uid}` doc + custom claim, sends verification email. |
+| `POST` | `/api/auth/session` | Exchanges a Firebase ID token for an `__session` cookie (HttpOnly, Secure, SameSite=Strict, 5d). |
+| `POST` | `/api/auth/logout` | Clears the cookie and revokes refresh tokens. Always 204. |
+| `GET` | `/api/auth/me` | Reads the cookie, returns `{uid, email, displayName, role, emailVerified}`. |
+
+For the full auth dev workflow, the deferred items, and error-code → prose mappings, see [`docs/development.md`](./docs/development.md#auth-dev-workflow) and the design spec at [`docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`](./docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md).
 
 ### Run against the real Firebase project
 
