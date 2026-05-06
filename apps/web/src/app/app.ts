@@ -1,9 +1,9 @@
 import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 import type { Course } from '@learnwren/shared-data-models';
-import { FirestoreSmokeComponent } from './dev/firestore-smoke.component';
 
 @Component({
-  imports: [FirestoreSmokeComponent],
+  imports: [RouterOutlet],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
