@@ -10,6 +10,9 @@
   "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts"],
   "references": [
     {
+      "path": "../../libs/web-auth/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/shared-data-models/tsconfig.lib.json"
     }
   ]
