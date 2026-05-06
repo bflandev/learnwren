@@ -5,7 +5,6 @@ import {
   Validators,
 } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 import { AuthService } from '../auth.service';
@@ -13,7 +12,6 @@ import {
   passwordPolicyValidator,
   type PolicyRequirement,
 } from '../password-policy.validator';
-import type { ApiAuthErrorBody } from '../types/api-error';
 
 const REQUIREMENT_PROSE: Record<PolicyRequirement, string> = {
   MIN_LENGTH: 'at least 12 characters',
@@ -60,32 +58,31 @@ export class RegisterPageComponent {
     this.busy.set(true);
     this.error.set(null);
     try {
-      await this.auth.register(this.form.getRawValue());
-      await this.router.navigateByUrl('/dashboard');
-    } catch (err) {
-      this.error.set(this.toMessage(err));
+      const result = await this.auth.register(this.form.getRawValue());
+      if (result.ok) {
+        await this.router.navigateByUrl(
+          `/register/confirm?email=${encodeURIComponent(this.form.controls.email.value)}`,
+        );
+        return;
+      }
+      this.error.set(this.toMessage(result));
     } finally {
       this.busy.set(false);
     }
   }
 
-  private toMessage(err: unknown): string {
-    if (err instanceof HttpErrorResponse) {
-      const body = err.error as ApiAuthErrorBody | undefined;
-      const code = body?.error?.code;
-      if (code === 'EMAIL_ALREADY_EXISTS') {
-        return 'Unable to complete registration. Please check your details.';
-      }
-      if (code === 'WEAK_PASSWORD') {
-        const unmet = body?.error?.details?.unmetRequirements as PolicyRequirement[] | undefined;
-        if (unmet?.length) {
-          const list = unmet.map((r) => REQUIREMENT_PROSE[r]).join('; ');
-          return `Password must include: ${list}.`;
-        }
-      }
-      if (code === 'INVALID_EMAIL') return 'Please enter a valid email address.';
-      if (code === 'INVALID_DISPLAY_NAME') {
-        return 'Display name is required and must be 80 characters or fewer.';
+  private toMessage(
+    result: Extract<Awaited<ReturnType<AuthService['register']>>, { ok: false }>,
+  ): string {
+    if (result.code === 'EMAIL_ALREADY_EXISTS') {
+      return 'Unable to complete registration. Please check your details.';
+    }
+    if (result.code === 'WEAK_PASSWORD') {
+      const unmet = (result.details as { unmetRequirements?: PolicyRequirement[] } | undefined)
+        ?.unmetRequirements;
+      if (unmet?.length) {
+        const list = unmet.map((r) => REQUIREMENT_PROSE[r]).join('; ');
+        return `Password must include: ${list}.`;
       }
     }
     return 'Something went wrong. Please try again.';
