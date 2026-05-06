@@ -24,6 +24,25 @@ LEARNWREN_WEB_FIREBASE_MESSAGING_SENDER_ID=op://learnwren/Web SDK Config/messagi
 # in the developer's shell init, not here — the path is per-machine.
 LEARNWREN_API_FIREBASE_PROJECT_ID=op://learnwren/Admin SDK Config/projectId
 
+# ── Auth REST API (target=production) ────────────────────────────────
+# Web API key used server-side by FirebaseAuthRestClient to verify
+# passwords against identitytoolkit.googleapis.com. Public-by-design
+# value (Firebase publishes it); rendered through 1Password for parity
+# with other Firebase config.
+FIREBASE_WEB_API_KEY=op://learnwren/Web SDK Config/apiKey
+
+# ── Email transport (unlock email only) ──────────────────────────────
+# Verification + password-reset emails are sent by Firebase. The unlock
+# email goes through Nodemailer. In dev/emulator, default to a console
+# transport that logs the unlock URL to stdout. Prod overrides to smtp.
+LEARNWREN_EMAIL_TRANSPORT=console
+LEARNWREN_EMAIL_FROM=noreply@learnwren.local
+# Required when LEARNWREN_EMAIL_TRANSPORT=smtp (uncomment and fill in):
+# SMTP_HOST=<host>
+# SMTP_PORT=<port>
+# SMTP_USER=<user>
+# SMTP_PASS=<password>
+
 # ── Reserved for later specs ──────────────────────────────────────────
 # Cloud Functions deploy spec:  FIREBASE_TOKEN
 # DRM/transcoder spec:          DRM_API_KEY, TRANSCODER_WEBHOOK_SECRET
