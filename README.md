@@ -4,7 +4,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 
 > [!NOTE]
 > **PROJECT STATUS: EARLY DEVELOPMENT**
-> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), and the auth slice (register / login / session cookie / protected route) are wired up. Profile editing, instructor-role requests, and the video/DRM pipeline are not yet wired — those are tracked in upcoming design specs under `docs/superpowers/specs/`.
+> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), and the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route) are wired up. Profile editing, instructor-role requests, and the video/DRM pipeline are not yet wired — those are tracked in upcoming design specs under `docs/superpowers/specs/`.
 
 ---
 
@@ -22,10 +22,10 @@ learnwren/
 ├── libs/
 │   ├── shared-data-models/  # TS types shared between web and api
 │   ├── api-firebase/        # NestJS module wrapping firebase-admin (env-driven)
-│   ├── api-auth/            # NestJS auth module (register, session cookie, guard, DTOs)
+│   ├── api-auth/            # NestJS auth module (register, login, lockout, verify, reset, unlock, guard)
 │   └── web-auth/            # Angular auth lib (signal-based service, guard, pages)
 ├── tools/
-│   └── web/                 # Build-time generator for apps/web/src/environments/environment.ts
+│   └── migrate-auth-2026-05-cleanup-unverified.ts  # Pre-deploy script: prune unverified accounts
 └── docs/
     ├── epics/          # Product specs (epics & user stories)
     ├── use-cases/      # Cockburn-style use cases for MVP scope (EP-01..06)
@@ -36,13 +36,13 @@ learnwren/
 
 | Project | Type | Stack |
 | :--- | :--- | :--- |
-| `web` | Application | Angular 21, AngularFire 21, Tailwind, SCSS |
-| `api` | Application | NestJS 11, firebase-admin, Webpack |
+| `web` | Application | Angular 21, Tailwind, SCSS (no Firebase client SDK — auth is API-mediated) |
+| `api` | Application | NestJS 11, firebase-admin, Nodemailer, Webpack |
 | `shared-data-models` | Library | TypeScript types (consumed by `web` and `api`) |
-| `api-firebase` | Library | NestJS module providing the firebase-admin handle (emulator/production mode-switching) |
-| `api-auth` | Library | NestJS `AuthModule`: controller, service, `FirebaseSessionGuard`, DTOs, error envelope |
-| `web-auth` | Library | Angular standalone components, signal-based `AuthService`, `authGuard`, interceptor |
-| `web-e2e`, `api-e2e` | E2E suite | Playwright (api-e2e covers `/auth/**` end-to-end + Firestore rules) |
+| `api-firebase` | Library | NestJS module providing the firebase-admin handle + Web API key (emulator/production mode-switching) |
+| `api-auth` | Library | `AuthModule`: controller, service, `FirebaseSessionGuard`, DTOs, error envelope, `AuthAttemptsRepository`, `FirebaseAuthRestClient`, `EmailTransport` |
+| `web-auth` | Library | Angular standalone components (`Login`, `Register`, `RegisterConfirm`, `ForgotPassword`, `Unlock`), signal-based `AuthService`, `authGuard`, interceptor |
+| `web-e2e`, `api-e2e` | E2E suite | Playwright (api-e2e covers `/auth/**` end-to-end including lockout + Firestore rules) |
 
 The planned production deployment targets are Firebase Hosting (web) and Firebase Cloud Functions (api), backed by Firestore, Cloud Storage, and Firebase Authentication. See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./docs/epics/TECHNICAL_ARCHITECTURE.md).
 
@@ -91,17 +91,18 @@ curl http://localhost:3333/api/health
 curl http://localhost:3333/api/firestore-smoke
 ```
 
-The web app's **Dev tools → Run Firestore smoke** button exercises the same write path through the client SDK against the emulator. No real Firebase credentials are needed for local development — both apps target the reserved `demo-learnwren` project ID against the local emulator suite.
+`/api/firestore-smoke` writes a doc through the Admin SDK into the local Firestore emulator. No real Firebase credentials are needed for local development — both apps target the reserved `demo-learnwren` project ID against the local emulator suite.
 
 ### Try the auth flow (emulator mode)
 
 With both `pnpm emulators` and `pnpm start` running:
 
-1. Visit `http://localhost:4200/register`.
-2. Submit a display name, an email, and a password meeting the policy (12+ chars, upper, lower, digit, special — e.g. `Aa1!aaaaaaaa`).
-3. You'll land on `/dashboard` showing your display name and `STUDENT` role.
-4. Confirm the user appears in the Auth emulator UI at `http://localhost:4000/auth`, the `users/{uid}` doc shows up in the Firestore emulator UI, and the verification email link is in the Auth emulator's inbox.
-5. Click **Sign out** → redirect to `/login`. Sign back in → redirect to `/dashboard`.
+1. Visit `http://localhost:4200/register`. Submit a display name, an email, and a password meeting the policy (12+ chars, upper, lower, digit, special — e.g. `Aa1!aaaaaaaa`).
+2. You'll land on `/register/confirm?email=…` with a "Check your email" message and a Resend button.
+3. Open the Auth emulator UI at `http://127.0.0.1:4000/auth`, find the user, and click the verification link in the inbox icon. Confirm the `users/{uid}` doc shows up in the Firestore emulator UI.
+4. Visit `/login` and sign in with the same credentials → redirect to `/dashboard` showing your display name and `STUDENT` role. (Logging in before verification returns `EMAIL_NOT_VERIFIED` with a Resend affordance.)
+5. To exercise the lockout: enter the right email + a wrong password three times. The third attempt returns `423` with the lockout time. Find the unlock URL in the API server logs (`ConsoleEmailTransport` prints it), open it, then sign in.
+6. Click **Sign out** → redirect to `/login`. Click **Forgot password?** → submit your email → click the reset link in the Auth emulator inbox → set a new password → sign back in.
 
 The API endpoints exposed by this slice:
 
