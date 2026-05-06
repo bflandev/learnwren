@@ -13,7 +13,10 @@ import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
 import {
+  AccountLockedException,
   EmailAlreadyExistsException,
+  EmailNotVerifiedException,
+  InvalidCredentialsException,
   InvalidDisplayNameException,
   InvalidEmailException,
   InternalAuthException,
@@ -33,6 +36,21 @@ export interface RegisterResult {
   cookie: string;
   maxAgeSeconds: number;
   emailVerificationSent: boolean;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface LoginResult {
+  uid: UserId;
+  email: string;
+  role: UserRole;
+  displayName: string;
+  emailVerified: true;
+  cookie: string;
+  maxAgeSeconds: number;
 }
 
 export interface MeResponse {
@@ -151,6 +169,72 @@ export class AuthService {
       cookie: session.cookie,
       maxAgeSeconds: session.maxAgeSeconds,
       emailVerificationSent,
+    };
+  }
+
+  async login(input: LoginInput): Promise<LoginResult> {
+    const emailHash = this.attempts.emailHash(input.email);
+
+    // (a) Lockout check before credential verification.
+    const existing = await this.attempts.read(emailHash);
+    if (existing?.lockedUntil) {
+      throw new AccountLockedException(new Date(existing.lockedUntil));
+    }
+
+    // (b) Server-side password verification via REST.
+    let idToken: string;
+    try {
+      const result = await this.restClient.signInWithPassword({
+        email: input.email,
+        password: input.password,
+      });
+      idToken = result.idToken;
+    } catch (err) {
+      if (err instanceof InvalidCredentialsException) {
+        const failure = await this.attempts.recordFailure(emailHash);
+        if (failure.locked) {
+          // Caller (Task 13 controller) is responsible for sending the unlock email
+          // — fire-and-forget here would couple AuthService to email plumbing.
+          this.logger.log(
+            `[auth] lockout fired emailHash=${emailHash} unlockToken=${failure.unlockToken?.slice(0, 6)}…`,
+          );
+          throw new AccountLockedException(failure.lockedUntil!);
+        }
+        this.logger.log(`[auth] login failed code=INVALID_CREDENTIALS emailHash=${emailHash}`);
+        throw err;
+      }
+      throw err;
+    }
+
+    // (c) Verification gate. Read fresh emailVerified from Admin SDK
+    //     since the REST response doesn't always include it consistently.
+    const decoded = await this.auth.verifyIdToken(idToken, true);
+    const userRecord = await this.auth.getUser(decoded.uid);
+    if (!userRecord.emailVerified) {
+      this.logger.log(`[auth] login blocked code=EMAIL_NOT_VERIFIED uid=${userRecord.uid}`);
+      throw new EmailNotVerifiedException();
+    }
+
+    // (d) Mint cookie. (e) Clear lockout doc. (f) Look up user details.
+    const session = await this.mintSessionCookie(idToken);
+    await this.attempts.clear(emailHash);
+
+    const userDoc = await this.firestore.collection('users').doc(userRecord.uid).get();
+    if (!userDoc.exists) {
+      this.logger.error(`[auth] login missing users/${userRecord.uid}`);
+      throw new InternalAuthException();
+    }
+    const data = userDoc.data() as { displayName: string; role: UserRole };
+
+    this.logger.log(`[auth] login uid=${userRecord.uid}`);
+    return {
+      uid: userRecord.uid as UserId,
+      email: userRecord.email!,
+      role: data.role,
+      displayName: data.displayName,
+      emailVerified: true,
+      cookie: session.cookie,
+      maxAgeSeconds: session.maxAgeSeconds,
     };
   }
 

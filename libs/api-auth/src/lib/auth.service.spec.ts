@@ -8,7 +8,10 @@ import { AuthService } from './auth.service';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
 import {
+  AccountLockedException,
   EmailAlreadyExistsException,
+  EmailNotVerifiedException,
+  InvalidCredentialsException,
   InvalidDisplayNameException,
   InvalidEmailException,
   InternalAuthException,
@@ -362,5 +365,204 @@ describe('AuthService.getMe', () => {
     await expect(
       service.getMe('uid-missing', { email: 'x@y.z', emailVerified: false }),
     ).rejects.toMatchObject({ code: 'INTERNAL' });
+  });
+});
+
+describe('AuthService.login', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const validInput = { email: 'alice@example.com', password: 'Aa1!aaaaaaaa' };
+
+  function buildAttemptsMock(): {
+    repo: AuthAttemptsRepository;
+    spies: {
+      emailHash: ReturnType<typeof vi.fn>;
+      read: ReturnType<typeof vi.fn>;
+      recordFailure: ReturnType<typeof vi.fn>;
+      clear: ReturnType<typeof vi.fn>;
+      redeemUnlockToken: ReturnType<typeof vi.fn>;
+      recordResendVerification: ReturnType<typeof vi.fn>;
+      recordPasswordResetRequest: ReturnType<typeof vi.fn>;
+    };
+  } {
+    const spies = {
+      emailHash: vi.fn(() => 'HASH'),
+      read: vi.fn(async () => null),
+      recordFailure: vi.fn(async () => ({ locked: false })),
+      clear: vi.fn(async () => undefined),
+      redeemUnlockToken: vi.fn(async () => ({ status: 'invalid' as const })),
+      recordResendVerification: vi.fn(async () => ({ throttled: false })),
+      recordPasswordResetRequest: vi.fn(async () => ({ throttled: false })),
+    };
+    return { repo: spies as unknown as AuthAttemptsRepository, spies };
+  }
+
+  async function buildLoginModule(
+    auth: FakeAuth,
+    firestore: FakeFirestore,
+    rest: ReturnType<typeof buildFakeRestClient>,
+    attempts: AuthAttemptsRepository,
+  ): Promise<AuthService> {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        PasswordPolicyService,
+        { provide: FIREBASE_AUTH, useValue: auth },
+        { provide: FIRESTORE, useValue: firestore },
+        { provide: FirebaseAuthRestClient, useValue: rest },
+        { provide: AuthAttemptsRepository, useValue: attempts },
+      ],
+    }).compile();
+    return moduleRef.get(AuthService);
+  }
+
+  function fsWithUser(uid = 'uid-123', role = 'STUDENT', displayName = 'Alice'): FakeFirestore {
+    const fs = buildFakeFirestore();
+    // patch get() to return the user doc
+    fs.collection = vi.fn(() => ({
+      doc: vi.fn(() => ({
+        get: vi.fn(async () => ({
+          exists: true,
+          data: () => ({ id: uid, displayName, role }),
+        })),
+        set: fs._set,
+      })),
+    })) as unknown as FakeFirestore['collection'];
+    return fs;
+  }
+
+  it('happy path: returns uid + role + cookie and clears lockout doc', async () => {
+    const auth = buildFakeAuth({
+      verifyIdToken: vi.fn(async () => ({
+        uid: 'uid-123',
+        email: 'alice@example.com',
+        role: 'STUDENT',
+        email_verified: true,
+      })),
+    });
+    const firestore = fsWithUser();
+    const rest = buildFakeRestClient('ID-TOKEN');
+    rest.signInWithPassword = vi.fn(async () => ({
+      idToken: 'ID-TOKEN',
+      localId: 'uid-123',
+      email: 'alice@example.com',
+      registered: true,
+    }));
+    // Override: REST returns user record we then look up via admin to get emailVerified
+    auth.verifyIdToken = vi.fn(async () => ({
+      uid: 'uid-123',
+      email: 'alice@example.com',
+      role: 'STUDENT',
+      email_verified: true,
+    }));
+    // Add a getUser admin call (for emailVerified read).
+    (auth as unknown as { getUser: ReturnType<typeof vi.fn> }).getUser = vi.fn(async () => ({
+      uid: 'uid-123',
+      email: 'alice@example.com',
+      emailVerified: true,
+      displayName: 'Alice',
+    }));
+
+    const { repo: attempts, spies } = buildAttemptsMock();
+    const service = await buildLoginModule(auth, firestore, rest, attempts);
+
+    const result = await service.login(validInput);
+
+    expect(spies.emailHash).toHaveBeenCalledWith('alice@example.com');
+    expect(spies.read).toHaveBeenCalledWith('HASH');
+    expect(rest.signInWithPassword).toHaveBeenCalledWith({
+      email: validInput.email,
+      password: validInput.password,
+    });
+    expect(spies.clear).toHaveBeenCalledWith('HASH');
+    expect(result).toMatchObject({
+      uid: 'uid-123',
+      role: 'STUDENT',
+      displayName: 'Alice',
+      emailVerified: true,
+      cookie: 'COOKIE-VALUE',
+      maxAgeSeconds: 5 * 24 * 60 * 60,
+    });
+  });
+
+  it('throws ACCOUNT_LOCKED when read returns a locked doc', async () => {
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const { repo: attempts, spies } = buildAttemptsMock();
+    spies.read = vi.fn(async () => ({
+      failedCount: 3,
+      lockedUntil: future,
+      unlockToken: 'tok',
+    } as never));
+
+    const auth = buildFakeAuth();
+    const firestore = fsWithUser();
+    const rest = buildFakeRestClient();
+    const service = await buildLoginModule(auth, firestore, rest, attempts);
+
+    await expect(service.login(validInput)).rejects.toBeInstanceOf(AccountLockedException);
+    expect(rest.signInWithPassword).not.toHaveBeenCalled();
+    expect(spies.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('throws INVALID_CREDENTIALS and increments counter on bad password', async () => {
+    const { repo: attempts, spies } = buildAttemptsMock();
+    const auth = buildFakeAuth();
+    const firestore = fsWithUser();
+    const rest = {
+      signInWithPassword: vi.fn(async () => {
+        throw new InvalidCredentialsException();
+      }),
+    } as unknown as FirebaseAuthRestClient;
+    const service = await buildLoginModule(auth, firestore, rest, attempts);
+
+    await expect(service.login(validInput)).rejects.toBeInstanceOf(InvalidCredentialsException);
+    expect(spies.recordFailure).toHaveBeenCalledWith('HASH');
+  });
+
+  it('throws ACCOUNT_LOCKED when third failure transitions to locked', async () => {
+    const { repo: attempts, spies } = buildAttemptsMock();
+    const lockedUntil = new Date(Date.now() + 15 * 60_000);
+    spies.recordFailure = vi.fn(async () => ({
+      locked: true,
+      unlockToken: 'utok',
+      lockedUntil,
+    }));
+
+    const auth = buildFakeAuth();
+    const firestore = fsWithUser();
+    const rest = {
+      signInWithPassword: vi.fn(async () => {
+        throw new InvalidCredentialsException();
+      }),
+    } as unknown as FirebaseAuthRestClient;
+    const service = await buildLoginModule(auth, firestore, rest, attempts);
+
+    await expect(service.login(validInput)).rejects.toBeInstanceOf(AccountLockedException);
+  });
+
+  it('throws EMAIL_NOT_VERIFIED without incrementing the counter when emailVerified=false', async () => {
+    const { repo: attempts, spies } = buildAttemptsMock();
+    const auth = buildFakeAuth({
+      verifyIdToken: vi.fn(async () => ({
+        uid: 'uid-123',
+        email: 'alice@example.com',
+        role: 'STUDENT',
+        email_verified: false,
+      })),
+    });
+    (auth as unknown as { getUser: ReturnType<typeof vi.fn> }).getUser = vi.fn(async () => ({
+      uid: 'uid-123',
+      email: 'alice@example.com',
+      emailVerified: false,
+      displayName: 'Alice',
+    }));
+    const firestore = fsWithUser();
+    const rest = buildFakeRestClient('ID-TOKEN');
+    const service = await buildLoginModule(auth, firestore, rest, attempts);
+
+    await expect(service.login(validInput)).rejects.toBeInstanceOf(EmailNotVerifiedException);
+    expect(spies.recordFailure).not.toHaveBeenCalled();
+    expect(spies.clear).not.toHaveBeenCalled();
+    expect(auth.createSessionCookie).not.toHaveBeenCalled();
   });
 });
