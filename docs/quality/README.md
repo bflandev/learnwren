@@ -1,5 +1,25 @@
 # Quality reports
 
+## Mutation testing
+
+[`mutation-report.md`](./mutation-report.md) is the actionable triage list — survivors clustered by file and nearby lines, each with a plain-English diagnosis and a recommended test. Headline mutation score for `libs/api-auth` is at the top of the report.
+
+```sh
+pnpm mutate            # full Stryker run on api-auth + regenerate the report
+pnpm mutate:api-auth   # just run Stryker (writes reports/mutation/api-auth/*)
+pnpm mutate:report     # just regenerate docs/quality/mutation-report.md from the JSON
+```
+
+Configuration lives in `stryker.api-auth.config.mjs`. Scope is intentionally narrow on day one — `libs/api-auth/src/lib/**/*.ts` excluding `email-transport/**` (broken spec), `auth.module.ts`, `dto/**`, `types/**`, `errors/**`, and `index.ts`. The runner is `@stryker-mutator/vitest-runner` pointed at `libs/api-auth/vitest.config.mts`.
+
+The report:
+
+- groups survivors into clusters (mutants within 5 lines of each other),
+- translates Stryker mutator names (`ConditionalExpression`, `OptionalChaining`, `BlockStatement`, ...) into the missing-assertion shape they imply,
+- proposes equivalent-mutant candidates (logger string content) but does not silently exclude them — review before adding to the config.
+
+Auth code targets **90%+** mutation score per the mutation-testing skill. Treat survivors as latent bugs, not as cosmetic gaps.
+
 ## CRAP score
 
 [`crap-report.md`](./crap-report.md) ranks methods by **Change Risk Anti-Pattern** score (Savoia & Evans):

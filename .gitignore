@@ -18,6 +18,10 @@ dist/
 # Test coverage artifacts (regenerate via `pnpm crap:coverage`)
 coverage/
 
+# Stryker mutation testing scratch + reports (regenerate via `pnpm mutate`)
+.stryker-tmp/
+reports/mutation/
+
 vite.config.*.timestamp*
 __screenshots__/
 
