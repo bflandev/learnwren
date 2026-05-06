@@ -6,29 +6,9 @@
   "sourceRoot": "apps/web/src",
   "tags": [],
   "targets": {
-    "generate-environment": {
-      "executor": "nx:run-commands",
-      "inputs": [
-        "{workspaceRoot}/tools/web/build-environment.ts",
-        "{projectRoot}/src/environments/firebase-target.ts",
-        { "env": "LEARNWREN_FIREBASE_TARGET" },
-        { "env": "LEARNWREN_WEB_FIREBASE_API_KEY" },
-        { "env": "LEARNWREN_WEB_FIREBASE_AUTH_DOMAIN" },
-        { "env": "LEARNWREN_WEB_FIREBASE_PROJECT_ID" },
-        { "env": "LEARNWREN_WEB_FIREBASE_APP_ID" },
-        { "env": "LEARNWREN_WEB_FIREBASE_STORAGE_BUCKET" },
-        { "env": "LEARNWREN_WEB_FIREBASE_MESSAGING_SENDER_ID" }
-      ],
-      "options": {
-        "command": "tsx tools/web/build-environment.ts",
-        "cwd": "{workspaceRoot}"
-      },
-      "outputs": ["{workspaceRoot}/apps/web/src/environments/environment.ts"]
-    },
     "build": {
       "executor": "@angular/build:application",
       "outputs": ["{options.outputPath}"],
-      "dependsOn": ["generate-environment"],
       "options": {
         "outputPath": "dist/apps/web",
         "browser": "apps/web/src/main.ts",
@@ -69,7 +49,6 @@
     "serve": {
       "continuous": true,
       "executor": "@angular/build:dev-server",
-      "dependsOn": ["generate-environment"],
       "options": {
         "proxyConfig": "apps/web/proxy.conf.json"
       },
@@ -84,12 +63,10 @@
       "defaultConfiguration": "development"
     },
     "lint": {
-      "executor": "@nx/eslint:lint",
-      "dependsOn": ["generate-environment"]
+      "executor": "@nx/eslint:lint"
     },
     "test": {
       "executor": "@angular/build:unit-test",
-      "dependsOn": ["generate-environment"],
       "options": {}
     },
     "serve-static": {
