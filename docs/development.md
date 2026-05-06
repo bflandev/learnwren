@@ -157,7 +157,19 @@ With `pnpm emulators` and `pnpm start` running:
 
 ### What's deferred
 
-Email-verification gating, brute-force lockout, profile editing, instructor-role request, admin promotion, account deletion, password reset, social auth, App Check, and public-profile reads are explicitly out of scope for this slice. See the spec's "Non-Goals" and "Follow-ups Explicitly Not in Scope" sections.
+Profile editing, instructor-role request, admin promotion, account deletion, social auth, App Check, and public-profile reads are out of scope for the auth slice. See the spec's "Non-Goals" and "Follow-ups Explicitly Not in Scope" sections.
+
+## Auth hardening — local development
+
+To exercise the lockout flow against the local emulator suite:
+
+1. Start the emulators: `pnpm emulators`
+2. In another terminal: `pnpm secrets:render && pnpm start`
+3. Register a user via the UI at `http://localhost:4200/register`. Verify the user's email by clicking the link in the Auth emulator UI (`http://127.0.0.1:4000/auth`).
+4. Trigger a lockout: enter the right email + wrong password three times on `/login`. The third attempt returns 423.
+5. Check the API server logs for the unlock URL printed by `ConsoleEmailTransport`. Open it in a browser to land on `/auth/unlock?token=...`.
+
+To switch to SMTP email transport, set `LEARNWREN_EMAIL_TRANSPORT=smtp` and configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` in `.env`.
 
 ## What is and is not wired up
 

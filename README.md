@@ -107,12 +107,26 @@ The API endpoints exposed by this slice:
 
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | Creates Auth user + `users/{uid}` doc + custom claim, sends verification email. |
-| `POST` | `/api/auth/session` | Exchanges a Firebase ID token for an `__session` cookie (HttpOnly, Secure, SameSite=Strict, 5d). |
+| `POST` | `/api/auth/register` | Creates Auth user + `users/{uid}` doc + custom claim, sends verification email, mints session cookie. |
+| `POST` | `/api/auth/login` | Verifies password via Firebase REST, runs lockout + verification gate, mints `__session` cookie. |
+| `POST` | `/api/auth/resend-verification` | Re-sends the verification email (60s throttle, enumeration-resistant). |
+| `POST` | `/api/auth/request-password-reset` | Sends Firebase password-reset email (60s throttle, enumeration-resistant). |
+| `POST` | `/api/auth/unlock` | Redeems an unlock token sent to the user when their account locks. |
 | `POST` | `/api/auth/logout` | Clears the cookie and revokes refresh tokens. Always 204. |
 | `GET` | `/api/auth/me` | Reads the cookie, returns `{uid, email, displayName, role, emailVerified}`. |
 
-For the full auth dev workflow, the deferred items, and error-code → prose mappings, see [`docs/development.md`](./docs/development.md#auth-dev-workflow) and the design spec at [`docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`](./docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md).
+For the full auth dev workflow, the deferred items, and error-code → prose mappings, see [`docs/development.md`](./docs/development.md#auth-dev-workflow) and the design specs at [`docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`](./docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md) and [`docs/superpowers/specs/2026-05-06-auth-hardening-design.md`](./docs/superpowers/specs/2026-05-06-auth-hardening-design.md).
+
+#### Auth hardening (2026-05-06)
+
+After the auth slice (registration + login), this slice adds:
+
+- **Strict email-verification gate.** `/auth/login` returns `403 EMAIL_NOT_VERIFIED` until the user clicks the link in their verification email.
+- **Brute-force lockout.** Three consecutive `INVALID_CREDENTIALS` failures lock the account for 15 minutes; the user gets an unlock email with a one-time link, or the lock auto-expires.
+- **Logged-out password reset.** "Forgot password?" link on the login page; Firebase sends the templated reset email.
+- **API-mediated login.** The Firebase Auth client SDK is no longer in the web bundle. `POST /auth/login` accepts `{ email, password }` and the server verifies credentials via Firebase's REST API.
+
+The unlock email is the only one we send ourselves (via Nodemailer). Configure with `LEARNWREN_EMAIL_TRANSPORT=console|smtp` and the `SMTP_*` env vars when `smtp`.
 
 ### Run against the real Firebase project
 
