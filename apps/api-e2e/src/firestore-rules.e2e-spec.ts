@@ -15,7 +15,9 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 
-const PROJECT_ID = 'demo-learnwren';
+// Distinct from the API's `demo-learnwren` project so testEnv.clearFirestore()
+// can't wipe auth_attempts docs that the auth.e2e-spec.ts lockout test writes.
+const PROJECT_ID = 'demo-learnwren-rules';
 let testEnv: RulesTestEnvironment;
 
 test.beforeAll(async () => {
