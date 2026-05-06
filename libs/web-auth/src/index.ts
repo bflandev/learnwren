@@ -1,8 +1,11 @@
-export { AuthService } from './lib/auth.service';
+export { AuthService, type LoginResult, type UnlockResult } from './lib/auth.service';
 export { authGuard } from './lib/auth.guard';
 export { withCredentialsInterceptor } from './lib/with-credentials.interceptor';
 export { LoginPageComponent } from './lib/login-page/login-page.component';
 export { RegisterPageComponent } from './lib/register-page/register-page.component';
+export { RegisterConfirmPageComponent } from './lib/register-confirm-page/register-confirm-page.component';
+export { ForgotPasswordPageComponent } from './lib/forgot-password-page/forgot-password-page.component';
+export { UnlockPageComponent } from './lib/unlock-page/unlock-page.component';
 export { passwordPolicyValidator } from './lib/password-policy.validator';
 export type { AuthenticatedUser, WebUserRole } from './lib/types/authenticated-user';
 export type { ApiAuthErrorBody, ApiAuthErrorCode } from './lib/types/api-error';

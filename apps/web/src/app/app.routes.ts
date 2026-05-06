@@ -14,6 +14,21 @@ export const appRoutes: Route[] = [
       import('@learnwren/web-auth').then((m) => m.RegisterPageComponent),
   },
   {
+    path: 'register/confirm',
+    loadComponent: () =>
+      import('@learnwren/web-auth').then((m) => m.RegisterConfirmPageComponent),
+  },
+  {
+    path: 'forgot-password',
+    loadComponent: () =>
+      import('@learnwren/web-auth').then((m) => m.ForgotPasswordPageComponent),
+  },
+  {
+    path: 'auth/unlock',
+    loadComponent: () =>
+      import('@learnwren/web-auth').then((m) => m.UnlockPageComponent),
+  },
+  {
     path: 'dashboard',
     canActivate: [authGuard],
     loadComponent: () =>
