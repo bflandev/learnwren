@@ -9,14 +9,14 @@ import {
 } from '@learnwren/api-firebase';
 import type { ISODateString, UserId, UserRole } from '@learnwren/shared-data-models';
 
+import { AuthAttemptsRepository } from './auth-attempts.repository';
+import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
 import {
   EmailAlreadyExistsException,
   InvalidDisplayNameException,
   InvalidEmailException,
-  InvalidIdTokenException,
   InternalAuthException,
-  RecentSignInRequiredException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -29,14 +29,10 @@ export interface RegisterInput {
 export interface RegisterResult {
   uid: UserId;
   email: string;
-  emailVerificationSent: boolean;
-}
-
-export interface SessionCookieResult {
-  cookie: string;
-  uid: UserId;
   role: UserRole;
+  cookie: string;
   maxAgeSeconds: number;
+  emailVerificationSent: boolean;
 }
 
 export interface MeResponse {
@@ -60,6 +56,8 @@ export class AuthService {
     private readonly passwordPolicy: PasswordPolicyService,
     @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
     @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
+    private readonly restClient: FirebaseAuthRestClient,
+    private readonly attempts: AuthAttemptsRepository,
   ) {}
 
   async register(input: RegisterInput): Promise<RegisterResult> {
@@ -97,17 +95,14 @@ export class AuthService {
     const now = new Date().toISOString() as ISODateString;
 
     try {
-      await this.firestore
-        .collection('users')
-        .doc(uid)
-        .set({
-          id: uid,
-          email: input.email,
-          displayName,
-          role: 'STUDENT',
-          createdAt: now,
-          updatedAt: now,
-        });
+      await this.firestore.collection('users').doc(uid).set({
+        id: uid,
+        email: input.email,
+        displayName,
+        role: 'STUDENT',
+        createdAt: now,
+        updatedAt: now,
+      });
     } catch (err) {
       this.logger.error(`[auth] register firestore.set failed uid=${uid}: ${String(err)}`);
       await this.bestEffortDeleteUser(uid);
@@ -124,7 +119,9 @@ export class AuthService {
 
     let emailVerificationSent = true;
     try {
-      await this.auth.generateEmailVerificationLink(input.email);
+      await this.auth.generateEmailVerificationLink(input.email, {
+        url: this.continueUrl('/login'),
+      });
     } catch (err) {
       this.logger.warn(
         `[auth] register generateEmailVerificationLink failed uid=${uid}: ${String(err)}`,
@@ -132,41 +129,59 @@ export class AuthService {
       emailVerificationSent = false;
     }
 
-    this.logger.log(`[auth] register uid=${uid}`);
-    return { uid, email: input.email, emailVerificationSent };
-  }
-
-  async createSessionCookie(idToken: string): Promise<SessionCookieResult> {
-    let decoded: adminAuth.DecodedIdToken;
+    // Auto-login internally to mint the session cookie before returning.
+    let session: { cookie: string; maxAgeSeconds: number };
     try {
-      decoded = await this.auth.verifyIdToken(idToken, true);
+      const restResult = await this.restClient.signInWithPassword({
+        email: input.email,
+        password: input.password,
+      });
+      session = await this.mintSessionCookie(restResult.idToken);
     } catch (err) {
-      this.logger.warn(`[auth] session verifyIdToken failed: ${String(err)}`);
-      throw new InvalidIdTokenException();
+      this.logger.error(`[auth] register auto-login failed uid=${uid}: ${String(err)}`);
+      await this.bestEffortDeleteUser(uid);
+      throw err instanceof Error ? err : new InternalAuthException();
     }
 
+    this.logger.log(`[auth] register uid=${uid}`);
+    return {
+      uid,
+      email: input.email,
+      role: 'STUDENT',
+      cookie: session.cookie,
+      maxAgeSeconds: session.maxAgeSeconds,
+      emailVerificationSent,
+    };
+  }
+
+  /**
+   * Verify a fresh ID token and exchange it for a 5-day session cookie.
+   * Used internally by register and login. Not exposed via the controller.
+   */
+  private async mintSessionCookie(
+    idToken: string,
+  ): Promise<{ cookie: string; maxAgeSeconds: number }> {
+    try {
+      await this.auth.verifyIdToken(idToken, true);
+    } catch (err) {
+      this.logger.error(`[auth] mintSessionCookie verifyIdToken failed: ${String(err)}`);
+      throw new InternalAuthException();
+    }
     let cookie: string;
     try {
       cookie = await this.auth.createSessionCookie(idToken, {
         expiresIn: SESSION_COOKIE_EXPIRES_IN_MS,
       });
     } catch (err) {
-      const code = this.isFirebaseError(err) ? err.code : '';
-      if (code === 'auth/id-token-expired' || /recent sign-in/i.test(String(err))) {
-        this.logger.warn(`[auth] session createSessionCookie stale token uid=${decoded.uid}`);
-        throw new RecentSignInRequiredException();
-      }
-      this.logger.warn(`[auth] session createSessionCookie failed uid=${decoded.uid}: ${String(err)}`);
-      throw new InvalidIdTokenException();
+      this.logger.error(`[auth] mintSessionCookie createSessionCookie failed: ${String(err)}`);
+      throw new InternalAuthException();
     }
+    return { cookie, maxAgeSeconds: SESSION_COOKIE_MAX_AGE_SECONDS };
+  }
 
-    this.logger.log(`[auth] session uid=${decoded.uid}`);
-    return {
-      cookie,
-      uid: decoded.uid as UserId,
-      role: decoded['role'] as UserRole,
-      maxAgeSeconds: SESSION_COOKIE_MAX_AGE_SECONDS,
-    };
+  private continueUrl(path: string): string {
+    const base = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
+    return `${base}${path}`;
   }
 
   async logoutSideEffects(sessionCookie: string | undefined): Promise<void> {

@@ -3,15 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FIREBASE_AUTH, FIRESTORE } from '@learnwren/api-firebase';
 
+import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { AuthService } from './auth.service';
+import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
 import {
   EmailAlreadyExistsException,
   InvalidDisplayNameException,
   InvalidEmailException,
-  InvalidIdTokenException,
   InternalAuthException,
-  RecentSignInRequiredException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -20,8 +20,8 @@ interface FakeAuth {
   setCustomUserClaims: ReturnType<typeof vi.fn>;
   generateEmailVerificationLink: ReturnType<typeof vi.fn>;
   deleteUser: ReturnType<typeof vi.fn>;
-  verifyIdToken?: ReturnType<typeof vi.fn>;
-  createSessionCookie?: ReturnType<typeof vi.fn>;
+  verifyIdToken: ReturnType<typeof vi.fn>;
+  createSessionCookie: ReturnType<typeof vi.fn>;
   verifySessionCookie?: ReturnType<typeof vi.fn>;
   revokeRefreshTokens?: ReturnType<typeof vi.fn>;
 }
@@ -37,6 +37,13 @@ function buildFakeAuth(overrides: Partial<FakeAuth> = {}): FakeAuth {
     setCustomUserClaims: vi.fn(async () => undefined),
     generateEmailVerificationLink: vi.fn(async () => 'https://verify/abc'),
     deleteUser: vi.fn(async () => undefined),
+    verifyIdToken: vi.fn(async () => ({
+      uid: 'uid-123',
+      email: 'alice@example.com',
+      role: 'STUDENT',
+      email_verified: false,
+    })),
+    createSessionCookie: vi.fn(async () => 'COOKIE-VALUE'),
     ...overrides,
   };
 }
@@ -52,13 +59,30 @@ function buildFakeFirestore(overrides: { setShouldFail?: boolean } = {}): FakeFi
   return { collection, _set: set };
 }
 
-async function buildModule(auth: FakeAuth, firestore: FakeFirestore) {
+function buildFakeRestClient(idToken = 'ID-TOKEN') {
+  return {
+    signInWithPassword: vi.fn(async () => ({
+      idToken,
+      localId: 'uid-123',
+      email: 'alice@example.com',
+      registered: true,
+    })),
+  };
+}
+
+async function buildModule(
+  auth: FakeAuth,
+  firestore: FakeFirestore,
+  rest: ReturnType<typeof buildFakeRestClient> = buildFakeRestClient(),
+) {
   const moduleRef = await Test.createTestingModule({
     providers: [
       AuthService,
       PasswordPolicyService,
+      AuthAttemptsRepository,
       { provide: FIREBASE_AUTH, useValue: auth },
       { provide: FIRESTORE, useValue: firestore },
+      { provide: FirebaseAuthRestClient, useValue: rest },
     ],
   }).compile();
   return moduleRef.get(AuthService);
@@ -75,34 +99,52 @@ describe('AuthService.register', () => {
     displayName: 'Alice',
   };
 
-  it('happy path: createUser → set Firestore doc → setCustomUserClaims → generate verification link', async () => {
+  it('happy path: end-to-end register returns cookie + role + uid', async () => {
     const auth = buildFakeAuth();
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const rest = buildFakeRestClient('ID-TOKEN-1');
+    const service = await buildModule(auth, firestore, rest);
 
     const result = await service.register(validInput);
 
-    expect(result).toEqual({
+    expect(auth.createUser).toHaveBeenCalledWith({
+      email: validInput.email,
+      password: validInput.password,
+      displayName: validInput.displayName,
+    });
+    expect(firestore._set).toHaveBeenCalled();
+    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('uid-123', { role: 'STUDENT' });
+    expect(rest.signInWithPassword).toHaveBeenCalledWith({
+      email: validInput.email,
+      password: validInput.password,
+    });
+    expect(auth.verifyIdToken).toHaveBeenCalledWith('ID-TOKEN-1', true);
+    expect(auth.createSessionCookie).toHaveBeenCalledWith(
+      'ID-TOKEN-1',
+      expect.objectContaining({ expiresIn: 5 * 24 * 60 * 60 * 1000 }),
+    );
+    expect(result).toMatchObject({
       uid: 'uid-123',
-      email: 'alice@example.com',
+      email: validInput.email,
+      role: 'STUDENT',
+      cookie: 'COOKIE-VALUE',
+      maxAgeSeconds: 5 * 24 * 60 * 60,
       emailVerificationSent: true,
     });
+  });
 
-    expect(auth.createUser).toHaveBeenCalledWith({
-      email: 'alice@example.com',
-      password: 'Aa1!aaaaaaaa',
-      displayName: 'Alice',
-    });
-    expect(firestore.collection).toHaveBeenCalledWith('users');
-    expect(firestore._set).toHaveBeenCalledWith(expect.objectContaining({
-      id: 'uid-123',
-      email: 'alice@example.com',
-      displayName: 'Alice',
-      role: 'STUDENT',
-    }));
-    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('uid-123', { role: 'STUDENT' });
-    expect(auth.generateEmailVerificationLink).toHaveBeenCalledWith('alice@example.com');
-    expect(auth.deleteUser).not.toHaveBeenCalled();
+  it('rollback: signInWithPassword failure deletes the just-created user', async () => {
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const rest = {
+      signInWithPassword: vi.fn(async () => {
+        throw new InternalAuthException();
+      }),
+    };
+    const service = await buildModule(auth, firestore, rest as never);
+
+    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
   });
 
   it('rejects with WeakPasswordException before any SDK call when password fails policy', async () => {
@@ -185,94 +227,15 @@ describe('AuthService.register', () => {
     const service = await buildModule(auth, firestore);
 
     const result = await service.register(validInput);
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       uid: 'uid-123',
       email: 'alice@example.com',
+      role: 'STUDENT',
+      cookie: 'COOKIE-VALUE',
+      maxAgeSeconds: 5 * 24 * 60 * 60,
       emailVerificationSent: false,
     });
     expect(auth.deleteUser).not.toHaveBeenCalled();
-  });
-});
-
-describe('AuthService.createSessionCookie', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('verifies the ID token then mints a session cookie with 5-day expiresIn', async () => {
-    const auth = {
-      ...buildFakeAuth(),
-      verifyIdToken: vi.fn(async () => ({ uid: 'uid-123', role: 'STUDENT' })),
-      createSessionCookie: vi.fn(async () => 'cookie.value.here'),
-    };
-    const firestore = buildFakeFirestore();
-    const service = await buildModule(auth as unknown as FakeAuth, firestore);
-
-    const result = await service.createSessionCookie('id.token.value');
-
-    expect(auth.verifyIdToken).toHaveBeenCalledWith('id.token.value', true);
-    expect(auth.createSessionCookie).toHaveBeenCalledWith('id.token.value', {
-      expiresIn: 5 * 24 * 60 * 60 * 1000,
-    });
-    expect(result).toEqual({
-      cookie: 'cookie.value.here',
-      uid: 'uid-123',
-      role: 'STUDENT',
-      maxAgeSeconds: 5 * 24 * 60 * 60,
-    });
-  });
-
-  it('throws InvalidIdTokenException when verifyIdToken rejects', async () => {
-    const auth = {
-      ...buildFakeAuth(),
-      verifyIdToken: vi.fn(async () => {
-        throw new Error('expired');
-      }),
-      createSessionCookie: vi.fn(),
-    };
-    const firestore = buildFakeFirestore();
-    const service = await buildModule(auth as unknown as FakeAuth, firestore);
-
-    await expect(service.createSessionCookie('bad')).rejects.toMatchObject({
-      code: 'INVALID_ID_TOKEN',
-    });
-    expect(auth.createSessionCookie).not.toHaveBeenCalled();
-  });
-
-  it('throws RecentSignInRequiredException when createSessionCookie says token is too old', async () => {
-    const auth = {
-      ...buildFakeAuth(),
-      verifyIdToken: vi.fn(async () => ({ uid: 'uid-123', role: 'STUDENT' })),
-      createSessionCookie: vi.fn(async () => {
-        const e = new Error('id token is too old');
-        (e as unknown as { code: string }).code = 'auth/id-token-expired';
-        throw e;
-      }),
-    };
-    const firestore = buildFakeFirestore();
-    const service = await buildModule(auth as unknown as FakeAuth, firestore);
-
-    await expect(service.createSessionCookie('stale.token')).rejects.toMatchObject({
-      code: 'RECENT_SIGN_IN_REQUIRED',
-    });
-  });
-
-  it('throws InvalidIdTokenException for argument-error from createSessionCookie', async () => {
-    const auth = {
-      ...buildFakeAuth(),
-      verifyIdToken: vi.fn(async () => ({ uid: 'uid-123', role: 'STUDENT' })),
-      createSessionCookie: vi.fn(async () => {
-        const e = new Error('bad');
-        (e as unknown as { code: string }).code = 'auth/argument-error';
-        throw e;
-      }),
-    };
-    const firestore = buildFakeFirestore();
-    const service = await buildModule(auth as unknown as FakeAuth, firestore);
-
-    await expect(service.createSessionCookie('bad.token')).rejects.toMatchObject({
-      code: 'INVALID_ID_TOKEN',
-    });
   });
 });
 
