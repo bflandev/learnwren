@@ -1,7 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 
 import { AuthModule } from '@learnwren/api-auth';
-import { CoursesModule } from '@learnwren/api-courses';
 import { FirebaseAdminModule } from '@learnwren/api-firebase';
 
 import { VIDEO_CONFIG, readVideoConfigFromEnv } from './video.config';
@@ -16,8 +15,11 @@ import { VideoStorageAdapter } from './video-storage.adapter';
 //   VideoController injects CoursesRepository from CoursesModule.
 //   CoursesService injects VideoService from VideoModule (cascade delete).
 // NestJS resolves the cycle at runtime via forwardRef.
+// Lazy require() inside forwardRef breaks the CommonJS circular-import problem.
 @Module({
-  imports: [FirebaseAdminModule, AuthModule, forwardRef(() => CoursesModule)],
+  // nx-ignore-next-line
+  // eslint-disable-next-line @nx/enforce-module-boundaries -- intentional circular: api-video ↔ api-courses (NestJS forwardRef cascade delete)
+  imports: [FirebaseAdminModule, AuthModule, forwardRef(() => require('@learnwren/api-courses').CoursesModule)],
   controllers: [VideoController],
   providers: [
     VideoRepository,

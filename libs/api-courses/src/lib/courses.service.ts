@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 
 import type {
   Course,
@@ -12,6 +12,14 @@ import type {
   ModuleId,
   UserId,
 } from '@learnwren/shared-data-models';
+
+// Minimal structural interface for the VideoService dependency.
+// Using a local interface instead of importing the concrete class avoids the
+// TypeScript composite project reference cycle (api-courses ↔ api-video).
+// The DI token is provided via forwardRef(() => require('@learnwren/api-video').VideoService).
+interface VideoServiceLike {
+  deleteForLesson(lessonId: string): Promise<void>;
+}
 
 import { CoursesRepository } from './courses.repository';
 import {
@@ -44,7 +52,16 @@ function nowIso(): ISODateString {
 
 @Injectable()
 export class CoursesService {
-  constructor(private readonly repo: CoursesRepository) {}
+  constructor(
+    private readonly repo: CoursesRepository,
+    // forwardRef with lazy require: resolves the api-courses ↔ api-video circular
+    // dependency at runtime without triggering a static import that would cause
+    // CourseOwnerGuard to be undefined during VideoController class decoration.
+    // nx-ignore-next-line
+    // eslint-disable-next-line @nx/enforce-module-boundaries -- intentional circular: api-courses ↔ api-video (NestJS forwardRef cascade delete)
+    @Inject(forwardRef(() => require('@learnwren/api-video').VideoService))
+    private readonly videoSvc: VideoServiceLike,
+  ) {}
 
   async createCourse(uid: UserId, input: CreateCourseInput): Promise<Course> {
     const now = nowIso();
@@ -162,6 +179,7 @@ export class CoursesService {
   async deleteLesson(cid: CourseId, mid: ModuleId, lid: LessonId): Promise<void> {
     const existing = await this.repo.getLesson(cid, mid, lid);
     if (!existing) throw new LessonNotFoundException();
+    await this.videoSvc.deleteForLesson(lid);
     await this.repo.deleteLesson(cid, mid, lid);
   }
 

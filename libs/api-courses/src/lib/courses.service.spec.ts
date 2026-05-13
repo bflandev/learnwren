@@ -52,6 +52,12 @@ interface RepoFake {
   writeLessonOrder: ReturnType<typeof vi.fn>;
 }
 
+function buildVideoSvcFake() {
+  return {
+    deleteForLesson: vi.fn(async () => undefined),
+  };
+}
+
 function buildRepoFake(): RepoFake {
   return {
     newId: vi.fn(() => 'generated-id'),
@@ -83,7 +89,7 @@ describe('CoursesService — course operations', () => {
     repo = buildRepoFake();
     let counter = 0;
     repo.newId.mockImplementation(() => `id-${++counter}`);
-    service = new CoursesService(repo as unknown as CoursesRepository);
+    service = new CoursesService(repo as unknown as CoursesRepository, buildVideoSvcFake() as never);
   });
 
   describe('createCourse', () => {
@@ -199,7 +205,7 @@ describe('CoursesService — module operations', () => {
     repo = buildRepoFake();
     let counter = 0;
     repo.newId.mockImplementation(() => `id-${++counter}`);
-    service = new CoursesService(repo as unknown as CoursesRepository);
+    service = new CoursesService(repo as unknown as CoursesRepository, buildVideoSvcFake() as never);
   });
 
   describe('createModule', () => {
@@ -323,7 +329,7 @@ describe('CoursesService — lesson operations', () => {
     repo = buildRepoFake();
     let counter = 0;
     repo.newId.mockImplementation(() => `id-${++counter}`);
-    service = new CoursesService(repo as unknown as CoursesRepository);
+    service = new CoursesService(repo as unknown as CoursesRepository, buildVideoSvcFake() as never);
     repo.getModule.mockResolvedValue({
       id: MID,
       courseId: CID,
@@ -411,6 +417,22 @@ describe('CoursesService — lesson operations', () => {
         updatedAt: FIXED_DATE,
       });
       await service.deleteLesson(CID, MID, 'lid-1' as LessonId);
+      expect(repo.deleteLesson).toHaveBeenCalledWith(CID, MID, 'lid-1');
+    });
+
+    it('cascades to VideoService.deleteForLesson before deleting the lesson doc', async () => {
+      const videoSvc = buildVideoSvcFake();
+      const svc = new CoursesService(repo as unknown as CoursesRepository, videoSvc as never);
+      repo.getLesson.mockResolvedValue({
+        id: 'lid-1' as LessonId,
+        moduleId: MID,
+        title: 'L',
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      });
+      await svc.deleteLesson(CID, MID, 'lid-1' as LessonId);
+      expect(videoSvc.deleteForLesson).toHaveBeenCalledWith('lid-1');
       expect(repo.deleteLesson).toHaveBeenCalledWith(CID, MID, 'lid-1');
     });
   });

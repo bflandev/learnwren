@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 
 import { FirebaseSessionGuard, InstructorRoleGuard } from '@learnwren/api-auth';
+// eslint-disable-next-line @nx/enforce-module-boundaries -- intentional circular: api-video ↔ api-courses (NestJS forwardRef cascade delete)
 import {
   CourseOwnerGuard,
   CoursesRepository,

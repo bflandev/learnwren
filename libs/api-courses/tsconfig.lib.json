@@ -23,13 +23,18 @@
   ],
   "references": [
     {
-      "path": "../shared-data-models/tsconfig.lib.json"
+      "path": "../api-firebase/tsconfig.lib.json"
     },
     {
-      "path": "../api-firebase/tsconfig.lib.json"
+      "path": "../shared-data-models/tsconfig.lib.json"
     },
     {
       "path": "../api-auth/tsconfig.lib.json"
     }
-  ]
+  ],
+  "nx": {
+    "sync": {
+      "ignoredDependencies": ["api-video"]
+    }
+  }
 }
