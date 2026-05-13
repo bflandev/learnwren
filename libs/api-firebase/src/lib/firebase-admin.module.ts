@@ -79,7 +79,14 @@ export class FirebaseAdminModule {
       module: FirebaseAdminModule,
       global: true,
       providers: [
-        { provide: FIRESTORE, useFactory: () => app.firestore() },
+        {
+          provide: FIRESTORE,
+          useFactory: () => {
+            const firestore = app.firestore();
+            firestore.settings({ ignoreUndefinedProperties: true });
+            return firestore;
+          },
+        },
         { provide: FIREBASE_AUTH, useFactory: () => app.auth() },
         { provide: FIREBASE_STORAGE, useFactory: () => app.storage() },
         {
