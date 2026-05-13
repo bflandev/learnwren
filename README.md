@@ -4,7 +4,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 
 > [!NOTE]
 > **PROJECT STATUS: EARLY DEVELOPMENT**
-> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), and the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route) are wired up. Profile editing, instructor-role requests, and the video/DRM pipeline are not yet wired — those are tracked in upcoming design specs under `docs/superpowers/specs/`.
+> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route), and the course authoring slice (EP-02 US-02-01..03: instructor role promotion, REST course surface, drag-and-drop editor) are wired up. Course publish (US-02-04) and cover image upload are deferred to the EP-03 video slice. Instructor dashboard, platform administration, and the video/DRM pipeline remain in post-MVP planning.
 
 ---
 
