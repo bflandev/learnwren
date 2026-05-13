@@ -1,33 +1,35 @@
 import { Route } from '@angular/router';
 
-import { authGuard } from '@learnwren/web-auth';
+import {
+  authGuard,
+  ForgotPasswordPageComponent,
+  LoginPageComponent,
+  RegisterConfirmPageComponent,
+  RegisterPageComponent,
+  UnlockPageComponent,
+} from '@learnwren/web-auth';
 import { coursesRoutes } from '@learnwren/web-courses';
 
 export const appRoutes: Route[] = [
   {
     path: 'login',
-    loadComponent: () =>
-      import('@learnwren/web-auth').then((m) => m.LoginPageComponent),
+    component: LoginPageComponent,
   },
   {
     path: 'register',
-    loadComponent: () =>
-      import('@learnwren/web-auth').then((m) => m.RegisterPageComponent),
+    component: RegisterPageComponent,
   },
   {
     path: 'register/confirm',
-    loadComponent: () =>
-      import('@learnwren/web-auth').then((m) => m.RegisterConfirmPageComponent),
+    component: RegisterConfirmPageComponent,
   },
   {
     path: 'forgot-password',
-    loadComponent: () =>
-      import('@learnwren/web-auth').then((m) => m.ForgotPasswordPageComponent),
+    component: ForgotPasswordPageComponent,
   },
   {
     path: 'auth/unlock',
-    loadComponent: () =>
-      import('@learnwren/web-auth').then((m) => m.UnlockPageComponent),
+    component: UnlockPageComponent,
   },
   {
     path: 'dashboard',

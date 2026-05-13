@@ -13,7 +13,7 @@
       "path": "../../libs/shared-data-models/tsconfig.lib.json"
     },
     {
-      "path": "../../libs/web-courses"
+      "path": "../../libs/web-courses/tsconfig.lib.json"
     },
     {
       "path": "../../libs/web-auth/tsconfig.lib.json"
