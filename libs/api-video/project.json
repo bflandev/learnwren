@@ -1,0 +1,40 @@
+{
+  "name": "api-video",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api-video/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "test": {
+      "executor": "@nx/vite:test",
+      "outputs": ["{workspaceRoot}/coverage/libs/api-video"],
+      "options": {
+        "config": "libs/api-video/vitest.config.mts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p libs/api-video/tsconfig.json"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["libs/api-video/**/*.ts"]
+      }
+    },
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/api-video",
+        "tsConfig": "libs/api-video/tsconfig.lib.json",
+        "packageJson": "libs/api-video/package.json",
+        "main": "libs/api-video/src/index.ts",
+        "assets": ["libs/api-video/*.md"]
+      }
+    }
+  }
+}
