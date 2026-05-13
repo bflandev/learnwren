@@ -114,3 +114,46 @@ test('admin cannot read /auth_attempts/{anyHash}', async () => {
   const ctx = testEnv.authenticatedContext('admin-1', { role: 'ADMIN' });
   await assertFails(getDoc(doc(ctx.firestore(), 'auth_attempts', 'abcd1234')));
 });
+
+test('anonymous client cannot read /courses/{cid}', async () => {
+  const ctx = testEnv.unauthenticatedContext();
+  const ref = doc(ctx.firestore(), 'courses', 'cid-1');
+  await assertFails(getDoc(ref));
+});
+
+test('STUDENT client cannot read /courses/{cid}', async () => {
+  const ctx = testEnv.authenticatedContext('uid-student', { role: 'STUDENT' });
+  const ref = doc(ctx.firestore(), 'courses', 'cid-1');
+  await assertFails(getDoc(ref));
+});
+
+test('INSTRUCTOR client cannot read /courses/{cid} (server-only path)', async () => {
+  const ctx = testEnv.authenticatedContext('uid-instructor', { role: 'INSTRUCTOR' });
+  const ref = doc(ctx.firestore(), 'courses', 'cid-1');
+  await assertFails(getDoc(ref));
+});
+
+test('INSTRUCTOR client cannot write /courses/{cid}', async () => {
+  const ctx = testEnv.authenticatedContext('uid-instructor', { role: 'INSTRUCTOR' });
+  const ref = doc(ctx.firestore(), 'courses', 'cid-1');
+  await assertFails(setDoc(ref, { title: 'X' }));
+});
+
+test('INSTRUCTOR client cannot read /courses/{cid}/modules/{mid}', async () => {
+  const ctx = testEnv.authenticatedContext('uid-instructor', { role: 'INSTRUCTOR' });
+  const ref = doc(ctx.firestore(), 'courses/cid-1/modules/mid-1');
+  await assertFails(getDoc(ref));
+});
+
+test('INSTRUCTOR client cannot read /courses/{cid}/modules/{mid}/lessons/{lid}', async () => {
+  const ctx = testEnv.authenticatedContext('uid-instructor', { role: 'INSTRUCTOR' });
+  const ref = doc(ctx.firestore(), 'courses/cid-1/modules/mid-1/lessons/lid-1');
+  await assertFails(getDoc(ref));
+});
+
+test('a privileged context (rules disabled) can seed a course doc for fixture setup', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const ref = doc(ctx.firestore(), 'courses/cid-seed');
+    await assertSucceeds(setDoc(ref, { title: 'seed' }));
+  });
+});
