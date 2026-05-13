@@ -15,3 +15,5 @@ export type CourseId = EntityId<'Course'>;
 export type ModuleId = EntityId<'Module'>;
 export type LessonId = EntityId<'Lesson'>;
 export type EnrollmentId = EntityId<'Enrollment'>;
+export type VideoId = EntityId<'Video'>;
+export type VideoKeyId = EntityId<'VideoKey'>;
