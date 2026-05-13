@@ -174,3 +174,94 @@ test('full lifecycle: instructor creates course, modules, lessons, reorders, del
   const after = await request.get(`${API_BASE}/courses/${course.id}`, { headers: hdr });
   expect(after.status()).toBe(404);
 });
+
+test('STUDENT gets 403 INSUFFICIENT_ROLE on POST /courses', async ({ request }) => {
+  const student = await registerStudent(request);
+  const res = await request.post(`${API_BASE}/courses`, {
+    headers: { Cookie: student.cookieHeader },
+    data: { title: 'X', description: 'Y' },
+  });
+  expect(res.status()).toBe(403);
+  const body = await res.json();
+  expect(body.error.code).toBe('INSUFFICIENT_ROLE');
+});
+
+test('unauthenticated request gets 401', async ({ request }) => {
+  const res = await request.get(`${API_BASE}/courses`);
+  expect(res.status()).toBe(401);
+});
+
+test("instructor B cannot access instructor A's course (403 NOT_COURSE_OWNER)", async ({
+  request,
+}) => {
+  const a = await registerAndPromoteInstructor(request);
+  const b = await registerAndPromoteInstructor(request);
+
+  const create = await request.post(`${API_BASE}/courses`, {
+    headers: { Cookie: a.cookieHeader },
+    data: { title: 'A-owned', description: 'D' },
+  });
+  const course = await create.json();
+
+  const get = await request.get(`${API_BASE}/courses/${course.id}`, {
+    headers: { Cookie: b.cookieHeader },
+  });
+  expect(get.status()).toBe(403);
+  const body = await get.json();
+  expect(body.error.code).toBe('NOT_COURSE_OWNER');
+});
+
+test('stale reorder returns 409 STALE_REORDER', async ({ request }) => {
+  const i = await registerAndPromoteInstructor(request);
+  const hdr = { Cookie: i.cookieHeader };
+
+  const c = await request.post(`${API_BASE}/courses`, {
+    headers: hdr,
+    data: { title: 'C', description: 'D' },
+  });
+  const course = await c.json();
+  const m1 = await (
+    await request.post(`${API_BASE}/courses/${course.id}/modules`, { headers: hdr, data: { title: 'A' } })
+  ).json();
+  const m2 = await (
+    await request.post(`${API_BASE}/courses/${course.id}/modules`, { headers: hdr, data: { title: 'B' } })
+  ).json();
+
+  // Stale: only one of two ids
+  const res = await request.put(`${API_BASE}/courses/${course.id}/modules/order`, {
+    headers: hdr,
+    data: { ids: [m1.id] },
+  });
+  expect(res.status()).toBe(409);
+  const body = await res.json();
+  expect(body.error.code).toBe('STALE_REORDER');
+
+  // Stale: foreign id
+  const res2 = await request.put(`${API_BASE}/courses/${course.id}/modules/order`, {
+    headers: hdr,
+    data: { ids: [m1.id, m2.id, 'mid-stranger'] },
+  });
+  expect(res2.status()).toBe(409);
+});
+
+test('GET on non-existent course returns 404', async ({ request }) => {
+  const i = await registerAndPromoteInstructor(request);
+  const res = await request.get(`${API_BASE}/courses/cid-nonexistent`, {
+    headers: { Cookie: i.cookieHeader },
+  });
+  expect(res.status()).toBe(404);
+  const body = await res.json();
+  expect(body.error.code).toBe('COURSE_NOT_FOUND');
+});
+
+test('validation: missing title returns 400 VALIDATION_FAILED', async ({ request }) => {
+  const i = await registerAndPromoteInstructor(request);
+  const res = await request.post(`${API_BASE}/courses`, {
+    headers: { Cookie: i.cookieHeader },
+    data: { description: 'no title' },
+  });
+  expect(res.status()).toBe(400);
+  const body = await res.json();
+  expect(body.error.code).toBe('VALIDATION_FAILED');
+  expect(body.error.details?.fieldErrors).toBeTruthy();
+});
