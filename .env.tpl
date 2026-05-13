@@ -33,6 +33,14 @@ LEARNWREN_EMAIL_FROM=noreply@learnwren.local
 # SMTP_USER=<user>
 # SMTP_PASS=<password>
 
+# ── Video upload (EP-03) ─────────────────────────────────────────────
+# Cloud Storage bucket for raw instructor uploads (before transcoding).
+# Create with: gsutil mb -p <project> -l us-central1 gs://<bucket-name>
+# Grant Cloud Functions SA: roles/storage.objectAdmin on the bucket.
+LEARNWREN_VIDEO_SOURCE_BUCKET=op://learnwren/dev/LEARNWREN_VIDEO_SOURCE_BUCKET
+# Number of minutes before an UPLOADING video is considered stuck.
+LEARNWREN_VIDEO_STUCK_THRESHOLD_MINUTES=30
+
 # ── Reserved for later specs ──────────────────────────────────────────
 # Cloud Functions deploy spec:  FIREBASE_TOKEN
 # DRM/transcoder spec:          DRM_API_KEY, TRANSCODER_WEBHOOK_SECRET
