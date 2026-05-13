@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Lesson } from './lesson';
+import type { Lesson } from '../index';
 
 describe('Lesson type', () => {
   it('allows constructing a Lesson without videoUrl or description', () => {

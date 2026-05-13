@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type {
-  Course,
-  CourseCategory,
-  CourseDifficulty,
-} from './course';
-import { COURSE_CATEGORIES, COURSE_DIFFICULTIES } from './course';
+import type { Course, CourseCategory, CourseDifficulty } from '../index';
+import { COURSE_CATEGORIES, COURSE_DIFFICULTIES } from '../index';
 
 describe('Course types', () => {
   it('exposes the six predefined course categories', () => {
@@ -42,8 +38,8 @@ describe('Course types', () => {
       title: 'T',
       description: 'D',
       longDescription: 'LD',
-      category: 'PROGRAMMING' as CourseCategory,
-      difficulty: 'BEGINNER' as CourseDifficulty,
+      category: 'PROGRAMMING',
+      difficulty: 'BEGINNER',
       instructorId: 'uid-1' as Course['instructorId'],
       status: 'DRAFT',
       createdAt: '2026-05-12T00:00:00.000Z' as Course['createdAt'],
