@@ -4,7 +4,8 @@ export interface Lesson {
   id: LessonId;
   moduleId: ModuleId;
   title: string;
-  videoUrl: string;
+  description?: string;
+  videoUrl?: string;
   order: number;
   createdAt: ISODateString;
   updatedAt: ISODateString;
