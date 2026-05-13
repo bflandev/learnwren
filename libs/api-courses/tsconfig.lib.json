@@ -20,5 +20,16 @@
     "src/**/*.spec.js",
     "src/**/*.test.jsx",
     "src/**/*.spec.jsx"
+  ],
+  "references": [
+    {
+      "path": "../shared-data-models/tsconfig.lib.json"
+    },
+    {
+      "path": "../api-firebase/tsconfig.lib.json"
+    },
+    {
+      "path": "../api-auth/tsconfig.lib.json"
+    }
   ]
 }
