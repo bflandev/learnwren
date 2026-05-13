@@ -1,0 +1,29 @@
+@let s = svc.state();
+@switch (s.kind) {
+  @case ('idle') {
+    <label class="upload-zone">
+      <span>Drag a video file here, or click to choose. MP4, MOV, or MKV up to 10 GB.</span>
+      <input
+        type="file"
+        accept="video/mp4,video/quicktime,video/x-matroska,.mp4,.mov,.mkv,.m4v"
+        (change)="onFile($any($event.target).files?.[0] ?? null)"
+      />
+    </label>
+  }
+  @case ('creating-session') { <p>Preparing upload…</p> }
+  @case ('uploading') {
+    <div>
+      <progress [value]="s.percent" max="100"></progress>
+      <span>{{ s.percent }}%</span>
+      <button type="button" (click)="onCancel()">Cancel</button>
+    </div>
+  }
+  @case ('finalizing') { <p>Finishing up…</p> }
+  @case ('canceling') { <p>Cancelling…</p> }
+  @case ('failed') {
+    <div role="alert">
+      <p>{{ s.reason }}</p>
+      <button type="button" (click)="onRetry()">Try again</button>
+    </div>
+  }
+}
