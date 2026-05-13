@@ -1,6 +1,5 @@
 export type CoursesErrorCode =
   | 'VALIDATION_FAILED'
-  | 'INSUFFICIENT_ROLE'
   | 'NOT_COURSE_OWNER'
   | 'COURSE_NOT_FOUND'
   | 'MODULE_NOT_FOUND'

@@ -1,8 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 
-import type { AuthenticatedRequest } from '@learnwren/api-auth';
-
-import { InsufficientRoleException } from './errors/courses.exception';
+import { InsufficientRoleException } from './errors/auth.exception';
+import type { AuthenticatedRequest } from './types/authenticated-request';
 
 @Injectable()
 export class InstructorRoleGuard implements CanActivate {

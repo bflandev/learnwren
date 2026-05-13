@@ -13,11 +13,12 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
+import { InstructorRoleGuard } from '@learnwren/api-auth';
+
 import { CourseOwnerGuard } from './course-owner.guard';
 import { CoursesController } from './courses.controller';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
-import { InstructorRoleGuard } from './instructor-role.guard';
 import type { CourseScopedRequest } from './types/loaded-course';
 
 const UID = 'uid-1' as UserId;

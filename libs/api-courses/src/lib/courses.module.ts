@@ -7,7 +7,6 @@ import { CoursesController } from './courses.controller';
 import { CoursesExceptionFilter } from './courses.exception-filter';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
-import { InstructorRoleGuard } from './instructor-role.guard';
 
 @Module({
   imports: [AuthModule],
@@ -16,8 +15,8 @@ import { InstructorRoleGuard } from './instructor-role.guard';
     CoursesService,
     CoursesRepository,
     CoursesExceptionFilter,
-    InstructorRoleGuard,
     CourseOwnerGuard,
   ],
+  exports: [CoursesRepository, CourseOwnerGuard],
 })
 export class CoursesModule {}

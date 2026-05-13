@@ -12,12 +12,6 @@ export class CoursesException extends Error {
   }
 }
 
-export class InsufficientRoleException extends CoursesException {
-  constructor() {
-    super('INSUFFICIENT_ROLE', 'Instructor role required.', 403);
-  }
-}
-
 export class NotCourseOwnerException extends CoursesException {
   constructor() {
     super('NOT_COURSE_OWNER', 'You do not own this course.', 403);

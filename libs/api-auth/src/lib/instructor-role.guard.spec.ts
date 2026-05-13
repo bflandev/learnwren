@@ -1,10 +1,10 @@
 import { ExecutionContext } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 
-import type { AuthenticatedRequest } from '@learnwren/api-auth';
+import type { AuthenticatedRequest } from './types/authenticated-request';
 import type { UserId, UserRole } from '@learnwren/shared-data-models';
 
-import { InsufficientRoleException } from './errors/courses.exception';
+import { InsufficientRoleException } from './errors/auth.exception';
 import { InstructorRoleGuard } from './instructor-role.guard';
 
 function buildContext(role: UserRole | null): ExecutionContext {

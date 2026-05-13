@@ -12,4 +12,5 @@ export type AuthErrorCode =
   | 'TOO_MANY_REQUESTS'
   | 'INVALID_UNLOCK_TOKEN'
   | 'UNLOCK_TOKEN_EXPIRED'
+  | 'INSUFFICIENT_ROLE'
   | 'INTERNAL';

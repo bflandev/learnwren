@@ -13,7 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { FirebaseSessionGuard } from '@learnwren/api-auth';
+import { FirebaseSessionGuard, InstructorRoleGuard } from '@learnwren/api-auth';
 import type { AuthenticatedRequest } from '@learnwren/api-auth';
 import type {
   Course,
@@ -34,7 +34,6 @@ import { ReorderDto } from './dto/reorder.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { UpdateModuleDto } from './dto/update-module.dto';
-import { InstructorRoleGuard } from './instructor-role.guard';
 import type { CourseTree } from './types/loaded-course';
 
 @Controller('courses')

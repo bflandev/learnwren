@@ -9,6 +9,7 @@ import { EMAIL_TRANSPORT } from './email-transport/email-transport';
 import { resolveEmailTransport } from './email-transport/email-transport.factory';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { FirebaseSessionGuard } from './firebase-session.guard';
+import { InstructorRoleGuard } from './instructor-role.guard';
 import { PasswordPolicyService } from './password-policy.service';
 import { SessionCookieHelper } from './session-cookie.helper';
 
@@ -21,6 +22,7 @@ import { SessionCookieHelper } from './session-cookie.helper';
     ConsoleEmailTransport, // fallback class registration; factory chooses concrete impl
     FirebaseAuthRestClient,
     FirebaseSessionGuard,
+    InstructorRoleGuard,
     PasswordPolicyService,
     SessionCookieHelper,
     {
@@ -28,6 +30,6 @@ import { SessionCookieHelper } from './session-cookie.helper';
       useFactory: () => resolveEmailTransport(),
     },
   ],
-  exports: [FirebaseSessionGuard],
+  exports: [FirebaseSessionGuard, InstructorRoleGuard],
 })
 export class AuthModule {}

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { InsufficientRoleException } from '@learnwren/api-auth';
+
 import {
   CourseNotFoundException,
   CoursesException,
-  InsufficientRoleException,
   LessonNotFoundException,
   ModuleNotFoundException,
   NotCourseOwnerException,

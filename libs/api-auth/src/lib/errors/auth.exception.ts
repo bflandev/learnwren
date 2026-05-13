@@ -104,6 +104,12 @@ export class InvalidUnlockTokenException extends AuthException {
   }
 }
 
+export class InsufficientRoleException extends AuthException {
+  constructor() {
+    super('INSUFFICIENT_ROLE', 'Instructor role required.', 403);
+  }
+}
+
 export class UnlockTokenExpiredException extends AuthException {
   constructor() {
     super('UNLOCK_TOKEN_EXPIRED', 'Unlock token has expired.', 410, {
