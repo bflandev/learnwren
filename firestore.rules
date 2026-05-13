@@ -29,6 +29,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /courses/{courseId} {
+      allow read, write: if false;
+
+      match /modules/{moduleId} {
+        allow read, write: if false;
+
+        match /lessons/{lessonId} {
+          allow read, write: if false;
+        }
+      }
+    }
+
     // Deny-by-default for everything else.
     match /{document=**} {
       allow read, write: if false;
