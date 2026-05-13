@@ -6,11 +6,17 @@ import type {
   CourseDifficulty,
   CourseId,
   ISODateString,
+  Module,
+  ModuleId,
   UserId,
 } from '@learnwren/shared-data-models';
 
 import { CoursesRepository } from './courses.repository';
-import { CourseNotFoundException } from './errors/courses.exception';
+import {
+  CourseNotFoundException,
+  ModuleNotFoundException,
+  StaleReorderException,
+} from './errors/courses.exception';
 import type { CourseTree } from './types/loaded-course';
 
 export interface CreateCourseInput {
@@ -79,5 +85,55 @@ export class CoursesService {
 
   async deleteCourse(cid: CourseId): Promise<void> {
     await this.repo.deleteCourseRecursive(cid);
+  }
+
+  // ────────────────────────── Module ──────────────────────────
+
+  async createModule(cid: CourseId, input: { title: string }): Promise<Module> {
+    const id = this.repo.newId<ModuleId>();
+    return this.repo.appendModule(cid, {
+      id,
+      courseId: cid,
+      title: input.title,
+    });
+  }
+
+  async updateModule(
+    cid: CourseId,
+    mid: ModuleId,
+    patch: { title?: string },
+  ): Promise<void> {
+    const existing = await this.repo.getModule(cid, mid);
+    if (!existing) throw new ModuleNotFoundException();
+    await this.repo.updateModule(cid, mid, patch);
+  }
+
+  async deleteModule(cid: CourseId, mid: ModuleId): Promise<void> {
+    const existing = await this.repo.getModule(cid, mid);
+    if (!existing) throw new ModuleNotFoundException();
+    await this.repo.deleteModuleRecursive(cid, mid);
+  }
+
+  async reorderModules(cid: CourseId, ids: ModuleId[]): Promise<Module[]> {
+    const current = await this.repo.listModulesByCourse(cid);
+    assertReorderSetMatches(
+      current.map((m) => m.id),
+      ids,
+    );
+    await this.repo.writeModuleOrder(cid, ids);
+    return ids.map((id, index) => ({
+      ...current.find((m) => m.id === id)!,
+      order: index,
+    }));
+  }
+}
+
+function assertReorderSetMatches(currentIds: string[], proposedIds: string[]): void {
+  if (currentIds.length !== proposedIds.length) throw new StaleReorderException();
+  const current = new Set(currentIds);
+  const proposed = new Set(proposedIds);
+  if (current.size !== proposed.size) throw new StaleReorderException();
+  for (const id of proposed) {
+    if (!current.has(id)) throw new StaleReorderException();
   }
 }

@@ -189,3 +189,126 @@ describe('CoursesService — course operations', () => {
     });
   });
 });
+
+describe('CoursesService — module operations', () => {
+  let repo: RepoFake;
+  let service: CoursesService;
+  const CID = 'cid-1' as CourseId;
+
+  beforeEach(() => {
+    repo = buildRepoFake();
+    let counter = 0;
+    repo.newId.mockImplementation(() => `id-${++counter}`);
+    service = new CoursesService(repo as unknown as CoursesRepository);
+  });
+
+  describe('createModule', () => {
+    it('appends a new module with a generated id', async () => {
+      repo.appendModule.mockImplementation(async (cid, seed) => ({
+        ...seed,
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      }));
+
+      const out = await service.createModule(CID, { title: 'Intro module' });
+      expect(out.id).toBe('id-1');
+      expect(out.courseId).toBe(CID);
+      expect(out.title).toBe('Intro module');
+      expect(repo.appendModule).toHaveBeenCalledWith(CID, {
+        id: 'id-1',
+        courseId: CID,
+        title: 'Intro module',
+      });
+    });
+  });
+
+  describe('updateModule', () => {
+    it('forwards a rename patch', async () => {
+      repo.getModule.mockResolvedValue({
+        id: 'mid-1' as ModuleId,
+        courseId: CID,
+        title: 'Old',
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      });
+      await service.updateModule(CID, 'mid-1' as ModuleId, { title: 'New' });
+      expect(repo.updateModule).toHaveBeenCalledWith(CID, 'mid-1', { title: 'New' });
+    });
+
+    it('throws ModuleNotFoundException when the module does not exist', async () => {
+      repo.getModule.mockResolvedValue(null);
+      const { ModuleNotFoundException } = await import('./errors/courses.exception');
+      await expect(
+        service.updateModule(CID, 'nope' as ModuleId, { title: 'X' }),
+      ).rejects.toBeInstanceOf(ModuleNotFoundException);
+    });
+  });
+
+  describe('deleteModule', () => {
+    it('checks existence then recursive-deletes', async () => {
+      repo.getModule.mockResolvedValue({
+        id: 'mid-1' as ModuleId,
+        courseId: CID,
+        title: 'M',
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      });
+      await service.deleteModule(CID, 'mid-1' as ModuleId);
+      expect(repo.deleteModuleRecursive).toHaveBeenCalledWith(CID, 'mid-1');
+    });
+
+    it('throws ModuleNotFoundException when the module does not exist', async () => {
+      repo.getModule.mockResolvedValue(null);
+      const { ModuleNotFoundException } = await import('./errors/courses.exception');
+      await expect(service.deleteModule(CID, 'nope' as ModuleId)).rejects.toBeInstanceOf(
+        ModuleNotFoundException,
+      );
+      expect(repo.deleteModuleRecursive).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reorderModules', () => {
+    const m = (id: string, order: number): Module => ({
+      id: id as ModuleId,
+      courseId: CID,
+      title: id,
+      order,
+      createdAt: FIXED_DATE,
+      updatedAt: FIXED_DATE,
+    });
+
+    it('writes the new order when ids match current children exactly', async () => {
+      repo.listModulesByCourse.mockResolvedValue([m('a', 0), m('b', 1), m('c', 2)]);
+      await service.reorderModules(CID, ['c', 'a', 'b'] as ModuleId[]);
+      expect(repo.writeModuleOrder).toHaveBeenCalledWith(CID, ['c', 'a', 'b']);
+    });
+
+    it('throws StaleReorderException when ids are missing one', async () => {
+      repo.listModulesByCourse.mockResolvedValue([m('a', 0), m('b', 1), m('c', 2)]);
+      const { StaleReorderException } = await import('./errors/courses.exception');
+      await expect(
+        service.reorderModules(CID, ['a', 'b'] as ModuleId[]),
+      ).rejects.toBeInstanceOf(StaleReorderException);
+      expect(repo.writeModuleOrder).not.toHaveBeenCalled();
+    });
+
+    it('throws StaleReorderException when ids include a stranger', async () => {
+      repo.listModulesByCourse.mockResolvedValue([m('a', 0), m('b', 1)]);
+      const { StaleReorderException } = await import('./errors/courses.exception');
+      await expect(
+        service.reorderModules(CID, ['a', 'b', 'z'] as ModuleId[]),
+      ).rejects.toBeInstanceOf(StaleReorderException);
+    });
+
+    it('throws StaleReorderException when ids contain duplicates', async () => {
+      repo.listModulesByCourse.mockResolvedValue([m('a', 0), m('b', 1)]);
+      const { StaleReorderException } = await import('./errors/courses.exception');
+      await expect(
+        service.reorderModules(CID, ['a', 'a'] as ModuleId[]),
+      ).rejects.toBeInstanceOf(StaleReorderException);
+    });
+  });
+});
