@@ -174,6 +174,16 @@ export class CoursesRepository {
     });
   }
 
+  async moduleExists(cid: CourseId, mid: ModuleId): Promise<boolean> {
+    const snap = await this.firestore
+      .collection(COURSES)
+      .doc(cid)
+      .collection('modules')
+      .doc(mid)
+      .get();
+    return snap.exists;
+  }
+
   async getLesson(cid: CourseId, mid: ModuleId, lid: LessonId): Promise<Lesson | null> {
     const snap = await this.firestore
       .collection(COURSES)
