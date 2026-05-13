@@ -1,0 +1,41 @@
+<section class="module-item" data-testid="module-item">
+  <header>
+    @if (editing()) {
+      <input
+        data-testid="module-rename-input"
+        type="text"
+        [ngModel]="draftTitle()"
+        (ngModelChange)="draftTitle.set($event)"
+        (blur)="commit()"
+        (keydown.enter)="commit()"
+        (keydown.escape)="cancel()"
+        autofocus
+      />
+    } @else {
+      <h2 data-testid="module-title" (click)="startEdit()">{{ module().title }}</h2>
+    }
+    <button data-testid="module-delete" type="button" (click)="deleteModule.emit()">Delete module</button>
+  </header>
+
+  <lib-lesson-list
+    [lessons]="lessons()"
+    (reorder)="reorderLessons.emit($event)"
+    (renameLesson)="renameLesson.emit($event)"
+    (deleteLesson)="deleteLesson.emit($event)"
+  ></lib-lesson-list>
+
+  @if (addingLesson()) {
+    <input
+      data-testid="add-lesson-input"
+      type="text"
+      [ngModel]="newLessonTitle()"
+      (ngModelChange)="newLessonTitle.set($event)"
+      (blur)="commitAddLesson()"
+      (keydown.enter)="commitAddLesson()"
+      placeholder="New lesson title"
+      autofocus
+    />
+  } @else {
+    <button data-testid="add-lesson" type="button" (click)="beginAddLesson()">Add lesson</button>
+  }
+</section>
