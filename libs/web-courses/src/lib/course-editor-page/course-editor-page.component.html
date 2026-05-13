@@ -1,0 +1,37 @@
+<header>
+  <a routerLink="/courses">← My Courses</a>
+</header>
+
+@if (tree() === null) {
+  <p>Loading…</p>
+} @else {
+  <lib-course-meta-panel
+    [course]="tree()!.course"
+    (update)="onUpdateCourse($event)"
+    (deleteCourse)="requestDeleteCourse()"
+  ></lib-course-meta-panel>
+
+  <button data-testid="add-module" type="button" (click)="addModule()">Add module</button>
+
+  <lib-module-tree
+    [nodes]="nodes()"
+    (reorderModules)="onReorderModules($event)"
+    (renameModule)="onRenameModule($event)"
+    (deleteModule)="requestDeleteModule($event)"
+    (addLesson)="onAddLesson($event)"
+    (renameLesson)="onRenameLesson($event)"
+    (deleteLesson)="requestDeleteLesson($event)"
+    (reorderLessons)="onReorderLessons($event)"
+  ></lib-module-tree>
+}
+
+@if (error()) {
+  <p class="error" data-testid="editor-error" role="alert">{{ error() }}</p>
+}
+
+@if (pendingConfirm()) {
+  <lib-confirm-dialog
+    [message]="confirmMessage()"
+    (closed)="onConfirmClosed($event)"
+  ></lib-confirm-dialog>
+}

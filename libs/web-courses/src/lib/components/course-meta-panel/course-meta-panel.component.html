@@ -1,0 +1,30 @@
+<section class="course-meta" data-testid="course-meta">
+  <label>
+    Title
+    <input
+      data-testid="course-title"
+      type="text"
+      [ngModel]="draftTitle() || course().title"
+      (focus)="syncDrafts()"
+      (ngModelChange)="draftTitle.set($event)"
+      (blur)="commitTitle()"
+      maxlength="100"
+    />
+  </label>
+
+  <label>
+    Description
+    <textarea
+      data-testid="course-description"
+      [ngModel]="draftDescription() || course().description"
+      (focus)="syncDrafts()"
+      (ngModelChange)="draftDescription.set($event)"
+      (blur)="commitDescription()"
+      maxlength="500"
+    ></textarea>
+  </label>
+
+  <button data-testid="delete-course" type="button" (click)="deleteCourse.emit()">
+    Delete course
+  </button>
+</section>
