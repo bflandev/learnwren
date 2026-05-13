@@ -22,5 +22,13 @@
     "src/**/*.test.jsx",
     "src/**/*.spec.jsx",
     "src/test-setup.ts"
+  ],
+  "references": [
+    {
+      "path": "../web-auth/tsconfig.lib.json"
+    },
+    {
+      "path": "../shared-data-models/tsconfig.lib.json"
+    }
   ]
 }
