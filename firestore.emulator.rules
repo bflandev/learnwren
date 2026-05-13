@@ -48,6 +48,14 @@ service cloud.firestore {
       }
     }
 
+    match /videos/{videoId} {
+      allow read, write: if false;
+    }
+
+    match /videoKeys/{keyId} {
+      allow read, write: if false;
+    }
+
     // Deny-by-default for everything else.
     match /{document=**} {
       allow read, write: if false;

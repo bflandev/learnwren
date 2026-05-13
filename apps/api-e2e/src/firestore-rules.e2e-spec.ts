@@ -157,3 +157,48 @@ test('a privileged context (rules disabled) can seed a course doc for fixture se
     await assertSucceeds(setDoc(ref, { title: 'seed' }));
   });
 });
+
+test('anonymous client cannot read /videos/{vid}', async () => {
+  const ctx = testEnv.unauthenticatedContext();
+  await assertFails(getDoc(doc(ctx.firestore(), 'videos', 'v1')));
+});
+
+test('anonymous client cannot write /videos/{vid}', async () => {
+  const ctx = testEnv.unauthenticatedContext();
+  await assertFails(setDoc(doc(ctx.firestore(), 'videos', 'v1'), { state: 'PENDING_UPLOAD' }));
+});
+
+test('STUDENT client cannot read /videos/{vid}', async () => {
+  const ctx = testEnv.authenticatedContext('student-uid', { role: 'STUDENT' });
+  await assertFails(getDoc(doc(ctx.firestore(), 'videos', 'v1')));
+});
+
+test('STUDENT client cannot write /videos/{vid}', async () => {
+  const ctx = testEnv.authenticatedContext('student-uid', { role: 'STUDENT' });
+  await assertFails(setDoc(doc(ctx.firestore(), 'videos', 'v1'), { state: 'PENDING_UPLOAD' }));
+});
+
+test('INSTRUCTOR client cannot read /videos/{vid}', async () => {
+  const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
+  await assertFails(getDoc(doc(ctx.firestore(), 'videos', 'v1')));
+});
+
+test('INSTRUCTOR client cannot write /videos/{vid}', async () => {
+  const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
+  await assertFails(setDoc(doc(ctx.firestore(), 'videos', 'v1'), { state: 'PENDING_UPLOAD' }));
+});
+
+test('anonymous client cannot read /videoKeys/{kid}', async () => {
+  const ctx = testEnv.unauthenticatedContext();
+  await assertFails(getDoc(doc(ctx.firestore(), 'videoKeys', 'k1')));
+});
+
+test('INSTRUCTOR client cannot read /videoKeys/{kid}', async () => {
+  const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
+  await assertFails(getDoc(doc(ctx.firestore(), 'videoKeys', 'k1')));
+});
+
+test('INSTRUCTOR client cannot write /videoKeys/{kid}', async () => {
+  const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
+  await assertFails(setDoc(doc(ctx.firestore(), 'videoKeys', 'k1'), { key: 'abc' }));
+});
