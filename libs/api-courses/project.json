@@ -1,0 +1,9 @@
+{
+  "name": "api-courses",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api-courses/src",
+  "projectType": "library",
+  "tags": ["scope:api"],
+  "// targets": "to see all targets run: nx show project api-courses --web",
+  "targets": {}
+}
