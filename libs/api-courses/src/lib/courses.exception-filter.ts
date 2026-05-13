@@ -24,14 +24,20 @@ export class CoursesExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
 
-    if (exception instanceof CoursesException) {
+    // Handle both CoursesException and AuthException, which share the same shape
+    if (
+      exception instanceof CoursesException ||
+      (exception instanceof Error &&
+        (exception.name === 'AuthException' || exception.constructor.name === 'AuthException'))
+    ) {
+      const err = exception as CoursesException & { code: string; status: number; details?: Record<string, unknown> };
       const body: CoursesErrorBody = {
-        error: { code: exception.code, message: exception.message },
+        error: { code: err.code, message: err.message },
       };
-      if (exception.details) {
-        body.error.details = exception.details;
+      if (err.details) {
+        body.error.details = err.details;
       }
-      response.status(exception.status).json(body);
+      response.status(err.status).json(body);
       return;
     }
 
@@ -69,7 +75,9 @@ export class CoursesExceptionFilter implements ExceptionFilter {
 function parseFieldErrors(messages: string[]): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const msg of messages) {
-    const field = msg.split(' ')[0];
+    const parts = msg.split(' ');
+    const field = parts[0];
+    if (!field) continue;
     if (!out[field]) out[field] = [];
     out[field].push(msg);
   }
