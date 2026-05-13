@@ -6,6 +6,8 @@ import type {
   CourseDifficulty,
   CourseId,
   ISODateString,
+  Lesson,
+  LessonId,
   Module,
   ModuleId,
   UserId,
@@ -14,6 +16,7 @@ import type {
 import { CoursesRepository } from './courses.repository';
 import {
   CourseNotFoundException,
+  LessonNotFoundException,
   ModuleNotFoundException,
   StaleReorderException,
 } from './errors/courses.exception';
@@ -123,6 +126,60 @@ export class CoursesService {
     await this.repo.writeModuleOrder(cid, ids);
     return ids.map((id, index) => ({
       ...current.find((m) => m.id === id)!,
+      order: index,
+    }));
+  }
+
+  // ────────────────────────── Lesson ──────────────────────────
+
+  async createLesson(
+    cid: CourseId,
+    mid: ModuleId,
+    input: { title: string; description?: string },
+  ): Promise<Lesson> {
+    const parent = await this.repo.getModule(cid, mid);
+    if (!parent) throw new ModuleNotFoundException();
+    const id = this.repo.newId<LessonId>();
+    return this.repo.appendLesson(cid, mid, {
+      id,
+      moduleId: mid,
+      title: input.title,
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    });
+  }
+
+  async updateLesson(
+    cid: CourseId,
+    mid: ModuleId,
+    lid: LessonId,
+    patch: { title?: string; description?: string },
+  ): Promise<void> {
+    const existing = await this.repo.getLesson(cid, mid, lid);
+    if (!existing) throw new LessonNotFoundException();
+    await this.repo.updateLesson(cid, mid, lid, patch);
+  }
+
+  async deleteLesson(cid: CourseId, mid: ModuleId, lid: LessonId): Promise<void> {
+    const existing = await this.repo.getLesson(cid, mid, lid);
+    if (!existing) throw new LessonNotFoundException();
+    await this.repo.deleteLesson(cid, mid, lid);
+  }
+
+  async reorderLessons(
+    cid: CourseId,
+    mid: ModuleId,
+    ids: LessonId[],
+  ): Promise<Lesson[]> {
+    const parent = await this.repo.getModule(cid, mid);
+    if (!parent) throw new ModuleNotFoundException();
+    const current = await this.repo.listLessonsByModule(cid, mid);
+    assertReorderSetMatches(
+      current.map((l) => l.id),
+      ids,
+    );
+    await this.repo.writeLessonOrder(cid, mid, ids);
+    return ids.map((id, index) => ({
+      ...current.find((l) => l.id === id)!,
       order: index,
     }));
   }

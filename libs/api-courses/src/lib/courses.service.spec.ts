@@ -312,3 +312,139 @@ describe('CoursesService — module operations', () => {
     });
   });
 });
+
+describe('CoursesService — lesson operations', () => {
+  let repo: RepoFake;
+  let service: CoursesService;
+  const CID = 'cid-1' as CourseId;
+  const MID = 'mid-1' as ModuleId;
+
+  beforeEach(() => {
+    repo = buildRepoFake();
+    let counter = 0;
+    repo.newId.mockImplementation(() => `id-${++counter}`);
+    service = new CoursesService(repo as unknown as CoursesRepository);
+    repo.getModule.mockResolvedValue({
+      id: MID,
+      courseId: CID,
+      title: 'M',
+      order: 0,
+      createdAt: FIXED_DATE,
+      updatedAt: FIXED_DATE,
+    });
+  });
+
+  describe('createLesson', () => {
+    it('requires the module to exist', async () => {
+      repo.getModule.mockResolvedValue(null);
+      const { ModuleNotFoundException } = await import('./errors/courses.exception');
+      await expect(service.createLesson(CID, MID, { title: 'L' })).rejects.toBeInstanceOf(
+        ModuleNotFoundException,
+      );
+      expect(repo.appendLesson).not.toHaveBeenCalled();
+    });
+
+    it('appends a new lesson with a generated id', async () => {
+      repo.appendLesson.mockImplementation(async (cid, mid, seed) => ({
+        ...seed,
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      }));
+      const out = await service.createLesson(CID, MID, {
+        title: 'L1',
+        description: 'first',
+      });
+      expect(out.id).toBe('id-1');
+      expect(out.moduleId).toBe(MID);
+      expect(out.title).toBe('L1');
+      expect(out.description).toBe('first');
+      expect(repo.appendLesson).toHaveBeenCalledWith(CID, MID, {
+        id: 'id-1',
+        moduleId: MID,
+        title: 'L1',
+        description: 'first',
+      });
+    });
+  });
+
+  describe('updateLesson', () => {
+    it('forwards the patch when the lesson exists', async () => {
+      repo.getLesson.mockResolvedValue({
+        id: 'lid-1' as LessonId,
+        moduleId: MID,
+        title: 'Old',
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      });
+      await service.updateLesson(CID, MID, 'lid-1' as LessonId, { title: 'New' });
+      expect(repo.updateLesson).toHaveBeenCalledWith(CID, MID, 'lid-1', { title: 'New' });
+    });
+
+    it('throws LessonNotFoundException when the lesson is missing', async () => {
+      repo.getLesson.mockResolvedValue(null);
+      const { LessonNotFoundException } = await import('./errors/courses.exception');
+      await expect(
+        service.updateLesson(CID, MID, 'lid-x' as LessonId, { title: 'X' }),
+      ).rejects.toBeInstanceOf(LessonNotFoundException);
+    });
+  });
+
+  describe('deleteLesson', () => {
+    it('throws LessonNotFoundException when the lesson is missing', async () => {
+      repo.getLesson.mockResolvedValue(null);
+      const { LessonNotFoundException } = await import('./errors/courses.exception');
+      await expect(service.deleteLesson(CID, MID, 'lid-x' as LessonId)).rejects.toBeInstanceOf(
+        LessonNotFoundException,
+      );
+      expect(repo.deleteLesson).not.toHaveBeenCalled();
+    });
+
+    it('deletes the lesson when it exists', async () => {
+      repo.getLesson.mockResolvedValue({
+        id: 'lid-1' as LessonId,
+        moduleId: MID,
+        title: 'L',
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      });
+      await service.deleteLesson(CID, MID, 'lid-1' as LessonId);
+      expect(repo.deleteLesson).toHaveBeenCalledWith(CID, MID, 'lid-1');
+    });
+  });
+
+  describe('reorderLessons', () => {
+    const l = (id: string, order: number): Lesson => ({
+      id: id as LessonId,
+      moduleId: MID,
+      title: id,
+      order,
+      createdAt: FIXED_DATE,
+      updatedAt: FIXED_DATE,
+    });
+
+    it('writes the new order when ids match current children exactly', async () => {
+      repo.listLessonsByModule.mockResolvedValue([l('a', 0), l('b', 1)]);
+      await service.reorderLessons(CID, MID, ['b', 'a'] as LessonId[]);
+      expect(repo.writeLessonOrder).toHaveBeenCalledWith(CID, MID, ['b', 'a']);
+    });
+
+    it('throws StaleReorderException when ids mismatch', async () => {
+      repo.listLessonsByModule.mockResolvedValue([l('a', 0), l('b', 1)]);
+      const { StaleReorderException } = await import('./errors/courses.exception');
+      await expect(
+        service.reorderLessons(CID, MID, ['a'] as LessonId[]),
+      ).rejects.toBeInstanceOf(StaleReorderException);
+    });
+
+    it('requires the parent module to exist', async () => {
+      repo.getModule.mockResolvedValue(null);
+      const { ModuleNotFoundException } = await import('./errors/courses.exception');
+      await expect(
+        service.reorderLessons(CID, MID, ['a'] as LessonId[]),
+      ).rejects.toBeInstanceOf(ModuleNotFoundException);
+    });
+  });
+});
