@@ -23,6 +23,7 @@
     "mutate:report": "node tools/mutation/report.mjs",
     "mutate": "pnpm mutate:api-auth && pnpm mutate:report",
     "emulators": "firebase emulators:start",
+    "tools:promote-to-instructor": "tsx tools/promote-to-instructor.ts",
     "secrets:render": "op inject -i .env.tpl -o .env",
     "secrets:run": "op run --env-file=.env.tpl"
   },
