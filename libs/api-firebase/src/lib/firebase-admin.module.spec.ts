@@ -15,6 +15,7 @@ const TARGET_KEYS = [
   'LEARNWREN_FIREBASE_TARGET',
   'LEARNWREN_API_FIREBASE_PROJECT_ID',
   'FIREBASE_SERVICE_ACCOUNT_JSON_PATH',
+  'FIREBASE_WEB_API_KEY',
 ] as const;
 
 async function resetEnvAndApps(): Promise<void> {
@@ -97,6 +98,7 @@ describe('FirebaseAdminModule', () => {
     it('initializes against the real project ID and does NOT set emulator env vars', async () => {
       process.env['LEARNWREN_FIREBASE_TARGET'] = 'production';
       process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] = 'test-prod-id';
+      process.env['FIREBASE_WEB_API_KEY'] = 'test-web-api-key';
       // no service-account path → ADC path
 
       const moduleRef = await Test.createTestingModule({
@@ -118,6 +120,7 @@ describe('FirebaseAdminModule', () => {
     it('initializes with cert credential when FIREBASE_SERVICE_ACCOUNT_JSON_PATH is set', async () => {
       process.env['LEARNWREN_FIREBASE_TARGET'] = 'production';
       process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] = 'test-prod-id';
+      process.env['FIREBASE_WEB_API_KEY'] = 'test-web-api-key';
       // We don't actually want to read a real file in unit tests. firebase-admin
       // resolves credential.cert lazily — its presence is what we verify.
       process.env['FIREBASE_SERVICE_ACCOUNT_JSON_PATH'] = '/tmp/learnwren-test-sa.json';

@@ -9,10 +9,9 @@
         (blur)="commit()"
         (keydown.enter)="commit()"
         (keydown.escape)="cancel()"
-        autofocus
       />
     } @else {
-      <h2 data-testid="module-title" (click)="startEdit()">{{ module().title }}</h2>
+      <button type="button" data-testid="module-title" (click)="startEdit()">{{ module().title }}</button>
     }
     <button data-testid="module-delete" type="button" (click)="deleteModule.emit()">Delete module</button>
   </header>
@@ -33,7 +32,6 @@
       (blur)="commitAddLesson()"
       (keydown.enter)="commitAddLesson()"
       placeholder="New lesson title"
-      autofocus
     />
   } @else {
     <button data-testid="add-lesson" type="button" (click)="beginAddLesson()">Add lesson</button>

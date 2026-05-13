@@ -42,6 +42,22 @@ function applyEmulatorEnvDefaults(): void {
   }
 }
 
+// Firestore's `settings()` can only be called once per instance. We track
+// which Firestore handles we've already configured so that repeat calls to
+// `FirebaseAdminModule.forRoot()` (legal — the same admin App is reused) do
+// not re-apply settings and trigger `Firestore has already been initialized`.
+const configuredFirestores = new WeakSet<admin.firestore.Firestore>();
+
+function configureFirestoreOnce(
+  firestore: admin.firestore.Firestore,
+): admin.firestore.Firestore {
+  if (!configuredFirestores.has(firestore)) {
+    firestore.settings({ ignoreUndefinedProperties: true });
+    configuredFirestores.add(firestore);
+  }
+  return firestore;
+}
+
 function ensureEmulatorAppInitialized(): admin.app.App {
   applyEmulatorEnvDefaults();
   const existing = admin.apps[0];
@@ -81,11 +97,7 @@ export class FirebaseAdminModule {
       providers: [
         {
           provide: FIRESTORE,
-          useFactory: () => {
-            const firestore = app.firestore();
-            firestore.settings({ ignoreUndefinedProperties: true });
-            return firestore;
-          },
+          useFactory: () => configureFirestoreOnce(app.firestore()),
         },
         { provide: FIREBASE_AUTH, useFactory: () => app.auth() },
         { provide: FIREBASE_STORAGE, useFactory: () => app.storage() },

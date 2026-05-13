@@ -8,10 +8,9 @@
       (blur)="commit()"
       (keydown.enter)="commit()"
       (keydown.escape)="cancel()"
-      autofocus
     />
   } @else {
-    <span data-testid="lesson-title" (click)="startEdit()">{{ lesson().title }}</span>
+    <button type="button" data-testid="lesson-title" (click)="startEdit()">{{ lesson().title }}</button>
   }
   <button data-testid="lesson-delete" type="button" (click)="delete.emit()">Delete</button>
 </div>
