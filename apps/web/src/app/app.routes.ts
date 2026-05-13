@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 
 import { authGuard } from '@learnwren/web-auth';
+import { coursesRoutes } from '@learnwren/web-courses';
 
 export const appRoutes: Route[] = [
   {
@@ -34,5 +35,6 @@ export const appRoutes: Route[] = [
     loadComponent: () =>
       import('./dashboard/dashboard.component').then((m) => m.DashboardComponent),
   },
+  ...coursesRoutes,
   { path: '', pathMatch: 'full', redirectTo: '/login' },
 ];
