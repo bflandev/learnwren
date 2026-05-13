@@ -55,4 +55,15 @@ describe('ModuleItemComponent', () => {
       .click();
     expect(spy).toHaveBeenCalled();
   });
+
+  it('does NOT double-emit addLesson when commit fires twice (Enter then blur race)', () => {
+    const fixture = build();
+    const spy = vi.spyOn(fixture.componentInstance.addLesson, 'emit');
+    fixture.componentInstance.beginAddLesson();
+    fixture.componentInstance.newLessonTitle.set('Only once');
+    fixture.componentInstance.commitAddLesson(); // simulates keydown.enter
+    fixture.componentInstance.commitAddLesson(); // simulates blur on the detached input
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith('Only once');
+  });
 });

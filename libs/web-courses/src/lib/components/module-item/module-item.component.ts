@@ -49,10 +49,11 @@ export class ModuleItemComponent {
   }
 
   commitAddLesson(): void {
+    if (!this.addingLesson()) return;
+    this.addingLesson.set(false);
     const t = this.newLessonTitle().trim();
     if (t.length > 0) {
       this.addLesson.emit(t);
     }
-    this.addingLesson.set(false);
   }
 }

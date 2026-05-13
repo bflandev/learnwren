@@ -61,11 +61,10 @@ test('instructor can create a course, add a module + lesson, rename, delete', as
   // Module appears
   await expect(page.getByTestId('module-title')).toHaveText('Module One', { timeout: 5_000 });
 
-  // Add a lesson — commit on blur to avoid the editor's double-fire
-  // (keydown.enter + blur both call commitAddLesson on the same input).
+  // Add a lesson via Enter key
   await page.getByTestId('add-lesson').click();
   await page.getByTestId('add-lesson-input').fill('Lesson One');
-  await page.getByTestId('add-lesson-input').blur();
+  await page.getByTestId('add-lesson-input').press('Enter');
   await expect(page.getByTestId('lesson-title')).toHaveText('Lesson One');
 
   // Delete the lesson
