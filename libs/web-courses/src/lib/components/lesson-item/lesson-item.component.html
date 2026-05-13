@@ -1,0 +1,17 @@
+<div class="lesson-item" data-testid="lesson-item">
+  @if (editing()) {
+    <input
+      data-testid="lesson-rename-input"
+      type="text"
+      [ngModel]="draftTitle()"
+      (ngModelChange)="draftTitle.set($event)"
+      (blur)="commit()"
+      (keydown.enter)="commit()"
+      (keydown.escape)="cancel()"
+      autofocus
+    />
+  } @else {
+    <span data-testid="lesson-title" (click)="startEdit()">{{ lesson().title }}</span>
+  }
+  <button data-testid="lesson-delete" type="button" (click)="delete.emit()">Delete</button>
+</div>
