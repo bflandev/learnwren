@@ -56,6 +56,8 @@ Deferred to post-MVP: Instructor Dashboard (EP-07), Platform Administration (EP-
 | UC-03-04 | Play a DRM-Protected Video | Student | Primary Task |
 | UC-03-05 | Manage Video Storage | Administrator | Primary Task |
 
+> **Note on UC-03-03 / UC-03-04 in MVP:** Both use cases remain in MVP, but ship with a reduced DRM bar: AES-128 HLS segment encryption, no commercial DRM (Widevine / PlayReady / FairPlay), no license server. The full multi-DRM realisation of these use cases is deferred to a post-MVP slice. See [`2026-05-13-video-pipeline-architecture-design.md`](./2026-05-13-video-pipeline-architecture-design.md) §6 for the protection-claim breakdown.
+
 ### EP-04: Lesson Materials
 
 | ID | Use Case | Primary Actor | Level |

@@ -13,26 +13,30 @@ This document outlines the recommended technical architecture for the Learn Wren
 ```mermaid
 graph TD
     subgraph "Firebase Platform"
-        A[Web Browser] --> B[Firebase Hosting];
-        B --> C[Angular Frontend];
-        C --> D[NestJS Backend via Cloud Functions];
+        A[Web Browser] --> B[Firebase Hosting]
+        B --> C[Angular Frontend]
+        C --> D[NestJS Backend via Cloud Functions]
     end
 
     subgraph "Firebase Services"
-        D --> E[Firestore Database];
-        D --> F[Cloud Storage for Firebase];
-        D --> G[Firebase Authentication];
+        D --> E[Firestore]
+        D --> F1[Cloud Storage: source bucket]
+        D --> F2[Cloud Storage: output bucket]
+        D --> G[Firebase Authentication]
     end
 
-    subgraph "Video Pipeline - Third Party"
-        D --> H[Transcoding and DRM Service];
-        H --> F;
+    subgraph "Video Pipeline - GCP"
+        D --> H[GCP Transcoder API]
+        H --> F1
+        H --> F2
+        H --> P[Pub/Sub topic]
+        P --> D
     end
 
-    subgraph "DRM and Playback"
-        C --> I[Video Player - Shaka or Video.js];
-        I --> F;
-        I --> H;
+    subgraph "Playback - MVP"
+        C --> I[hls.js player + custom UI]
+        I --> D
+        I --> F2
     end
 ```
 
@@ -49,8 +53,8 @@ graph TD
 | **Hosting & CDN** | Static & API Hosting | Firebase Hosting & Cloud Functions | Provides a serverless environment for hosting the Angular frontend and NestJS backend, with a built-in global CDN. |
 | **Authentication** | Identity Provider | Firebase Authentication | Manages user sign-up, sign-in, and security rules, integrating directly with Firestore. |
 | **File Storage** | Video & Lesson Materials | Cloud Storage for Firebase | Securely stores and delivers user-uploaded content like videos and PDFs, governed by Firebase security rules. |
-| **Video Pipeline** | Transcoding & DRM | Third-Party (e.g., Coconut, Mux) | Offloads the complex and resource-intensive tasks of video transcoding and multi-DRM packaging to a specialized service. |
-| **Video Player** | Web Player | Shaka Player or Video.js with DRM plugins | Both are open-source, support HLS/DASH, and can integrate with the chosen third-party DRM service. |
+| **Video Pipeline** | Transcoding | GCP Transcoder API (MVP); pluggable via the `VideoTranscoder` port — future swap to a self-hosted Cloud Run + FFmpeg + Shaka Packager worker for operators who want full self-host. | Same project, IAM, and billing as Firebase. Writes outputs to our own Cloud Storage bucket. Native AES-128 HLS encryption. Pay-per-use. |
+| **Video Player** | Web Player | hls.js with a light custom UI (MVP). EME-ready for the future Widevine / PlayReady / FairPlay slice. | HLS-only player covers every modern browser (native on Safari / iOS, via JS-MSE elsewhere). Smallest viable bundle. No player swap needed for full-DRM migration. |
 
 ---
 
@@ -98,10 +102,36 @@ graph TD
 | `id` | UUID | Primary Key |
 | `title` | String | ... |
 | `module_id` | UUID | Foreign Key to Module |
-| `video_url` | String | URL to the HLS/DASH manifest |
+| `video_id` | UUID | Foreign Key to Video (optional until a video is uploaded) |
 | `order` | Integer | ... |
 | `created_at` | Timestamp | ... |
 | `updated_at` | Timestamp | ... |
+
+### Video
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID | Primary Key |
+| `owner_instructor_id` | UUID | Foreign Key to User (denormalised for guard-time auth) |
+| `course_id` | UUID | Foreign Key to Course (denormalised for cascade-delete) |
+| `lesson_id` | UUID | Foreign Key to Lesson (current attachment; updated on replace-swap) |
+| `state` | Enum | `PENDING_UPLOAD`, `UPLOADING`, `UPLOADED`, `TRANSCODING`, `READY`, `FAILED` |
+| `source_bucket`, `source_path`, `source_size_bytes?` | ... | Source bucket object pointer |
+| `output_bucket?`, `output_manifest_path?`, `output_duration_sec?` | ... | Output bucket object pointer (populated when `state === 'READY'`) |
+| `transcoder_job_name?` | String | GCP Transcoder API job resource name |
+| `key_id?` | UUID | Foreign Key to VideoKey |
+| `failure_reason?` | String | Populated when `state === 'FAILED'` |
+| `created_at` | Timestamp | ... |
+| `updated_at` | Timestamp | ... |
+
+### VideoKey
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID | Primary Key |
+| `video_id` | UUID | Foreign Key to Video |
+| `key` | String | base64 of 16 bytes (AES-128) |
+| `created_at` | Timestamp | ... |
 
 ### Enrollment
 
@@ -113,3 +143,9 @@ graph TD
 | `progress` | JSONB | Stores completion status of lessons |
 | `created_at` | Timestamp | ... |
 | `updated_at` | Timestamp | ... |
+
+---
+
+## DRM Strategy
+
+MVP ships AES-128 HLS segment encryption with authenticated key delivery and signed segment URLs. Full multi-DRM (Widevine + PlayReady + FairPlay per US-03-03) is deferred to a post-MVP slice. The chosen player (hls.js) supports EME, so the future migration is a license-server endpoint plus DASH manifests — not a player replacement. See [`docs/superpowers/specs/2026-05-13-video-pipeline-architecture-design.md`](../superpowers/specs/2026-05-13-video-pipeline-architecture-design.md) §6 for what the reduced MVP bar claims and does not claim.
