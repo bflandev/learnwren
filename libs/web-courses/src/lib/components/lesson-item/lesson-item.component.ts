@@ -1,21 +1,55 @@
-import { Component, EventEmitter, Output, input, signal } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Output,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import type { Lesson } from '@learnwren/shared-data-models';
+import type { CourseId, Lesson, Video } from '@learnwren/shared-data-models';
+import {
+  VideoService,
+  VideoStateBadgeComponent,
+  VideoUploadComponent,
+} from '@learnwren/web-video';
 
 @Component({
   selector: 'lib-lesson-item',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent],
   templateUrl: './lesson-item.component.html',
 })
 export class LessonItemComponent {
+  private readonly api = inject(VideoService);
+
   readonly lesson = input.required<Lesson>();
+  readonly courseId = input.required<CourseId>();
+
   @Output() readonly rename = new EventEmitter<string>();
   @Output() readonly delete = new EventEmitter<void>();
+  @Output() readonly videoChanged = new EventEmitter<void>();
 
   readonly editing = signal(false);
   readonly draftTitle = signal('');
+  readonly video = signal<Video | undefined>(undefined);
+
+  constructor() {
+    effect(() => {
+      const vid = this.lesson().videoId;
+      if (!vid) {
+        untracked(() => this.video.set(undefined));
+        return;
+      }
+      this.api.getVideo(vid).subscribe({
+        next: (v) => this.video.set(v),
+        error: () => this.video.set(undefined),
+      });
+    });
+  }
 
   startEdit(): void {
     this.draftTitle.set(this.lesson().title);
@@ -34,5 +68,9 @@ export class LessonItemComponent {
 
   cancel(): void {
     this.editing.set(false);
+  }
+
+  onVideoUploaded(): void {
+    this.videoChanged.emit();
   }
 }

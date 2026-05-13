@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
-import type { Lesson, Module } from '@learnwren/shared-data-models';
+import type { CourseId, Lesson, Module } from '@learnwren/shared-data-models';
 
 import { ConfirmDialogComponent } from '../components/confirm-dialog/confirm-dialog.component';
 import { CourseMetaPanelComponent } from '../components/course-meta-panel/course-meta-panel.component';
@@ -26,7 +26,7 @@ export class CourseEditorPageComponent {
   private readonly router = inject(Router);
 
   private readonly paramMap = toSignal(this.route.paramMap);
-  readonly cid = computed(() => this.paramMap()?.get('id') ?? '');
+  readonly cid = computed(() => (this.paramMap()?.get('id') ?? '') as CourseId);
   readonly tree = signal<CourseTree | null>(null);
   readonly error = signal<string | null>(null);
   readonly pendingConfirm = signal<PendingConfirm | null>(null);

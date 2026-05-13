@@ -1,7 +1,10 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Lesson, LessonId, ModuleId } from '@learnwren/shared-data-models';
+import type { CourseId, Lesson, LessonId, ModuleId } from '@learnwren/shared-data-models';
+import { VideoService } from '@learnwren/web-video';
 
 import { LessonItemComponent } from './lesson-item.component';
 
@@ -16,9 +19,17 @@ const LESSON: Lesson = {
 
 describe('LessonItemComponent', () => {
   function build(): ReturnType<typeof TestBed.createComponent<LessonItemComponent>> {
-    TestBed.configureTestingModule({ imports: [LessonItemComponent] });
+    TestBed.configureTestingModule({
+      imports: [LessonItemComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        VideoService,
+      ],
+    });
     const fixture = TestBed.createComponent(LessonItemComponent);
     fixture.componentRef.setInput('lesson', LESSON);
+    fixture.componentRef.setInput('courseId', 'c1' as CourseId);
     fixture.detectChanges();
     return fixture;
   }
@@ -26,6 +37,11 @@ describe('LessonItemComponent', () => {
   it('renders the lesson title', () => {
     const fixture = build();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Hello');
+  });
+
+  it('renders VideoUploadComponent when lesson.videoId is null', () => {
+    const fixture = build();
+    expect((fixture.nativeElement as HTMLElement).querySelector('lib-video-upload')).toBeTruthy();
   });
 
   it('emits rename on commit with a new non-empty title', () => {

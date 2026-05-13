@@ -1,8 +1,11 @@
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Lesson, LessonId, ModuleId } from '@learnwren/shared-data-models';
+import type { CourseId, Lesson, LessonId, ModuleId } from '@learnwren/shared-data-models';
+import { VideoService } from '@learnwren/web-video';
 
 import { LessonListComponent } from './lesson-list.component';
 
@@ -19,9 +22,17 @@ function lesson(id: string, order: number): Lesson {
 
 describe('LessonListComponent', () => {
   function build(items: Lesson[]): ReturnType<typeof TestBed.createComponent<LessonListComponent>> {
-    TestBed.configureTestingModule({ imports: [LessonListComponent] });
+    TestBed.configureTestingModule({
+      imports: [LessonListComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        VideoService,
+      ],
+    });
     const fixture = TestBed.createComponent(LessonListComponent);
     fixture.componentRef.setInput('lessons', items);
+    fixture.componentRef.setInput('courseId', 'c1' as CourseId);
     fixture.detectChanges();
     return fixture;
   }

@@ -13,4 +13,15 @@
     <button type="button" data-testid="lesson-title" (click)="startEdit()">{{ lesson().title }}</button>
   }
   <button data-testid="lesson-delete" type="button" (click)="delete.emit()">Delete</button>
+
+  @if (lesson().videoId) {
+    @if (video(); as v) { <lib-video-state-badge [video]="v" /> }
+  } @else {
+    <lib-video-upload
+      [courseId]="courseId()"
+      [moduleId]="lesson().moduleId"
+      [lessonId]="lesson().id"
+      (uploaded)="onVideoUploaded()"
+    />
+  }
 </div>

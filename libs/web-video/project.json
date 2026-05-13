@@ -6,6 +6,25 @@
   "projectType": "library",
   "tags": [],
   "targets": {
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "options": {
+        "cwd": "libs/web-video",
+        "command": "tsc --build tsconfig.lib.json --emitDeclarationOnly"
+      },
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default",
+        {
+          "externalDependencies": ["typescript"]
+        }
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/out-tsc/libs/web-video/**/*.{d.ts,d.cts,d.mts}",
+        "{workspaceRoot}/libs/web-video/tsconfig.lib.tsbuildinfo"
+      ]
+    },
     "build": {
       "executor": "@nx/angular:ng-packagr-lite",
       "outputs": ["{workspaceRoot}/dist/{projectRoot}"],

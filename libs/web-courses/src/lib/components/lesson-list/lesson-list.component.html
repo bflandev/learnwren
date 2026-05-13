@@ -3,8 +3,10 @@
     <li cdkDrag>
       <lib-lesson-item
         [lesson]="lesson"
+        [courseId]="courseId()"
         (rename)="renameLesson.emit({ lessonId: lesson.id, title: $event })"
         (delete)="deleteLesson.emit(lesson.id)"
+        (videoChanged)="videoChanged.emit()"
       ></lib-lesson-item>
     </li>
   } @empty {

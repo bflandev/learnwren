@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, input } from '@angular/core';
+import { Component, EventEmitter, Output, inject, input } from '@angular/core';
 
 import type {
   CourseId,
@@ -21,7 +21,7 @@ export class VideoUploadComponent {
   readonly lessonId = input.required<LessonId>();
   @Output() readonly uploaded = new EventEmitter<VideoId>();
 
-  constructor(readonly svc: VideoUploadService) {}
+  readonly svc = inject(VideoUploadService);
 
   async onFile(file: File | null): Promise<void> {
     if (!file) return;

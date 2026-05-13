@@ -1,8 +1,11 @@
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Module, ModuleId, CourseId } from '@learnwren/shared-data-models';
+import { VideoService } from '@learnwren/web-video';
 
 import { ModuleTreeComponent, type ModuleNode } from './module-tree.component';
 
@@ -20,17 +23,25 @@ function node(id: string): ModuleNode {
 
 describe('ModuleTreeComponent', () => {
   it('shows the empty state when there are no nodes', () => {
-    TestBed.configureTestingModule({ imports: [ModuleTreeComponent] });
+    TestBed.configureTestingModule({
+      imports: [ModuleTreeComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), VideoService],
+    });
     const fixture = TestBed.createComponent(ModuleTreeComponent);
     fixture.componentRef.setInput('nodes', []);
+    fixture.componentRef.setInput('courseId', 'cid-1' as CourseId);
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('No modules yet');
   });
 
   it('emits reorderModules with the new id order on drop', () => {
-    TestBed.configureTestingModule({ imports: [ModuleTreeComponent] });
+    TestBed.configureTestingModule({
+      imports: [ModuleTreeComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), VideoService],
+    });
     const fixture = TestBed.createComponent(ModuleTreeComponent);
     fixture.componentRef.setInput('nodes', [node('a'), node('b'), node('c')]);
+    fixture.componentRef.setInput('courseId', 'cid-1' as CourseId);
     fixture.detectChanges();
     const spy = vi.spyOn(fixture.componentInstance.reorderModules, 'emit');
     fixture.componentInstance.onDrop({

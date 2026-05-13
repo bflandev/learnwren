@@ -4,12 +4,14 @@
       <lib-module-item
         [module]="node.module"
         [lessons]="node.lessons"
+        [courseId]="courseId()"
         (renameModule)="renameModule.emit({ moduleId: node.module.id, title: $event })"
         (deleteModule)="deleteModule.emit(node.module.id)"
         (addLesson)="addLesson.emit({ moduleId: node.module.id, title: $event })"
         (renameLesson)="renameLesson.emit({ moduleId: node.module.id, lessonId: $event.lessonId, title: $event.title })"
         (deleteLesson)="deleteLesson.emit({ moduleId: node.module.id, lessonId: $event })"
         (reorderLessons)="reorderLessons.emit({ moduleId: node.module.id, lessonIds: $event })"
+        (videoChanged)="videoChanged.emit()"
       ></lib-module-item>
     </div>
   } @empty {

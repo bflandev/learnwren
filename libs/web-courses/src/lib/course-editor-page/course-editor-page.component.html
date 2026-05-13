@@ -15,6 +15,7 @@
 
   <lib-module-tree
     [nodes]="nodes()"
+    [courseId]="cid()"
     (reorderModules)="onReorderModules($event)"
     (renameModule)="onRenameModule($event)"
     (deleteModule)="requestDeleteModule($event)"
@@ -22,6 +23,7 @@
     (renameLesson)="onRenameLesson($event)"
     (deleteLesson)="requestDeleteLesson($event)"
     (reorderLessons)="onReorderLessons($event)"
+    (videoChanged)="refresh()"
   ></lib-module-tree>
 }
 

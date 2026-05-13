@@ -1,7 +1,10 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Module, ModuleId, CourseId } from '@learnwren/shared-data-models';
+import { VideoService } from '@learnwren/web-video';
 
 import { ModuleItemComponent } from './module-item.component';
 
@@ -16,10 +19,18 @@ const M: Module = {
 
 describe('ModuleItemComponent', () => {
   function build(): ReturnType<typeof TestBed.createComponent<ModuleItemComponent>> {
-    TestBed.configureTestingModule({ imports: [ModuleItemComponent] });
+    TestBed.configureTestingModule({
+      imports: [ModuleItemComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        VideoService,
+      ],
+    });
     const fixture = TestBed.createComponent(ModuleItemComponent);
     fixture.componentRef.setInput('module', M);
     fixture.componentRef.setInput('lessons', []);
+    fixture.componentRef.setInput('courseId', 'cid-1' as CourseId);
     fixture.detectChanges();
     return fixture;
   }

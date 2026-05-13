@@ -18,9 +18,11 @@
 
   <lib-lesson-list
     [lessons]="lessons()"
+    [courseId]="courseId()"
     (reorder)="reorderLessons.emit($event)"
     (renameLesson)="renameLesson.emit($event)"
     (deleteLesson)="deleteLesson.emit($event)"
+    (videoChanged)="videoChanged.emit()"
   ></lib-lesson-list>
 
   @if (addingLesson()) {
