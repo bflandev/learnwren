@@ -1,0 +1,55 @@
+<header>
+  <h1>Create Course</h1>
+  <a routerLink="/courses">Cancel</a>
+</header>
+
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <label>
+    Title
+    <input data-testid="title" formControlName="title" maxlength="100" />
+  </label>
+  @for (e of fieldErrors()['title'] ?? []; track e) {
+    <p class="error">{{ e }}</p>
+  }
+
+  <label>
+    Short description
+    <textarea data-testid="description" formControlName="description" maxlength="500"></textarea>
+  </label>
+  @for (e of fieldErrors()['description'] ?? []; track e) {
+    <p class="error">{{ e }}</p>
+  }
+
+  <label>
+    Long description (optional)
+    <textarea formControlName="longDescription" maxlength="5000"></textarea>
+  </label>
+
+  <label>
+    Category (optional)
+    <select formControlName="category">
+      <option value="">—</option>
+      @for (c of categories; track c) {
+        <option [value]="c">{{ c }}</option>
+      }
+    </select>
+  </label>
+
+  <label>
+    Difficulty (optional)
+    <select formControlName="difficulty">
+      <option value="">—</option>
+      @for (d of difficulties; track d) {
+        <option [value]="d">{{ d }}</option>
+      }
+    </select>
+  </label>
+
+  @if (genericError()) {
+    <p class="error" data-testid="generic-error">{{ genericError() }}</p>
+  }
+
+  <button data-testid="submit" type="submit" [disabled]="form.invalid || busy()">
+    {{ busy() ? 'Creating…' : 'Create' }}
+  </button>
+</form>
