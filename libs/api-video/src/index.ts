@@ -1,1 +1,2 @@
-export * from './lib/api-video.module';
+export { VideoModule } from './lib/video.module';
+export { VideoService } from './lib/video.service';

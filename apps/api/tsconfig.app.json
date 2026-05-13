@@ -43,6 +43,9 @@
       "path": "../../libs/api-firebase/tsconfig.lib.json"
     },
     {
+      "path": "../../libs/api-video/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/shared-data-models/tsconfig.lib.json"
     }
   ]
