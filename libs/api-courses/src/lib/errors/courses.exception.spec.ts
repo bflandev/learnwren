@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { InsufficientRoleException } from '@learnwren/api-auth';
-
 import {
   CourseNotFoundException,
   CoursesException,
@@ -18,12 +16,6 @@ describe('CoursesException family', () => {
     expect(ex.message).toBe('bad input');
     expect(ex.status).toBe(400);
     expect(ex.details).toEqual({ foo: 'bar' });
-  });
-
-  it('InsufficientRoleException is 403 with code INSUFFICIENT_ROLE', () => {
-    const ex = new InsufficientRoleException();
-    expect(ex.code).toBe('INSUFFICIENT_ROLE');
-    expect(ex.status).toBe(403);
   });
 
   it('NotCourseOwnerException is 403 with code NOT_COURSE_OWNER', () => {

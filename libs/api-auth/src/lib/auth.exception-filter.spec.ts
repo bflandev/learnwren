@@ -7,6 +7,7 @@ import {
   AuthException,
   EmailAlreadyExistsException,
   EmailNotVerifiedException,
+  InsufficientRoleException,
   InvalidCredentialsException,
   InvalidUnlockTokenException,
   TooManyRequestsException,
@@ -113,6 +114,7 @@ describe('AuthExceptionFilter — hardening exceptions', () => {
 
   it.each([
     [new InvalidCredentialsException(), 401, 'INVALID_CREDENTIALS', undefined],
+    [new InsufficientRoleException(), 403, 'INSUFFICIENT_ROLE', undefined],
     [new EmailNotVerifiedException(), 403, 'EMAIL_NOT_VERIFIED', { resendAvailable: true }],
     [
       new AccountLockedException(new Date('2026-05-06T01:00:00.000Z')),
