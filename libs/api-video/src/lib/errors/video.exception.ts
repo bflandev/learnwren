@@ -94,3 +94,45 @@ export class PubSubWrongInvokerException extends VideoException {
     );
   }
 }
+
+export class RenditionNotFoundException extends VideoException {
+  constructor(rendition: string) {
+    super(
+      'RENDITION_NOT_FOUND',
+      `Rendition "${rendition}" is not available.`,
+      404,
+      { rendition },
+    );
+  }
+}
+
+export class VideoNotReadyException extends VideoException {
+  constructor(currentState: string) {
+    super(
+      'VIDEO_NOT_READY',
+      `Video is not ready for playback (current state: ${currentState}).`,
+      409,
+      { currentState },
+    );
+  }
+}
+
+export class KeyLookupFailedException extends VideoException {
+  constructor(detail?: string) {
+    super(
+      'KEY_LOOKUP_FAILED',
+      detail ? `Encryption key lookup failed: ${detail}.` : 'Encryption key lookup failed.',
+      500,
+    );
+  }
+}
+
+export class ManifestParseFailedException extends VideoException {
+  constructor(detail: string) {
+    super(
+      'MANIFEST_PARSE_FAILED',
+      `Manifest parse failed: ${detail}.`,
+      502,
+    );
+  }
+}

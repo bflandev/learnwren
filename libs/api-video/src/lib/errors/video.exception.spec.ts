@@ -2,15 +2,19 @@ import { describe, expect, it, test } from 'vitest';
 
 import {
   InvalidVideoStateException,
+  KeyLookupFailedException,
   LessonAlreadyHasVideoException,
+  ManifestParseFailedException,
   NotVideoOwnerException,
   PubSubInvalidTokenException,
   PubSubWrongAudienceException,
   PubSubWrongInvokerException,
+  RenditionNotFoundException,
   UploadObjectMissingException,
   UploadObjectSizeMismatchException,
   VideoException,
   VideoNotFoundException,
+  VideoNotReadyException,
 } from './video.exception';
 
 describe('Video exceptions', () => {
@@ -65,5 +69,34 @@ describe('Pub/Sub exceptions', () => {
     const e = new PubSubWrongInvokerException();
     expect(e.status).toBe(403);
     expect(e.code).toBe('PUBSUB_WRONG_INVOKER');
+  });
+});
+
+describe('slice C exceptions', () => {
+  it('RenditionNotFoundException → 404 RENDITION_NOT_FOUND', () => {
+    const ex = new RenditionNotFoundException('xyz');
+    expect(ex.status).toBe(404);
+    expect(ex.code).toBe('RENDITION_NOT_FOUND');
+    expect(ex.message).toMatch(/xyz/);
+  });
+
+  it('VideoNotReadyException → 409 VIDEO_NOT_READY carries currentState', () => {
+    const ex = new VideoNotReadyException('TRANSCODING');
+    expect(ex.status).toBe(409);
+    expect(ex.code).toBe('VIDEO_NOT_READY');
+    expect(ex.details).toEqual({ currentState: 'TRANSCODING' });
+  });
+
+  it('KeyLookupFailedException → 500 KEY_LOOKUP_FAILED', () => {
+    const ex = new KeyLookupFailedException();
+    expect(ex.status).toBe(500);
+    expect(ex.code).toBe('KEY_LOOKUP_FAILED');
+  });
+
+  it('ManifestParseFailedException → 502 MANIFEST_PARSE_FAILED carries detail', () => {
+    const ex = new ManifestParseFailedException('missing #EXTM3U');
+    expect(ex.status).toBe(502);
+    expect(ex.code).toBe('MANIFEST_PARSE_FAILED');
+    expect(ex.message).toMatch(/missing #EXTM3U/);
   });
 });
