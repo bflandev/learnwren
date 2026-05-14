@@ -14,6 +14,10 @@ import { FirebaseAdminModule } from '@learnwren/api-firebase';
 // pattern on the reverse direction.
 const API_COURSES_PKG = ['@learnwren', 'api-courses'].join('/');
 
+import { EnrollmentOrOwnerGuard } from './playback/enrollment-or-owner.guard';
+import { KeyService } from './playback/key.service';
+import { ManifestService } from './playback/manifest.service';
+import { PlaybackController } from './playback/playback.controller';
 import { FakeTranscoderAdapter } from './transcoder/fake-transcoder.adapter';
 import {
   GcpTranscoderAdapter,
@@ -43,6 +47,7 @@ function makeTranscoder(cfg: VideoConfig): VideoTranscoder {
 const controllers = [
   VideoController,
   TranscoderEventsController,
+  PlaybackController,
   ...(process.env['NODE_ENV'] !== 'production' ? [FakeTranscoderController] : []),
 ];
 
@@ -71,6 +76,9 @@ const controllers = [
       provide: ID_TOKEN_VERIFIER,
       useFactory: () => new OAuth2Client(),
     },
+    ManifestService,
+    KeyService,
+    EnrollmentOrOwnerGuard,
   ],
   exports: [VideoService],
 })
