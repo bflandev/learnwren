@@ -108,7 +108,7 @@ test('401 unauthenticated, 403 wrong-role, 403 wrong-instructor, 409 already-has
     },
   );
   expect(studentRes.status()).toBe(403);
-  expect(((await studentRes.json()) as { code: string }).code).toBe('INSUFFICIENT_ROLE');
+  expect(((await studentRes.json()) as { error: { code: string } }).error.code).toBe('INSUFFICIENT_ROLE');
 
   // 403 NOT_COURSE_OWNER (different instructor)
   const otherInst = await registerAndPromoteInstructor(request);
@@ -120,7 +120,7 @@ test('401 unauthenticated, 403 wrong-role, 403 wrong-instructor, 409 already-has
     },
   );
   expect(otherRes.status()).toBe(403);
-  expect(((await otherRes.json()) as { code: string }).code).toBe('NOT_COURSE_OWNER');
+  expect(((await otherRes.json()) as { error: { code: string } }).error.code).toBe('NOT_COURSE_OWNER');
 
   // 409 LESSON_ALREADY_HAS_VIDEO
   const first = await request.post(
@@ -142,7 +142,7 @@ test('401 unauthenticated, 403 wrong-role, 403 wrong-instructor, 409 already-has
     { headers: hdr, data: { sizeBytes: 1, contentType: 'video/mp4' } },
   );
   expect(second.status()).toBe(409);
-  expect(((await second.json()) as { code: string }).code).toBe('LESSON_ALREADY_HAS_VIDEO');
+  expect(((await second.json()) as { error: { code: string } }).error.code).toBe('LESSON_ALREADY_HAS_VIDEO');
 });
 
 test('422 upload-object-missing when complete called before any bytes', async ({ request }) => {
@@ -160,7 +160,7 @@ test('422 upload-object-missing when complete called before any bytes', async ({
     headers: hdr,
   });
   expect(r.status()).toBe(422);
-  expect(((await r.json()) as { code: string }).code).toBe('UPLOAD_OBJECT_MISSING');
+  expect(((await r.json()) as { error: { code: string } }).error.code).toBe('UPLOAD_OBJECT_MISSING');
 });
 
 test('lesson delete cascades to video', async ({ request }) => {
