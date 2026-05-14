@@ -7,6 +7,14 @@ import type {
   VideoKeyId,
 } from './common';
 
+export const SUPPORTED_VIDEO_CONTENT_TYPES = [
+  'video/mp4',
+  'video/quicktime',
+  'video/x-matroska',
+] as const;
+
+export type SupportedVideoContentType = (typeof SUPPORTED_VIDEO_CONTENT_TYPES)[number];
+
 export type VideoState =
   | 'PENDING_UPLOAD'
   | 'UPLOADING'    // defined for future slices; not written by slice A

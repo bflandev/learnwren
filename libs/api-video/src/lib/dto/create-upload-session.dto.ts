@@ -8,13 +8,10 @@ import {
   Min,
 } from 'class-validator';
 
-export const SUPPORTED_CONTENT_TYPES = [
-  'video/mp4',
-  'video/quicktime',
-  'video/x-matroska',
-] as const;
-
-export type SupportedContentType = (typeof SUPPORTED_CONTENT_TYPES)[number];
+import {
+  SUPPORTED_VIDEO_CONTENT_TYPES,
+  type SupportedVideoContentType,
+} from '@learnwren/shared-data-models';
 
 export class CreateUploadSessionDto {
   @IsInt()
@@ -22,8 +19,8 @@ export class CreateUploadSessionDto {
   @Max(10_000_000_000)
   sizeBytes!: number;
 
-  @IsIn(SUPPORTED_CONTENT_TYPES as readonly string[])
-  contentType!: SupportedContentType;
+  @IsIn(SUPPORTED_VIDEO_CONTENT_TYPES as readonly string[])
+  contentType!: SupportedVideoContentType;
 
   @IsOptional()
   @IsString()

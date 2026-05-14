@@ -4,13 +4,13 @@ import type {
   CourseId,
   ISODateString,
   LessonId,
+  SupportedVideoContentType,
   UserId,
   Video,
   VideoId,
 } from '@learnwren/shared-data-models';
 
 import { VIDEO_CONFIG, type VideoConfig } from './video.config';
-import type { SupportedContentType } from './dto/create-upload-session.dto';
 import {
   InvalidVideoStateException,
   LessonAlreadyHasVideoException,
@@ -26,7 +26,7 @@ import {
 
 const SIZE_TOLERANCE = 1.05;
 
-const EXT_BY_CONTENT_TYPE: Record<SupportedContentType, 'mp4' | 'mov' | 'mkv'> = {
+const EXT_BY_CONTENT_TYPE: Record<SupportedVideoContentType, 'mp4' | 'mov' | 'mkv'> = {
   'video/mp4': 'mp4',
   'video/quicktime': 'mov',
   'video/x-matroska': 'mkv',
@@ -43,7 +43,7 @@ export interface CreateUploadSessionInput {
   courseId: CourseId;
   lessonId: LessonId;
   lessonVideoId: VideoId | undefined;
-  input: { sizeBytes: number; contentType: SupportedContentType };
+  input: { sizeBytes: number; contentType: SupportedVideoContentType };
 }
 
 export interface CreateUploadSessionResult {
