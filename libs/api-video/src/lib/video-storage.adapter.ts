@@ -42,6 +42,8 @@ export interface VideoStoragePort {
   deleteObject(input: { bucket: string; path: string }): Promise<void>;
   deletePrefix(input: { bucket: string; prefix: string }): Promise<void>;
   probeSource(input: { bucket: string; path: string }): Promise<SourceProbe>;
+  readManifestObject(input: { bucket: string; path: string }): Promise<string>;
+  signObjectUrl(input: { bucket: string; path: string; ttlSec: number }): Promise<string>;
 }
 
 @Injectable()
@@ -133,5 +135,21 @@ export class VideoStorageAdapter implements VideoStoragePort {
       height: videoStream.height,
       durationSec: Number(parsed.format?.duration ?? '0'),
     };
+  }
+
+  async readManifestObject(input: { bucket: string; path: string }): Promise<string> {
+    const file = this.storage.bucket(input.bucket).file(input.path);
+    const [buf] = await file.download();
+    return buf.toString('utf-8');
+  }
+
+  async signObjectUrl(input: { bucket: string; path: string; ttlSec: number }): Promise<string> {
+    const file = this.storage.bucket(input.bucket).file(input.path);
+    const [url] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'read',
+      expires: Date.now() + input.ttlSec * 1000,
+    });
+    return url;
   }
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { type FirebaseStorageHandle } from '@learnwren/api-firebase';
+
 import { VideoStorageAdapter } from './video-storage.adapter';
 
 function makeAdapterWithRunner(runner: ReturnType<typeof vi.fn>, file: object): VideoStorageAdapter {
@@ -61,5 +63,58 @@ describe('VideoStorageAdapter.deletePrefix', () => {
     const storage = { bucket: () => bucket };
     const adapter = new VideoStorageAdapter(storage as never);
     await expect(adapter.deletePrefix({ bucket: 'b', prefix: 'p/' })).resolves.toBeUndefined();
+  });
+});
+
+describe('VideoStorageAdapter.readManifestObject', () => {
+  it('downloads the object body as a UTF-8 string', async () => {
+    const download = vi.fn().mockResolvedValue([Buffer.from('#EXTM3U\nbody\n', 'utf-8')]);
+    const storage = {
+      bucket: (_b: string) => ({ file: (_p: string) => ({ download }) }),
+    } as unknown as FirebaseStorageHandle;
+    const adapter = new VideoStorageAdapter(storage);
+    const body = await adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/manifest.m3u8' });
+    expect(body).toBe('#EXTM3U\nbody\n');
+    expect(download).toHaveBeenCalledOnce();
+  });
+
+  it('propagates errors from the storage layer', async () => {
+    const err = new Error('boom');
+    const download = vi.fn().mockRejectedValue(err);
+    const storage = {
+      bucket: () => ({ file: () => ({ download }) }),
+    } as unknown as FirebaseStorageHandle;
+    const adapter = new VideoStorageAdapter(storage);
+    await expect(adapter.readManifestObject({ bucket: 'b', path: 'p' })).rejects.toThrow(/boom/);
+  });
+});
+
+describe('VideoStorageAdapter.signObjectUrl', () => {
+  it('mints a v4 read URL with the provided TTL', async () => {
+    const getSignedUrl = vi.fn().mockResolvedValue(['https://signed/url']);
+    const storage = {
+      bucket: () => ({ file: () => ({ getSignedUrl }) }),
+    } as unknown as FirebaseStorageHandle;
+    const adapter = new VideoStorageAdapter(storage);
+    const before = Date.now();
+    const url = await adapter.signObjectUrl({ bucket: 'b', path: 'videos/v1/hls/1080p/seg.ts', ttlSec: 14400 });
+    const after = Date.now();
+    expect(url).toBe('https://signed/url');
+    expect(getSignedUrl).toHaveBeenCalledOnce();
+    const args = getSignedUrl.mock.calls[0]![0] as { version: string; action: string; expires: number };
+    expect(args.version).toBe('v4');
+    expect(args.action).toBe('read');
+    expect(args.expires).toBeGreaterThanOrEqual(before + 14400 * 1000);
+    expect(args.expires).toBeLessThanOrEqual(after + 14400 * 1000);
+  });
+
+  it('passes the bucket and path through to the storage client', async () => {
+    const fileSpy = vi.fn(() => ({ getSignedUrl: vi.fn().mockResolvedValue(['u']) }));
+    const bucketSpy = vi.fn(() => ({ file: fileSpy }));
+    const storage = { bucket: bucketSpy } as unknown as FirebaseStorageHandle;
+    const adapter = new VideoStorageAdapter(storage);
+    await adapter.signObjectUrl({ bucket: 'my-bucket', path: 'a/b/c.ts', ttlSec: 60 });
+    expect(bucketSpy).toHaveBeenCalledWith('my-bucket');
+    expect(fileSpy).toHaveBeenCalledWith('a/b/c.ts');
   });
 });
