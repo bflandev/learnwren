@@ -9,6 +9,7 @@ export interface VideoConfig {
   pollIntervalMs: number;
   playbackSignedUrlTtlSec: number;
   transcoderImpl: TranscoderImpl;
+  playbackStorageImpl: 'real' | 'fake';
   // Present only when transcoderImpl === 'gcp':
   gcpProjectId?: string;
   transcoderLocation?: string;
@@ -51,6 +52,14 @@ export function readVideoConfigFromEnv(env: NodeJS.ProcessEnv): VideoConfig {
     '14400',
   );
 
+  const playbackStorageImpl: 'real' | 'fake' =
+    env['LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE'] === 'true' ? 'fake' : 'real';
+  if (playbackStorageImpl === 'fake' && env['NODE_ENV'] === 'production') {
+    throw new Error(
+      'LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true is rejected when NODE_ENV=production.',
+    );
+  }
+
   const implRaw = env['LEARNWREN_VIDEO_TRANSCODER'] ?? 'gcp';
   if (implRaw !== 'gcp' && implRaw !== 'fake') {
     throw new Error(
@@ -70,6 +79,7 @@ export function readVideoConfigFromEnv(env: NodeJS.ProcessEnv): VideoConfig {
     pollIntervalMs,
     playbackSignedUrlTtlSec,
     transcoderImpl: implRaw,
+    playbackStorageImpl,
   };
 
   if (implRaw === 'fake') return base;

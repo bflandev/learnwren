@@ -5,6 +5,8 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-firebase';
 
+import { VIDEO_CONFIG, type VideoConfig } from './video.config';
+
 const promisifiedExecFile = promisify(nodeExecFile);
 
 let ffprobeBinaryPath: string;
@@ -50,7 +52,10 @@ export interface VideoStoragePort {
 export class VideoStorageAdapter implements VideoStoragePort {
   private runner: FfprobeRunner = (binary, args) => promisifiedExecFile(binary, args);
 
-  constructor(@Inject(FIREBASE_STORAGE) private readonly storage: FirebaseStorageHandle) {}
+  constructor(
+    @Inject(FIREBASE_STORAGE) private readonly storage: FirebaseStorageHandle,
+    @Inject(VIDEO_CONFIG) private readonly cfg: VideoConfig,
+  ) {}
 
   /** Test hook — never called in production code paths. */
   __setRunner(runner: FfprobeRunner): void {
@@ -138,12 +143,18 @@ export class VideoStorageAdapter implements VideoStoragePort {
   }
 
   async readManifestObject(input: { bucket: string; path: string }): Promise<string> {
+    if (this.cfg.playbackStorageImpl === 'fake') {
+      return this.fakeReadManifest(input.path);
+    }
     const file = this.storage.bucket(input.bucket).file(input.path);
     const [buf] = await file.download();
     return buf.toString('utf-8');
   }
 
   async signObjectUrl(input: { bucket: string; path: string; ttlSec: number }): Promise<string> {
+    if (this.cfg.playbackStorageImpl === 'fake') {
+      return `gs-stub://${input.bucket}/${input.path}?ttl=${input.ttlSec}`;
+    }
     const file = this.storage.bucket(input.bucket).file(input.path);
     const [url] = await file.getSignedUrl({
       version: 'v4',
@@ -151,5 +162,38 @@ export class VideoStorageAdapter implements VideoStoragePort {
       expires: Date.now() + input.ttlSec * 1000,
     });
     return url;
+  }
+
+  private fakeReadManifest(p: string): string {
+    if (p.endsWith('/manifest.m3u8')) {
+      return [
+        '#EXTM3U',
+        '#EXT-X-VERSION:6',
+        '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080',
+        '1080p/playlist.m3u8',
+        '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720',
+        '720p/playlist.m3u8',
+        '#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480',
+        '480p/playlist.m3u8',
+        '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360',
+        '360p/playlist.m3u8',
+        '',
+      ].join('\n');
+    }
+    if (p.endsWith('/playlist.m3u8')) {
+      return [
+        '#EXTM3U',
+        '#EXT-X-VERSION:6',
+        '#EXT-X-TARGETDURATION:6',
+        '#EXT-X-KEY:METHOD=AES-128,URI="https://example.invalid/k",IV=0xABCDEF0123456789ABCDEF0123456789',
+        '#EXTINF:6.000,',
+        'segment_001.ts',
+        '#EXTINF:6.000,',
+        'segment_002.ts',
+        '#EXT-X-ENDLIST',
+        '',
+      ].join('\n');
+    }
+    throw new Error(`fake storage: unknown manifest path ${p}`);
   }
 }
