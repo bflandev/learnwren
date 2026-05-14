@@ -1,10 +1,6 @@
 # Video Transcoding + AES-128 Key Generation — EP-03 Slice B Design Spec
 
-> [!NOTE]
-> **DOCUMENT STATUS: DRAFT**
-> This document is a living specification and is subject to change. All content is considered provisional until formally approved by project stakeholders.
-
-**Status:** Draft (2026-05-13)
+**Status:** Approved (2026-05-14)
 **Scope:** Second implementation slice of EP-03 (Video Management and DRM). Delivers US-03-02 (automatic transcoding) and the collapsed, reduced-DRM realisation of US-03-03 (AES-128 HLS segment encryption, per architecture spec §6). On `POST /api/videos/:vid/upload-complete`, NestJS probes the source, generates a 16-byte AES-128 key, writes a `VideoKey` doc, submits a GCP Transcoder API job, and advances `Video.state` from `UPLOADED` straight to `TRANSCODING` in the same handler. A Pub/Sub push subscription delivers transcoder job-state events to a new webhook controller, which advances `Video.state` to `READY` or `FAILED`. The editor's badge reflects the live state via 5-second polling. A `FakeTranscoderAdapter` plus dev-only simulator endpoint enables full end-to-end testing in CI without GCP Transcoder API access.
 
 This spec sits on top of `2026-05-13-video-pipeline-architecture-design.md` (the architecture decision spec) and inherits its provider stack (GCP Transcoder API + Cloud Storage + AES-128 HLS for MVP), data model shape, library boundaries, `VideoTranscoder` port shape, Pub/Sub event envelope, and bucket layout. It builds directly on `2026-05-13-video-upload-slice-a-design.md` (slice A), reusing its session-cookie auth, hoisted `InstructorRoleGuard`, `VideoOwnerGuard`, source-bucket lifecycle, and one-video-per-lesson invariant. Owner playback (slice C), publish gate (slice D), notifications (slice E), and soft-delete retention (slice F) are explicitly deferred.
