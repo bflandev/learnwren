@@ -100,3 +100,37 @@ describe('readVideoConfigFromEnv — slice B fields', () => {
     expect(() => readVideoConfigFromEnv(env)).toThrow(/poll/i);
   });
 });
+
+describe('readVideoConfigFromEnv — slice C fields', () => {
+  const baseEnv = (): NodeJS.ProcessEnv => ({
+    LEARNWREN_VIDEO_SOURCE_BUCKET: 'src',
+    LEARNWREN_VIDEO_STUCK_THRESHOLD_MINUTES: '30',
+    LEARNWREN_VIDEO_OUTPUT_BUCKET: 'out',
+    LEARNWREN_VIDEO_TRANSCODER: 'fake',
+    LEARNWREN_WEB_VIDEO_POLL_INTERVAL_MS: '5000',
+  });
+
+  it('defaults playbackSignedUrlTtlSec to 14400 (4 h) when unset', () => {
+    const cfg = readVideoConfigFromEnv(baseEnv());
+    expect(cfg.playbackSignedUrlTtlSec).toBe(14400);
+  });
+
+  it('parses LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC when set', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC = '900';
+    const cfg = readVideoConfigFromEnv(env);
+    expect(cfg.playbackSignedUrlTtlSec).toBe(900);
+  });
+
+  it('rejects non-finite TTL', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC = 'banana';
+    expect(() => readVideoConfigFromEnv(env)).toThrow(/LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC/);
+  });
+
+  it('rejects non-positive TTL', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC = '0';
+    expect(() => readVideoConfigFromEnv(env)).toThrow(/LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC/);
+  });
+});
