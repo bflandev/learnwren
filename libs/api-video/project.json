@@ -3,21 +3,9 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/api-video/src",
   "projectType": "library",
-  "tags": [],
+  "tags": ["scope:api"],
+  "// targets": "to see all targets run: nx show project api-video --web",
   "targets": {
-    "test": {
-      "executor": "@nx/vite:test",
-      "outputs": ["{workspaceRoot}/coverage/libs/api-video"],
-      "options": {
-        "config": "libs/api-video/vitest.config.mts"
-      }
-    },
-    "typecheck": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "tsc --noEmit -p libs/api-video/tsconfig.json"
-      }
-    },
     "lint": {
       "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],

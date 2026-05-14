@@ -4,7 +4,7 @@
   "sourceRoot": "libs/web-video/src",
   "prefix": "lib",
   "projectType": "library",
-  "tags": [],
+  "tags": ["scope:web"],
   "targets": {
     "typecheck": {
       "dependsOn": ["^typecheck"],
