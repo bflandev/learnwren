@@ -41,6 +41,28 @@ LEARNWREN_VIDEO_SOURCE_BUCKET=op://learnwren/dev/LEARNWREN_VIDEO_SOURCE_BUCKET
 # Number of minutes before an UPLOADING video is considered stuck.
 LEARNWREN_VIDEO_STUCK_THRESHOLD_MINUTES=30
 
+# ── Video transcoding (EP-03 slice B) ────────────────────────────────
+# Output bucket: Transcoder API writes encrypted HLS playlists + segments
+# here. Slice C reads via signed URLs. Provision separately from the source
+# bucket (see docs/operations/transcoder-pubsub-setup.md).
+LEARNWREN_VIDEO_OUTPUT_BUCKET=op://learnwren/dev/LEARNWREN_VIDEO_OUTPUT_BUCKET
+
+# Transcoder selection: 'gcp' (real GCP Transcoder API) or 'fake' (in-memory
+# adapter for CI and local dev). The env validator rejects 'fake' when
+# NODE_ENV=production.
+LEARNWREN_VIDEO_TRANSCODER=fake
+
+# Only required when LEARNWREN_VIDEO_TRANSCODER=gcp:
+LEARNWREN_GCP_PROJECT_ID=op://learnwren/dev/LEARNWREN_GCP_PROJECT_ID
+LEARNWREN_TRANSCODER_LOCATION=us-central1
+LEARNWREN_TRANSCODER_TOPIC=op://learnwren/dev/LEARNWREN_TRANSCODER_TOPIC
+LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE=op://learnwren/dev/LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE
+LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL=op://learnwren/dev/LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL
+
+# Web client poll interval while a video is TRANSCODING. Override in e2e
+# to reduce wall-clock duration of tests.
+LEARNWREN_WEB_VIDEO_POLL_INTERVAL_MS=5000
+
 # ── Reserved for later specs ──────────────────────────────────────────
 # Cloud Functions deploy spec:  FIREBASE_TOKEN
 # DRM/transcoder spec:          DRM_API_KEY, TRANSCODER_WEBHOOK_SECRET
