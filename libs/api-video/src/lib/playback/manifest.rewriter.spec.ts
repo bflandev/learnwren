@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { VideoId } from '@learnwren/shared-data-models';
 
 import { ManifestParseFailedException } from '../errors/video.exception';
-import { ALLOWED_RENDITIONS, rewriteMaster } from './manifest.rewriter';
+import {
+  ALLOWED_RENDITIONS,
+  isAllowedRendition,
+  rewriteMaster,
+} from './manifest.rewriter';
 
 const VID = 'v123' as VideoId;
 
@@ -62,5 +66,40 @@ describe('rewriteMaster', () => {
 240p/playlist.m3u8
 `;
     expect(() => rewriteMaster(body, VID)).toThrow(/240p/);
+  });
+
+  it('throws when the URI line starts with a leading slash (slash position 0)', () => {
+    // Defends `slash <= 0` boundary in renditionNameFromUri.
+    const body = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1
+/playlist.m3u8
+`;
+    expect(() => rewriteMaster(body, VID)).toThrow(/cannot extract rendition name/);
+  });
+
+  it('throws when EXT-X-STREAM-INF is the trailing line (no next line at all)', () => {
+    // Defends the `!uri` branch (undefined next line) of the lookahead check.
+    const body = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1`;
+    expect(() => rewriteMaster(body, VID)).toThrow(ManifestParseFailedException);
+  });
+
+  it('throws with the exact "missing #EXTM3U" message on a non-#EXTM3U start', () => {
+    // Pins assertM3u8Header's error string so endsWith/== boundary mutants are killed.
+    expect(() => rewriteMaster('#EXT-X-VERSION:6\n', VID)).toThrow(/missing #EXTM3U/);
+  });
+});
+
+describe('isAllowedRendition', () => {
+  it('returns true for each rendition in the allow-list', () => {
+    expect(isAllowedRendition('1080p')).toBe(true);
+    expect(isAllowedRendition('720p')).toBe(true);
+    expect(isAllowedRendition('480p')).toBe(true);
+    expect(isAllowedRendition('360p')).toBe(true);
+  });
+  it('returns false for anything outside the allow-list', () => {
+    expect(isAllowedRendition('240p')).toBe(false);
+    expect(isAllowedRendition('')).toBe(false);
+    expect(isAllowedRendition('1080P')).toBe(false); // case-sensitive
   });
 });
