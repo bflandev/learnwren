@@ -1,49 +1,88 @@
-import { TestBed } from '@angular/core/testing';
-import { describe, expect, it } from 'vitest';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { Subject } from 'rxjs';
+import { describe, expect, it, beforeEach } from 'vitest';
 
-import type { Video, VideoId, VideoKeyId } from '@learnwren/shared-data-models';
+import type { Video, VideoId } from '@learnwren/shared-data-models';
 
 import { VideoStateBadgeComponent } from './video-state-badge.component';
+import { VideoStatePollingService } from './polling/video-state-polling.service';
 
-function makeVideo(overrides: Partial<Video> = {}): Video {
+function video(state: Video['state']): Video {
   return {
     id: 'v1' as VideoId,
     ownerInstructorId: 'u1' as Video['ownerInstructorId'],
     courseId: 'c1' as Video['courseId'],
     lessonId: 'l1' as Video['lessonId'],
-    state: 'PENDING_UPLOAD',
+    state,
     source: { bucket: 'b', path: 'p' },
-    createdAt: new Date().toISOString() as Video['createdAt'],
+    createdAt: '2026-05-13T00:00:00.000Z' as Video['createdAt'],
     updatedAt: new Date().toISOString() as Video['updatedAt'],
-    ...overrides,
   };
 }
 
-function build(video: Video) {
-  TestBed.configureTestingModule({ imports: [VideoStateBadgeComponent] });
-  const fixture = TestBed.createComponent(VideoStateBadgeComponent);
-  fixture.componentRef.setInput('video', video);
-  fixture.detectChanges();
-  return fixture;
-}
+describe('VideoStateBadgeComponent — slice B copy', () => {
+  let fixture: ComponentFixture<VideoStateBadgeComponent>;
+  let subject: Subject<Video>;
 
-describe('VideoStateBadgeComponent', () => {
-  it('shows "Uploaded" when state is UPLOADED', () => {
-    const fixture = build(makeVideo({ state: 'UPLOADED' }));
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Uploaded');
+  beforeEach(() => {
+    subject = new Subject<Video>();
+    TestBed.configureTestingModule({
+      imports: [VideoStateBadgeComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: VideoStatePollingService, useValue: { poll: () => subject.asObservable() } },
+      ],
+    });
+    fixture = TestBed.createComponent(VideoStateBadgeComponent);
   });
 
-  it('shows "Processing" for PENDING_UPLOAD within threshold', () => {
-    // updatedAt is NOW — well within 30 minutes
-    const fixture = build(makeVideo({ state: 'PENDING_UPLOAD' }));
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Processing');
+  it('shows TRANSCODING copy and a spinner', () => {
+    fixture.componentRef.setInput('video', video('TRANSCODING'));
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Processing video');
   });
 
-  it('shows stuck message for PENDING_UPLOAD older than 30 minutes', () => {
-    const oldDate = new Date(Date.now() - 31 * 60 * 1000).toISOString();
-    const fixture = build(
-      makeVideo({ state: 'PENDING_UPLOAD', updatedAt: oldDate as Video['updatedAt'] }),
-    );
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('stalled');
+  it('shows READY copy', () => {
+    fixture.componentRef.setInput('video', video('READY'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent as string).toContain('Ready to publish');
+  });
+
+  it('shows FAILED copy', () => {
+    fixture.componentRef.setInput('video', video('FAILED'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent as string).toContain('Transcoding failed');
+  });
+
+  it('updates copy when the polling stream emits a new state', () => {
+    fixture.componentRef.setInput('video', video('TRANSCODING'));
+    fixture.detectChanges();
+    subject.next(video('READY'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent as string).toContain('Ready to publish');
+  });
+
+  it('shows stuck-state copy when TRANSCODING is older than the threshold', () => {
+    const stale: Video = {
+      ...video('TRANSCODING'),
+      updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
+    };
+    fixture.componentRef.setInput('video', stale);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent as string).toContain('Transcoding may have stalled');
+  });
+
+  it('keeps the slice A stuck-state copy for PENDING_UPLOAD older than 30m', () => {
+    const stale: Video = {
+      ...video('PENDING_UPLOAD'),
+      updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
+    };
+    fixture.componentRef.setInput('video', stale);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent as string).toContain('Upload may have stalled');
   });
 });

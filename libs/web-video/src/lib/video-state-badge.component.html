@@ -1,1 +1,6 @@
-<span class="badge">{{ label() }}</span>
+<span class="badge" [attr.data-state]="video().state">
+  @if (showSpinner()) {
+    <span class="spinner" aria-hidden="true"></span>
+  }
+  {{ label() }}
+</span>

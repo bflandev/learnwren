@@ -1,28 +1,63 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import type { Video } from '@learnwren/shared-data-models';
 
+import { VideoStatePollingService } from './polling/video-state-polling.service';
+
 const STUCK_THRESHOLD_MIN = 30;
+const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
 
 @Component({
   selector: 'lib-video-state-badge',
   standalone: true,
   templateUrl: './video-state-badge.component.html',
 })
-export class VideoStateBadgeComponent {
+export class VideoStateBadgeComponent implements OnInit {
   readonly video = input.required<Video>();
 
+  private readonly polling = inject(VideoStatePollingService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly liveVideo = signal<Video | null>(null);
+
+  private readonly current = computed(() => this.liveVideo() ?? this.video());
+
   readonly label = computed(() => {
-    const v = this.video();
-    if (this.isStuck(v)) return 'Upload may have stalled — retry?';
-    if (v.state === 'UPLOADED') return 'Uploaded — processing pending in EP-03';
-    return 'Processing…'; // future-state placeholder; slice B refines
+    const v = this.current();
+    if (this.isStuck(v, 'PENDING_UPLOAD')) return 'Upload may have stalled — retry?';
+    if (this.isStuck(v, 'TRANSCODING')) return 'Transcoding may have stalled — delete and re-upload?';
+    switch (v.state) {
+      case 'PENDING_UPLOAD':
+      case 'UPLOADED':
+        return 'Uploaded — preparing…';
+      case 'TRANSCODING':
+        return 'Processing video…';
+      case 'READY':
+        return 'Ready to publish';
+      case 'FAILED':
+        return 'Transcoding failed — delete and re-upload';
+      default:
+        return '';
+    }
   });
 
-  readonly canRetry = computed(() => this.isStuck(this.video()));
+  readonly canRetry = computed(() => this.isStuck(this.current(), 'PENDING_UPLOAD'));
+  readonly showSpinner = computed(
+    () => NON_TERMINAL.includes(this.current().state) && !this.canRetry(),
+  );
 
-  private isStuck(v: Video): boolean {
-    if (v.state !== 'PENDING_UPLOAD') return false;
+  ngOnInit(): void {
+    const v = this.video();
+    if (NON_TERMINAL.includes(v.state)) {
+      this.polling
+        .poll(v.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((next) => this.liveVideo.set(next));
+    }
+  }
+
+  private isStuck(v: Video, forState: Video['state']): boolean {
+    if (v.state !== forState) return false;
     const ageMs = Date.now() - new Date(v.updatedAt).getTime();
     return ageMs > STUCK_THRESHOLD_MIN * 60 * 1000;
   }
