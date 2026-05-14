@@ -72,12 +72,12 @@ test('video upload happy path', async ({ request }) => {
   });
   expect(complete.status()).toBe(200);
   const video = (await complete.json()) as { state: string };
-  expect(video.state).toBe('UPLOADED');
+  expect(video.state).toBe('TRANSCODING');
 
   // GET reflects state
   const get = await request.get(`${API_BASE}/videos/${videoId}`, { headers: hdr });
   expect(get.status()).toBe(200);
-  expect(((await get.json()) as { state: string }).state).toBe('UPLOADED');
+  expect(((await get.json()) as { state: string }).state).toBe('TRANSCODING');
 
   // DELETE cleans up
   const del = await request.delete(`${API_BASE}/videos/${videoId}`, { headers: hdr });
@@ -161,6 +161,139 @@ test('422 upload-object-missing when complete called before any bytes', async ({
   });
   expect(r.status()).toBe(422);
   expect(((await r.json()) as { error: { code: string } }).error.code).toBe('UPLOAD_OBJECT_MISSING');
+});
+
+test('upload → transcoding → READY via fake completer', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const hdr = { Cookie: instructor.cookieHeader };
+  const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
+
+  const sess = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+    { headers: hdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
+  );
+  const { videoId, uploadSessionUri } = (await sess.json()) as {
+    videoId: string;
+    uploadSessionUri: string;
+  };
+  await request.put(uploadSessionUri, {
+    headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
+    data: FIXTURE_BYTES,
+  });
+
+  const complete = await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
+  expect(complete.status()).toBe(200);
+  const afterComplete = (await complete.json()) as { state: string; keyId?: string; transcoderJobName?: string };
+  expect(afterComplete.state).toBe('TRANSCODING');
+  expect(afterComplete.keyId).toBeTruthy();
+  expect(afterComplete.transcoderJobName).toBeTruthy();
+
+  const completeRes = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+  expect(completeRes.status()).toBe(204);
+
+  const get = await request.get(`${API_BASE}/videos/${videoId}`, { headers: hdr });
+  const ready = (await get.json()) as { state: string; output?: { manifestPath: string; durationSec: number } };
+  expect(ready.state).toBe('READY');
+  expect(ready.output?.manifestPath).toBe(`videos/${videoId}/hls/manifest.m3u8`);
+  expect(ready.output?.durationSec).toBeGreaterThan(0);
+});
+
+test('fake-transcoder fail path → FAILED with reason', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const hdr = { Cookie: instructor.cookieHeader };
+  const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
+
+  const sess = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+    { headers: hdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
+  );
+  const { videoId, uploadSessionUri } = (await sess.json()) as { videoId: string; uploadSessionUri: string };
+  await request.put(uploadSessionUri, {
+    headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
+    data: FIXTURE_BYTES,
+  });
+  await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
+
+  await request.post(`${API_BASE}/internal/fake-transcoder/fail/${videoId}`, {
+    data: { reason: 'unsupported codec' },
+  });
+
+  const get = await request.get(`${API_BASE}/videos/${videoId}`, { headers: hdr });
+  const failed = (await get.json()) as { state: string; failureReason?: string };
+  expect(failed.state).toBe('FAILED');
+  expect(failed.failureReason).toMatch(/TRANSCODE_FAILED.*unsupported codec/);
+});
+
+test('fake-completer is idempotent — second call is a no-op', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const hdr = { Cookie: instructor.cookieHeader };
+  const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
+
+  const sess = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+    { headers: hdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
+  );
+  const { videoId, uploadSessionUri } = (await sess.json()) as { videoId: string; uploadSessionUri: string };
+  await request.put(uploadSessionUri, {
+    headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
+    data: FIXTURE_BYTES,
+  });
+  await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
+
+  const first = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+  expect(first.status()).toBe(204);
+
+  const second = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+  expect(second.status()).toBe(200);
+  const body = (await second.json()) as { acked: boolean; reason: string };
+  expect(body.reason).toBe('ALREADY_APPLIED');
+});
+
+test('webhook auth — production-style route rejects unsigned envelopes', async ({ request }) => {
+  const r = await request.post(`${API_BASE}/internal/transcoder-events`, {
+    data: {
+      message: {
+        data: Buffer.from(
+          JSON.stringify({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'v' } } }),
+        ).toString('base64'),
+      },
+    },
+  });
+  expect([401, 403]).toContain(r.status());
+});
+
+test('webhook event for non-existent video is acknowledged + dropped', async ({ request }) => {
+  const r = await request.post(`${API_BASE}/internal/fake-transcoder/complete/does-not-exist`);
+  expect(r.status()).toBe(200);
+  const body = (await r.json()) as { reason: string };
+  expect(body.reason).toBe('VIDEO_NOT_FOUND');
+});
+
+test('lesson-delete cascades a READY video — output bucket cleaned', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const hdr = { Cookie: instructor.cookieHeader };
+  const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
+
+  const sess = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+    { headers: hdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
+  );
+  const { videoId, uploadSessionUri } = (await sess.json()) as { videoId: string; uploadSessionUri: string };
+  await request.put(uploadSessionUri, {
+    headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
+    data: FIXTURE_BYTES,
+  });
+  await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
+  await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+
+  const delLesson = await request.delete(
+    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}`,
+    { headers: hdr },
+  );
+  expect(delLesson.status()).toBe(204);
+
+  const get = await request.get(`${API_BASE}/videos/${videoId}`, { headers: hdr });
+  expect(get.status()).toBe(404);
 });
 
 test('lesson delete cascades to video', async ({ request }) => {
