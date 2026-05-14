@@ -1,8 +1,8 @@
 # Mutation Test Report — `libs/api-auth`
 
-> Generated 2026-05-06T23:39:55.198Z
+> Generated 2026-05-14T02:41:52.983Z
 
-**Headline mutation score: 88.94%** (killed=402, survived=45, no-cov=5, ignored=0). Score on covered mutants only: 89.93%.
+**Headline mutation score: 89.13%** (killed=410, survived=45, no-cov=5, ignored=0). Score on covered mutants only: 90.11%.
 
 Auth code targets **90%+** per the mutation-testing skill. We are below target — survivors below are gaps to close.
 
@@ -16,6 +16,7 @@ Auth code targets **90%+** per the mutation-testing skill. We are below target �
 | `src/lib/auth.exception-filter.ts` | 86.7% | 13 | 2 | 0 |
 | `src/lib/auth-attempts.repository.ts` | 95.3% | 81 | 2 | 2 |
 | `src/lib/auth.controller.ts` | 100.0% | 19 | 0 | 0 |
+| `src/lib/instructor-role.guard.ts` | 100.0% | 8 | 0 | 0 |
 | `src/lib/password-policy.service.ts` | 100.0% | 41 | 0 | 0 |
 | `src/lib/session-cookie.helper.ts` | 100.0% | 5 | 0 | 0 |
 
@@ -132,7 +133,7 @@ These survivors are flagged as likely equivalent (mostly logger observability). 
 | `src/lib/firebase-session.guard.ts:23` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
 | `src/lib/firebase-session.guard.ts:37` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
 
-Total: 38. Excluding these would raise the score from **88.94%** to **97.10%**. Confirm before adding to Stryker config.
+Total: 38. Excluding these would raise the score from **89.13%** to **97.16%**. Confirm before adding to Stryker config.
 
 ## Caveats
 
