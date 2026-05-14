@@ -5,8 +5,10 @@ import type {
   CourseId,
   LessonId,
   ModuleId,
+  SupportedVideoContentType,
   VideoId,
 } from '@learnwren/shared-data-models';
+import { SUPPORTED_VIDEO_CONTENT_TYPES } from '@learnwren/shared-data-models';
 
 import { VideoService } from '../video.service';
 
@@ -15,11 +17,7 @@ export const XHR_FACTORY = new InjectionToken<() => XMLHttpRequest>('XHR_FACTORY
   factory: () => () => new XMLHttpRequest(),
 });
 
-const SUPPORTED_MIME = new Set([
-  'video/mp4',
-  'video/quicktime',
-  'video/x-matroska',
-]);
+const SUPPORTED_MIME = new Set<SupportedVideoContentType>(SUPPORTED_VIDEO_CONTENT_TYPES);
 const MAX_BYTES = 10_000_000_000;
 const CHUNK_BYTES = 8 * 1024 * 1024;
 const MAX_RETRIES_PER_CHUNK = 3;
@@ -50,19 +48,19 @@ export class VideoUploadService {
 
   readonly state: Signal<UploadState> = this._state.asReadonly();
 
-  selectFile(file: File): { ok: true; contentType: string } | { ok: false } {
+  selectFile(file: File): { ok: true; contentType: SupportedVideoContentType } | { ok: false } {
     if (file.size > MAX_BYTES) {
       this._state.set({ kind: 'failed', reason: 'File size exceeds the 10 GB limit.' });
       return { ok: false };
     }
-    if (!SUPPORTED_MIME.has(file.type)) {
+    if (!SUPPORTED_MIME.has(file.type as SupportedVideoContentType)) {
       this._state.set({
         kind: 'failed',
         reason: 'Unsupported format. Please upload MP4, MOV, or MKV.',
       });
       return { ok: false };
     }
-    return { ok: true, contentType: file.type };
+    return { ok: true, contentType: file.type as SupportedVideoContentType };
   }
 
   async start(ctx: UploadContext, file: File): Promise<void> {
@@ -77,13 +75,20 @@ export class VideoUploadService {
       const r = await firstValueFrom(
         this.api.createUploadSession(ctx.courseId, ctx.moduleId, ctx.lessonId, {
           sizeBytes: file.size,
-          contentType: check.contentType as 'video/mp4',
+          contentType: check.contentType,
         }),
       );
       videoId = r.videoId;
       sessionUri = r.uploadSessionUri;
     } catch (err) {
       this._state.set({ kind: 'failed', reason: this.errorMessage(err) });
+      return;
+    }
+
+    if (this.aborted) {
+      // cancel() raced ahead of the session response — clean up the just-minted session
+      await firstValueFrom(this.api.delete(videoId)).catch(() => undefined);
+      this._state.set({ kind: 'idle' });
       return;
     }
 
@@ -135,7 +140,7 @@ export class VideoUploadService {
     while (offset < total && !this.aborted) {
       const end = Math.min(offset + CHUNK_BYTES, total);
       const chunk = file.slice(offset, end);
-      const ok = await this.putChunkWithRetry(sessionUri, chunk, offset, total - 1, total, videoId);
+      const ok = await this.putChunkWithRetry(sessionUri, chunk, offset, end - 1, total, videoId);
       if (!ok) return false;
       offset = end;
       this._state.set({
@@ -194,6 +199,7 @@ export class VideoUploadService {
       };
       xhr.onload = () => resolve(xhr.status);
       xhr.onerror = () => resolve(0);
+      xhr.onabort = () => resolve(0);
       xhr.send(chunk);
     });
   }
