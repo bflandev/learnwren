@@ -1,6 +1,8 @@
 import { ArgumentsHost, BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
+import { InsufficientRoleException } from '@learnwren/api-auth';
+
 import {
   InvalidVideoStateException,
   VideoNotFoundException,
@@ -58,6 +60,16 @@ describe('VideoExceptionFilter', () => {
     const body = json.mock.calls[0][0];
     expect(body.error.code).toBe('VALIDATION_FAILED');
     expect(body.error.details?.fieldErrors).toBeTruthy();
+  });
+
+  it('delegates an InsufficientRoleException (AuthException subclass) to a 403 INSUFFICIENT_ROLE', () => {
+    const filter = new VideoExceptionFilter();
+    const { host, status, json } = buildHost();
+    filter.catch(new InsufficientRoleException(), host);
+    expect(status).toHaveBeenCalledWith(403);
+    expect(json).toHaveBeenCalledWith({
+      error: { code: 'INSUFFICIENT_ROLE', message: 'Instructor role required.' },
+    });
   });
 
   it('falls back to INTERNAL for unknown exceptions', () => {
