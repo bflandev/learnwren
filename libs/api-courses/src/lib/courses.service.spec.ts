@@ -434,6 +434,31 @@ describe('CoursesService — lesson operations', () => {
       await svc.deleteLesson(CID, MID, 'lid-1' as LessonId);
       expect(videoSvc.deleteForLesson).toHaveBeenCalledWith('lid-1');
       expect(repo.deleteLesson).toHaveBeenCalledWith(CID, MID, 'lid-1');
+
+      // Verify ordering: deleteForLesson must be called before deleteLesson.
+      const dflCallIdx = (videoSvc.deleteForLesson as unknown as { mock: { invocationCallOrder: number[] } })
+        .mock.invocationCallOrder[0];
+      const dlCallIdx = repo.deleteLesson.mock.invocationCallOrder[0];
+      expect(dflCallIdx).toBeLessThan(dlCallIdx);
+    });
+
+    it('does not delete the lesson doc when deleteForLesson rejects', async () => {
+      const videoSvc = {
+        deleteForLesson: vi.fn().mockRejectedValue(new Error('storage down')),
+      };
+      const svc = new CoursesService(repo as unknown as CoursesRepository, videoSvc as never);
+      repo.getLesson.mockResolvedValue({
+        id: 'lid-1' as LessonId,
+        moduleId: MID,
+        title: 'L',
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      });
+      await expect(
+        svc.deleteLesson(CID, MID, 'lid-1' as LessonId),
+      ).rejects.toThrow('storage down');
+      expect(repo.deleteLesson).not.toHaveBeenCalled();
     });
   });
 
