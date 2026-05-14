@@ -53,3 +53,38 @@ export function rewriteMaster(masterBody: string, videoId: VideoId): string {
   }
   return out.join('\n');
 }
+
+export type SegmentSigner = (filename: string) => Promise<string>;
+
+function isSegmentUri(line: string): boolean {
+  const t = line.trim();
+  if (!t) return false;
+  if (t.startsWith('#')) return false;
+  if (t.startsWith('http://') || t.startsWith('https://')) return false;
+  return true;
+}
+
+function rewriteKeyDirective(line: string, videoId: VideoId): string {
+  // Match URI="…" tolerantly. METHOD=NONE has no URI= clause, so this is a no-op for it.
+  return line.replace(/URI="[^"]*"/, `URI="/api/playback/keys/${videoId}"`);
+}
+
+export async function rewriteRendition(
+  renditionBody: string,
+  videoId: VideoId,
+  signSegment: SegmentSigner,
+): Promise<string> {
+  assertM3u8Header(renditionBody);
+  const out: string[] = [];
+  const lines = renditionBody.split('\n');
+  for (const line of lines) {
+    if (line.startsWith('#EXT-X-KEY')) {
+      out.push(rewriteKeyDirective(line, videoId));
+    } else if (isSegmentUri(line)) {
+      out.push(await signSegment(line.trim()));
+    } else {
+      out.push(line);
+    }
+  }
+  return out.join('\n');
+}

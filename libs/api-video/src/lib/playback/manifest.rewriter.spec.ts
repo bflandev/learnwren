@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { VideoId } from '@learnwren/shared-data-models';
 
@@ -7,6 +7,7 @@ import {
   ALLOWED_RENDITIONS,
   isAllowedRendition,
   rewriteMaster,
+  rewriteRendition,
 } from './manifest.rewriter';
 
 const VID = 'v123' as VideoId;
@@ -101,5 +102,70 @@ describe('isAllowedRendition', () => {
     expect(isAllowedRendition('240p')).toBe(false);
     expect(isAllowedRendition('')).toBe(false);
     expect(isAllowedRendition('1080P')).toBe(false); // case-sensitive
+  });
+});
+
+const RENDITION_720 = `#EXTM3U
+#EXT-X-VERSION:6
+#EXT-X-TARGETDURATION:6
+#EXT-X-KEY:METHOD=AES-128,URI="https://example.invalid/keys/abc",IV=0xABCDEF0123456789ABCDEF0123456789
+#EXTINF:6.000,
+segment_001.ts
+#EXTINF:6.000,
+segment_002.ts
+#EXT-X-ENDLIST
+`;
+
+describe('rewriteRendition', () => {
+  it('rewrites #EXT-X-KEY URI to /api/playback/keys/:vid and preserves IV', async () => {
+    const out = await rewriteRendition(RENDITION_720, VID, async (s) => `signed://${s}`);
+    expect(out).toContain(
+      `#EXT-X-KEY:METHOD=AES-128,URI="/api/playback/keys/${VID}",IV=0xABCDEF0123456789ABCDEF0123456789`,
+    );
+  });
+
+  it('signs each segment URI via the injected callback', async () => {
+    const signed: string[] = [];
+    const signer = async (s: string) => {
+      signed.push(s);
+      return `signed://${s}`;
+    };
+    const out = await rewriteRendition(RENDITION_720, VID, signer);
+    expect(signed).toEqual(['segment_001.ts', 'segment_002.ts']);
+    expect(out).toContain('signed://segment_001.ts');
+    expect(out).toContain('signed://segment_002.ts');
+  });
+
+  it('passes through #EXT-X-KEY:METHOD=NONE unchanged (no URI substitution)', async () => {
+    const body = `#EXTM3U\n#EXT-X-KEY:METHOD=NONE\n#EXT-X-ENDLIST\n`;
+    const out = await rewriteRendition(body, VID, async () => 'unused');
+    expect(out).toContain('#EXT-X-KEY:METHOD=NONE');
+    expect(out).not.toContain('/api/playback/keys/');
+  });
+
+  it('does not double-sign already-signed URIs (http/https)', async () => {
+    const body = `#EXTM3U
+#EXTINF:6.000,
+https://storage.googleapis.com/b/segment_001.ts?signature=xyz
+#EXT-X-ENDLIST
+`;
+    const signer = vi.fn(async () => 'NEVER_CALLED');
+    const out = await rewriteRendition(body, VID, signer);
+    expect(signer).not.toHaveBeenCalled();
+    expect(out).toContain('https://storage.googleapis.com/b/segment_001.ts?signature=xyz');
+  });
+
+  it('does not sign http:// URIs either', async () => {
+    const body = `#EXTM3U\n#EXTINF:6.000,\nhttp://example/seg.ts\n#EXT-X-ENDLIST\n`;
+    const signer = vi.fn(async () => 'X');
+    const out = await rewriteRendition(body, VID, signer);
+    expect(signer).not.toHaveBeenCalled();
+    expect(out).toContain('http://example/seg.ts');
+  });
+
+  it('throws ManifestParseFailedException on missing #EXTM3U header', async () => {
+    await expect(
+      rewriteRendition('#EXT-X-VERSION:6\n', VID, async () => ''),
+    ).rejects.toBeInstanceOf(ManifestParseFailedException);
   });
 });
