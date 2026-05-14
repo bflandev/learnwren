@@ -63,6 +63,12 @@ LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL=op://learnwren/dev/LEARNWREN_TRANSCODER_IN
 # to reduce wall-clock duration of tests.
 LEARNWREN_WEB_VIDEO_POLL_INTERVAL_MS=5000
 
+# ── Video playback (EP-03 slice C) ───────────────────────────────────
+# Segment URL TTL in seconds. Cloud Storage v4 signed URLs minted on
+# every manifest fetch expire after this window. 4 h matches the
+# architecture spec (long-pause tolerance for a single owner session).
+LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC=14400
+
 # ── Reserved for later specs ──────────────────────────────────────────
 # Cloud Functions deploy spec:  FIREBASE_TOKEN
 # DRM/transcoder spec:          DRM_API_KEY, TRANSCODER_WEBHOOK_SECRET
