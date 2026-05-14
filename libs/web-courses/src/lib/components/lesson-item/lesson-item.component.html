@@ -15,7 +15,13 @@
   <button data-testid="lesson-delete" type="button" (click)="delete.emit()">Delete</button>
 
   @if (lesson().videoId) {
-    @if (video(); as v) { <lib-video-state-badge [video]="v" /> }
+    @if (video(); as v) {
+      @if (v.state === 'READY') {
+        <lib-video-player [videoId]="v.id" />
+      } @else {
+        <lib-video-state-badge [video]="v" />
+      }
+    }
   } @else {
     <lib-video-upload
       [courseId]="courseId()"

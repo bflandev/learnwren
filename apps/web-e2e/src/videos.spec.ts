@@ -253,3 +253,63 @@ test('oversized file is rejected client-side without network', async ({ page }) 
   // No network call to upload-session must have been made
   expect(uploadSessionCalled).toBe(false);
 });
+
+test('badge swaps to player when fake-completer flips state to READY', async ({ page }) => {
+  const { email, password } = await registerAndPromoteInstructor();
+  await setupCourseWithLesson(page, email, password);
+
+  // Capture console errors so we can assert there are none during the swap.
+  const consoleErrors: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error') consoleErrors.push(m.text());
+  });
+
+  const sessionResponse = page.waitForResponse(
+    (r) => r.url().includes('/video/upload-session') && r.request().method() === 'POST',
+  );
+  await page.locator('lib-video-upload input[type="file"]').setInputFiles(FIXTURE_MP4);
+  const { videoId } = (await (await sessionResponse).json()) as { videoId: string };
+
+  // Wait for the TRANSCODING badge first
+  await expect(page.locator('lib-video-state-badge .badge')).toBeVisible({ timeout: 30_000 });
+
+  // Flip the video to READY via the fake completer
+  const res = await page.request.post(
+    `${API_BASE}/internal/fake-transcoder/complete/${videoId}`,
+  );
+  expect(res.status()).toBe(204);
+
+  // The player must mount; the badge must unmount.
+  const player = page.getByTestId('video-player');
+  await expect(player).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('lib-video-state-badge')).toHaveCount(0);
+
+  // No console errors during the swap.
+  expect(consoleErrors).toEqual([]);
+});
+
+test('second instructor cannot access another instructor’s manifest', async ({ page, browser }) => {
+  // Owner uploads + transcodes the video in context A.
+  const owner = await registerAndPromoteInstructor();
+  await setupCourseWithLesson(page, owner.email, owner.password);
+  const sessionResponse = page.waitForResponse(
+    (r) => r.url().includes('/video/upload-session') && r.request().method() === 'POST',
+  );
+  await page.locator('lib-video-upload input[type="file"]').setInputFiles(FIXTURE_MP4);
+  const { videoId } = (await (await sessionResponse).json()) as { videoId: string };
+  await page.request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+  await expect(page.getByTestId('video-player')).toBeVisible({ timeout: 10_000 });
+
+  // The non-owner has no UI route to this lesson today, so verify the guard
+  // directly via the API in a fresh browser context with a different session.
+  const otherContext = await browser.newContext();
+  const other = await registerAndPromoteInstructor();
+  const loginRes = await otherContext.request.post(`${API_BASE}/auth/login`, {
+    headers: { 'Content-Type': 'application/json' },
+    data: { email: other.email, password: other.password },
+  });
+  expect(loginRes.status()).toBe(200);
+  const probe = await otherContext.request.get(`${API_BASE}/playback/manifest/${videoId}`);
+  expect(probe.status()).toBe(403);
+  await otherContext.close();
+});

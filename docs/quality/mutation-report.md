@@ -142,3 +142,104 @@ Total: 38. Excluding these would raise the score from **89.13%** to **97.16%**. 
 - **No-coverage mutants** count against the score. They reflect lines that no test executes; CRAP's coverage data agrees these are gaps.
 - **Equivalent classification is heuristic.** The "candidates" list flags strings inside logger calls — review each before adding to Stryker's `mutator.excludedMutations` or per-line ignore comments.
 - **Test quality is real but bounded.** A surviving mutant means an assertion is missing for the *code as written*. If the code is wrong and tests pin the wrong behavior, mutation testing won't catch it.
+
+---
+
+## 2026-05-14 — Slice C (playback) integration — `libs/api-video`
+
+> Generated 2026-05-14T04:10:something (third run of the night, with the
+> slice C test-additions described below).
+
+**Headline mutation score (aggregate, all 16 `libs/api-video/src/lib` files in the mutate set): 78.06% raw / 81.04% effective.** Killed 465 + Timeout 1 / Survived 109 / NoCoverage 22.
+
+**Slice C surface alone (the six `playback/**` files added this slice): 100.00% raw / 100.00% effective.** Killed 149 + Timeout 1 / Survived 0 / NoCoverage 0. The acceptance bar (≥ 85 % effective) is met on the slice C surface decisively.
+
+**Slice A/B surface (the remaining ten files — `transcoder/**`, `webhook/**`, `video-owner.guard.ts`, `video.controller.ts`, `video.service.ts`): 70.63% raw / 74.29% effective.** Killed 316 / Survived 109 / NoCoverage 22. The aggregate gap to the 85 % bar is entirely in this surface; see the "Slice A/B carry-over debt" section below.
+
+### Per-file scores (slice C surface)
+
+| File | Raw | Effective | Killed | Survived | No-Cov | Timeout |
+|------|-----|-----------|--------|----------|--------|---------|
+| `playback/current-video.decorator.ts` | 100.0% | 100.0% | 6 | 0 | 0 | 0 |
+| `playback/enrollment-or-owner.guard.ts` | 100.0% | 100.0% | 17 | 0 | 0 | 0 |
+| `playback/key.service.ts` | 100.0% | 100.0% | 12 | 0 | 0 | 0 |
+| `playback/manifest.rewriter.ts` | 100.0% | 100.0% | 88 | 0 | 0 | 1 |
+| `playback/manifest.service.ts` | 100.0% | 100.0% | 8 | 0 | 0 | 0 |
+| `playback/playback.controller.ts` | 100.0% | 100.0% | 19 | 0 | 0 | 0 |
+
+The single Timeout on `manifest.rewriter.ts:51` is the `i++` → `i--` mutant in `rewriteMaster`; Stryker counts Timeout as detected (rather than survived), and the test loop terminates because the runaway walk eventually rejects on the next URI line. No action required.
+
+### Tests added this slice to close the survivor set
+
+The initial slice C run reported `playback/**` at 88.74 % raw / 92.41 % effective with 12 survivors + 6 NoCoverage on `current-video.decorator.ts`. The following targeted tests were added in this commit to take the slice C surface to 100 % effective:
+
+- **`playback/current-video.decorator.ts` (new file: `current-video.decorator.spec.ts`).** Refactored the inner `(_data, ctx) => Video` factory out of `createParamDecorator(...)` as a named export `currentVideoFactory`, then added four direct unit tests against the factory: happy path (`req.video` attached), missing-guard error path (throws), exact diagnostic message verbatim (pins the StringLiteral), and ignored-`data`-argument variant. Killed all 6 NoCoverage mutants on this file.
+- **`playback/enrollment-or-owner.guard.spec.ts`.** Added two tests: one asserts `repo.getVideo` is NOT called when `:vid` is missing (pins the `if (!vid)` early-throw against the `false`-replacement ConditionalExpression mutant); the other passes a request with no `user` field at all and asserts `NotVideoOwnerException` (not a `TypeError`), pinning the `req.user?.uid` optional-chaining mutant.
+- **`playback/key.service.spec.ts`.** Added two tests pinning the exact `KEY_LOOKUP_FAILED` messages (`/video has no keyId/` and `videoKeys/${id} missing`) against the string-literal/template-literal mutants.
+- **`playback/manifest.rewriter.spec.ts`.** Added five tests:
+  - Trims segment URIs before signing (defends `signSegment(line.trim())` against the `.trim()`-drop mutant).
+  - Whitespace-only line is non-segment (defends `line.trim()` inside `isSegmentUri`).
+  - Output joined by newlines (defends `out.join('\n')` against `''`).
+  - Initial accumulator is empty (defends `out: string[] = []` against `["Stryker was here"]`).
+  - Lookahead-URI trim against `lines[nextIdx]?.trim()` — asserts that `\t#EXT-X-ENDLIST` lookahead is rejected with the "expected URI line" message (vs the "cannot extract rendition name" message we'd get if `.trim()` were dropped).
+  - Pin the exact "expected URI line after #EXT-X-STREAM-INF" diagnostic.
+  - Distinguish `startsWith('#')` from `endsWith('#')` with a `bad#` URI.
+
+Total new tests this slice: 15. All 203 `api-video` unit tests pass.
+
+### Equivalent mutants (slice C)
+
+None on the slice C surface. Every survivor on `playback/**` was killable with a behavioural test.
+
+### Slice A/B carry-over debt (not regressions caused by slice C)
+
+The aggregate `libs/api-video` score of 81.04 % effective is dragged down entirely by survivors that pre-date slice C:
+
+| File | Raw | Effective | Survived | No-Cov |
+|------|-----|-----------|----------|--------|
+| `video.service.ts` | 64.9% | 69.0% | 49 | 10 |
+| `webhook/pubsub-push.guard.ts` | 70.2% | 72.7% | 15 | 2 |
+| `webhook/fake-transcoder.controller.ts` | 69.6% | 69.6% | 7 | 0 |
+| `webhook/transcoder-events.controller.ts` | 70.6% | 70.6% | 5 | 0 |
+| `transcoder/transcoder-job.builder.ts` | 75.0% | 75.0% | 12 | 0 |
+| `transcoder/fake-transcoder.adapter.ts` | 70.8% | 79.1% | 9 | 5 |
+| `transcoder/gcp-transcoder.adapter.ts` | 76.3% | 83.3% | 9 | 5 |
+| `transcoder/transcoder.port.ts` | 0.0% | 0.0% | 1 | 0 |
+| `video-owner.guard.ts` | 84.6% | 84.6% | 2 | 0 |
+| `video.controller.ts` | 100.0% | 100.0% | 0 | 0 |
+
+**About `video.service.ts`:** the per-file score moved from 83.1 % raw (prior run on May 14 00:26, with 71 mutants) to 64.9 % raw (this run, with 168 mutants). That is *not* a regression in the existing tests — slice B's commit `37664ff` ("completeUpload chains probe + key gen + transcoder submit with retry") added the probe pipeline, the retry loop, the new failure-reason templates, and the `state === 'READY'` delete branch. Each new branch added mutants, and the slice B test suite did not include the boundary tests (e.g., `attempt < MAX_SUBMIT_ATTEMPTS - 1`) or the message-pinning that would kill them. Slice B's plan did **not** include a mutation refresh task, so this is the first run that sees the full slice B surface.
+
+**About `webhook/**`:** these three files were added in slice B (commits `fbf4451`, `c1e6b71`, `ba6caa4`) and likewise never saw a mutation refresh; their slice B tests cover happy paths and one or two negative paths but do not pin the `Bearer ` parsing edges, the `payload.exp * 1000 < Date.now()` boundary, or the various log/response strings.
+
+### Equivalent-mutant candidates on the slice A/B surface (for future triage, not applied)
+
+These survivors fit the same "logger observability" pattern documented for `libs/api-auth` above. They are *candidates* for `// Stryker disable next-line` annotations or `mutator.excludedMutations` config but were **not** annotated this slice — slice A/B remediation is out of scope for the slice C task.
+
+| File:line | Mutator | Reason |
+|-----------|---------|--------|
+| `video.service.ts:77` | StringLiteral | `new Logger('VideoService')` — logger name, observability not behavior. |
+| `video.service.ts:150` | StringLiteral | `this.logger.warn(...)` template — log content. |
+| `video.service.ts:200` | StringLiteral | `this.logger.warn(\`submitJob attempt …\`)` — log content. |
+| `video.service.ts:237` | StringLiteral | `this.logger.warn(\`cancelJob failed …\`)` — log content. |
+| `webhook/pubsub-push.guard.ts:19` | StringLiteral | `Symbol.for('learnwren.api-video.idTokenVerifier')` — DI key string. |
+| `webhook/transcoder-events.controller.ts:11` | StringLiteral | `new Logger('TranscoderEventsController')` — logger name. |
+| `webhook/transcoder-events.controller.ts:24` | StringLiteral | `logger.error('Discarding malformed event: …')` — log content. |
+| `webhook/transcoder-events.controller.ts:40` | StringLiteral | `logger.error('Transient failure: …')` — log content. |
+| `transcoder/transcoder.port.ts:3` | StringLiteral | `Symbol.for('learnwren.api-video.transcoder')` — DI key string. |
+
+Excluding these nine equivalents would lift the aggregate from 81.04 % → ~82.6 % effective; even with them excluded, the aggregate remains below the 85 % bar because the *real* slice A/B test-coverage gaps are larger than the logger noise.
+
+### Recommendation for follow-up
+
+The slice C acceptance bar (≥ 85 % effective on the slice C surface) is met (100.00 %). To bring the **aggregate** above 85 % effective, schedule a separate "api-video slice A/B mutation hardening" pass with these targets, listed by impact:
+
+1. `video.service.ts:201` — pin the retry boundary `attempt < MAX_SUBMIT_ATTEMPTS - 1` (5 mutants on one line; need a sleep-spy assertion on call count + argument). Largest single cluster.
+2. `video.service.ts:255`, `:258` — pin the `state === 'TRANSCODING' && transcoderJobName` and `state === 'READY' && output?.bucket` branches in `delete()` / `deleteForLesson()` (10 mutants total).
+3. `webhook/pubsub-push.guard.ts:35`, `:53` — pin the `Bearer ` parsing predicate and the `payload.exp * 1000 < Date.now()` boundary (real auth-correctness mutants, not log noise).
+4. `webhook/fake-transcoder.controller.ts` — dev-only synthetic-event controller; consider excluding from the mutate set rather than adding tests (file: 7 survivors, all StringLiteral on fabricated identifiers like `'fake-subscription'`).
+5. The nine equivalent-mutant candidates above — annotate inline once the real gaps are closed.
+
+### Caveats (carry over from api-auth section above)
+
+The same coverage-analysis, no-coverage, and equivalent-mutant caveats apply.

@@ -116,6 +116,7 @@
     "cookie-parser": "^1.4.7",
     "firebase-admin": "^13.8.0",
     "google-auth-library": "^10.6.2",
+    "hls.js": "^1.6.16",
     "nodemailer": "^8.0.7",
     "reflect-metadata": "^0.1.13",
     "rxjs": "~7.8.0"

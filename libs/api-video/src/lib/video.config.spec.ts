@@ -100,3 +100,70 @@ describe('readVideoConfigFromEnv — slice B fields', () => {
     expect(() => readVideoConfigFromEnv(env)).toThrow(/poll/i);
   });
 });
+
+describe('readVideoConfigFromEnv — slice C fields', () => {
+  const baseEnv = (): NodeJS.ProcessEnv => ({
+    LEARNWREN_VIDEO_SOURCE_BUCKET: 'src',
+    LEARNWREN_VIDEO_STUCK_THRESHOLD_MINUTES: '30',
+    LEARNWREN_VIDEO_OUTPUT_BUCKET: 'out',
+    LEARNWREN_VIDEO_TRANSCODER: 'fake',
+    LEARNWREN_WEB_VIDEO_POLL_INTERVAL_MS: '5000',
+  });
+
+  it('defaults playbackSignedUrlTtlSec to 14400 (4 h) when unset', () => {
+    const cfg = readVideoConfigFromEnv(baseEnv());
+    expect(cfg.playbackSignedUrlTtlSec).toBe(14400);
+  });
+
+  it('parses LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC when set', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC = '900';
+    const cfg = readVideoConfigFromEnv(env);
+    expect(cfg.playbackSignedUrlTtlSec).toBe(900);
+  });
+
+  it('rejects non-finite TTL', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC = 'banana';
+    expect(() => readVideoConfigFromEnv(env)).toThrow(/LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC/);
+  });
+
+  it('rejects non-positive TTL', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC = '0';
+    expect(() => readVideoConfigFromEnv(env)).toThrow(/LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC/);
+  });
+});
+
+describe('readVideoConfigFromEnv — playback storage flag', () => {
+  const baseEnv = (): NodeJS.ProcessEnv => ({
+    LEARNWREN_VIDEO_SOURCE_BUCKET: 'src',
+    LEARNWREN_VIDEO_STUCK_THRESHOLD_MINUTES: '30',
+    LEARNWREN_VIDEO_OUTPUT_BUCKET: 'out',
+    LEARNWREN_VIDEO_TRANSCODER: 'fake',
+    LEARNWREN_WEB_VIDEO_POLL_INTERVAL_MS: '5000',
+  });
+
+  it('defaults playbackStorageImpl to "real"', () => {
+    expect(readVideoConfigFromEnv(baseEnv()).playbackStorageImpl).toBe('real');
+  });
+
+  it('honors LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE = 'true';
+    expect(readVideoConfigFromEnv(env).playbackStorageImpl).toBe('fake');
+  });
+
+  it('treats any non-"true" value as "real"', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE = 'yes';
+    expect(readVideoConfigFromEnv(env).playbackStorageImpl).toBe('real');
+  });
+
+  it('rejects fake playback storage in production', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE = 'true';
+    env.NODE_ENV = 'production';
+    expect(() => readVideoConfigFromEnv(env)).toThrow(/production/i);
+  });
+});

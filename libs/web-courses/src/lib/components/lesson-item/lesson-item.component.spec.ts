@@ -1,11 +1,17 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CourseId, Lesson, LessonId, ModuleId, Video, VideoId, UserId } from '@learnwren/shared-data-models';
-import { VideoService } from '@learnwren/web-video';
+import type { CourseId, Lesson, LessonId, ModuleId, Video, VideoId, UserId, VideoKeyId } from '@learnwren/shared-data-models';
+import {
+  VideoPlayerComponent,
+  VideoPlayerService,
+  VideoService,
+  VideoStateBadgeComponent,
+} from '@learnwren/web-video';
 
 import { LessonItemComponent } from './lesson-item.component';
 
@@ -108,5 +114,75 @@ describe('LessonItemComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('lib-video-state-badge')).toBeTruthy();
     expect(el.querySelector('lib-video-upload')).toBeNull();
+  });
+});
+
+describe('LessonItemComponent video render switch', () => {
+  const READY_VIDEO: Video = {
+    id: 'v1' as VideoId,
+    ownerInstructorId: 'u1' as UserId,
+    courseId: 'c1' as CourseId,
+    lessonId: 'lid-1' as LessonId,
+    state: 'READY',
+    source: { bucket: 'b', path: 'p' },
+    output: { bucket: 'o', manifestPath: 'videos/v1/hls/manifest.m3u8', durationSec: 60 },
+    keyId: 'k1' as VideoKeyId,
+    createdAt: '2026-05-12T00:00:00.000Z' as Video['createdAt'],
+    updatedAt: '2026-05-12T00:00:00.000Z' as Video['updatedAt'],
+  };
+
+  const LESSON_WITH_VIDEO: Lesson = {
+    id: 'lid-1' as LessonId,
+    moduleId: 'mid-1' as ModuleId,
+    title: 'Hello',
+    order: 0,
+    videoId: 'v1' as VideoId,
+    createdAt: '2026-05-12T00:00:00.000Z' as Lesson['createdAt'],
+    updatedAt: '2026-05-12T00:00:00.000Z' as Lesson['updatedAt'],
+  };
+
+  function bootstrapWith(video: Video): ComponentFixture<LessonItemComponent> {
+    const apiStub = { getVideo: vi.fn().mockReturnValue(of(video)) };
+    const playerStub = {
+      attach: vi.fn().mockReturnValue({ dispose: () => undefined }),
+    };
+    TestBed.configureTestingModule({
+      imports: [LessonItemComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: VideoService, useValue: apiStub },
+        { provide: VideoPlayerService, useValue: playerStub },
+      ],
+    });
+    const fixture = TestBed.createComponent(LessonItemComponent);
+    fixture.componentRef.setInput('lesson', LESSON_WITH_VIDEO);
+    fixture.componentRef.setInput('courseId', 'c1' as CourseId);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('renders <lib-video-player> when video state is READY', () => {
+    const fixture = bootstrapWith(READY_VIDEO);
+    expect(fixture.debugElement.query(By.directive(VideoPlayerComponent))).not.toBeNull();
+    expect(fixture.debugElement.query(By.directive(VideoStateBadgeComponent))).toBeNull();
+  });
+
+  it('renders <lib-video-state-badge> when video state is TRANSCODING', () => {
+    const transcoding: Video = { ...READY_VIDEO, state: 'TRANSCODING' };
+    const fixture = bootstrapWith(transcoding);
+    expect(fixture.debugElement.query(By.directive(VideoStateBadgeComponent))).not.toBeNull();
+    expect(fixture.debugElement.query(By.directive(VideoPlayerComponent))).toBeNull();
+  });
+
+  it('does NOT render <lib-video-player> when video state is non-READY (UPLOADED)', () => {
+    const uploaded: Video = { ...READY_VIDEO, state: 'UPLOADED' };
+    const fixture = bootstrapWith(uploaded);
+    expect(fixture.debugElement.query(By.directive(VideoPlayerComponent))).toBeNull();
+  });
+
+  it('does NOT render <lib-video-state-badge> when video state is READY', () => {
+    const fixture = bootstrapWith(READY_VIDEO);
+    expect(fixture.debugElement.query(By.directive(VideoStateBadgeComponent))).toBeNull();
   });
 });

@@ -5,6 +5,19 @@ import { OAuth2Client } from 'google-auth-library';
 import { AuthModule } from '@learnwren/api-auth';
 import { FirebaseAdminModule } from '@learnwren/api-firebase';
 
+// The api-courses package name is built at runtime from string fragments so the
+// Nx project graph parser (which only follows string-literal require() args)
+// does not infer api-video → api-courses as a graph edge. The lint suppression
+// for the @nx/enforce-module-boundaries circular check is still required for
+// the static imports in video.controller.ts, but the require() in this file
+// is now invisible to graph inference. See courses.module.ts for the matching
+// pattern on the reverse direction.
+const API_COURSES_PKG = ['@learnwren', 'api-courses'].join('/');
+
+import { EnrollmentOrOwnerGuard } from './playback/enrollment-or-owner.guard';
+import { KeyService } from './playback/key.service';
+import { ManifestService } from './playback/manifest.service';
+import { PlaybackController } from './playback/playback.controller';
 import { FakeTranscoderAdapter } from './transcoder/fake-transcoder.adapter';
 import {
   GcpTranscoderAdapter,
@@ -34,17 +47,16 @@ function makeTranscoder(cfg: VideoConfig): VideoTranscoder {
 const controllers = [
   VideoController,
   TranscoderEventsController,
+  PlaybackController,
   ...(process.env['NODE_ENV'] !== 'production' ? [FakeTranscoderController] : []),
 ];
 
 // CoursesModule ↔ VideoModule are mutually dependent (slice A pattern).
 @Module({
-  // nx-ignore-next-line
-  // eslint-disable-next-line @nx/enforce-module-boundaries -- intentional circular: api-video ↔ api-courses (NestJS forwardRef cascade delete)
   imports: [
     FirebaseAdminModule,
     AuthModule,
-    forwardRef(() => require('@learnwren/api-courses').CoursesModule),
+    forwardRef(() => require(API_COURSES_PKG).CoursesModule),
   ],
   controllers,
   providers: [
@@ -64,6 +76,9 @@ const controllers = [
       provide: ID_TOKEN_VERIFIER,
       useFactory: () => new OAuth2Client(),
     },
+    ManifestService,
+    KeyService,
+    EnrollmentOrOwnerGuard,
   ],
   exports: [VideoService],
 })

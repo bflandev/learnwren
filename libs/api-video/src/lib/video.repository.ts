@@ -33,6 +33,11 @@ export class VideoRepository {
     return q.empty ? null : (q.docs[0]!.data() as Video);
   }
 
+  async getVideoKey(kid: VideoKeyId): Promise<VideoKey | null> {
+    const snap = await this.db.collection('videoKeys').doc(kid).get();
+    return snap.exists ? (snap.data() as VideoKey) : null;
+  }
+
   async createVideo(video: Video): Promise<void> {
     await this.db.collection('videos').doc(video.id).set(video);
   }

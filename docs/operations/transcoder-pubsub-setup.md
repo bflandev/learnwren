@@ -79,3 +79,50 @@ gcloud pubsub topics delete learn-wren-transcoder-events-${ENV}-deadletter
 gcloud pubsub topics delete learn-wren-transcoder-events-${ENV}
 gcloud iam service-accounts delete ${INVOKER_SA}
 ```
+
+## Output bucket CORS (EP-03 Slice C)
+
+The output bucket is private (no public IAM); browser fetches against
+v4 signed URLs must pass a CORS preflight. Without this config hls.js
+segment fetches fail with a CORS error and playback never starts.
+
+Provision once per environment (dev / prod).
+
+### 1. Create `cors-config.json`
+
+```json
+[
+  {
+    "origin": [
+      "https://learn-wren-dev.web.app",
+      "https://learn-wren-dev.firebaseapp.com",
+      "http://localhost:4200"
+    ],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Range"],
+    "maxAgeSeconds": 3600
+  }
+]
+```
+
+For production, replace the dev hosting origin with the prod hosting
+origin and remove `http://localhost:4200`. CORS is bucket-level metadata
+— there is no per-object override.
+
+### 2. Apply
+
+```bash
+PROJECT_ID=learn-wren-dev
+gsutil cors set cors-config.json gs://${PROJECT_ID}-video-output
+```
+
+### 3. Verify
+
+```bash
+gsutil cors get gs://${PROJECT_ID}-video-output
+```
+
+Expected: JSON matching `cors-config.json`. Browser preflight failures
+after this step indicate either a wrong origin in the config or a
+signed-URL TTL that has expired — re-mint the manifest via
+`/api/playback/manifest/:vid` and try again.

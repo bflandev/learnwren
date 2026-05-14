@@ -13,9 +13,13 @@ const REPO_ROOT = path.resolve(HERE, '..', '..');
 
 const COVERAGE_DIRS = [
   'coverage/libs/api-auth',
+  'coverage/libs/api-courses',
   'coverage/libs/api-firebase',
-  'coverage/libs/web-auth',
+  'coverage/libs/api-video',
   'coverage/libs/shared-data-models',
+  'coverage/libs/web-auth',
+  'coverage/libs/web-courses',
+  'coverage/libs/web-video',
   'coverage/apps/api',
   'coverage/apps/web',
 ];
