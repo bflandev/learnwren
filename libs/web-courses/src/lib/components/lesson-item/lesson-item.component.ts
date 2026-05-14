@@ -1,5 +1,6 @@
 import {
   Component,
+  DestroyRef,
   EventEmitter,
   Output,
   effect,
@@ -8,6 +9,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 
 import type { CourseId, Lesson, Video } from '@learnwren/shared-data-models';
@@ -25,6 +27,7 @@ import {
 })
 export class LessonItemComponent {
   private readonly api = inject(VideoService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly lesson = input.required<Lesson>();
   readonly courseId = input.required<CourseId>();
@@ -44,10 +47,12 @@ export class LessonItemComponent {
         untracked(() => this.video.set(undefined));
         return;
       }
-      this.api.getVideo(vid).subscribe({
-        next: (v) => this.video.set(v),
-        error: () => this.video.set(undefined),
-      });
+      this.api.getVideo(vid)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (v) => this.video.set(v),
+          error: () => this.video.set(undefined),
+        });
     });
   }
 

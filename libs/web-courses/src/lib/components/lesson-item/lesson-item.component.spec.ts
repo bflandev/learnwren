@@ -1,9 +1,10 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CourseId, Lesson, LessonId, ModuleId } from '@learnwren/shared-data-models';
+import type { CourseId, Lesson, LessonId, ModuleId, Video, VideoId, UserId } from '@learnwren/shared-data-models';
 import { VideoService } from '@learnwren/web-video';
 
 import { LessonItemComponent } from './lesson-item.component';
@@ -69,5 +70,43 @@ describe('LessonItemComponent', () => {
       .querySelector<HTMLButtonElement>('[data-testid="lesson-delete"]')!
       .click();
     expect(spy).toHaveBeenCalled();
+  });
+
+  it('renders VideoStateBadgeComponent when lesson.videoId is set', () => {
+    const mockVideo: Video = {
+      id: 'v1' as VideoId,
+      ownerInstructorId: 'u1' as UserId,
+      courseId: 'c1' as CourseId,
+      lessonId: 'lid-1' as LessonId,
+      state: 'UPLOADED',
+      source: { bucket: 'bucket', path: 'path/video.mp4' },
+      createdAt: '2026-05-12T00:00:00.000Z' as Video['createdAt'],
+      updatedAt: '2026-05-12T00:00:00.000Z' as Video['updatedAt'],
+    };
+
+    const lessonWithVideo: Lesson = {
+      ...LESSON,
+      videoId: 'v1' as VideoId,
+    };
+
+    const mockApi = { getVideo: vi.fn().mockReturnValue(of(mockVideo)) };
+
+    TestBed.configureTestingModule({
+      imports: [LessonItemComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: VideoService, useValue: mockApi },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(LessonItemComponent);
+    fixture.componentRef.setInput('lesson', lessonWithVideo);
+    fixture.componentRef.setInput('courseId', 'c1' as CourseId);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('lib-video-state-badge')).toBeTruthy();
+    expect(el.querySelector('lib-video-upload')).toBeNull();
   });
 });
