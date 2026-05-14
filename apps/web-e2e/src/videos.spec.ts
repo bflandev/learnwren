@@ -151,6 +151,49 @@ test('cancel mid-upload returns to empty state', async ({ page }) => {
   await expect(page.locator('lib-video-state-badge')).toHaveCount(0);
 });
 
+test('badge transitions from Processing to Ready after fake-completer', async ({ page }) => {
+  const { email, password } = await registerAndPromoteInstructor();
+  await setupCourseWithLesson(page, email, password);
+
+  const sessionResponse = page.waitForResponse(
+    (r) => r.url().includes('/video/upload-session') && r.request().method() === 'POST',
+  );
+  await page.locator('lib-video-upload input[type="file"]').setInputFiles(FIXTURE_MP4);
+  const sessionBody = (await (await sessionResponse).json()) as { videoId: string };
+  const videoId = sessionBody.videoId;
+
+  await expect(page.locator('lib-video-state-badge .badge')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('lib-video-state-badge .badge')).toContainText('Processing video', {
+    timeout: 15_000,
+  });
+
+  const res = await page.request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+  expect(res.status()).toBe(204);
+
+  await expect(page.locator('lib-video-state-badge .badge')).toContainText('Ready to publish', {
+    timeout: 8_000,
+  });
+});
+
+test('badge transitions to Failed copy after fake-fail', async ({ page }) => {
+  const { email, password } = await registerAndPromoteInstructor();
+  await setupCourseWithLesson(page, email, password);
+
+  const sessionResponse = page.waitForResponse(
+    (r) => r.url().includes('/video/upload-session') && r.request().method() === 'POST',
+  );
+  await page.locator('lib-video-upload input[type="file"]').setInputFiles(FIXTURE_MP4);
+  const { videoId } = (await (await sessionResponse).json()) as { videoId: string };
+
+  await expect(page.locator('lib-video-state-badge .badge')).toBeVisible({ timeout: 30_000 });
+  await page.request.post(`${API_BASE}/internal/fake-transcoder/fail/${videoId}`, {
+    data: { reason: 'codec unsupported' },
+  });
+  await expect(page.locator('lib-video-state-badge .badge')).toContainText('Transcoding failed', {
+    timeout: 8_000,
+  });
+});
+
 test('oversized file is rejected client-side without network', async ({ page }) => {
   const { email, password } = await registerAndPromoteInstructor();
   await setupCourseWithLesson(page, email, password);
