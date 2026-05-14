@@ -273,7 +273,8 @@ Small, video-shaped (not a generic job runner):
 ```ts
 export interface VideoTranscoder {
   submitJob(input: TranscoderJobInput): Promise<TranscoderJobHandle>;
-  parseEvent(rawPubSubMessage: unknown): TranscoderEvent;
+  parseEvent(rawPubSubMessage: unknown): Promise<TranscoderEvent>;
+  cancelJob(jobName: string): Promise<void>;
 }
 
 export interface TranscoderJobInput {
@@ -292,7 +293,7 @@ export type TranscoderEvent =
   | { type: 'JOB_FAILED';    jobName: string; reason: string };
 ```
 
-Single MVP implementation: `GcpTranscoderAdapter`, using `@google-cloud/video-transcoder` for `submitJob` and parsing the Transcoder API Pub/Sub event payload in `parseEvent`. A future Cloud Run worker implementation emits the same `TranscoderEvent` envelope onto the same Pub/Sub topic, so the swap is a config change — not a rewrite. A future Mux implementation can also conform if we ever want that path.
+Single MVP implementation: `GcpTranscoderAdapter`, using `@google-cloud/video-transcoder` for `submitJob` and `cancelJob`, and parsing the Transcoder API Pub/Sub event payload in `parseEvent`. `parseEvent` is async because `JOB_SUCCEEDED` events do not carry output duration; the adapter calls `transcoderClient.getJob(jobName)` inside `parseEvent` to obtain it. A future Cloud Run worker implementation emits the same `TranscoderEvent` envelope onto the same Pub/Sub topic, so the swap is a config change — not a rewrite. A future Mux implementation can also conform if we ever want that path.
 
 The port deliberately does not include a `getStatus(jobName)` method: events drive state, not polling. If we ever need a reconciliation loop, it lands as a separate concern.
 
