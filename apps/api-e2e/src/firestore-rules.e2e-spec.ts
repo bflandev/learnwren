@@ -217,3 +217,15 @@ test('INSTRUCTOR client cannot write /videoKeys/{kid}', async () => {
   const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
   await assertFails(setDoc(doc(ctx.firestore(), 'videoKeys', 'k1'), { key: 'abc' }));
 });
+
+// Explicit delete-denial guards: videoKeys hold DRM key material, so prove
+// rules block delete even if a future edit relaxes read/write.
+test('INSTRUCTOR client cannot delete /videos/{vid}', async () => {
+  const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
+  await assertFails(deleteDoc(doc(ctx.firestore(), 'videos', 'v1')));
+});
+
+test('INSTRUCTOR client cannot delete /videoKeys/{kid}', async () => {
+  const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
+  await assertFails(deleteDoc(doc(ctx.firestore(), 'videoKeys', 'k1')));
+});
