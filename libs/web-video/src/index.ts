@@ -6,3 +6,4 @@ export type {
 } from './lib/video.service';
 export { VideoUploadComponent } from './lib/upload/video-upload.component';
 export { VideoStateBadgeComponent } from './lib/video-state-badge.component';
+export { VideoPlayerComponent } from './lib/player/video-player.component';
