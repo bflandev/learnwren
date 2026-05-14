@@ -115,34 +115,40 @@ test('cancel mid-upload returns to empty state', async ({ page }) => {
   const uploadLabel = page.locator('lib-video-upload label.upload-zone');
   await expect(uploadLabel).toBeVisible({ timeout: 5_000 });
 
+  // Delay the upload-session response so there is a guaranteed mid-flight
+  // window in which the Cancel button is clickable, even with a tiny fixture.
+  let releaseUploadSession: (() => void) | undefined;
+  const uploadSessionPause = new Promise<void>((resolve) => {
+    releaseUploadSession = resolve;
+  });
+  await page.route('**/upload-session', async (route) => {
+    // Hold the request open until the test releases it.
+    await uploadSessionPause;
+    await route.continue();
+  });
+
   const fileInput = page.locator('lib-video-upload input[type="file"]');
   await fileInput.setInputFiles(FIXTURE_MP4);
 
-  // Start waiting for either the progress bar or the cancel button to appear
-  // then immediately click Cancel. The upload is small enough that it might
-  // complete before Cancel is clicked — so we accept either final state:
-  // idle (upload-zone visible) or complete (badge visible).
-  //
-  // Limitation: with a tiny fixture file and local emulator the upload
-  // completes in milliseconds; there is no reliable window to observe a
-  // mid-flight cancel. This is a pragmatic smoke assertion.
-  const cancelButton = page.locator('lib-video-upload button', { hasText: /cancel/i });
-  const progressBar = page.locator('lib-video-upload progress');
-
-  // Wait briefly for the progress bar then attempt Cancel.
-  // The file is tiny and the upload may complete before Cancel is reachable;
-  // clicking a detached element throws, so we swallow that error gracefully.
-  await progressBar.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
-  await cancelButton.click({ timeout: 5_000 }).catch(() => {
-    // Upload may have completed before we could click Cancel — that is ok
+  // Wait for the component to enter its in-progress state.
+  await expect(page.locator('lib-video-upload')).toContainText(/Preparing|Uploading/, {
+    timeout: 10_000,
   });
 
-  // After cancel (or fast completion) we expect either idle or badge state
-  const idleState = page.locator('lib-video-upload label.upload-zone');
-  const badge = page.locator('lib-video-state-badge .badge');
+  // Click Cancel while the upload-session call is still held open.
+  await page.getByRole('button', { name: /cancel/i }).click();
 
-  // At least one of the two terminal states must be visible
-  await expect(idleState.or(badge)).toBeVisible({ timeout: 15_000 });
+  // Release the paused route (the request will be discarded anyway, but
+  // resolving here lets Playwright's route machinery clean up cleanly).
+  releaseUploadSession?.();
+
+  // Component must return to idle (upload zone visible again).
+  await expect(page.locator('lib-video-upload label.upload-zone')).toBeVisible({
+    timeout: 10_000,
+  });
+
+  // No badge must appear — cancel must not complete the upload.
+  await expect(page.locator('lib-video-state-badge')).toHaveCount(0);
 });
 
 test('oversized file is rejected client-side without network', async ({ page }) => {
