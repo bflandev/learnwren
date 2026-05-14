@@ -4,7 +4,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 
 > [!NOTE]
 > **PROJECT STATUS: EARLY DEVELOPMENT**
-> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route), the course authoring slice (EP-02 US-02-01..03: instructor role promotion, REST course surface, drag-and-drop editor), and **EP-03 slice A (video upload): instructor uploads MP4/MOV/MKV ≤10 GB to a lesson via resumable upload, with cascade-delete from lesson delete** are wired up. Course publish (US-02-04) and cover image upload are deferred. **Transcoding/DRM playback is deferred to EP-03 slice B.** Instructor dashboard and platform administration remain in post-MVP planning.
+> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route), the course authoring slice (EP-02 US-02-01..03: instructor role promotion, REST course surface, drag-and-drop editor), and **EP-03 slices A + B (video upload through transcoding): instructor uploads MP4 / MOV / MKV ≤ 10 GB to a lesson via resumable upload, ffprobe + GCP Transcoder API + AES-128 HLS produce playable manifests on the output bucket, badge reflects live state** are wired up. Course publish (US-02-04) and cover image upload are deferred. **Owner playback is deferred to EP-03 slice C.** Instructor dashboard and platform administration remain in post-MVP planning.
 
 ---
 
