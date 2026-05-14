@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Req,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 
@@ -30,10 +31,12 @@ import type {
 import { CreateUploadSessionDto } from './dto/create-upload-session.dto';
 import { UpdateVideoFailedDto } from './dto/update-video.dto';
 import type { VideoScopedRequest } from './types/loaded-video';
+import { VideoExceptionFilter } from './video.exception-filter';
 import { VideoOwnerGuard } from './video-owner.guard';
 import { VideoService } from './video.service';
 
 @Controller()
+@UseFilters(VideoExceptionFilter)
 @UseGuards(FirebaseSessionGuard, InstructorRoleGuard)
 export class VideoController {
   constructor(
