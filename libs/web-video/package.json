@@ -10,7 +10,8 @@
     "@analogjs/vite-plugin-angular": "~2.1.2",
     "@nx/vite": "22.7.1",
     "rxjs": "~7.8.0",
-    "vitest": "~4.1.0"
+    "vitest": "~4.1.0",
+    "hls.js": "^1.6.16"
   },
   "sideEffects": false
 }
