@@ -157,7 +157,7 @@ export class VideoService {
     await this.storage
       .deleteObject({ bucket: v.source.bucket, path: v.source.path })
       .catch(() => undefined);
-    await this.repo.deleteVideoAndDetach(v.id, v.lessonId);
+    await this.repo.deleteVideoAndDetach(v.id, v.lessonId, nowIso());
   }
 
   /**
@@ -170,6 +170,6 @@ export class VideoService {
     await this.storage
       .deleteObject({ bucket: v.source.bucket, path: v.source.path })
       .catch(() => undefined);
-    await this.repo.deleteVideoAndDetach(v.id, v.lessonId);
+    await this.repo.deleteVideoAndDetach(v.id, v.lessonId, nowIso());
   }
 }

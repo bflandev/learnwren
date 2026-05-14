@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { FieldValue } from 'firebase-admin/firestore';
+
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
 import type {
   LessonId,
@@ -50,6 +52,9 @@ export class VideoRepository {
     nowIso: string,
   ): Promise<Video> {
     const videoRef = this.db.collection('videos').doc(vid);
+    // Relies on the invariant that Lesson.id === lesson document key, established at
+    // creation time in CoursesRepository.appendLesson. This collectionGroup query
+    // therefore always resolves to exactly one document when the lesson exists.
     const lessonQ = this.db.collectionGroup('lessons').where('id', '==', lid).limit(1);
 
     return this.db.runTransaction(async (tx) => {
@@ -78,9 +83,12 @@ export class VideoRepository {
    * and null out Lesson.videoId if it currently points at vid.
    * Uses a transaction so the lesson ownership check and the update are atomic.
    */
-  async deleteVideoAndDetach(vid: VideoId, lid: LessonId): Promise<void> {
+  async deleteVideoAndDetach(vid: VideoId, lid: LessonId, nowIso: string): Promise<void> {
     const videoRef = this.db.collection('videos').doc(vid);
     const keyQ = this.db.collection('videoKeys').where('videoId', '==', vid).limit(1);
+    // Relies on the invariant that Lesson.id === lesson document key, established at
+    // creation time in CoursesRepository.appendLesson. This collectionGroup query
+    // therefore always resolves to exactly one document when the lesson exists.
     const lessonQ = this.db.collectionGroup('lessons').where('id', '==', lid).limit(1);
 
     await this.db.runTransaction(async (tx) => {
@@ -93,7 +101,9 @@ export class VideoRepository {
         const lesson = lessonSnap.docs[0]!;
         const currentVid = (lesson.data() as { videoId?: string }).videoId;
         if (currentVid === vid) {
-          tx.update(lesson.ref, { videoId: null, updatedAt: new Date().toISOString() });
+          // Use FieldValue.delete() to remove the optional field rather than writing null,
+          // preserving the Lesson.videoId type contract (VideoId | undefined, not nullable).
+          tx.update(lesson.ref, { videoId: FieldValue.delete(), updatedAt: nowIso });
         }
       }
     });

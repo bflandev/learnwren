@@ -310,7 +310,7 @@ describe('VideoService.delete', () => {
       bucket: 'src-bucket',
       path: 'videos/v1/source.mp4',
     });
-    expect(repo.deleteVideoAndDetach).toHaveBeenCalledWith('v1', 'l1');
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalledWith('v1', 'l1', expect.any(String));
   });
 
   it('rejects delete on a TRANSCODING (future) state', async () => {
