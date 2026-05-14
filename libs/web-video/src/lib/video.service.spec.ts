@@ -26,7 +26,7 @@ describe('VideoService', () => {
 
   afterEach(() => http.verify());
 
-  it('POSTs upload-session under courses/lesson path', () => {
+  it('POSTs upload-session under courses/lesson path with credentials', () => {
     svc
       .createUploadSession('c1' as never, 'm1' as never, 'l1' as never, {
         sizeBytes: 1,
@@ -37,6 +37,7 @@ describe('VideoService', () => {
       '/api/courses/c1/modules/m1/lessons/l1/video/upload-session',
     );
     expect(req.request.method).toBe('POST');
+    expect(req.request.withCredentials).toBe(true);
     req.flush({ videoId: 'v1', uploadSessionUri: 'u', expiresAt: 'e' });
   });
 
