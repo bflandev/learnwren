@@ -193,6 +193,21 @@ test('anonymous client cannot read /videoKeys/{kid}', async () => {
   await assertFails(getDoc(doc(ctx.firestore(), 'videoKeys', 'k1')));
 });
 
+test('anonymous client cannot write /videoKeys/{kid}', async () => {
+  const ctx = testEnv.unauthenticatedContext();
+  await assertFails(setDoc(doc(ctx.firestore(), 'videoKeys', 'k1'), { key: 'abc' }));
+});
+
+test('STUDENT client cannot read /videoKeys/{kid}', async () => {
+  const ctx = testEnv.authenticatedContext('student-uid', { role: 'STUDENT' });
+  await assertFails(getDoc(doc(ctx.firestore(), 'videoKeys', 'k1')));
+});
+
+test('STUDENT client cannot write /videoKeys/{kid}', async () => {
+  const ctx = testEnv.authenticatedContext('student-uid', { role: 'STUDENT' });
+  await assertFails(setDoc(doc(ctx.firestore(), 'videoKeys', 'k1'), { key: 'abc' }));
+});
+
 test('INSTRUCTOR client cannot read /videoKeys/{kid}', async () => {
   const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
   await assertFails(getDoc(doc(ctx.firestore(), 'videoKeys', 'k1')));
