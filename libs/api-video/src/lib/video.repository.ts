@@ -41,21 +41,17 @@ export class VideoRepository {
     await this.db.collection('videos').doc(vid).update(patch);
   }
 
-  /**
-   * Atomically advance a video to UPLOADED and pin the videoId onto the lesson.
-   * Uses a transaction so reads and writes share a consistent snapshot (no TOCTOU window).
-   */
-  async finalizeUpload(
-    vid: VideoId,
-    lid: LessonId,
-    actualSizeBytes: number,
-    nowIso: string,
-  ): Promise<Video> {
-    const videoRef = this.db.collection('videos').doc(vid);
-    // Relies on the invariant that Lesson.id === lesson document key, established at
-    // creation time in CoursesRepository.appendLesson. This collectionGroup query
-    // therefore always resolves to exactly one document when the lesson exists.
-    const lessonQ = this.db.collectionGroup('lessons').where('id', '==', lid).limit(1);
+  async finalizeUploadWithJob(args: {
+    vid: VideoId;
+    lid: LessonId;
+    actualSizeBytes: number;
+    key: { id: VideoKeyId; bytes: Uint8Array };
+    transcoderJobName: string;
+    nowIso: string;
+  }): Promise<Video> {
+    const videoRef = this.db.collection('videos').doc(args.vid);
+    const keyRef = this.db.collection('videoKeys').doc(args.key.id);
+    const lessonQ = this.db.collectionGroup('lessons').where('id', '==', args.lid).limit(1);
 
     return this.db.runTransaction(async (tx) => {
       const videoSnap = await tx.get(videoRef);
@@ -65,16 +61,95 @@ export class VideoRepository {
       const lessonDocRef = lessonSnap.docs[0]!.ref;
 
       const current = videoSnap.data() as Video;
-      const updatedVideo: Video = {
+      const updated: Video = {
         ...current,
-        state: 'UPLOADED',
-        source: { ...current.source, sizeBytes: actualSizeBytes },
-        updatedAt: nowIso as Video['updatedAt'],
+        state: 'TRANSCODING',
+        source: { ...current.source, sizeBytes: args.actualSizeBytes },
+        keyId: args.key.id,
+        transcoderJobName: args.transcoderJobName,
+        updatedAt: args.nowIso as Video['updatedAt'],
+      };
+      const keyDoc: VideoKey = {
+        id: args.key.id,
+        videoId: args.vid,
+        key: Buffer.from(args.key.bytes).toString('base64'),
+        createdAt: args.nowIso as VideoKey['createdAt'],
       };
 
-      tx.set(videoRef, updatedVideo);
-      tx.update(lessonDocRef, { videoId: vid, updatedAt: nowIso });
-      return updatedVideo;
+      tx.set(videoRef, updated);
+      tx.set(keyRef, keyDoc);
+      tx.update(lessonDocRef, { videoId: args.vid, updatedAt: args.nowIso });
+      return updated;
+    });
+  }
+
+  async markFailedFromSubmission(args: {
+    vid: VideoId;
+    failureReason: string;
+    actualSizeBytes: number;
+    nowIso: string;
+  }): Promise<Video> {
+    const videoRef = this.db.collection('videos').doc(args.vid);
+    return this.db.runTransaction(async (tx) => {
+      const snap = await tx.get(videoRef);
+      if (!snap.exists) throw new Error('Video disappeared in transaction.');
+      const current = snap.data() as Video;
+      const updated: Video = {
+        ...current,
+        state: 'FAILED',
+        source: { ...current.source, sizeBytes: args.actualSizeBytes },
+        failureReason: args.failureReason,
+        updatedAt: args.nowIso as Video['updatedAt'],
+      };
+      tx.set(videoRef, updated);
+      return updated;
+    });
+  }
+
+  async applyTranscoderResult(args: {
+    videoId: VideoId;
+    jobName: string;
+    outcome:
+      | { kind: 'READY'; manifestPath: string; durationSec: number; outputBucket: string }
+      | { kind: 'FAILED'; reason: string };
+    nowIso: string;
+  }): Promise<{ acted: boolean; reason?: 'VIDEO_NOT_FOUND' | 'JOB_NAME_MISMATCH' | 'ALREADY_APPLIED' | 'WRONG_STATE' }> {
+    const videoRef = this.db.collection('videos').doc(args.videoId);
+    return this.db.runTransaction(async (tx) => {
+      const snap = await tx.get(videoRef);
+      if (!snap.exists) return { acted: false, reason: 'VIDEO_NOT_FOUND' as const };
+      const current = snap.data() as Video;
+      if (current.transcoderJobName !== args.jobName) {
+        return { acted: false, reason: 'JOB_NAME_MISMATCH' as const };
+      }
+      const targetState = args.outcome.kind === 'READY' ? 'READY' : 'FAILED';
+      if (current.state === targetState) {
+        return { acted: false, reason: 'ALREADY_APPLIED' as const };
+      }
+      if (current.state !== 'TRANSCODING') {
+        return { acted: false, reason: 'WRONG_STATE' as const };
+      }
+
+      const updated: Video =
+        args.outcome.kind === 'READY'
+          ? {
+              ...current,
+              state: 'READY',
+              output: {
+                bucket: args.outcome.outputBucket,
+                manifestPath: args.outcome.manifestPath,
+                durationSec: args.outcome.durationSec,
+              },
+              updatedAt: args.nowIso as Video['updatedAt'],
+            }
+          : {
+              ...current,
+              state: 'FAILED',
+              failureReason: `TRANSCODE_FAILED: ${args.outcome.reason}`,
+              updatedAt: args.nowIso as Video['updatedAt'],
+            };
+      tx.set(videoRef, updated);
+      return { acted: true };
     });
   }
 
@@ -109,11 +184,4 @@ export class VideoRepository {
     });
   }
 
-  async writeVideoKey(key: VideoKey): Promise<void> {
-    await this.db.collection('videoKeys').doc(key.id).set(key);
-  }
-
-  async deleteVideoKey(kid: VideoKeyId): Promise<void> {
-    await this.db.collection('videoKeys').doc(kid).delete();
-  }
 }
