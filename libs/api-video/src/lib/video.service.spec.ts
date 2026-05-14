@@ -9,6 +9,7 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import type { VideoConfig } from './video.config';
+import type { TranscoderEvent } from './transcoder/transcoder.port';
 import {
   InvalidVideoStateException,
   LessonAlreadyHasVideoException,
@@ -487,5 +488,121 @@ describe('VideoService.completeUpload — slice B', () => {
     const { svc, storage } = makeServiceWithTranscoder();
     storage.headObject.mockResolvedValue(null);
     await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(UploadObjectMissingException);
+  });
+});
+
+describe('VideoService.handleTranscoderEvent', () => {
+  function build() {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = { submitJob: vi.fn(), parseEvent: vi.fn(), cancelJob: vi.fn() };
+    repo.applyTranscoderResult = vi.fn();
+    const svc = new VideoService(repo as never, storage as never, cfg as never, transcoder as never);
+    return { svc, repo };
+  }
+
+  const successEvent: TranscoderEvent = {
+    type: 'JOB_SUCCEEDED',
+    jobName: 'jobs/abc',
+    videoId: 'v1' as VideoId,
+    manifestPath: 'videos/v1/hls/manifest.m3u8',
+    durationSec: 120,
+  };
+  const failEvent: TranscoderEvent = {
+    type: 'JOB_FAILED',
+    jobName: 'jobs/abc',
+    videoId: 'v1' as VideoId,
+    reason: 'codec failure',
+  };
+
+  it('forwards JOB_SUCCEEDED with READY outcome carrying manifest path + duration + output bucket', async () => {
+    const { svc, repo } = build();
+    repo.applyTranscoderResult.mockResolvedValue({ acted: true });
+    const result = await svc.handleTranscoderEvent(successEvent);
+    expect(result).toEqual({ acted: true });
+    expect(repo.applyTranscoderResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        videoId: 'v1',
+        jobName: 'jobs/abc',
+        outcome: {
+          kind: 'READY',
+          manifestPath: 'videos/v1/hls/manifest.m3u8',
+          durationSec: 120,
+          outputBucket: cfg.outputBucket,
+        },
+      }),
+    );
+  });
+
+  it('forwards JOB_FAILED with FAILED outcome carrying reason', async () => {
+    const { svc, repo } = build();
+    repo.applyTranscoderResult.mockResolvedValue({ acted: true });
+    await svc.handleTranscoderEvent(failEvent);
+    expect(repo.applyTranscoderResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: { kind: 'FAILED', reason: 'codec failure' },
+      }),
+    );
+  });
+
+  it('passes through repo no-op reasons unchanged', async () => {
+    const { svc, repo } = build();
+    repo.applyTranscoderResult.mockResolvedValue({ acted: false, reason: 'ALREADY_APPLIED' });
+    const result = await svc.handleTranscoderEvent(successEvent);
+    expect(result).toEqual({ acted: false, reason: 'ALREADY_APPLIED' });
+  });
+});
+
+describe('VideoService.delete — slice B state widening', () => {
+  function build(initialState: Video['state'], extras: Partial<Video> = {}) {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = { submitJob: vi.fn(), parseEvent: vi.fn(), cancelJob: vi.fn(async () => undefined) };
+    repo.getVideo.mockResolvedValue(baseVideo({ state: initialState, ...extras }));
+    (storage as unknown as { deletePrefix: ReturnType<typeof vi.fn> }).deletePrefix = vi.fn(
+      async () => undefined,
+    );
+    const svc = new VideoService(repo as never, storage as never, cfg as never, transcoder as never);
+    return { svc, repo, storage, transcoder };
+  }
+
+  it('TRANSCODING: best-effort cancelJob before bucket + repo cleanup', async () => {
+    const { svc, transcoder, storage, repo } = build('TRANSCODING', {
+      transcoderJobName: 'jobs/abc',
+    });
+    await svc.delete('v1' as VideoId);
+    expect(transcoder.cancelJob).toHaveBeenCalledWith('jobs/abc');
+    expect(storage.deleteObject).toHaveBeenCalled();
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
+  });
+
+  it('TRANSCODING with no transcoderJobName: skips cancelJob', async () => {
+    const { svc, transcoder } = build('TRANSCODING', { transcoderJobName: undefined });
+    await svc.delete('v1' as VideoId);
+    expect(transcoder.cancelJob).not.toHaveBeenCalled();
+  });
+
+  it('TRANSCODING: cancelJob failure is swallowed and cleanup proceeds', async () => {
+    const { svc, transcoder, repo } = build('TRANSCODING', { transcoderJobName: 'jobs/abc' });
+    transcoder.cancelJob.mockRejectedValue(new Error('boom'));
+    await expect(svc.delete('v1' as VideoId)).resolves.toBeUndefined();
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
+  });
+
+  it('READY: deletes output prefix from output bucket best-effort', async () => {
+    const { svc, storage, repo } = build('READY', {
+      output: { bucket: 'out', manifestPath: 'videos/v1/hls/manifest.m3u8', durationSec: 60 },
+    });
+    await svc.delete('v1' as VideoId);
+    expect((storage as unknown as { deletePrefix: ReturnType<typeof vi.fn> }).deletePrefix).toHaveBeenCalledWith({
+      bucket: 'out',
+      prefix: 'videos/v1/',
+    });
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
+  });
+
+  it('rejects unknown post-slice-B states', async () => {
+    const { svc } = build('UPLOADING' as Video['state']);
+    await expect(svc.delete('v1' as VideoId)).rejects.toBeInstanceOf(InvalidVideoStateException);
   });
 });
