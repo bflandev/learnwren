@@ -292,6 +292,57 @@ describe('CoursesService — module operations', () => {
       expect(repo.writeModuleOrder).toHaveBeenCalledWith(CID, ['c', 'a', 'b']);
     });
 
+    it('places modules in the requested order by id, preserving each doc\'s other fields', async () => {
+      const mod1 = m('mid-1', 0);
+      const mod2 = m('mid-2', 1);
+      const mod3 = m('mid-3', 2);
+      mod1.title = 'Module Alpha';
+      mod2.title = 'Module Beta';
+      mod3.title = 'Module Gamma';
+      repo.listModulesByCourse.mockResolvedValue([mod1, mod2, mod3]);
+      repo.writeModuleOrder.mockResolvedValue(undefined);
+
+      const result = await service.reorderModules(CID, ['mid-3', 'mid-1', 'mid-2'] as ModuleId[]);
+
+      expect(result[0].id).toBe('mid-3');
+      expect(result[0].title).toBe('Module Gamma');
+      expect(result[0].order).toBe(0);
+      expect(result[1].id).toBe('mid-1');
+      expect(result[1].title).toBe('Module Alpha');
+      expect(result[1].order).toBe(1);
+      expect(result[2].id).toBe('mid-2');
+      expect(result[2].title).toBe('Module Beta');
+      expect(result[2].order).toBe(2);
+    });
+
+    it('throws StaleReorderException when proposed list is shorter than current', async () => {
+      repo.listModulesByCourse.mockResolvedValue([m('a', 0), m('b', 1), m('c', 2)]);
+      const { StaleReorderException } = await import('./errors/courses.exception');
+      await expect(
+        service.reorderModules(CID, ['a', 'b'] as ModuleId[]),
+      ).rejects.toBeInstanceOf(StaleReorderException);
+      expect(repo.writeModuleOrder).not.toHaveBeenCalled();
+    });
+
+    it('throws StaleReorderException when proposed list is longer than current', async () => {
+      repo.listModulesByCourse.mockResolvedValue([m('a', 0), m('b', 1)]);
+      const { StaleReorderException } = await import('./errors/courses.exception');
+      await expect(
+        service.reorderModules(CID, ['a', 'b', 'c'] as ModuleId[]),
+      ).rejects.toBeInstanceOf(StaleReorderException);
+      expect(repo.writeModuleOrder).not.toHaveBeenCalled();
+    });
+
+    it('throws StaleReorderException when proposed list contains an id not in current (same length)', async () => {
+      repo.listModulesByCourse.mockResolvedValue([m('a', 0), m('b', 1), m('c', 2)]);
+      const { StaleReorderException } = await import('./errors/courses.exception');
+      await expect(
+        service.reorderModules(CID, ['a', 'b', 'z'] as ModuleId[]),
+      ).rejects.toBeInstanceOf(StaleReorderException);
+      expect(repo.writeModuleOrder).not.toHaveBeenCalled();
+    });
+
+    // pre-existing tests kept for cross-coverage
     it('throws StaleReorderException when ids are missing one', async () => {
       repo.listModulesByCourse.mockResolvedValue([m('a', 0), m('b', 1), m('c', 2)]);
       const { StaleReorderException } = await import('./errors/courses.exception');
@@ -371,6 +422,18 @@ describe('CoursesService — lesson operations', () => {
         title: 'L1',
         description: 'first',
       });
+    });
+
+    it('omitting description does not pass a description key to the repository', async () => {
+      repo.appendLesson.mockImplementation(async (cid, mid, seed) => ({
+        ...seed,
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      }));
+      await service.createLesson(CID, MID, { title: 'No-desc lesson' });
+      const [, , seed] = repo.appendLesson.mock.calls[0] as [unknown, unknown, Record<string, unknown>];
+      expect(Object.prototype.hasOwnProperty.call(seed, 'description')).toBe(false);
     });
   });
 
@@ -476,6 +539,29 @@ describe('CoursesService — lesson operations', () => {
       repo.listLessonsByModule.mockResolvedValue([l('a', 0), l('b', 1)]);
       await service.reorderLessons(CID, MID, ['b', 'a'] as LessonId[]);
       expect(repo.writeLessonOrder).toHaveBeenCalledWith(CID, MID, ['b', 'a']);
+    });
+
+    it('places lessons in the requested order by id, preserving each doc\'s other fields', async () => {
+      const lesson1 = l('lid-1', 0);
+      const lesson2 = l('lid-2', 1);
+      const lesson3 = l('lid-3', 2);
+      lesson1.title = 'Lesson Alpha';
+      lesson2.title = 'Lesson Beta';
+      lesson3.title = 'Lesson Gamma';
+      repo.listLessonsByModule.mockResolvedValue([lesson1, lesson2, lesson3]);
+      repo.writeLessonOrder.mockResolvedValue(undefined);
+
+      const result = await service.reorderLessons(CID, MID, ['lid-3', 'lid-1', 'lid-2'] as LessonId[]);
+
+      expect(result[0].id).toBe('lid-3');
+      expect(result[0].title).toBe('Lesson Gamma');
+      expect(result[0].order).toBe(0);
+      expect(result[1].id).toBe('lid-1');
+      expect(result[1].title).toBe('Lesson Alpha');
+      expect(result[1].order).toBe(1);
+      expect(result[2].id).toBe('lid-2');
+      expect(result[2].title).toBe('Lesson Beta');
+      expect(result[2].order).toBe(2);
     });
 
     it('throws StaleReorderException when ids mismatch', async () => {

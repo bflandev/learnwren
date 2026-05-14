@@ -106,7 +106,7 @@ describe('CoursesController', () => {
   it('PATCH /courses/:cid forwards the patch', async () => {
     const result = await controller.updateCourse(CID, { title: 'New' }, makeReq());
     expect(service.updateCourse).toHaveBeenCalledWith(CID, { title: 'New' });
-    expect(result).toBeDefined();
+    expect(result).toEqual({ ok: true });
   });
 
   it('DELETE /courses/:cid deletes the course', async () => {
@@ -120,8 +120,9 @@ describe('CoursesController', () => {
   });
 
   it('PATCH /courses/:cid/modules/:mid updates a module', async () => {
-    await controller.updateModule(CID, MID, { title: 'New' });
+    const result = await controller.updateModule(CID, MID, { title: 'New' });
     expect(service.updateModule).toHaveBeenCalledWith(CID, MID, { title: 'New' });
+    expect(result).toEqual({ ok: true });
   });
 
   it('DELETE /courses/:cid/modules/:mid deletes a module', async () => {
@@ -140,8 +141,9 @@ describe('CoursesController', () => {
   });
 
   it('PATCH /courses/:cid/modules/:mid/lessons/:lid updates a lesson', async () => {
-    await controller.updateLesson(CID, MID, LID, { title: 'New' });
+    const result = await controller.updateLesson(CID, MID, LID, { title: 'New' });
     expect(service.updateLesson).toHaveBeenCalledWith(CID, MID, LID, { title: 'New' });
+    expect(result).toEqual({ ok: true });
   });
 
   it('DELETE /courses/:cid/modules/:mid/lessons/:lid deletes a lesson', async () => {
