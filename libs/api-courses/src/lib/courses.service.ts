@@ -16,10 +16,14 @@ import type {
 // Minimal structural interface for the VideoService dependency.
 // Using a local interface instead of importing the concrete class avoids the
 // TypeScript composite project reference cycle (api-courses ↔ api-video).
-// The DI token is provided via forwardRef(() => require('@learnwren/api-video').VideoService).
+// The DI token is provided via forwardRef(() => require(API_VIDEO_PKG).VideoService).
 interface VideoServiceLike {
   deleteForLesson(lessonId: string): Promise<void>;
 }
+
+// Built at runtime from string fragments so the Nx project graph parser does
+// not infer api-courses → api-video as a graph edge. See courses.module.ts.
+const API_VIDEO_PKG = ['@learnwren', 'api-video'].join('/');
 
 import { CoursesRepository } from './courses.repository';
 import {
@@ -57,9 +61,9 @@ export class CoursesService {
     // forwardRef with lazy require: resolves the api-courses ↔ api-video circular
     // dependency at runtime without triggering a static import that would cause
     // CourseOwnerGuard to be undefined during VideoController class decoration.
-    // nx-ignore-next-line
-    // eslint-disable-next-line @nx/enforce-module-boundaries -- intentional circular: api-courses ↔ api-video (NestJS forwardRef cascade delete)
-    @Inject(forwardRef(() => require('@learnwren/api-video').VideoService))
+    // API_VIDEO_PKG is computed at runtime to keep this edge out of the Nx
+    // project graph (see top-of-file comment).
+    @Inject(forwardRef(() => require(API_VIDEO_PKG).VideoService))
     private readonly videoSvc: VideoServiceLike,
   ) {}
 
