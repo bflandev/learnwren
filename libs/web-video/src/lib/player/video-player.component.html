@@ -1,0 +1,20 @@
+<video
+  #playerEl
+  controls
+  preload="metadata"
+  crossorigin="use-credentials"
+  class="player"
+  data-testid="video-player"
+></video>
+@if (error(); as msg) {
+  <div class="error" role="alert" data-testid="video-player-error">
+    <span>{{ msg }}</span>
+    <button
+      type="button"
+      (click)="retry()"
+      data-testid="video-player-retry"
+    >
+      Try again
+    </button>
+  </div>
+}

@@ -1,0 +1,17 @@
+.player {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  background: #000;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #fde7e7;
+  color: #7a1f1f;
+  border-radius: 4px;
+}
