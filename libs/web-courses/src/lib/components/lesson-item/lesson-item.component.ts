@@ -14,6 +14,7 @@ import { FormsModule } from '@angular/forms';
 
 import type { CourseId, Lesson, Video } from '@learnwren/shared-data-models';
 import {
+  VideoPlayerComponent,
   VideoService,
   VideoStateBadgeComponent,
   VideoUploadComponent,
@@ -22,7 +23,7 @@ import {
 @Component({
   selector: 'lib-lesson-item',
   standalone: true,
-  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent],
+  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent],
   templateUrl: './lesson-item.component.html',
 })
 export class LessonItemComponent {
