@@ -64,3 +64,33 @@ export class UploadObjectSizeMismatchException extends VideoException {
     );
   }
 }
+
+export class PubSubInvalidTokenException extends VideoException {
+  constructor(detail?: string) {
+    super(
+      'PUBSUB_INVALID_TOKEN',
+      detail ? `Pub/Sub OIDC token invalid: ${detail}.` : 'Pub/Sub OIDC token invalid.',
+      401,
+    );
+  }
+}
+
+export class PubSubWrongAudienceException extends VideoException {
+  constructor() {
+    super(
+      'PUBSUB_WRONG_AUDIENCE',
+      'Pub/Sub OIDC token audience does not match the configured webhook URL.',
+      403,
+    );
+  }
+}
+
+export class PubSubWrongInvokerException extends VideoException {
+  constructor() {
+    super(
+      'PUBSUB_WRONG_INVOKER',
+      'Pub/Sub OIDC token email does not match the configured invoker service account.',
+      403,
+    );
+  }
+}

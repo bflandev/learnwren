@@ -4,6 +4,9 @@ import {
   InvalidVideoStateException,
   LessonAlreadyHasVideoException,
   NotVideoOwnerException,
+  PubSubInvalidTokenException,
+  PubSubWrongAudienceException,
+  PubSubWrongInvokerException,
   UploadObjectMissingException,
   UploadObjectSizeMismatchException,
   VideoException,
@@ -36,5 +39,31 @@ describe('Video exceptions', () => {
   it('InvalidVideoStateException attaches currentState to details', () => {
     const ex = new InvalidVideoStateException('UPLOADED');
     expect(ex.details).toEqual({ currentState: 'UPLOADED' });
+  });
+});
+
+describe('Pub/Sub exceptions', () => {
+  it('PubSubInvalidTokenException has status 401 and correct code', () => {
+    const e = new PubSubInvalidTokenException('expired');
+    expect(e.status).toBe(401);
+    expect(e.code).toBe('PUBSUB_INVALID_TOKEN');
+    expect(e.message).toContain('expired');
+  });
+
+  it('PubSubInvalidTokenException without detail uses generic message', () => {
+    const e = new PubSubInvalidTokenException();
+    expect(e.message).toBe('Pub/Sub OIDC token invalid.');
+  });
+
+  it('PubSubWrongAudienceException has status 403 and correct code', () => {
+    const e = new PubSubWrongAudienceException();
+    expect(e.status).toBe(403);
+    expect(e.code).toBe('PUBSUB_WRONG_AUDIENCE');
+  });
+
+  it('PubSubWrongInvokerException has status 403 and correct code', () => {
+    const e = new PubSubWrongInvokerException();
+    expect(e.status).toBe(403);
+    expect(e.code).toBe('PUBSUB_WRONG_INVOKER');
   });
 });
