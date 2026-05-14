@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import type { Video, VideoKey, VideoState } from './video';
 import type { CourseId, LessonId, UserId } from './common';
 
