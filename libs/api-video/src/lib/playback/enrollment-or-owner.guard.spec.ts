@@ -41,6 +41,25 @@ describe('EnrollmentOrOwnerGuard', () => {
     ).rejects.toBeInstanceOf(VideoNotFoundException);
   });
 
+  it('short-circuits without calling the repo when :vid is missing', async () => {
+    // Pins the `if (!vid)` early-throw — without it, repo.getVideo(undefined) would still run.
+    const repo = makeRepo(null);
+    const guard = new EnrollmentOrOwnerGuard(repo);
+    await expect(
+      guard.canActivate(ctxFor({ params: {}, user: { uid: 'u1' } })),
+    ).rejects.toBeInstanceOf(VideoNotFoundException);
+    expect(repo.getVideo).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_VIDEO_OWNER (not TypeError) when req.user is entirely missing', async () => {
+    // Defends the `req.user?.uid` optional-chain mutation: without `?.`, accessing
+    // `.uid` on undefined throws TypeError instead of the domain-correct exception.
+    const guard = new EnrollmentOrOwnerGuard(makeRepo(readyVideo));
+    await expect(
+      guard.canActivate(ctxFor({ params: { vid: 'v1' } })),
+    ).rejects.toBeInstanceOf(NotVideoOwnerException);
+  });
+
   it('throws VIDEO_NOT_FOUND when the video does not exist', async () => {
     const guard = new EnrollmentOrOwnerGuard(makeRepo(null));
     await expect(

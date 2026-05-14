@@ -89,6 +89,34 @@ describe('rewriteMaster', () => {
     // Pins assertM3u8Header's error string so endsWith/== boundary mutants are killed.
     expect(() => rewriteMaster('#EXT-X-VERSION:6\n', VID)).toThrow(/missing #EXTM3U/);
   });
+
+  it('trims the URI lookahead so a leading-whitespace "#" line is rejected as no-URI', () => {
+    // Defends `lines[nextIdx]?.trim()` -> `lines[nextIdx]` (no trim). With trim,
+    // `\t#EXT-X-ENDLIST` becomes `#EXT-X-ENDLIST` and is caught by the
+    // `uri.startsWith('#')` branch (-> "expected URI line"). Without trim, the
+    // raw `\t#...` falls through to renditionNameFromUri which complains it
+    // cannot extract a rendition name. Pinning the *message* discriminates them.
+    const body = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n\t#EXT-X-ENDLIST\n';
+    expect(() => rewriteMaster(body, VID)).toThrow(
+      /expected URI line after #EXT-X-STREAM-INF/,
+    );
+  });
+
+  it('pins the exact "expected URI line after #EXT-X-STREAM-INF" message', () => {
+    // Defends the StringLiteral mutation that would empty the diagnostic.
+    const body = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n#EXT-X-ENDLIST\n';
+    expect(() => rewriteMaster(body, VID)).toThrow(
+      /expected URI line after #EXT-X-STREAM-INF/,
+    );
+  });
+
+  it('uses startsWith (not endsWith) when probing the lookahead URI for "#"', () => {
+    // Defends `uri.startsWith('#')` -> `uri.endsWith('#')`. A URI like `bad#`
+    // ends with '#' but does not start with one — the *startsWith* branch must let
+    // it fall through to renditionNameFromUri (which reports the rendition-name error).
+    const body = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nbad#\n';
+    expect(() => rewriteMaster(body, VID)).toThrow(/cannot extract rendition name/);
+  });
 });
 
 describe('isAllowedRendition', () => {
@@ -167,5 +195,51 @@ https://storage.googleapis.com/b/segment_001.ts?signature=xyz
     await expect(
       rewriteRendition('#EXT-X-VERSION:6\n', VID, async () => ''),
     ).rejects.toBeInstanceOf(ManifestParseFailedException);
+  });
+
+  it('trims whitespace off segment URIs before signing', async () => {
+    // Defends the `.trim()` mutation in `signSegment(line.trim())` at the call site.
+    const body = `#EXTM3U\n#EXTINF:6.000,\n\tsegment_001.ts\t\n#EXT-X-ENDLIST\n`;
+    const seen: string[] = [];
+    const signer = async (s: string) => {
+      seen.push(s);
+      return `signed://${s}`;
+    };
+    await rewriteRendition(body, VID, signer);
+    expect(seen).toEqual(['segment_001.ts']);
+  });
+
+  it('treats a whitespace-only line as non-segment (no signer call)', async () => {
+    // Defends the `line.trim()` mutation inside `isSegmentUri`: without trim,
+    // a whitespace-only line is non-empty and would be misclassified as a segment.
+    const body = `#EXTM3U\n   \n#EXT-X-ENDLIST\n`;
+    const signer = vi.fn(async () => 'NEVER');
+    await rewriteRendition(body, VID, signer);
+    expect(signer).not.toHaveBeenCalled();
+  });
+
+  it('produces output joined by newlines (not concatenated)', async () => {
+    // Defends `out.join('\n')` -> `out.join('')`: without the newline, the segment
+    // URIs and #EXT directives would collapse onto one line.
+    const out = await rewriteRendition(
+      RENDITION_720,
+      VID,
+      async (s) => `signed://${s}`,
+    );
+    expect(out.split('\n').length).toBeGreaterThan(5);
+    // And specifically: no two distinct directives glued together
+    expect(out).not.toMatch(/#EXTM3U#EXT-X-VERSION/);
+    expect(out).not.toContain('Stryker was here');
+  });
+
+  it('starts with #EXTM3U on its own line (does not seed output with a sentinel)', async () => {
+    // Defends `out: string[] = []` -> `["Stryker was here"]`: a non-empty initial
+    // accumulator would prepend a stray line at the top of the output.
+    const out = await rewriteRendition(
+      RENDITION_720,
+      VID,
+      async (s) => `signed://${s}`,
+    );
+    expect(out.split('\n')[0]).toBe('#EXTM3U');
   });
 });

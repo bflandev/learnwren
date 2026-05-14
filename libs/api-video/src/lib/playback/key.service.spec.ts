@@ -65,4 +65,19 @@ describe('KeyService.fetch', () => {
     await svc.fetch(READY_VIDEO);
     expect(repo.getVideoKey).toHaveBeenCalledWith(KID);
   });
+
+  it('pins the exact KEY_LOOKUP_FAILED message when keyId is missing', async () => {
+    // Defends the StringLiteral mutation that would replace 'video has no keyId' with ''.
+    const svc = new KeyService(makeRepo(KEY_DOC));
+    const noKeyVideo = { ...READY_VIDEO, keyId: undefined };
+    await expect(svc.fetch(noKeyVideo)).rejects.toThrow(/video has no keyId/);
+  });
+
+  it('pins the exact KEY_LOOKUP_FAILED message when the key doc is absent', async () => {
+    // Defends the template-literal mutation that would replace `videoKeys/${id} missing` with ``.
+    const svc = new KeyService(makeRepo(null));
+    await expect(svc.fetch(READY_VIDEO)).rejects.toThrow(
+      new RegExp(`videoKeys/${KID} missing`),
+    );
+  });
 });
