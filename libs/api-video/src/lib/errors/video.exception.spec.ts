@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, it, test } from 'vitest';
 
 import {
   InvalidVideoStateException,
@@ -22,5 +22,19 @@ describe('Video exceptions', () => {
   test.each(cases)('exposes the expected code and status', (ex, expected) => {
     expect(ex.code).toBe(expected.code);
     expect(ex.status).toBe(expected.status);
+  });
+
+  it('VideoException carries code, message, status, and optional details', () => {
+    const ex = new VideoException('INTERNAL', 'boom', 500, { foo: 'bar' });
+    expect(ex.code).toBe('INTERNAL');
+    expect(ex.message).toBe('boom');
+    expect(ex.status).toBe(500);
+    expect(ex.details).toEqual({ foo: 'bar' });
+    expect(ex.name).toBe('VideoException');
+  });
+
+  it('InvalidVideoStateException attaches currentState to details', () => {
+    const ex = new InvalidVideoStateException('UPLOADED');
+    expect(ex.details).toEqual({ currentState: 'UPLOADED' });
   });
 });
