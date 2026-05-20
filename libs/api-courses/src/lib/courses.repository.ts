@@ -1,10 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { firestore as adminFirestore } from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
 import type {
   Course,
   CourseId,
+  CourseStatus,
   ISODateString,
   Lesson,
   LessonId,
@@ -12,6 +14,8 @@ import type {
   ModuleId,
   UserId,
 } from '@learnwren/shared-data-models';
+
+import { CourseNotFoundException } from './errors/courses.exception';
 
 const COURSES = 'courses';
 
@@ -267,5 +271,86 @@ export class CoursesRepository {
   /** @internal — exposed for service-level helpers that need the raw handle. */
   get rawFirestore(): FirestoreHandle {
     return this.firestore;
+  }
+
+  // ────────────────────────── Slice D (publish gate) ──────────────────────────
+
+  async getCourseInTxn(
+    t: adminFirestore.Transaction,
+    cid: CourseId,
+  ): Promise<Course> {
+    const ref = this.firestore.collection(COURSES).doc(cid);
+    const snap = await t.get(ref);
+    if (!snap.exists) {
+      throw new CourseNotFoundException();
+    }
+    return snap.data() as Course;
+  }
+
+  async listModulesByCourseInTxn(
+    t: adminFirestore.Transaction,
+    cid: CourseId,
+  ): Promise<Module[]> {
+    const query = this.firestore
+      .collection(COURSES)
+      .doc(cid)
+      .collection('modules')
+      .orderBy('order', 'asc');
+    const snap = await t.get(query);
+    return snap.docs.map((d) => d.data() as Module);
+  }
+
+  async listLessonsByModuleInTxn(
+    t: adminFirestore.Transaction,
+    cid: CourseId,
+    mid: ModuleId,
+  ): Promise<Lesson[]> {
+    const query = this.firestore
+      .collection(COURSES)
+      .doc(cid)
+      .collection('modules')
+      .doc(mid)
+      .collection('lessons')
+      .orderBy('order', 'asc');
+    const snap = await t.get(query);
+    return snap.docs.map((d) => d.data() as Lesson);
+  }
+
+  /**
+   * Write a status transition inside a transaction. Sets updatedAt; merges any
+   * additional patch (publishedAt, archivedAt). Pass `archivedAt: null` to clear.
+   * The repository does NOT enforce state-machine rules; the caller does.
+   */
+  async updateStatusInTxn(
+    t: adminFirestore.Transaction,
+    cid: CourseId,
+    status: CourseStatus,
+    patch: { publishedAt?: ISODateString; archivedAt?: ISODateString | null } = {},
+  ): Promise<Course> {
+    // READ FIRST — Firestore txns require reads before writes
+    const before = await this.getCourseInTxn(t, cid);
+    const ref = this.firestore.collection(COURSES).doc(cid);
+    const now = nowIso();
+    const update: Record<string, unknown> = { status, updatedAt: now };
+    if (patch.publishedAt !== undefined) update['publishedAt'] = patch.publishedAt;
+    if (patch.archivedAt === null) {
+      update['archivedAt'] = FieldValue.delete();
+    } else if (patch.archivedAt !== undefined) {
+      update['archivedAt'] = patch.archivedAt;
+    }
+    // THEN WRITE
+    t.update(ref, update);
+    // Compose post-write doc from pre-read + applied patches
+    return {
+      ...before,
+      status,
+      updatedAt: now,
+      ...(patch.publishedAt !== undefined ? { publishedAt: patch.publishedAt } : {}),
+      ...(patch.archivedAt === null
+        ? { archivedAt: undefined }
+        : patch.archivedAt !== undefined
+          ? { archivedAt: patch.archivedAt }
+          : {}),
+    } as Course;
   }
 }
