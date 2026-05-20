@@ -1,8 +1,8 @@
 # Course Publish Gate — EP-03 Slice D Design Spec
 
 > [!NOTE]
-> **DOCUMENT STATUS: DRAFT**
-> This document is a living specification and is subject to change. All content is considered provisional until formally approved by project stakeholders.
+> **DOCUMENT STATUS: APPROVED**
+> Approved at slice D implementation merge (2026-05-20).
 
 **Status:** Draft (2026-05-20)
 **Scope:** Fourth and final implementation slice of EP-03 (Video Management and DRM) per the architecture spec sub-slice sequence (A → B → C → D). Delivers the deferred US-02-04 / UC-02-04 — instructor publishes, unpublishes, archives, and restores a course — now buildable because every lesson can finally reach `Video.state === 'READY'` (slice C). Adds five new endpoints on `libs/api-courses` (preview + four transition verbs), a publish bar + eligibility checklist panel in `libs/web-courses`, and uses the existing `libs/api-courses → libs/api-video` Nx edge to read `Video.state` per lesson. Catalogue visibility (EP-05), enrolled-student playback (EP-06), audit log, live cross-tab sync, optimistic UI, and editor lockout on ARCHIVED remain explicitly deferred.
