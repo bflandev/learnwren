@@ -23,7 +23,7 @@ describe('ConfirmDialogComponent', () => {
     fixture.componentRef.setInput('message', 'Are you sure?');
     fixture.detectChanges();
     (fixture.nativeElement as HTMLElement)
-      .querySelector<HTMLButtonElement>('[data-testid="confirm"]')!
+      .querySelector<HTMLButtonElement>('[data-testid="confirm-go"]')!
       .click();
     expect(spy).toHaveBeenCalledWith(true);
   });
@@ -34,7 +34,7 @@ describe('ConfirmDialogComponent', () => {
     fixture.componentRef.setInput('message', 'Are you sure?');
     fixture.detectChanges();
     (fixture.nativeElement as HTMLElement)
-      .querySelector<HTMLButtonElement>('[data-testid="cancel"]')!
+      .querySelector<HTMLButtonElement>('[data-testid="confirm-cancel"]')!
       .click();
     expect(spy).toHaveBeenCalledWith(false);
   });
