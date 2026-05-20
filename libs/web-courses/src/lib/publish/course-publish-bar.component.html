@@ -1,0 +1,32 @@
+<div class="publish-bar" data-testid="publish-bar">
+  <span class="title">{{ course.title }}</span>
+  <span
+    class="pill pill-{{ status() | lowercase }}"
+    data-testid="publish-bar-pill"
+  >{{ status() }}</span>
+
+  <button
+    type="button"
+    class="primary"
+    data-testid="publish-bar-primary"
+    [disabled]="primaryDisabled()"
+    (click)="onPrimary()"
+    [attr.title]="primaryKind() === 'publish' && !primaryDisabled() ? null
+                  : primaryKind() === 'publish' ? 'Resolve the issues below first'
+                  : null"
+  >{{ primaryLabel() }}</button>
+
+  @if (canArchive()) {
+    <button
+      type="button"
+      class="secondary"
+      data-testid="publish-bar-archive"
+      [disabled]="inFlight()"
+      (click)="onArchive()"
+    >Archive course…</button>
+  }
+
+  @if (genericError(); as msg) {
+    <div class="banner" role="alert">{{ msg }}</div>
+  }
+</div>
