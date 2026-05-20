@@ -144,3 +144,174 @@ test(
     expect(restored.archivedAt).toBeUndefined();
   },
 );
+
+test.describe('Course publish gate — eligibility branches', () => {
+  test('COURSE_HAS_NO_MODULES — empty course', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const c = await request.post(`${API_BASE}/courses`, {
+      headers: hdr,
+      data: { title: 'Empty Course', description: 'no modules' },
+    });
+    expect(c.status()).toBe(201);
+    const course = (await c.json()) as { id: string };
+
+    const eligRes = await request.get(
+      `${API_BASE}/courses/${course.id}/publish-eligibility`,
+      { headers: hdr },
+    );
+    expect(eligRes.status()).toBe(200);
+    const body = (await eligRes.json()) as {
+      eligible: boolean;
+      reasons: Array<{ kind: string }>;
+    };
+    expect(body.eligible).toBe(false);
+    expect(body.reasons).toEqual([{ kind: 'COURSE_HAS_NO_MODULES' }]);
+  });
+
+  test('MODULE_HAS_NO_LESSONS — module exists but no lessons', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const c = await request.post(`${API_BASE}/courses`, {
+      headers: hdr,
+      data: { title: 'Course With Module', description: 'module no lessons' },
+    });
+    expect(c.status()).toBe(201);
+    const course = (await c.json()) as { id: string };
+
+    const m = await request.post(`${API_BASE}/courses/${course.id}/modules`, {
+      headers: hdr,
+      data: { title: 'Empty' },
+    });
+    expect(m.status()).toBe(201);
+    const mod = (await m.json()) as { id: string; title: string; order: number };
+
+    const eligRes = await request.get(
+      `${API_BASE}/courses/${course.id}/publish-eligibility`,
+      { headers: hdr },
+    );
+    expect(eligRes.status()).toBe(200);
+    const body = (await eligRes.json()) as {
+      eligible: boolean;
+      reasons: Array<{ kind: string; moduleId: string; moduleTitle: string; moduleOrder: number }>;
+    };
+    expect(body.eligible).toBe(false);
+    expect(body.reasons).toEqual([
+      {
+        kind: 'MODULE_HAS_NO_LESSONS',
+        moduleId: mod.id,
+        moduleTitle: 'Empty',
+        moduleOrder: 0,
+      },
+    ]);
+  });
+
+  test('LESSON_HAS_NO_VIDEO — lesson without videoId', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const c = await request.post(`${API_BASE}/courses`, {
+      headers: hdr,
+      data: { title: 'Course With Lesson', description: 'lesson no video' },
+    });
+    expect(c.status()).toBe(201);
+    const course = (await c.json()) as { id: string };
+
+    const m = await request.post(`${API_BASE}/courses/${course.id}/modules`, {
+      headers: hdr,
+      data: { title: 'M' },
+    });
+    expect(m.status()).toBe(201);
+    const mod = (await m.json()) as { id: string };
+
+    const l = await request.post(
+      `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons`,
+      { headers: hdr, data: { title: 'L' } },
+    );
+    expect(l.status()).toBe(201);
+    const lesson = (await l.json()) as { id: string };
+
+    const eligRes = await request.get(
+      `${API_BASE}/courses/${course.id}/publish-eligibility`,
+      { headers: hdr },
+    );
+    expect(eligRes.status()).toBe(200);
+    const body = (await eligRes.json()) as {
+      eligible: boolean;
+      reasons: Array<{
+        kind: string;
+        moduleId: string;
+        moduleTitle: string;
+        moduleOrder: number;
+        lessonId: string;
+        lessonTitle: string;
+        lessonOrder: number;
+      }>;
+    };
+    expect(body.eligible).toBe(false);
+    expect(body.reasons).toEqual([
+      {
+        kind: 'LESSON_HAS_NO_VIDEO',
+        moduleId: mod.id,
+        moduleTitle: 'M',
+        moduleOrder: 0,
+        lessonId: lesson.id,
+        lessonTitle: 'L',
+        lessonOrder: 0,
+      },
+    ]);
+  });
+
+  test('LESSON_VIDEO_NOT_READY — upload completes but transcoder has not finished', async ({
+    request,
+  }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
+
+    const sessRes = await request.post(
+      `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+      { headers: hdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
+    );
+    expect(sessRes.status()).toBe(201);
+    const { videoId, uploadSessionUri } = (await sessRes.json()) as {
+      videoId: string;
+      uploadSessionUri: string;
+    };
+
+    const putRes = await request.put(uploadSessionUri, {
+      headers: {
+        'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}`,
+      },
+      data: FIXTURE_BYTES,
+    });
+    expect([200, 308]).toContain(putRes.status());
+
+    const completeRes = await request.post(
+      `${API_BASE}/videos/${videoId}/upload-complete`,
+      { headers: hdr },
+    );
+    expect(completeRes.status()).toBe(200);
+    expect(((await completeRes.json()) as { state: string }).state).toBe('TRANSCODING');
+
+    // Deliberately skip fake-transcoder/complete — video stays in TRANSCODING.
+
+    const eligRes = await request.get(
+      `${API_BASE}/courses/${course.id}/publish-eligibility`,
+      { headers: hdr },
+    );
+    expect(eligRes.status()).toBe(200);
+    const body = (await eligRes.json()) as {
+      eligible: boolean;
+      reasons: Array<{ kind: string; currentState: string }>;
+    };
+    expect(body.eligible).toBe(false);
+    expect(body.reasons[0]).toMatchObject({
+      kind: 'LESSON_VIDEO_NOT_READY',
+      currentState: 'TRANSCODING',
+    });
+  });
+});
