@@ -1,0 +1,31 @@
+@if (eligibility(); as e) {
+  <div class="panel" data-testid="eligibility-panel">
+    @if (e.eligible) {
+      <div class="panel-header ok">
+        <span>&#x2713; Ready to publish</span>
+      </div>
+    } @else {
+      <div class="panel-header blocked">
+        <span>&#x24D8; {{ reasonCount() }} thing{{ reasonCount() === 1 ? '' : 's' }} to fix before publishing</span>
+      </div>
+      <ul class="reasons">
+        @for (r of e.reasons; track $index) {
+          <li>
+            <span class="reason-text">{{ reasonText(r) }}</span>
+            @if (jumpLinkVisible(r) === 'lesson') {
+              <button type="button" class="jump" data-testid="jump-lesson" (click)="onJump(r)">Jump to lesson &#x25B8;</button>
+            }
+            @if (jumpLinkVisible(r) === 'module') {
+              <button type="button" class="jump" data-testid="jump-module" (click)="onJump(r)">Jump to module &#x25B8;</button>
+            }
+          </li>
+        }
+      </ul>
+    }
+    @if (lastError(); as msg) {
+      <div class="error-banner" role="alert" data-testid="eligibility-error">
+        <span>Couldn't check publish status — {{ msg }}</span>
+      </div>
+    }
+  </div>
+}
