@@ -241,3 +241,86 @@ describe('PublishService.publish', () => {
     });
   });
 });
+
+describe('PublishService.unpublish', () => {
+  it('transitions PUBLISHED → DRAFT, preserves publishedAt', async () => {
+    const published = makeCourse({ status: 'PUBLISHED', publishedAt: '2026-05-19T00:00:00.000Z' as ISODateString });
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(published);
+    (repo as never as Record<string, unknown>).updateStatusInTxn = vi.fn().mockImplementation(
+      async (_t, _cid, status) => ({ ...published, status }),
+    );
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+
+    const updated = await service.unpublish(COURSE);
+    expect(updated.status).toBe('DRAFT');
+    // updateStatusInTxn called WITHOUT publishedAt patch — it's preserved on the doc:
+    expect((repo as never as Record<string, ReturnType<typeof vi.fn>>).updateStatusInTxn)
+      .toHaveBeenCalledWith(expect.anything(), COURSE, 'DRAFT', {});
+  });
+
+  it('throws InvalidTransitionException when source is not PUBLISHED', async () => {
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(makeCourse({ status: 'DRAFT' }));
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+    await expect(service.unpublish(COURSE)).rejects.toMatchObject({
+      code: 'INVALID_TRANSITION',
+      details: { currentState: 'DRAFT', requested: 'DRAFT' },
+    });
+  });
+});
+
+describe('PublishService.archive', () => {
+  it.each<['DRAFT' | 'PUBLISHED']>([['DRAFT'], ['PUBLISHED']])('archives a %s course, sets archivedAt', async (from) => {
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(makeCourse({ status: from }));
+    (repo as never as Record<string, unknown>).updateStatusInTxn = vi.fn().mockImplementation(
+      async (_t, _cid, status, patch) => ({ ...makeCourse({ status }), ...patch }),
+    );
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+
+    const updated = await service.archive(COURSE);
+    expect(updated.status).toBe('ARCHIVED');
+    expect(updated.archivedAt).toBeDefined();
+    expect((repo as never as Record<string, ReturnType<typeof vi.fn>>).updateStatusInTxn)
+      .toHaveBeenCalledWith(expect.anything(), COURSE, 'ARCHIVED', expect.objectContaining({ archivedAt: expect.any(String) }));
+  });
+
+  it('throws InvalidTransitionException when already ARCHIVED', async () => {
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(makeCourse({ status: 'ARCHIVED' }));
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+    await expect(service.archive(COURSE)).rejects.toMatchObject({
+      code: 'INVALID_TRANSITION',
+      details: { currentState: 'ARCHIVED', requested: 'ARCHIVED' },
+    });
+  });
+});
+
+describe('PublishService.restore', () => {
+  it('transitions ARCHIVED → DRAFT, clears archivedAt', async () => {
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(
+      makeCourse({ status: 'ARCHIVED', archivedAt: '2026-05-18T00:00:00.000Z' as ISODateString }),
+    );
+    (repo as never as Record<string, unknown>).updateStatusInTxn = vi.fn().mockImplementation(
+      async (_t, _cid, status) => makeCourse({ status }),
+    );
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+
+    const updated = await service.restore(COURSE);
+    expect(updated.status).toBe('DRAFT');
+    expect((repo as never as Record<string, ReturnType<typeof vi.fn>>).updateStatusInTxn)
+      .toHaveBeenCalledWith(expect.anything(), COURSE, 'DRAFT', { archivedAt: null });
+  });
+
+  it('throws InvalidTransitionException when source is not ARCHIVED', async () => {
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(makeCourse({ status: 'DRAFT' }));
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+    await expect(service.restore(COURSE)).rejects.toMatchObject({
+      code: 'INVALID_TRANSITION',
+      details: { currentState: 'DRAFT', requested: 'DRAFT' },
+    });
+  });
+});

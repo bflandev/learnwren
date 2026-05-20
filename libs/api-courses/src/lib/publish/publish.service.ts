@@ -92,6 +92,38 @@ export class PublishService {
     });
   }
 
+  async unpublish(cid: CourseId): Promise<Course> {
+    return this.firestore.runTransaction(async (t) => {
+      const course = await this.repo.getCourseInTxn(t, cid);
+      if (course.status !== 'PUBLISHED') {
+        throw new InvalidTransitionException(course.status, 'DRAFT');
+      }
+      return this.repo.updateStatusInTxn(t, cid, 'DRAFT', {});
+    });
+  }
+
+  async archive(cid: CourseId): Promise<Course> {
+    return this.firestore.runTransaction(async (t) => {
+      const course = await this.repo.getCourseInTxn(t, cid);
+      if (course.status !== 'DRAFT' && course.status !== 'PUBLISHED') {
+        throw new InvalidTransitionException(course.status, 'ARCHIVED');
+      }
+      return this.repo.updateStatusInTxn(t, cid, 'ARCHIVED', {
+        archivedAt: nowIso(),
+      });
+    });
+  }
+
+  async restore(cid: CourseId): Promise<Course> {
+    return this.firestore.runTransaction(async (t) => {
+      const course = await this.repo.getCourseInTxn(t, cid);
+      if (course.status !== 'ARCHIVED') {
+        throw new InvalidTransitionException(course.status, 'DRAFT');
+      }
+      return this.repo.updateStatusInTxn(t, cid, 'DRAFT', { archivedAt: null });
+    });
+  }
+
   /**
    * Same shape as computeEligibility but threads `tx` through module + lesson
    * reads. Video reads remain non-transactional — see slice D design spec §5.4
