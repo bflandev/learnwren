@@ -85,4 +85,22 @@ describe('VideoStateBadgeComponent — slice B copy', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent as string).toContain('Upload may have stalled');
   });
+
+  it('emits (stateChanged) when the polled video state transitions', () => {
+    fixture.componentRef.setInput('video', video('TRANSCODING'));
+    const emissions: Video['state'][] = [];
+    fixture.componentInstance.stateChanged.subscribe((s) => emissions.push(s));
+    fixture.detectChanges();
+    subject.next(video('READY'));
+    expect(emissions).toEqual(['READY']);
+  });
+
+  it('does not emit (stateChanged) when the polled state is unchanged', () => {
+    fixture.componentRef.setInput('video', video('TRANSCODING'));
+    const emissions: Video['state'][] = [];
+    fixture.componentInstance.stateChanged.subscribe((s) => emissions.push(s));
+    fixture.detectChanges();
+    subject.next(video('TRANSCODING'));
+    expect(emissions).toEqual([]);
+  });
 });
