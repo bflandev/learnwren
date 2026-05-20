@@ -63,8 +63,8 @@ async function uploadAndCompleteVideo(page: Page): Promise<void> {
   // Wait for the slice-A upload-complete badge:
   await expect(page.getByTestId('video-state-badge')).toBeVisible({ timeout: 30_000 });
   // Trigger the fake transcoder via its dev endpoint:
+  await expect(page.getByTestId('video-state-badge')).toHaveAttribute('data-video-id', /.+/);
   const vid = await page.getByTestId('video-state-badge').getAttribute('data-video-id');
-  expect(vid).toBeTruthy();
   const fakeRes = await fetch(`${API_BASE}/internal/fake-transcoder/complete/${vid}`, { method: 'POST' });
   expect(fakeRes.status).toBe(200);
   // Wait for the player swap (slice C):
