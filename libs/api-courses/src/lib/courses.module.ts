@@ -7,6 +7,7 @@ import { CoursesController } from './courses.controller';
 import { CoursesExceptionFilter } from './courses.exception-filter';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
+import { PublishService } from './publish/publish.service';
 
 // VideoModule ↔ CoursesModule are mutually dependent:
 //   CoursesService calls VideoService.deleteForLesson (cascade).
@@ -30,6 +31,7 @@ const API_VIDEO_PKG = ['@learnwren', 'api-video'].join('/');
     CoursesRepository,
     CoursesExceptionFilter,
     CourseOwnerGuard,
+    PublishService,                    // NEW (slice D)
   ],
   exports: [CoursesRepository, CourseOwnerGuard],
 })
