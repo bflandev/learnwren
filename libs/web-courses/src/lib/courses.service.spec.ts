@@ -108,4 +108,31 @@ describe('CoursesService', () => {
     req.flush([]);
     await promise;
   });
+
+  describe('— slice D', () => {
+    it('getPublishEligibility hits GET /api/courses/:cid/publish-eligibility', async () => {
+      const body = { eligible: true, reasons: [] };
+      const promise = service.getPublishEligibility('c1');
+      const req = http.expectOne(`${BASE}/c1/publish-eligibility`);
+      expect(req.request.method).toBe('GET');
+      req.flush(body);
+      await expect(promise).resolves.toEqual(body);
+    });
+
+    it.each([
+      ['publish', 'publishCourse'],
+      ['unpublish', 'unpublishCourse'],
+      ['archive', 'archiveCourse'],
+      ['restore', 'restoreCourse'],
+    ] as const)('%s hits POST /api/courses/:cid/%s', async (verb, methodName) => {
+      const body = { id: 'c1', status: verb === 'publish' ? 'PUBLISHED' : verb === 'archive' ? 'ARCHIVED' : 'DRAFT' };
+      const method = (service[methodName] as (cid: string) => Promise<unknown>).bind(service);
+      const promise = method('c1');
+      const req = http.expectOne(`${BASE}/c1/${verb}`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toBe(null);
+      req.flush(body);
+      await expect(promise).resolves.toEqual(body);
+    });
+  });
 });

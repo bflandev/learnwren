@@ -8,6 +8,7 @@ import type {
   CourseDifficulty,
   Lesson,
   Module,
+  PublishEligibility,
 } from '@learnwren/shared-data-models';
 
 const BASE = '/api/courses';
@@ -97,5 +98,29 @@ export class CoursesService {
 
   reorderLessons(cid: string, mid: string, ids: string[]): Promise<Lesson[]> {
     return firstValueFrom(this.http.put<Lesson[]>(`${BASE}/${cid}/modules/${mid}/lessons/order`, { ids }, OPTS));
+  }
+
+  // ────────────────────────── Slice D — publish gate ──────────────────────────
+
+  getPublishEligibility(cid: string): Promise<PublishEligibility> {
+    return firstValueFrom(
+      this.http.get<PublishEligibility>(`${BASE}/${cid}/publish-eligibility`, OPTS),
+    );
+  }
+
+  publishCourse(cid: string): Promise<Course> {
+    return firstValueFrom(this.http.post<Course>(`${BASE}/${cid}/publish`, null, OPTS));
+  }
+
+  unpublishCourse(cid: string): Promise<Course> {
+    return firstValueFrom(this.http.post<Course>(`${BASE}/${cid}/unpublish`, null, OPTS));
+  }
+
+  archiveCourse(cid: string): Promise<Course> {
+    return firstValueFrom(this.http.post<Course>(`${BASE}/${cid}/archive`, null, OPTS));
+  }
+
+  restoreCourse(cid: string): Promise<Course> {
+    return firstValueFrom(this.http.post<Course>(`${BASE}/${cid}/restore`, null, OPTS));
   }
 }
