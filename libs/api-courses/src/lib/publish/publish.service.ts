@@ -16,9 +16,7 @@ import { CoursesRepository } from '../courses.repository';
 import {
   CourseArchivedException,
   CourseNotFoundException,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   InvalidTransitionException,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   PublishNotEligibleException,
 } from '../errors/courses.exception';
 import { composeReasons } from './publish-eligibility';
@@ -31,7 +29,6 @@ interface VideoServiceLike {
 
 const API_VIDEO_PKG = ['@learnwren', 'api-video'].join('/');
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function nowIso(): ISODateString {
   return new Date().toISOString() as ISODateString;
 }
@@ -76,6 +73,53 @@ export class PublishService {
       videos.filter((v): v is Video => v !== null).map((v) => [v.id, v.state]),
     );
 
+    return composeReasons(modules, lessonsByModule, videoStateById);
+  }
+
+  async publish(cid: CourseId): Promise<Course> {
+    return this.firestore.runTransaction(async (t) => {
+      const course = await this.repo.getCourseInTxn(t, cid);
+      if (course.status !== 'DRAFT') {
+        throw new InvalidTransitionException(course.status, 'PUBLISHED');
+      }
+      const eligibility = await this.computeEligibilityInTxn(t, cid);
+      if (!eligibility.eligible) {
+        throw new PublishNotEligibleException(eligibility.reasons);
+      }
+      return this.repo.updateStatusInTxn(t, cid, 'PUBLISHED', {
+        publishedAt: nowIso(),
+      });
+    });
+  }
+
+  /**
+   * Same shape as computeEligibility but threads `tx` through module + lesson
+   * reads. Video reads remain non-transactional — see slice D design spec §5.4
+   * for the rationale (the runtime forwardRef seam can't carry a Firestore tx).
+   */
+  private async computeEligibilityInTxn(
+    t: adminFirestore.Transaction,
+    cid: CourseId,
+  ): Promise<PublishEligibility> {
+    const modules = await this.repo.listModulesByCourseInTxn(t, cid);
+    const lessonsByModule = await Promise.all(
+      modules.map((m) => this.repo.listLessonsByModuleInTxn(t, cid, m.id)),
+    );
+    const allLessons = lessonsByModule.flat();
+    const uniqueVideoIds = [
+      ...new Set(allLessons.map((l) => l.videoId).filter((v): v is VideoId => Boolean(v))),
+    ];
+    const videos = await Promise.all(
+      uniqueVideoIds.map((vid) =>
+        this.videoSvc.getVideo(vid).catch((e) => {
+          if (isVideoNotFound(e)) return null;
+          throw e;
+        }),
+      ),
+    );
+    const videoStateById = new Map<VideoId, VideoState>(
+      videos.filter((v): v is Video => v !== null).map((v) => [v.id, v.state]),
+    );
     return composeReasons(modules, lessonsByModule, videoStateById);
   }
 }

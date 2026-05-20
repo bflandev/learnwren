@@ -159,3 +159,85 @@ describe('PublishService.computeEligibility', () => {
     });
   });
 });
+
+function makeFirestoreFake(opts: {
+  course: Course;
+  modules: Module[];
+  lessonsByModule: Lesson[][];
+  // Each call to runTransaction will commit any updates and return the inner result.
+  // Tracked writes are captured so tests can assert against them.
+}) {
+  const writes: Array<{ path: string; update: Record<string, unknown> }> = [];
+  const tx = {
+    get: vi.fn(async (refOrQuery: unknown): Promise<unknown> => {
+      if ((refOrQuery as { path?: string }).path?.startsWith('courses/') &&
+          !(refOrQuery as { path?: string }).path?.includes('/modules')) {
+        return { exists: true, data: () => opts.course };
+      }
+      // module query
+      if ((refOrQuery as { _queryOptions?: { collectionId?: string } })._queryOptions?.collectionId === 'modules') {
+        return { docs: opts.modules.map((m) => ({ data: () => m })) };
+      }
+      // lesson query
+      const mid = (refOrQuery as { _queryOptions?: { parentPath?: string } })._queryOptions?.parentPath?.split('/').pop();
+      const idx = opts.modules.findIndex((m) => m.id === mid);
+      return { docs: (opts.lessonsByModule[idx] ?? []).map((l) => ({ data: () => l })) };
+    }),
+    update: vi.fn((ref: { path: string }, update: Record<string, unknown>) => {
+      writes.push({ path: ref.path, update });
+    }),
+  };
+  return {
+    runTransaction: vi.fn(async <T>(cb: (t: typeof tx) => Promise<T>): Promise<T> => cb(tx)),
+    writes,
+    tx,
+  } as const;
+}
+
+describe('PublishService.publish', () => {
+  it('publishes a DRAFT course when eligible, setting publishedAt', async () => {
+    repo.getCourse.mockResolvedValue(makeCourse({ status: 'DRAFT' }));
+    // Repo's transactional helpers — wire them directly:
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(makeCourse({ status: 'DRAFT' }));
+    (repo as never as Record<string, unknown>).listModulesByCourseInTxn = vi.fn().mockResolvedValue([makeModule('m1', 0)]);
+    (repo as never as Record<string, unknown>).listLessonsByModuleInTxn = vi.fn().mockResolvedValue([makeLesson('l1', 'm1', 0, 'v1')]);
+    (repo as never as Record<string, unknown>).updateStatusInTxn = vi.fn().mockImplementation(
+      async (_t, _cid, status, patch) => makeCourse({ status, ...patch }),
+    );
+    videoSvc.getVideo.mockResolvedValue(makeVideo('v1', 'READY'));
+    // Firestore handle is the third constructor arg — supply a runTransaction stub:
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+
+    const updated = await service.publish(COURSE);
+    expect(updated.status).toBe('PUBLISHED');
+    expect(updated.publishedAt).toBeDefined();
+    expect((repo as never as Record<string, ReturnType<typeof vi.fn>>).updateStatusInTxn).toHaveBeenCalledWith(
+      expect.anything(),
+      COURSE,
+      'PUBLISHED',
+      expect.objectContaining({ publishedAt: expect.any(String) }),
+    );
+  });
+
+  it('throws InvalidTransitionException when source state is not DRAFT', async () => {
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(makeCourse({ status: 'PUBLISHED' }));
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+    await expect(service.publish(COURSE)).rejects.toMatchObject({
+      code: 'INVALID_TRANSITION',
+      details: { currentState: 'PUBLISHED', requested: 'PUBLISHED' },
+    });
+  });
+
+  it('throws PublishNotEligibleException with reasons when revalidation fails', async () => {
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(makeCourse({ status: 'DRAFT' }));
+    (repo as never as Record<string, unknown>).listModulesByCourseInTxn = vi.fn().mockResolvedValue([]);
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+    await expect(service.publish(COURSE)).rejects.toMatchObject({
+      code: 'PUBLISH_NOT_ELIGIBLE',
+      details: { reasons: [{ kind: 'COURSE_HAS_NO_MODULES' }] },
+    });
+  });
+});
