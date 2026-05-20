@@ -7,7 +7,6 @@ import type {
   LessonId,
   Module,
   ModuleId,
-  UserId,
   VideoId,
   VideoState,
 } from '@learnwren/shared-data-models';
@@ -83,7 +82,13 @@ describe('composeReasons', () => {
     const l = makeLesson('l1', 'L1', 0, 'm1', 'v-orphan');
     const r = composeReasons([m], [[l]], new Map()); // empty map → orphan
     expect(r.eligible).toBe(false);
-    expect(r.reasons[0].kind).toBe('LESSON_HAS_NO_VIDEO');
+    expect(r.reasons).toEqual([
+      {
+        kind: 'LESSON_HAS_NO_VIDEO',
+        moduleId: 'm1', moduleTitle: 'M1', moduleOrder: 0,
+        lessonId: 'l1', lessonTitle: 'L1', lessonOrder: 0,
+      },
+    ]);
   });
 
   it.each<[VideoState]>([

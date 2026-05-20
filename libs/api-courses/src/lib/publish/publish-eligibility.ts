@@ -21,9 +21,7 @@ export function composeReasons(
 
   const reasons: PublishBlockReason[] = [];
 
-  for (let i = 0; i < modules.length; i++) {
-    const m = modules[i];
-    if (m === undefined) continue;
+  for (const [i, m] of modules.entries()) {
     const lessons = lessonsByModule[i] ?? [];
     const moduleCtx = { moduleId: m.id, moduleTitle: m.title, moduleOrder: m.order };
 
