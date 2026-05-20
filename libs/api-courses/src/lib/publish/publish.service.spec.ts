@@ -160,40 +160,6 @@ describe('PublishService.computeEligibility', () => {
   });
 });
 
-function makeFirestoreFake(opts: {
-  course: Course;
-  modules: Module[];
-  lessonsByModule: Lesson[][];
-  // Each call to runTransaction will commit any updates and return the inner result.
-  // Tracked writes are captured so tests can assert against them.
-}) {
-  const writes: Array<{ path: string; update: Record<string, unknown> }> = [];
-  const tx = {
-    get: vi.fn(async (refOrQuery: unknown): Promise<unknown> => {
-      if ((refOrQuery as { path?: string }).path?.startsWith('courses/') &&
-          !(refOrQuery as { path?: string }).path?.includes('/modules')) {
-        return { exists: true, data: () => opts.course };
-      }
-      // module query
-      if ((refOrQuery as { _queryOptions?: { collectionId?: string } })._queryOptions?.collectionId === 'modules') {
-        return { docs: opts.modules.map((m) => ({ data: () => m })) };
-      }
-      // lesson query
-      const mid = (refOrQuery as { _queryOptions?: { parentPath?: string } })._queryOptions?.parentPath?.split('/').pop();
-      const idx = opts.modules.findIndex((m) => m.id === mid);
-      return { docs: (opts.lessonsByModule[idx] ?? []).map((l) => ({ data: () => l })) };
-    }),
-    update: vi.fn((ref: { path: string }, update: Record<string, unknown>) => {
-      writes.push({ path: ref.path, update });
-    }),
-  };
-  return {
-    runTransaction: vi.fn(async <T>(cb: (t: typeof tx) => Promise<T>): Promise<T> => cb(tx)),
-    writes,
-    tx,
-  } as const;
-}
-
 describe('PublishService.publish', () => {
   it('publishes a DRAFT course when eligible, setting publishedAt', async () => {
     repo.getCourse.mockResolvedValue(makeCourse({ status: 'DRAFT' }));
