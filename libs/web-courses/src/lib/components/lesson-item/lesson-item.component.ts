@@ -12,7 +12,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 
-import type { CourseId, Lesson, Video } from '@learnwren/shared-data-models';
+import type { CourseId, Lesson, Video, VideoState } from '@learnwren/shared-data-models';
 import {
   VideoPlayerComponent,
   VideoService,
@@ -36,6 +36,7 @@ export class LessonItemComponent {
   @Output() readonly rename = new EventEmitter<string>();
   @Output() readonly delete = new EventEmitter<void>();
   @Output() readonly videoChanged = new EventEmitter<void>();
+  @Output() readonly videoStateChanged = new EventEmitter<VideoState>();
 
   readonly editing = signal(false);
   readonly draftTitle = signal('');
