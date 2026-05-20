@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CourseArchivedException,
   CourseNotFoundException,
   CoursesException,
+  InvalidTransitionException,
   LessonNotFoundException,
   ModuleNotFoundException,
   NotCourseOwnerException,
+  PublishNotEligibleException,
   StaleReorderException,
 } from './courses.exception';
+import type { PublishBlockReason } from '@learnwren/shared-data-models';
 
 describe('CoursesException family', () => {
   it('CoursesException carries code, message, status, and optional details', () => {
@@ -46,5 +50,28 @@ describe('CoursesException family', () => {
     const ex = new StaleReorderException();
     expect(ex.code).toBe('STALE_REORDER');
     expect(ex.status).toBe(409);
+  });
+});
+
+describe('slice D exceptions', () => {
+  it('InvalidTransitionException carries currentState + requested as details and is HTTP 409', () => {
+    const e = new InvalidTransitionException('PUBLISHED', 'PUBLISHED');
+    expect(e.code).toBe('INVALID_TRANSITION');
+    expect(e.status).toBe(409);
+    expect(e.details).toEqual({ currentState: 'PUBLISHED', requested: 'PUBLISHED' });
+  });
+
+  it('PublishNotEligibleException carries reasons[] as details and is HTTP 409', () => {
+    const reasons: PublishBlockReason[] = [{ kind: 'COURSE_HAS_NO_MODULES' }];
+    const e = new PublishNotEligibleException(reasons);
+    expect(e.code).toBe('PUBLISH_NOT_ELIGIBLE');
+    expect(e.status).toBe(409);
+    expect(e.details).toEqual({ reasons });
+  });
+
+  it('CourseArchivedException is HTTP 409 with code COURSE_ARCHIVED', () => {
+    const e = new CourseArchivedException();
+    expect(e.code).toBe('COURSE_ARCHIVED');
+    expect(e.status).toBe(409);
   });
 });
