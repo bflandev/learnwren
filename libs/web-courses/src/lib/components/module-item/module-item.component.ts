@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Output, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import type { CourseId, Lesson, Module } from '@learnwren/shared-data-models';
+import type { CourseId, Lesson, Module, VideoState } from '@learnwren/shared-data-models';
 
 import { LessonListComponent } from '../lesson-list/lesson-list.component';
 
@@ -22,6 +22,7 @@ export class ModuleItemComponent {
   @Output() readonly deleteLesson = new EventEmitter<string>();
   @Output() readonly reorderLessons = new EventEmitter<string[]>();
   @Output() readonly videoChanged = new EventEmitter<void>();
+  @Output() readonly videoStateChanged = new EventEmitter<VideoState>();
 
   readonly editing = signal(false);
   readonly draftTitle = signal('');
