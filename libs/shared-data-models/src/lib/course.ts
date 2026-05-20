@@ -24,6 +24,8 @@ export interface Course {
   difficulty?: CourseDifficulty;
   instructorId: UserId;
   status: CourseStatus;
+  publishedAt?: ISODateString;        // slice D — last DRAFT→PUBLISHED transition timestamp; preserved across unpublish + archive
+  archivedAt?: ISODateString;         // slice D — set on archive; cleared on restore
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
