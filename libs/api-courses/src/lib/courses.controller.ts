@@ -22,11 +22,13 @@ import type {
   LessonId,
   Module,
   ModuleId,
+  PublishEligibility,
 } from '@learnwren/shared-data-models';
 
 import { CourseOwnerGuard } from './course-owner.guard';
 import { CoursesExceptionFilter } from './courses.exception-filter';
 import { CoursesService } from './courses.service';
+import { PublishService } from './publish/publish.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { CreateModuleDto } from './dto/create-module.dto';
@@ -40,7 +42,10 @@ import type { CourseTree } from './types/loaded-course';
 @UseFilters(CoursesExceptionFilter)
 @UseGuards(FirebaseSessionGuard, InstructorRoleGuard)
 export class CoursesController {
-  constructor(private readonly service: CoursesService) {}
+  constructor(
+    private readonly service: CoursesService,
+    private readonly publishSvc: PublishService,
+  ) {}
 
   // ────────────────────────── Course ──────────────────────────
 
@@ -165,5 +170,37 @@ export class CoursesController {
     @Body() dto: ReorderDto,
   ): Promise<Lesson[]> {
     return this.service.reorderLessons(cid, mid, dto.ids as LessonId[]);
+  }
+
+  // ────────────────────────── Slice D — publish gate ──────────────────────────
+
+  @Get(':cid/publish-eligibility')
+  @UseGuards(CourseOwnerGuard)
+  async getPublishEligibility(@Param('cid') cid: CourseId): Promise<PublishEligibility> {
+    return this.publishSvc.computeEligibility(cid);
+  }
+
+  @Post(':cid/publish')
+  @UseGuards(CourseOwnerGuard)
+  async publishCourse(@Param('cid') cid: CourseId): Promise<Course> {
+    return this.publishSvc.publish(cid);
+  }
+
+  @Post(':cid/unpublish')
+  @UseGuards(CourseOwnerGuard)
+  async unpublishCourse(@Param('cid') cid: CourseId): Promise<Course> {
+    return this.publishSvc.unpublish(cid);
+  }
+
+  @Post(':cid/archive')
+  @UseGuards(CourseOwnerGuard)
+  async archiveCourse(@Param('cid') cid: CourseId): Promise<Course> {
+    return this.publishSvc.archive(cid);
+  }
+
+  @Post(':cid/restore')
+  @UseGuards(CourseOwnerGuard)
+  async restoreCourse(@Param('cid') cid: CourseId): Promise<Course> {
+    return this.publishSvc.restore(cid);
   }
 }

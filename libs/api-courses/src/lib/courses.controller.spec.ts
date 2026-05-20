@@ -19,6 +19,7 @@ import { CourseOwnerGuard } from './course-owner.guard';
 import { CoursesController } from './courses.controller';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
+import { PublishService } from './publish/publish.service';
 import type { CourseScopedRequest } from './types/loaded-course';
 
 const UID = 'uid-1' as UserId;
@@ -56,6 +57,16 @@ async function buildController(service: CoursesService): Promise<CoursesControll
     controllers: [CoursesController],
     providers: [
       { provide: CoursesService, useValue: service },
+      {
+        provide: PublishService,
+        useValue: {
+          computeEligibility: vi.fn(),
+          publish: vi.fn(),
+          unpublish: vi.fn(),
+          archive: vi.fn(),
+          restore: vi.fn(),
+        },
+      },
       { provide: CoursesRepository, useValue: {} },
       { provide: InstructorRoleGuard, useValue: { canActivate: () => true } },
       { provide: CourseOwnerGuard, useValue: { canActivate: () => true } },
@@ -154,5 +165,61 @@ describe('CoursesController', () => {
   it('PUT /courses/:cid/modules/:mid/lessons/order reorders lessons', async () => {
     await controller.reorderLessons(CID, MID, { ids: ['l1', 'l2'] });
     expect(service.reorderLessons).toHaveBeenCalledWith(CID, MID, ['l1', 'l2']);
+  });
+});
+
+describe('CoursesController — slice D routes', () => {
+  let controller: CoursesController;
+  let publishSvc: {
+    computeEligibility: ReturnType<typeof vi.fn>;
+    publish: ReturnType<typeof vi.fn>;
+    unpublish: ReturnType<typeof vi.fn>;
+    archive: ReturnType<typeof vi.fn>;
+    restore: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(() => {
+    publishSvc = {
+      computeEligibility: vi.fn(),
+      publish: vi.fn(),
+      unpublish: vi.fn(),
+      archive: vi.fn(),
+      restore: vi.fn(),
+    };
+    controller = new CoursesController({} as never, publishSvc as never);
+  });
+
+  it('GET /publish-eligibility returns the service result', async () => {
+    const out = { eligible: true, reasons: [] };
+    publishSvc.computeEligibility.mockResolvedValue(out);
+    const r = await controller.getPublishEligibility('c1' as CourseId);
+    expect(r).toBe(out);
+    expect(publishSvc.computeEligibility).toHaveBeenCalledWith('c1');
+  });
+
+  it('POST /publish returns updated course', async () => {
+    const updated = { id: 'c1', status: 'PUBLISHED' } as Course;
+    publishSvc.publish.mockResolvedValue(updated);
+    const r = await controller.publishCourse('c1' as CourseId);
+    expect(r).toBe(updated);
+    expect(publishSvc.publish).toHaveBeenCalledWith('c1');
+  });
+
+  it('POST /unpublish returns updated course', async () => {
+    const updated = { id: 'c1', status: 'DRAFT' } as Course;
+    publishSvc.unpublish.mockResolvedValue(updated);
+    expect(await controller.unpublishCourse('c1' as CourseId)).toBe(updated);
+  });
+
+  it('POST /archive returns updated course', async () => {
+    const updated = { id: 'c1', status: 'ARCHIVED' } as Course;
+    publishSvc.archive.mockResolvedValue(updated);
+    expect(await controller.archiveCourse('c1' as CourseId)).toBe(updated);
+  });
+
+  it('POST /restore returns updated course', async () => {
+    const updated = { id: 'c1', status: 'DRAFT' } as Course;
+    publishSvc.restore.mockResolvedValue(updated);
+    expect(await controller.restoreCourse('c1' as CourseId)).toBe(updated);
   });
 });
