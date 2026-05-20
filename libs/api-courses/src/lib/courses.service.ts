@@ -19,6 +19,12 @@ import type {
 // The DI token is provided via forwardRef(() => require(API_VIDEO_PKG).VideoService).
 interface VideoServiceLike {
   deleteForLesson(lessonId: string): Promise<void>;
+  // Slice D: read a Video by id; throws VideoNotFoundException when absent.
+  // Used by PublishService to fold orphan lesson.videoId references into
+  // LESSON_HAS_NO_VIDEO reasons.
+  getVideo(vid: import('@learnwren/shared-data-models').VideoId): Promise<
+    import('@learnwren/shared-data-models').Video
+  >;
 }
 
 // Built at runtime from string fragments so the Nx project graph parser does
