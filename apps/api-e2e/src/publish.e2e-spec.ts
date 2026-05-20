@@ -315,3 +315,209 @@ test.describe('Course publish gate — eligibility branches', () => {
     });
   });
 });
+
+/** Helper: drive a course from DRAFT all the way to a publishable state. */
+async function preparePublishableCourse(
+  request: import('@playwright/test').APIRequestContext,
+  hdr: Record<string, string>,
+): Promise<{ courseId: string; videoId: string }> {
+  const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
+
+  const sessRes = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+    { headers: hdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
+  );
+  const { videoId, uploadSessionUri } = (await sessRes.json()) as {
+    videoId: string;
+    uploadSessionUri: string;
+  };
+
+  await request.put(uploadSessionUri, {
+    headers: {
+      'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}`,
+    },
+    data: FIXTURE_BYTES,
+  });
+
+  await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
+  await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+
+  return { courseId: course.id, videoId };
+}
+
+test.describe('Course publish gate — auth + state-machine errors', () => {
+  test('401 when no session cookie', async ({ request }) => {
+    const res = await request.get(`${API_BASE}/courses/c-fake/publish-eligibility`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('403 NOT_COURSE_OWNER when another instructor calls', async ({ request }) => {
+    const owner = await registerAndPromoteInstructor(request);
+    const ownerHdr = { Cookie: owner.cookieHeader };
+
+    const c = await request.post(`${API_BASE}/courses`, {
+      headers: ownerHdr,
+      data: { title: 'Owner Course', description: 'not yours' },
+    });
+    expect(c.status()).toBe(201);
+    const course = (await c.json()) as { id: string };
+
+    const other = await registerAndPromoteInstructor(request);
+    const otherHdr = { Cookie: other.cookieHeader };
+
+    const res = await request.get(
+      `${API_BASE}/courses/${course.id}/publish-eligibility`,
+      { headers: otherHdr },
+    );
+    expect(res.status()).toBe(403);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('NOT_COURSE_OWNER');
+  });
+
+  test('404 COURSE_NOT_FOUND for unknown :cid', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const res = await request.get(
+      `${API_BASE}/courses/nonexistent-course-id/publish-eligibility`,
+      { headers: hdr },
+    );
+    expect(res.status()).toBe(404);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('COURSE_NOT_FOUND');
+  });
+
+  test('409 COURSE_ARCHIVED on eligibility preview of an archived course', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const c = await request.post(`${API_BASE}/courses`, {
+      headers: hdr,
+      data: { title: 'To Archive', description: 'will be archived' },
+    });
+    expect(c.status()).toBe(201);
+    const course = (await c.json()) as { id: string };
+
+    const archiveRes = await request.post(
+      `${API_BASE}/courses/${course.id}/archive`,
+      { headers: hdr },
+    );
+    expect(archiveRes.status()).toBe(200);
+
+    const res = await request.get(
+      `${API_BASE}/courses/${course.id}/publish-eligibility`,
+      { headers: hdr },
+    );
+    expect(res.status()).toBe(409);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('COURSE_ARCHIVED');
+  });
+
+  test('409 INVALID_TRANSITION when publishing an already-PUBLISHED course', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const { courseId } = await preparePublishableCourse(request, hdr);
+
+    // First publish — expect success
+    const firstPublish = await request.post(
+      `${API_BASE}/courses/${courseId}/publish`,
+      { headers: hdr },
+    );
+    expect(firstPublish.status()).toBe(200);
+
+    // Second publish — expect 409 INVALID_TRANSITION
+    const secondPublish = await request.post(
+      `${API_BASE}/courses/${courseId}/publish`,
+      { headers: hdr },
+    );
+    expect(secondPublish.status()).toBe(409);
+    const body = (await secondPublish.json()) as {
+      error: { code: string; details?: { currentState: string; requested: string } };
+    };
+    expect(body.error.code).toBe('INVALID_TRANSITION');
+    expect(body.error.details).toEqual({ currentState: 'PUBLISHED', requested: 'PUBLISHED' });
+  });
+
+  test('409 INVALID_TRANSITION when unpublishing a DRAFT course', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const c = await request.post(`${API_BASE}/courses`, {
+      headers: hdr,
+      data: { title: 'Draft Course', description: 'cannot unpublish draft' },
+    });
+    expect(c.status()).toBe(201);
+    const course = (await c.json()) as { id: string };
+
+    const res = await request.post(
+      `${API_BASE}/courses/${course.id}/unpublish`,
+      { headers: hdr },
+    );
+    expect(res.status()).toBe(409);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('INVALID_TRANSITION');
+  });
+
+  test('409 INVALID_TRANSITION when restoring a DRAFT course', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const c = await request.post(`${API_BASE}/courses`, {
+      headers: hdr,
+      data: { title: 'Draft Course', description: 'cannot restore draft' },
+    });
+    expect(c.status()).toBe(201);
+    const course = (await c.json()) as { id: string };
+
+    const res = await request.post(
+      `${API_BASE}/courses/${course.id}/restore`,
+      { headers: hdr },
+    );
+    expect(res.status()).toBe(409);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('INVALID_TRANSITION');
+  });
+
+  test('409 PUBLISH_NOT_ELIGIBLE when publishing a DRAFT with no modules', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const c = await request.post(`${API_BASE}/courses`, {
+      headers: hdr,
+      data: { title: 'No Modules Course', description: 'nothing inside' },
+    });
+    expect(c.status()).toBe(201);
+    const course = (await c.json()) as { id: string };
+
+    const res = await request.post(
+      `${API_BASE}/courses/${course.id}/publish`,
+      { headers: hdr },
+    );
+    expect(res.status()).toBe(409);
+    const body = (await res.json()) as {
+      error: { code: string; details?: { reasons: Array<{ kind: string }> } };
+    };
+    expect(body.error.code).toBe('PUBLISH_NOT_ELIGIBLE');
+    expect(body.error.details?.reasons).toEqual([{ kind: 'COURSE_HAS_NO_MODULES' }]);
+  });
+
+  test('serializes concurrent publish calls — one 200, one 409', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+
+    const { courseId } = await preparePublishableCourse(request, hdr);
+
+    const [resA, resB] = await Promise.all([
+      request.post(`${API_BASE}/courses/${courseId}/publish`, { headers: hdr }),
+      request.post(`${API_BASE}/courses/${courseId}/publish`, { headers: hdr }),
+    ]);
+
+    const statuses = [resA.status(), resB.status()].sort();
+    expect(statuses).toEqual([200, 409]);
+
+    const failedRes = resA.status() === 409 ? resA : resB;
+    const failBody = (await failedRes.json()) as { error: { code: string } };
+    expect(failBody.error.code).toBe('INVALID_TRANSITION');
+  });
+});
