@@ -63,6 +63,7 @@ describe('Course — slice D fields', () => {
       updatedAt: '2026-05-20T10:00:00.000Z' as ISODateString,
     };
     expect(c.publishedAt).toBe('2026-05-20T10:00:00.000Z');
+    expect(c.archivedAt).toBeUndefined();
   });
 
   it('accepts a course with archivedAt set', () => {
@@ -77,6 +78,7 @@ describe('Course — slice D fields', () => {
       updatedAt: '2026-05-20T11:00:00.000Z' as ISODateString,
     };
     expect(c.archivedAt).toBe('2026-05-20T11:00:00.000Z');
+    expect(c.publishedAt).toBeUndefined();
   });
 
   it('accepts a course with neither field (legacy / pre-slice-D)', () => {
