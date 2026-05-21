@@ -1,9 +1,9 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CourseEditorPageComponent } from './course-editor-page.component';
 
@@ -123,5 +123,73 @@ describe('CourseEditorPageComponent', () => {
     expect(req.request.body).toEqual({ ids: ['mid-1'] });
     req.flush([]);
     await pending;
+  });
+
+  it('confirming with no pending confirmation issues no request', async () => {
+    const fixture = TestBed.createComponent(CourseEditorPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/courses/cid-1').flush(buildTree());
+    await fixture.whenStable();
+
+    await fixture.componentInstance.onConfirmClosed(true);
+    http.expectNone((req) => req.method === 'DELETE');
+  });
+
+  it('confirming deleteCourse sends a DELETE then navigates to /courses', async () => {
+    const fixture = TestBed.createComponent(CourseEditorPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/courses/cid-1').flush(buildTree());
+    await fixture.whenStable();
+
+    const navigate = vi
+      .spyOn(TestBed.inject(Router), 'navigateByUrl')
+      .mockResolvedValue(true);
+
+    fixture.componentInstance.requestDeleteCourse();
+    const closing = fixture.componentInstance.onConfirmClosed(true);
+
+    const del = http.expectOne('/api/courses/cid-1');
+    expect(del.request.method).toBe('DELETE');
+    del.flush(null, { status: 204, statusText: 'No Content' });
+    await closing;
+
+    expect(navigate).toHaveBeenCalledWith('/courses');
+    // deleteCourse returns early — it must not trigger a refresh GET.
+    http.expectNone('/api/courses/cid-1');
+  });
+
+  it('confirming deleteLesson sends a DELETE then refreshes', async () => {
+    const fixture = TestBed.createComponent(CourseEditorPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/courses/cid-1').flush(buildTree());
+    await fixture.whenStable();
+
+    fixture.componentInstance.requestDeleteLesson({ moduleId: 'mid-1', lessonId: 'lid-1' });
+    const closing = fixture.componentInstance.onConfirmClosed(true);
+
+    const del = http.expectOne('/api/courses/cid-1/modules/mid-1/lessons/lid-1');
+    expect(del.request.method).toBe('DELETE');
+    del.flush(null, { status: 204, statusText: 'No Content' });
+    await fixture.whenStable();
+
+    http.expectOne('/api/courses/cid-1').flush(buildTree());
+    await closing;
+  });
+
+  it('surfaces an error message when a confirmed delete fails', async () => {
+    const fixture = TestBed.createComponent(CourseEditorPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/courses/cid-1').flush(buildTree());
+    await fixture.whenStable();
+
+    fixture.componentInstance.requestDeleteModule('mid-1');
+    const closing = fixture.componentInstance.onConfirmClosed(true);
+
+    http
+      .expectOne('/api/courses/cid-1/modules/mid-1')
+      .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+    await closing;
+
+    expect(fixture.componentInstance.error()).toContain('Delete failed');
   });
 });

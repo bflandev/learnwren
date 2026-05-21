@@ -157,23 +157,34 @@ function fileLevelCoverage(fileCov) {
 
 // Some plugins (notably @analogjs/vite-plugin-angular) emit V8 coverage with
 // line numbers from the transformed source, not the original .ts. When that
-// happens, line-range joins return zero matches even though the function is
-// well-tested. Detect by comparing max coverage line to the AST's line count.
-function isCoordinatesTransformed(fileCov, astLineCount) {
-  const lines = [];
+// happens, line-range joins return zero or misattributed matches even though
+// the function is well-tested.
+//
+// Primary detector: a transformer that strips decorators and type annotations
+// leaves every coverage coordinate above its true source line, so the
+// coverage's furthest function declaration falls short of the AST's furthest
+// function. This catches mild compression the whole-file ratio below misses.
+//
+// Secondary detector: the original whole-file heuristic, kept for files whose
+// functions all cluster near the top (where the primary signal is weak).
+function isCoordinatesTransformed(fileCov, astLineCount, maxAstFnLine) {
+  const fnLines = [];
   for (const fn of Object.values(fileCov.fnMap || {})) {
     const l = fn.decl?.start?.line ?? fn.line;
-    if (l != null) lines.push(l);
+    if (l != null) fnLines.push(l);
   }
+  // Margin of 2 absorbs trivial off-by-one noise between TypeScript's parser
+  // and the coverage instrumenter.
+  if (fnLines.length > 0 && maxAstFnLine > 0 && Math.max(...fnLines) < maxAstFnLine - 2) {
+    return true;
+  }
+  const lines = [...fnLines];
   for (const br of Object.values(fileCov.branchMap || {})) {
     const l = br.loc?.start?.line ?? br.line;
     if (l != null) lines.push(l);
   }
   if (lines.length === 0) return false;
-  const maxCovLine = Math.max(...lines);
-  // If coverage's max line is meaningfully less than the source's line count,
-  // the transformer has stripped lines (decorators/types/interfaces).
-  return maxCovLine < astLineCount * 0.7;
+  return Math.max(...lines) < astLineCount * 0.7;
 }
 
 function coverageForRange(fileCov, startLine, endLine, fileLineFallback) {
@@ -257,6 +268,8 @@ function shouldSkipFile(file) {
   if (isTestFile(file)) return true;
   if (/[\\/]node_modules[\\/]/.test(file)) return true;
   if (/[\\/]dist[\\/]/.test(file)) return true;
+  // Test scaffolding (fakes, fixtures) is not product code.
+  if (/[\\/]testing[\\/]/.test(file)) return true;
   // Generated entry points and bare module exports are not interesting.
   if (/[\\/](index|main)\.ts$/.test(file)) return true;
   if (/\.module\.ts$/.test(file)) return true;
@@ -270,9 +283,11 @@ function analyzeFile(filePath, fileCov) {
   const source = fs.readFileSync(filePath, 'utf8');
   const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
   const astLineCount = source.split('\n').length;
+  const functions = collectFunctions(sf);
+  const maxAstFnLine = functions.reduce((max, fn) => Math.max(max, fn.startLine), 0);
   const fileFallback = fileLevelCoverage(fileCov);
-  const transformed = isCoordinatesTransformed(fileCov, astLineCount);
-  return collectFunctions(sf).map((fn) => {
+  const transformed = isCoordinatesTransformed(fileCov, astLineCount, maxAstFnLine);
+  return functions.map((fn) => {
     const cov = transformed
       ? { ...fileFallback, basis: `${fileFallback.basis}-fallback` }
       : coverageForRange(fileCov, fn.startLine, fn.endLine, fileFallback);
