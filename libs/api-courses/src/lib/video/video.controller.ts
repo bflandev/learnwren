@@ -73,6 +73,7 @@ export class VideoController {
   }
 
   @Post('videos/:vid/upload-complete')
+  @HttpCode(200)
   @UseGuards(VideoOwnerGuard)
   async completeUpload(@Req() req: VideoScopedRequest): Promise<Video> {
     return this.svc.completeUpload(req.video!.id);

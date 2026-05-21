@@ -181,24 +181,28 @@ export class CoursesController {
   }
 
   @Post(':cid/publish')
+  @HttpCode(200)
   @UseGuards(CourseOwnerGuard)
   async publishCourse(@Param('cid') cid: CourseId): Promise<Course> {
     return this.publishSvc.publish(cid);
   }
 
   @Post(':cid/unpublish')
+  @HttpCode(200)
   @UseGuards(CourseOwnerGuard)
   async unpublishCourse(@Param('cid') cid: CourseId): Promise<Course> {
     return this.publishSvc.unpublish(cid);
   }
 
   @Post(':cid/archive')
+  @HttpCode(200)
   @UseGuards(CourseOwnerGuard)
   async archiveCourse(@Param('cid') cid: CourseId): Promise<Course> {
     return this.publishSvc.archive(cid);
   }
 
   @Post(':cid/restore')
+  @HttpCode(200)
   @UseGuards(CourseOwnerGuard)
   async restoreCourse(@Param('cid') cid: CourseId): Promise<Course> {
     return this.publishSvc.restore(cid);
