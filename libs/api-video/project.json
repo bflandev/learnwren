@@ -12,17 +12,6 @@
       "options": {
         "lintFilePatterns": ["libs/api-video/**/*.ts"]
       }
-    },
-    "build": {
-      "executor": "@nx/js:tsc",
-      "outputs": ["{options.outputPath}"],
-      "options": {
-        "outputPath": "dist/libs/api-video",
-        "tsConfig": "libs/api-video/tsconfig.lib.json",
-        "packageJson": "libs/api-video/package.json",
-        "main": "libs/api-video/src/index.ts",
-        "assets": ["libs/api-video/*.md"]
-      }
     }
   }
 }
