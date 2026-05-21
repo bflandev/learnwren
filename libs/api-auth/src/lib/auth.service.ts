@@ -70,6 +70,12 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SESSION_COOKIE_EXPIRES_IN_MS = 5 * 24 * 60 * 60 * 1000;
 const SESSION_COOKIE_MAX_AGE_SECONDS = SESSION_COOKIE_EXPIRES_IN_MS / 1000;
 
+// Logout revokes the session cookie by bumping the user's validSince second.
+// Firebase compares it against the cookie's iat at whole-second precision, so
+// a revoke can need a retry past the next boundary. See logoutSideEffects.
+const LOGOUT_REVOKE_MAX_ATTEMPTS = 4;
+const LOGOUT_REVOKE_MARGIN_MS = 250;
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger('AuthService');
@@ -274,27 +280,50 @@ export class AuthService {
 
   async logoutSideEffects(sessionCookie: string | undefined): Promise<void> {
     if (!sessionCookie) return;
+
+    let uid: string;
     try {
       const decoded = await this.auth.verifySessionCookie(sessionCookie, true);
-      // Firebase compares cookie.iat (seconds) < tokensValidAfterTime
-      // (seconds) at second precision. If revoke fires in the same wall-second
-      // the cookie was minted, the strict-less-than check still validates
-      // the cookie and the spec contract (§3.5) breaks. Wait until the next
-      // second so revokeRefreshTokens lands strictly after cookie.iat.
-      const cookieIatSec = decoded['iat'] as number | undefined;
-      if (typeof cookieIatSec === 'number') {
-        const nowMs = Date.now();
-        if (Math.floor(nowMs / 1000) <= cookieIatSec) {
-          await new Promise<void>((resolve) =>
-            setTimeout(resolve, 1000 - (nowMs % 1000)),
-          );
-        }
-      }
-      await this.auth.revokeRefreshTokens(decoded['uid']);
-      this.logger.log(`[auth] logout uid=${decoded['uid']}`);
+      uid = decoded['uid'];
     } catch (err) {
+      // Cookie already invalid or expired — nothing to revoke.
       this.logger.log(`[auth] logout silent (cookie invalid): ${String(err)}`);
+      return;
     }
+
+    // Firebase revocation has whole-second granularity: a session cookie is
+    // rejected only once the user's tokensValidAfterTime is strictly greater
+    // than the cookie's iat, both compared as integer seconds. revoke-
+    // RefreshTokens stamps tokensValidAfterTime at the current second, so a
+    // revoke landing in the same wall-second the cookie was minted is a
+    // silent no-op. Rather than racing the boundary with a precisely-timed
+    // sleep, revoke and then confirm the cookie is actually rejected; if it
+    // survived, wait safely past the next second boundary and revoke again.
+    for (let attempt = 0; attempt < LOGOUT_REVOKE_MAX_ATTEMPTS; attempt++) {
+      await this.auth.revokeRefreshTokens(uid);
+      if (await this.isSessionCookieRevoked(sessionCookie)) {
+        this.logger.log(`[auth] logout uid=${uid}`);
+        return;
+      }
+      await this.sleepPastNextSecond();
+    }
+    this.logger.error(`[auth] logout could not confirm cookie revocation uid=${uid}`);
+  }
+
+  /** True once a checkRevoked verify rejects the cookie. */
+  private async isSessionCookieRevoked(sessionCookie: string): Promise<boolean> {
+    try {
+      await this.auth.verifySessionCookie(sessionCookie, true);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+
+  /** Resolve a short, safe margin past the next whole-second boundary. */
+  private sleepPastNextSecond(): Promise<void> {
+    const waitMs = 1000 - (Date.now() % 1000) + LOGOUT_REVOKE_MARGIN_MS;
+    return new Promise<void>((resolve) => setTimeout(resolve, waitMs));
   }
 
   async getMe(

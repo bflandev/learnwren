@@ -77,6 +77,30 @@ function buildFakeRestClient(idToken = 'ID-TOKEN') {
   };
 }
 
+/**
+ * A fake FirebaseAuth that models Firebase's whole-second session-cookie
+ * revocation: a cookie is rejected by a checkRevoked verify only once the
+ * user's validSince second is *strictly greater* than the cookie's `iat`
+ * second. `revokeRefreshTokens` stamps validSince at the current second.
+ *
+ * `stampLagMs` encodes the real, unavoidable slop between the API process
+ * clock and the second the validSince stamp is actually floored into — a
+ * correct logout must tolerate it instead of racing the second boundary.
+ */
+function buildRevocationModelAuth(cookieIatSec: number, stampLagMs = 10) {
+  let validSinceSec: number | null = null;
+  const verifySessionCookie = vi.fn(async (_cookie: string, checkRevoked: boolean) => {
+    if (checkRevoked && validSinceSec !== null && cookieIatSec < validSinceSec) {
+      throw new Error('auth/session-cookie-revoked');
+    }
+    return { uid: 'uid-abc', iat: cookieIatSec, auth_time: cookieIatSec };
+  });
+  const revokeRefreshTokens = vi.fn(async () => {
+    validSinceSec = Math.floor((Date.now() - stampLagMs) / 1000);
+  });
+  return { ...buildFakeAuth(), verifySessionCookie, revokeRefreshTokens };
+}
+
 async function buildModule(
   auth: FakeAuth,
   firestore: FakeFirestore,
@@ -401,75 +425,41 @@ describe('AuthService.logoutSideEffects', () => {
     vi.clearAllMocks();
   });
 
-  it('verifies the cookie then revokes refresh tokens for the uid', async () => {
-    const auth = {
-      ...buildFakeAuth(),
-      // iat far in the past → no second-boundary sleep needed.
-      verifySessionCookie: vi.fn(async () => ({ uid: 'uid-abc', iat: 1000 })),
-      revokeRefreshTokens: vi.fn(async () => undefined),
-    };
-    const firestore = buildFakeFirestore();
-    const service = await buildModule(auth as unknown as FakeAuth, firestore);
-
-    await service.logoutSideEffects('valid.cookie');
-
-    expect(auth.verifySessionCookie).toHaveBeenCalledWith('valid.cookie', true);
-    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('uid-abc');
-  });
-
-  it('does NOT sleep when cookie iat is far in the past', async () => {
-    // Pins the boundary check `Math.floor(nowMs/1000) <= cookieIatSec`. A
-    // ConditionalExpression mutant flipping it to `true` would force a
-    // setTimeout for any cookie, blocking logout up to a second. With fake
-    // timers and no advance, the original code resolves immediately; the
-    // mutant would only resolve after timers are advanced.
+  it('revokes the session cookie even when logout runs in the same wall-second it was minted', async () => {
     vi.useFakeTimers();
     try {
-      vi.setSystemTime(new Date('2026-05-06T12:00:00.000Z'));
-      const auth = {
-        ...buildFakeAuth(),
-        verifySessionCookie: vi.fn(async () => ({ uid: 'uid-abc', iat: 1000 })),
-        revokeRefreshTokens: vi.fn(async () => undefined),
-      };
-      const firestore = buildFakeFirestore();
-      const service = await buildModule(auth as unknown as FakeAuth, firestore);
+      const cookieIatSec = 1_700_000_000;
+      // Clock sits 300ms into the cookie's own second — logout races the
+      // second boundary, the exact condition that produced the e2e flake.
+      vi.setSystemTime(new Date(cookieIatSec * 1000 + 300));
+      const auth = buildRevocationModelAuth(cookieIatSec);
+      const service = await buildModule(auth as unknown as FakeAuth, buildFakeFirestore());
 
       const pending = service.logoutSideEffects('valid.cookie');
-      // Drain microtasks only — no real time elapses.
-      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(5000);
       await pending;
 
-      expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('uid-abc');
+      // Contract: after logout, a checkRevoked verify must reject the cookie.
+      await expect(auth.verifySessionCookie('valid.cookie', true)).rejects.toThrow();
+      // The first revoke landed in the cookie's own second; logout must retry.
+      expect(auth.revokeRefreshTokens.mock.calls.length).toBeGreaterThanOrEqual(2);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('sleeps to the next second boundary before revoking when the cookie was minted in the current wall-second', async () => {
-    vi.useFakeTimers();
-    // Pin clock to 1_700_000_000_250ms — 250ms into second 1_700_000_000.
-    vi.setSystemTime(new Date(1_700_000_000_250));
-    const auth = {
-      ...buildFakeAuth(),
-      // iat == current wall-second → must sleep until the next second.
-      verifySessionCookie: vi.fn(async () => ({ uid: 'uid-abc', iat: 1_700_000_000 })),
-      revokeRefreshTokens: vi.fn(async () => undefined),
-    };
-    const firestore = buildFakeFirestore();
-    const service = await buildModule(auth as unknown as FakeAuth, firestore);
+  it('revokes on the first attempt when the cookie was minted in an earlier second', async () => {
+    // Cookie iat is well in the past, so the very first revokeRefreshTokens
+    // stamps a validSince strictly greater than it — no retry, no sleep.
+    const cookieIatSec = Math.floor(Date.now() / 1000) - 3600;
+    const auth = buildRevocationModelAuth(cookieIatSec);
+    const service = await buildModule(auth as unknown as FakeAuth, buildFakeFirestore());
 
-    const pending = service.logoutSideEffects('valid.cookie');
-    // Verify hasn't been called yet (it's awaited synchronously); revoke must wait.
-    await vi.advanceTimersByTimeAsync(0);
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
-    // Advance just under the boundary — still no revoke.
-    await vi.advanceTimersByTimeAsync(749);
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
-    // Cross the 750ms boundary (1000 − 250) — revoke now fires.
-    await vi.advanceTimersByTimeAsync(1);
-    await pending;
-    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('uid-abc');
-    vi.useRealTimers();
+    await service.logoutSideEffects('valid.cookie');
+
+    expect(auth.verifySessionCookie).toHaveBeenCalledWith('valid.cookie', true);
+    expect(auth.revokeRefreshTokens).toHaveBeenCalledTimes(1);
+    await expect(auth.verifySessionCookie('valid.cookie', true)).rejects.toThrow();
   });
 
   it('is a no-op when the cookie is undefined', async () => {
