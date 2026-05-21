@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import type {
   CourseId,
@@ -82,7 +82,7 @@ export class VideoService {
     @Inject(VideoStorageAdapter) private readonly storage: VideoStoragePort,
     @Inject(VIDEO_CONFIG) private readonly cfg: VideoConfig,
     @Inject(VIDEO_TRANSCODER) private readonly transcoder: VideoTranscoder,
-    deps?: VideoServiceDeps,
+    @Optional() deps?: VideoServiceDeps,
   ) {
     this.sleep = deps?.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }

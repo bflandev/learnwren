@@ -31,10 +31,5 @@
     {
       "path": "../api-auth/tsconfig.lib.json"
     }
-  ],
-  "nx": {
-    "sync": {
-      "ignoredDependencies": ["api-video"]
-    }
-  }
+  ]
 }

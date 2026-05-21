@@ -13,13 +13,12 @@ import {
 } from '@nestjs/common';
 
 import { FirebaseSessionGuard, InstructorRoleGuard } from '@learnwren/api-auth';
-// eslint-disable-next-line @nx/enforce-module-boundaries -- intentional circular: api-video ↔ api-courses (NestJS forwardRef cascade delete)
+import { CourseOwnerGuard } from '../course-owner.guard';
+import { CoursesRepository } from '../courses.repository';
 import {
-  CourseOwnerGuard,
-  CoursesRepository,
   LessonNotFoundException,
   ModuleNotFoundException,
-} from '@learnwren/api-courses';
+} from '../errors/courses.exception';
 import type {
   CourseId,
   LessonId,
@@ -74,6 +73,7 @@ export class VideoController {
   }
 
   @Post('videos/:vid/upload-complete')
+  @HttpCode(200)
   @UseGuards(VideoOwnerGuard)
   async completeUpload(@Req() req: VideoScopedRequest): Promise<Video> {
     return this.svc.completeUpload(req.video!.id);

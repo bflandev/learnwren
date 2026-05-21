@@ -25,7 +25,6 @@
       "@learnwren/web-auth": ["./libs/web-auth/src/index.ts"],
       "@learnwren/api-courses": ["./libs/api-courses/src/index.ts"],
       "@learnwren/web-courses": ["./libs/web-courses/src/index.ts"],
-      "@learnwren/api-video": ["./libs/api-video/src/index.ts"],
       "@learnwren/web-video": ["./libs/web-video/src/index.ts"]
     }
   },

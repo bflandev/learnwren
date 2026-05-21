@@ -20,22 +20,16 @@ import {
   PublishNotEligibleException,
 } from '../errors/courses.exception';
 import { composeReasons } from './publish-eligibility';
-
-// Same disguised require pattern as courses.service.ts to keep the api-courses
-// → api-video edge out of the Nx project graph.
-interface VideoServiceLike {
-  getVideo(vid: VideoId): Promise<Video>;
-}
-
-const API_VIDEO_PKG = ['@learnwren', 'api-video'].join('/');
+import { VideoService } from '../video/video.service';
 
 function nowIso(): ISODateString {
   return new Date().toISOString() as ISODateString;
 }
 
 function isVideoNotFound(e: unknown): boolean {
-  // Avoid a static import of VideoNotFoundException to keep the project graph
-  // unchanged. Match by error name (Nest exception classes set this).
+  // Detects a "video not found" error structurally (by name/message) so an
+  // orphan lesson.videoId — one pointing at a deleted Video — folds into a
+  // LESSON_HAS_NO_VIDEO reason instead of aborting eligibility computation.
   return e instanceof Error && (e.name === 'VideoNotFoundException' || /not found/i.test(e.message));
 }
 
@@ -43,8 +37,8 @@ function isVideoNotFound(e: unknown): boolean {
 export class PublishService {
   constructor(
     private readonly repo: CoursesRepository,
-    @Inject(forwardRef(() => require(API_VIDEO_PKG).VideoService))
-    private readonly videoSvc: VideoServiceLike,
+    @Inject(forwardRef(() => VideoService))
+    private readonly videoSvc: VideoService,
     @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
   ) {}
 
@@ -127,7 +121,7 @@ export class PublishService {
   /**
    * Same shape as computeEligibility but threads `tx` through module + lesson
    * reads. Video reads remain non-transactional — see slice D design spec §5.4
-   * for the rationale (the runtime forwardRef seam can't carry a Firestore tx).
+   * for the rationale.
    */
   private async computeEligibilityInTxn(
     t: adminFirestore.Transaction,
