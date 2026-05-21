@@ -34,8 +34,17 @@ function readPositiveNumber(env: NodeJS.ProcessEnv, name: string, dflt: string):
 }
 
 export function readVideoConfigFromEnv(env: NodeJS.ProcessEnv): VideoConfig {
-  const sourceBucket = readRequired(env, 'LEARNWREN_VIDEO_SOURCE_BUCKET');
-  const outputBucket = readRequired(env, 'LEARNWREN_VIDEO_OUTPUT_BUCKET');
+  // Outside production the video stack defaults to its credential-free fake
+  // mode, so `nx serve` and the e2e suite boot with no GCP project, buckets,
+  // or secrets. Production still requires real buckets and a real transcoder.
+  const isProduction = env['NODE_ENV'] === 'production';
+
+  const sourceBucket = isProduction
+    ? readRequired(env, 'LEARNWREN_VIDEO_SOURCE_BUCKET')
+    : (env['LEARNWREN_VIDEO_SOURCE_BUCKET'] ?? 'learnwren-dev-source');
+  const outputBucket = isProduction
+    ? readRequired(env, 'LEARNWREN_VIDEO_OUTPUT_BUCKET')
+    : (env['LEARNWREN_VIDEO_OUTPUT_BUCKET'] ?? 'learnwren-dev-output');
   const stuckThresholdMinutes = readPositiveNumber(
     env,
     'LEARNWREN_VIDEO_STUCK_THRESHOLD_MINUTES',
@@ -52,21 +61,28 @@ export function readVideoConfigFromEnv(env: NodeJS.ProcessEnv): VideoConfig {
     '14400',
   );
 
-  const playbackStorageImpl: 'real' | 'fake' =
-    env['LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE'] === 'true' ? 'fake' : 'real';
-  if (playbackStorageImpl === 'fake' && env['NODE_ENV'] === 'production') {
+  const playbackFakeRaw = env['LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE'];
+  let playbackStorageImpl: 'real' | 'fake';
+  if (playbackFakeRaw === 'true') {
+    playbackStorageImpl = 'fake';
+  } else if (playbackFakeRaw === undefined) {
+    playbackStorageImpl = isProduction ? 'real' : 'fake';
+  } else {
+    playbackStorageImpl = 'real';
+  }
+  if (playbackStorageImpl === 'fake' && isProduction) {
     throw new Error(
       'LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true is rejected when NODE_ENV=production.',
     );
   }
 
-  const implRaw = env['LEARNWREN_VIDEO_TRANSCODER'] ?? 'gcp';
+  const implRaw = env['LEARNWREN_VIDEO_TRANSCODER'] ?? (isProduction ? 'gcp' : 'fake');
   if (implRaw !== 'gcp' && implRaw !== 'fake') {
     throw new Error(
       `LEARNWREN_VIDEO_TRANSCODER must be "gcp" or "fake", got "${implRaw}".`,
     );
   }
-  if (implRaw === 'fake' && env['NODE_ENV'] === 'production') {
+  if (implRaw === 'fake' && isProduction) {
     throw new Error(
       'LEARNWREN_VIDEO_TRANSCODER=fake is rejected when NODE_ENV=production.',
     );

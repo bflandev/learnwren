@@ -21,35 +21,21 @@ pnpm install
 
 ## Environment
 
-The NestJS api reads its **video configuration from environment variables at
-boot** — `nx serve api` / `pnpm start` exits immediately with
-`LEARNWREN_VIDEO_SOURCE_BUCKET env var is required` if they are absent. Supply
-them one of two ways before running the app:
+In emulator mode (the default — `NODE_ENV` unset) the api needs **no
+configuration**: the video transcoder and playback storage default to their
+in-memory fakes, so `pnpm start` runs credential-free against the local
+emulators. A `.env` file is optional.
 
-- **With 1Password access** — render `.env` from `.env.tpl`, then start normally
-  (Nx loads `.env` for `serve`/`test`):
+Environment variables are only needed to run against **real Firebase / GCP**
+(`LEARNWREN_FIREBASE_TARGET=production` — see [Real-project mode](#real-project-mode)).
+Those secrets live in 1Password: render them into `.env` with
+`pnpm secrets:render` (Nx loads `.env` for `serve`/`test`), or inject them
+in-memory with `pnpm secrets:run -- <cmd>`. See [`secrets.md`](./secrets.md).
+`.env` is gitignored.
 
-  ```bash
-  pnpm secrets:render
-  pnpm start
-  ```
-
-  Or inject without writing a file: `pnpm secrets:run -- pnpm start`.
-
-- **Credential-free emulator dev** — the transcoder and playback storage have
-  in-memory fakes, so no GCP project or buckets are needed. Put the non-secret
-  fake-mode values in `.env`:
-
-  ```bash
-  LEARNWREN_VIDEO_SOURCE_BUCKET=learnwren-dev-source
-  LEARNWREN_VIDEO_OUTPUT_BUCKET=learnwren-dev-output
-  LEARNWREN_VIDEO_TRANSCODER=fake
-  LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true
-  LEARNWREN_EMAIL_TRANSPORT=console
-  ```
-
-`.env` is gitignored. `LEARNWREN_VIDEO_TRANSCODER=fake` and
-`LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true` are rejected when `NODE_ENV=production`.
+When `NODE_ENV=production` the api requires real `LEARNWREN_VIDEO_*` buckets and
+a real transcoder — the `fake` transcoder and `fake` playback storage are
+rejected.
 
 ## Run (emulator mode)
 
