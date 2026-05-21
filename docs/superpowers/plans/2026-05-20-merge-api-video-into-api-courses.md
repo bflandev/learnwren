@@ -577,6 +577,7 @@ Expected: NestJS startup logs with **no** `Error: Cannot find module '@learnwren
 Run:
 ```bash
 git add -A
+git restore --staged .claude/scheduled_tasks.lock 2>/dev/null || true
 git commit -m "$(cat <<'EOF'
 refactor(api): merge api-video into api-courses to break module cycle
 
