@@ -2,26 +2,31 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: Specification Phase
+## Project Status: Active Development
 
-There is no application code in this repository yet. It contains product and technical specifications for **Learn Wren**, a self-hosted, open-source educational video platform with DRM-protected playback. There is no build, lint, or test tooling — work here is authoring and editing Markdown specs.
+**Learn Wren** is a self-hosted, open-source educational video platform with DRM-protected playback. This is an Nx monorepo with working Angular + NestJS apps, built in vertical slices. Standard build/lint/test tooling is in place (see Scripts in `README.md`).
 
-When adding implementation, follow the planned stack below; do not introduce a different framework without a specification update first.
+- **`README.md` is the authoritative record of which slices are wired up** — read it before assuming a feature exists.
+- `docs/USER_GUIDE.md` documents the implemented features (and what is deferred) end to end.
+- Built so far: identity/auth, course authoring, video upload/transcode/playback, course publish gate. Not built: course discovery, enrollment, student learning experience.
+- The repo still carries the full product/technical specs in `docs/`; keep specs and code in sync when implementing.
 
-## Planned Technology Stack
+## Technology Stack
 
-The architecture is fixed in `docs/epics/TECHNICAL_ARCHITECTURE.md` and changes there should be deliberate:
+The architecture is fixed in `docs/epics/TECHNICAL_ARCHITECTURE.md` and changes there should be deliberate — do not introduce a different framework without a specification update first.
 
-- **Monorepo**: Nx workspace containing both Angular and NestJS apps
-- **Frontend**: Angular, deployed to Firebase Hosting
-- **Backend**: NestJS, deployed as Firebase Cloud Functions
+- **Monorepo**: Nx workspace (pnpm) containing both Angular and NestJS apps
+- **Frontend**: Angular 21, deployed to Firebase Hosting
+- **Backend**: NestJS 11, deployed as Firebase Cloud Functions
 - **Data**: Firestore (NoSQL), Cloud Storage for Firebase, Firebase Authentication
-- **Video**: Third-party transcoding/DRM service (e.g., Coconut, Mux); playback via Shaka Player or Video.js with DRM plugins
+- **Video**: GCP Transcoder API produces AES-128-encrypted HLS; playback via hls.js (native HLS on Safari/iOS). A `fake` transcoder and `fake` playback storage exist for local dev.
 
 The data models in `docs/epics/TECHNICAL_ARCHITECTURE.md` are written with relational field types (UUID, Foreign Key, JSONB) but the chosen store is Firestore — treat those tables as logical entity definitions and translate to Firestore document/collection structure when implementing. The translation rules (branded ID strings, ISO date strings on the wire, string-literal unions instead of enums) are codified in `docs/superpowers/specs/2026-04-29-initial-nx-monorepo-design.md` §4.
 
 ## Repository Layout
 
+- `apps/` — `web` (Angular SPA) and `api` (NestJS API), plus `web-e2e` / `api-e2e` Playwright suites.
+- `libs/` — feature/shared libraries: `shared-data-models` (shared TS types), `api-firebase`, `api-auth`, `api-courses` (course authoring + video + publish + playback), `web-auth`, `web-courses`, `web-video`.
 - `docs/epics/` — Product specifications. One Markdown file per epic (`01-` through `09-`), each containing user stories with Acceptance Criteria. `00-vision-and-epics.md` lists actors and the epic index. `TECHNICAL_ARCHITECTURE.md` holds the system diagram, stack table, and data models.
 - `docs/use-cases/` — Fully-dressed **Cockburn-style** use cases (UC-XX-YY) corresponding to epics 01–06 (the MVP scope). These are the detailed flow-of-events expansion of the user stories in `docs/epics/`.
 - `docs/superpowers/specs/` — Higher-level design specs (e.g., `2026-03-27-mvp-use-cases-design.md` defines the MVP use case inventory; `2026-04-29-initial-nx-monorepo-design.md` defines the workspace setup).
@@ -38,6 +43,11 @@ The data models in `docs/epics/TECHNICAL_ARCHITECTURE.md` are written with relat
 ## Naming
 
 The project was renamed from "Teachify" to "Learn Wren" (commit `707fca7`) and all third-party brand/platform references were intentionally removed (commit `97d36b9`). Do not reintroduce vendor brand names in specs except where the architecture explicitly names a third-party category (e.g., "Coconut, Mux" as transcoding examples).
+
+## Local Development
+
+- Emulator mode is the default and needs no cloud credentials: run `pnpm emulators` in one terminal and `pnpm start` in another (web on `:4200`, api on `:3333`).
+- `docs/development.md` is partially stale (e.g. it still lists a removed `/auth/session` endpoint) — when it disagrees with the code, trust the code and `README.md`.
 
 
 <!-- nx configuration start-->
