@@ -2,13 +2,12 @@ import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { FirebaseSessionGuard, InstructorRoleGuard } from '@learnwren/api-auth';
-// eslint-disable-next-line @nx/enforce-module-boundaries -- intentional circular: api-video ↔ api-courses (NestJS forwardRef cascade delete)
+import { CourseOwnerGuard } from '../course-owner.guard';
+import { CoursesRepository } from '../courses.repository';
 import {
-  CourseOwnerGuard,
-  CoursesRepository,
   LessonNotFoundException,
   ModuleNotFoundException,
-} from '@learnwren/api-courses';
+} from '../errors/courses.exception';
 import { FIREBASE_AUTH, FIRESTORE } from '@learnwren/api-firebase';
 import type {
   CourseId,

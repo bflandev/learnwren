@@ -15,7 +15,6 @@ const COVERAGE_DIRS = [
   'coverage/libs/api-auth',
   'coverage/libs/api-courses',
   'coverage/libs/api-firebase',
-  'coverage/libs/api-video',
   'coverage/libs/shared-data-models',
   'coverage/libs/web-auth',
   'coverage/libs/web-courses',

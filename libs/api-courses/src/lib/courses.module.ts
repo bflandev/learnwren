@@ -8,23 +8,13 @@ import { CoursesExceptionFilter } from './courses.exception-filter';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
 import { PublishService } from './publish/publish.service';
+import { VideoModule } from './video/video.module';
 
-// VideoModule ↔ CoursesModule are mutually dependent:
-//   CoursesService calls VideoService.deleteForLesson (cascade).
-//   VideoController injects CoursesRepository from CoursesModule.
-// NestJS resolves the cycle at runtime via forwardRef.
-// Lazy require() inside forwardRef breaks the CommonJS circular-import problem
-// so that decorators in both modules see fully-initialised exports.
-//
-// The package name is built at runtime from string fragments so the Nx project
-// graph parser (which only follows string-literal require() arguments) does
-// not infer api-courses → api-video as a graph edge. The reverse edge is
-// resolved as a NestJS forwardRef at runtime; the TypeScript project
-// references in tsconfig.lib.json are already one-way and unaffected.
-const API_VIDEO_PKG = ['@learnwren', 'api-video'].join('/');
-
+// VideoModule ↔ CoursesModule are mutually dependent (CoursesService cascades
+// deletes into VideoService; VideoController injects CoursesRepository).
+// NestJS resolves the cycle with forwardRef.
 @Module({
-  imports: [AuthModule, forwardRef(() => require(API_VIDEO_PKG).VideoModule)],
+  imports: [AuthModule, forwardRef(() => VideoModule)],
   controllers: [CoursesController],
   providers: [
     CoursesService,

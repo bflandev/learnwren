@@ -5,3 +5,10 @@ export {
   LessonNotFoundException,
   ModuleNotFoundException,
 } from './lib/errors/courses.exception';
+export { VideoModule } from './lib/video/video.module';
+export { VideoService } from './lib/video/video.service';
+export {
+  VIDEO_CONFIG,
+  type VideoConfig,
+  readVideoConfigFromEnv,
+} from './lib/video/video.config';

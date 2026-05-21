@@ -20,14 +20,7 @@ import {
   PublishNotEligibleException,
 } from '../errors/courses.exception';
 import { composeReasons } from './publish-eligibility';
-
-// Same disguised require pattern as courses.service.ts to keep the api-courses
-// → api-video edge out of the Nx project graph.
-interface VideoServiceLike {
-  getVideo(vid: VideoId): Promise<Video>;
-}
-
-const API_VIDEO_PKG = ['@learnwren', 'api-video'].join('/');
+import { VideoService } from '../video/video.service';
 
 function nowIso(): ISODateString {
   return new Date().toISOString() as ISODateString;
@@ -43,8 +36,8 @@ function isVideoNotFound(e: unknown): boolean {
 export class PublishService {
   constructor(
     private readonly repo: CoursesRepository,
-    @Inject(forwardRef(() => require(API_VIDEO_PKG).VideoService))
-    private readonly videoSvc: VideoServiceLike,
+    @Inject(forwardRef(() => VideoService))
+    private readonly videoSvc: VideoService,
     @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
   ) {}
 

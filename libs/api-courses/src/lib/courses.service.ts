@@ -13,24 +13,6 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
-// Minimal structural interface for the VideoService dependency.
-// Using a local interface instead of importing the concrete class avoids the
-// TypeScript composite project reference cycle (api-courses ↔ api-video).
-// The DI token is provided via forwardRef(() => require(API_VIDEO_PKG).VideoService).
-interface VideoServiceLike {
-  deleteForLesson(lessonId: string): Promise<void>;
-  // Slice D: read a Video by id; throws VideoNotFoundException when absent.
-  // Used by PublishService to fold orphan lesson.videoId references into
-  // LESSON_HAS_NO_VIDEO reasons.
-  getVideo(vid: import('@learnwren/shared-data-models').VideoId): Promise<
-    import('@learnwren/shared-data-models').Video
-  >;
-}
-
-// Built at runtime from string fragments so the Nx project graph parser does
-// not infer api-courses → api-video as a graph edge. See courses.module.ts.
-const API_VIDEO_PKG = ['@learnwren', 'api-video'].join('/');
-
 import { CoursesRepository } from './courses.repository';
 import {
   CourseNotFoundException,
@@ -39,6 +21,7 @@ import {
   StaleReorderException,
 } from './errors/courses.exception';
 import type { CourseTree } from './types/loaded-course';
+import { VideoService } from './video/video.service';
 
 export interface CreateCourseInput {
   title: string;
@@ -64,13 +47,9 @@ function nowIso(): ISODateString {
 export class CoursesService {
   constructor(
     private readonly repo: CoursesRepository,
-    // forwardRef with lazy require: resolves the api-courses ↔ api-video circular
-    // dependency at runtime without triggering a static import that would cause
-    // CourseOwnerGuard to be undefined during VideoController class decoration.
-    // API_VIDEO_PKG is computed at runtime to keep this edge out of the Nx
-    // project graph (see top-of-file comment).
-    @Inject(forwardRef(() => require(API_VIDEO_PKG).VideoService))
-    private readonly videoSvc: VideoServiceLike,
+    // forwardRef resolves the CoursesModule ↔ VideoModule runtime cycle.
+    @Inject(forwardRef(() => VideoService))
+    private readonly videoSvc: VideoService,
   ) {}
 
   async createCourse(uid: UserId, input: CreateCourseInput): Promise<Course> {
