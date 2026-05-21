@@ -13,6 +13,10 @@
     "lint": {
       "cache": true
     },
+    "typecheck": {
+      "cache": true,
+      "dependsOn": ["^build"]
+    },
     "@angular/build:application": {
       "cache": true,
       "dependsOn": ["^build"],
