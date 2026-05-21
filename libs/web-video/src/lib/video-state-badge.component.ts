@@ -1,7 +1,7 @@
-import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import type { Video } from '@learnwren/shared-data-models';
+import type { Video, VideoState } from '@learnwren/shared-data-models';
 
 import { VideoStatePollingService } from './polling/video-state-polling.service';
 
@@ -15,6 +15,7 @@ const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
 })
 export class VideoStateBadgeComponent implements OnInit {
   readonly video = input.required<Video>();
+  readonly stateChanged = output<VideoState>();
 
   private readonly polling = inject(VideoStatePollingService);
   private readonly destroyRef = inject(DestroyRef);
@@ -52,7 +53,13 @@ export class VideoStateBadgeComponent implements OnInit {
       this.polling
         .poll(v.id)
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((next) => this.liveVideo.set(next));
+        .subscribe((next) => {
+          const prevState = this.liveVideo()?.state ?? this.video().state;
+          this.liveVideo.set(next);
+          if (next.state !== prevState) {
+            this.stateChanged.emit(next.state);
+          }
+        });
     }
   }
 

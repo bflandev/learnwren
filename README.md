@@ -4,7 +4,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 
 > [!NOTE]
 > **PROJECT STATUS: EARLY DEVELOPMENT**
-> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route), the course authoring slice (EP-02 US-02-01..03: instructor role promotion, REST course surface, drag-and-drop editor), and **EP-03 slices A + B + C (video upload through owner playback): instructor uploads MP4 / MOV / MKV ≤ 10 GB to a lesson via resumable upload, ffprobe + GCP Transcoder API + AES-128 HLS produce playable manifests on the output bucket, the lesson editor swaps the badge for an inline `<video>` element that streams via hls.js (or native HLS on Safari/iOS) once the video is READY** are wired up. Course publish (US-02-04) and cover image upload are deferred. **Student playback (EP-06) and the publish gate (slice D) remain deferred.** Instructor dashboard and platform administration remain in post-MVP planning.
+> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route), the course authoring slice (EP-02 US-02-01..03: instructor role promotion, REST course surface, drag-and-drop editor), and **EP-03 slices A + B + C (video upload through owner playback): instructor uploads MP4 / MOV / MKV ≤ 10 GB to a lesson via resumable upload, ffprobe + GCP Transcoder API + AES-128 HLS produce playable manifests on the output bucket, the lesson editor swaps the badge for an inline `<video>` element that streams via hls.js (or native HLS on Safari/iOS) once the video is READY** are wired up. Cover image upload is deferred. **EP-03 slice D (course publish gate) complete: instructors can publish / unpublish / archive / restore courses with structured eligibility feedback.** Catalogue (EP-05) and enrolled-student playback (EP-06) remain deferred. Instructor dashboard and platform administration remain in post-MVP planning.
 
 ---
 
@@ -115,6 +115,16 @@ The API endpoints exposed by this slice:
 | `POST` | `/api/auth/unlock` | Redeems an unlock token sent to the user when their account locks. |
 | `POST` | `/api/auth/logout` | Clears the cookie and revokes refresh tokens. Always 204. |
 | `GET` | `/api/auth/me` | Reads the cookie, returns `{uid, email, displayName, role, emailVerified}`. |
+
+The API endpoints exposed by slice D (course publish gate):
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET`  | `/api/courses/:cid/publish-eligibility` | Preview publish eligibility; returns `{ eligible, reasons }`. |
+| `POST` | `/api/courses/:cid/publish`             | Transition DRAFT → PUBLISHED (atomic eligibility revalidation). |
+| `POST` | `/api/courses/:cid/unpublish`           | Transition PUBLISHED → DRAFT. |
+| `POST` | `/api/courses/:cid/archive`             | Transition DRAFT or PUBLISHED → ARCHIVED. |
+| `POST` | `/api/courses/:cid/restore`             | Transition ARCHIVED → DRAFT. |
 
 For the full auth dev workflow, the deferred items, and error-code → prose mappings, see [`docs/development.md`](./docs/development.md#auth-dev-workflow) and the design specs at [`docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`](./docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md) and [`docs/superpowers/specs/2026-05-06-auth-hardening-design.md`](./docs/superpowers/specs/2026-05-06-auth-hardening-design.md).
 

@@ -19,7 +19,7 @@
       @if (v.state === 'READY') {
         <lib-video-player [videoId]="v.id" />
       } @else {
-        <lib-video-state-badge [video]="v" />
+        <lib-video-state-badge [video]="v" (stateChanged)="videoStateChanged.emit($event)" />
       }
     }
   } @else {

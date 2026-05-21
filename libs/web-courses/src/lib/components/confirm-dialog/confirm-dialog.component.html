@@ -1,7 +1,7 @@
 <div role="dialog" aria-modal="true" data-testid="confirm-dialog">
   <p>{{ message() }}</p>
   <div>
-    <button type="button" data-testid="cancel" (click)="closed.emit(false)">{{ cancelLabel() }}</button>
-    <button type="button" data-testid="confirm" (click)="closed.emit(true)">{{ confirmLabel() }}</button>
+    <button type="button" data-testid="confirm-cancel" (click)="closed.emit(false)">{{ cancelLabel() }}</button>
+    <button type="button" data-testid="confirm-go" (click)="closed.emit(true)">{{ confirmLabel() }}</button>
   </div>
 </div>

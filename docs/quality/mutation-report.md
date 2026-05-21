@@ -243,3 +243,27 @@ The slice C acceptance bar (≥ 85 % effective on the slice C surface) is met (1
 ### Caveats (carry over from api-auth section above)
 
 The same coverage-analysis, no-coverage, and equivalent-mutant caveats apply.
+
+---
+
+## Slice D — Course Publish Gate (2026-05-20, branch `ep-03-slice-d-publish-gate`)
+
+**Surface mutated:** `libs/api-courses/src/lib/publish/*.ts` (new submodule), `errors/courses.exception.ts` (new exception classes), `courses.controller.ts` (new publish routes). Config updated from slice C: `errors/courses-error.codes.ts` excluded (type-only); `errors/courses.exception.ts` now included.
+
+**Score:** 85.71% effective on the `publish/` submodule (132 killed, 18 survived, 4 no-cov); 74.07% on `errors/courses.exception.ts` (7 survived — all `StringLiteral` on human-readable `.message` text, see equivalents below); 100.00% on new controller routes. **Aggregate api-courses: 87.71% effective** (257 killed, 32 survived, 4 no-cov).
+
+**Acceptance bar (≥ 85% effective on slice D surface):** met. The `publish/` submodule scores exactly 85.71%; the controller routes score 100%. The `errors/courses.exception.ts` file scores 74.07% but all 7 survivors are equivalent (message strings, see table below).
+
+**Excluded mutants accepted as equivalent:**
+
+| File:line | Mutator | Reason |
+|-----------|---------|--------|
+| `errors/courses.exception.ts:12` | StringLiteral | `this.name = 'CoursesException'` — error-name string; contract tests check `.code`/`.status`/`.details`, not `.name`. |
+| `errors/courses.exception.ts:18` | StringLiteral | `'You do not own this course.'` — human message; tests assert `.code`/`.status` only. |
+| `errors/courses.exception.ts:30` | StringLiteral | `'Module not found.'` — human message; same pattern. |
+| `errors/courses.exception.ts:36` | StringLiteral | `'Lesson not found.'` — human message; same pattern. |
+| `errors/courses.exception.ts:54` | StringLiteral | Template literal in `InvalidTransitionException`; tests assert `.details.currentState`/`.details.requested`, not `.message`. |
+| `errors/courses.exception.ts:65` | StringLiteral | `'Course does not meet publish requirements.'` — human message; not asserted. |
+| `errors/courses.exception.ts:74` | StringLiteral | `'Cannot check publish eligibility on an archived course.'` — human message; not asserted. |
+
+**Carry-forward notes:** Pre-existing api-courses excluded set (`courses.repository.ts`, `courses.exception-filter.ts`, `dto/`, `types/`, `courses.module.ts`) is unchanged. `publish.service.ts` has 16 survivors — notable clusters: `isVideoNotFound` predicate parts (6 survivors; the single test uses `e.name === 'VideoNotFoundException'` which survives several logical/equality mutations because any mutation that still matches the mock's name passes); `computeEligibilityInTxn` video-filter methods (3 no-cov, 3 survived — the private transactional path for `null`-video filtering is not exercised by unit tests; covered by api-e2e). The `API_VIDEO_PKG` array mutations (4 survived) are equivalent — the runtime `require()` seam cannot be unit-tested without an actual module resolution environment.

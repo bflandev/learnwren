@@ -31,7 +31,7 @@ That is the contract this spec delivers.
 
 These each have, or will have, their own spec:
 
-- **US-02-04 (Publish, Unpublish, Archive).** Requires a video pipeline (US-03-02 transcoding + US-03-03 DRM encryption) to satisfy "every lesson has a transcoded and DRM-encrypted video". Ships as part of the EP-03 slice. Until then, `Course.status` is always `'DRAFT'` and the editor exposes no status controls.
+- **US-02-04 (Publish, Unpublish, Archive).** Shipped as EP-03 slice D — see `2026-05-20-publish-gate-slice-d-design.md`. Until then, `Course.status` is always `'DRAFT'` and the editor exposes no status controls.
 - **Cover image upload (US-02-01 optional field).** Pulls in Cloud Storage rules, MIME and dimension validation, signed-URL serving, and a stored URL field. Folds into a later media-handling slice that builds on the Storage rules proven by EP-03. The catalogue page (EP-05) will use a placeholder image until then.
 - **Cross-module lesson moves.** US-02-03 scopes reorder to "within a module". The editor's `cdkDropList`s for lessons are not connected across modules; lessons cannot be dragged into a different module in this slice.
 - **Multi-instructor collaboration / realtime sync.** No live listeners. Two tabs editing the same course is last-write-wins on field updates with a 409 path on stale reorder. Acceptable because the assumed use is single-instructor authoring.

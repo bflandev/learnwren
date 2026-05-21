@@ -1,6 +1,6 @@
 <div cdkDropList (cdkDropListDropped)="onDrop($event)" data-testid="module-tree">
   @for (node of nodes(); track node.module.id) {
-    <div cdkDrag>
+    <div cdkDrag [attr.data-module-id]="node.module.id">
       <lib-module-item
         [module]="node.module"
         [lessons]="node.lessons"
@@ -12,6 +12,7 @@
         (deleteLesson)="deleteLesson.emit({ moduleId: node.module.id, lessonId: $event })"
         (reorderLessons)="reorderLessons.emit({ moduleId: node.module.id, lessonIds: $event })"
         (videoChanged)="videoChanged.emit()"
+        (videoStateChanged)="videoStateChanged.emit($event)"
       ></lib-module-item>
     </div>
   } @empty {

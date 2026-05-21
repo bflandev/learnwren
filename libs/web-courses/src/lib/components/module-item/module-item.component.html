@@ -23,6 +23,7 @@
     (renameLesson)="renameLesson.emit($event)"
     (deleteLesson)="deleteLesson.emit($event)"
     (videoChanged)="videoChanged.emit()"
+    (videoStateChanged)="videoStateChanged.emit($event)"
   ></lib-lesson-list>
 
   @if (addingLesson()) {

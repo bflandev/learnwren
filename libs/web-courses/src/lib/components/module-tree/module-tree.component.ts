@@ -6,7 +6,7 @@ import {
 } from '@angular/cdk/drag-drop';
 import { Component, EventEmitter, Output, input } from '@angular/core';
 
-import type { CourseId, Lesson, Module } from '@learnwren/shared-data-models';
+import type { CourseId, Lesson, Module, VideoState } from '@learnwren/shared-data-models';
 
 import { ModuleItemComponent } from '../module-item/module-item.component';
 
@@ -37,6 +37,7 @@ export class ModuleTreeComponent {
   @Output() readonly deleteLesson = new EventEmitter<{ moduleId: string; lessonId: string }>();
   @Output() readonly reorderLessons = new EventEmitter<{ moduleId: string; lessonIds: string[] }>();
   @Output() readonly videoChanged = new EventEmitter<void>();
+  @Output() readonly videoStateChanged = new EventEmitter<VideoState>();
 
   onDrop(event: CdkDragDrop<ModuleNode[]>): void {
     if (event.previousIndex === event.currentIndex) return;

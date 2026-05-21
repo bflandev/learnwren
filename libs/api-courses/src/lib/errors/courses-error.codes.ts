@@ -5,4 +5,7 @@ export type CoursesErrorCode =
   | 'MODULE_NOT_FOUND'
   | 'LESSON_NOT_FOUND'
   | 'STALE_REORDER'
+  | 'INVALID_TRANSITION'
+  | 'PUBLISH_NOT_ELIGIBLE'
+  | 'COURSE_ARCHIVED'
   | 'INTERNAL';

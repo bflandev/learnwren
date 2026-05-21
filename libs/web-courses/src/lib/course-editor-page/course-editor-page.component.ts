@@ -1,35 +1,43 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
-import type { CourseId, Lesson, Module } from '@learnwren/shared-data-models';
+import type { Course, CourseId, Lesson, LessonId, Module, ModuleId, VideoState } from '@learnwren/shared-data-models';
 
 import { ConfirmDialogComponent } from '../components/confirm-dialog/confirm-dialog.component';
 import { CourseMetaPanelComponent } from '../components/course-meta-panel/course-meta-panel.component';
 import { ModuleTreeComponent, type ModuleNode } from '../components/module-tree/module-tree.component';
 import { CoursesService, type CourseTree, type UpdateCourseInput } from '../courses.service';
+import { CoursePublishBarComponent } from '../publish/course-publish-bar.component';
+import { PublishEligibilityPanelComponent } from '../publish/publish-eligibility-panel.component';
+import { PublishEligibilityService } from '../publish/publish-eligibility.service';
 
 type PendingConfirm =
   | { kind: 'deleteCourse' }
   | { kind: 'deleteModule'; moduleId: string }
-  | { kind: 'deleteLesson'; moduleId: string; lessonId: string };
+  | { kind: 'deleteLesson'; moduleId: string; lessonId: string }
+  | { kind: 'unpublish' }
+  | { kind: 'archive' };
 
 @Component({
   selector: 'lib-course-editor-page',
   standalone: true,
-  imports: [RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, ConfirmDialogComponent],
+  imports: [RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, ConfirmDialogComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent],
   templateUrl: './course-editor-page.component.html',
 })
 export class CourseEditorPageComponent {
   private readonly service = inject(CoursesService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly publishSvc = inject(PublishEligibilityService);
 
   private readonly paramMap = toSignal(this.route.paramMap);
   readonly cid = computed(() => (this.paramMap()?.get('id') ?? '') as CourseId);
   readonly tree = signal<CourseTree | null>(null);
   readonly error = signal<string | null>(null);
   readonly pendingConfirm = signal<PendingConfirm | null>(null);
+
+  @ViewChild(CoursePublishBarComponent) protected publishBar?: CoursePublishBarComponent;
 
   readonly nodes = computed<ModuleNode[]>(() =>
     (this.tree()?.modules ?? []).map((m) => ({ module: m.module, lessons: m.lessons })),
@@ -43,7 +51,10 @@ export class CourseEditorPageComponent {
     const cid = this.cid();
     if (!cid) return;
     try {
-      this.tree.set(await this.service.getCourseTree(cid));
+      const tree = await this.service.getCourseTree(cid);
+      this.tree.set(tree);
+      this.publishSvc.bindToCourse(cid);
+      this.publishSvc.refresh();
     } catch {
       this.error.set('Failed to load course.');
     }
@@ -70,10 +81,38 @@ export class CourseEditorPageComponent {
     this.pendingConfirm.set({ kind: 'deleteLesson', ...args });
   }
 
+  protected onCourseUpdated(updated: Course): void {
+    const t = this.tree();
+    if (t) this.tree.set({ ...t, course: updated });
+    if (updated.status === 'DRAFT') this.publishSvc.refresh();
+  }
+
+  protected requestPublishConfirm(kind: 'unpublish' | 'archive'): void {
+    this.pendingConfirm.set({ kind });
+  }
+
+  protected onVideoStateChanged(_state: VideoState): void {
+    this.publishSvc.refresh();
+  }
+
+  protected onJumpToModule(mid: ModuleId): void {
+    const el = document.querySelector(`[data-module-id="${mid}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  protected onJumpToLesson(lid: LessonId): void {
+    const el = document.querySelector(`[data-lesson-id="${lid}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   async onConfirmClosed(confirmed: boolean): Promise<void> {
     const pending = this.pendingConfirm();
     this.pendingConfirm.set(null);
     if (!confirmed || !pending) return;
+    if (pending.kind === 'unpublish' || pending.kind === 'archive') {
+      this.publishBar?.runConfirmedTransition(pending.kind);
+      return;
+    }
     try {
       if (pending.kind === 'deleteCourse') {
         await this.service.deleteCourse(this.cid());
@@ -178,6 +217,10 @@ export class CourseEditorPageComponent {
       return 'Permanently delete this course and all its modules and lessons. This action cannot be undone.';
     if (p.kind === 'deleteModule')
       return 'This will permanently remove this module and all its lessons. This action cannot be undone.';
+    if (p.kind === 'unpublish')
+      return 'The course will return to draft. Once a student catalogue exists, the course will no longer be discoverable. Existing enrolled students would retain access.';
+    if (p.kind === 'archive')
+      return 'Archived courses are hidden from the catalogue. You can restore the course to draft at any time.';
     return 'Delete this lesson? This action cannot be undone.';
   }
 }

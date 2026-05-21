@@ -1,7 +1,7 @@
 @let s = svc.state();
 @switch (s.kind) {
   @case ('idle') {
-    <label class="upload-zone">
+    <label class="upload-zone" data-testid="upload-video">
       <span>Drag a video file here, or click to choose. MP4, MOV, or MKV up to 10 GB.</span>
       <input
         type="file"

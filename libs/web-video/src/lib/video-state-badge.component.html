@@ -1,4 +1,4 @@
-<span class="badge" [attr.data-state]="video().state">
+<span class="badge" data-testid="video-state-badge" [attr.data-video-id]="video().id" [attr.data-state]="video().state">
   @if (showSpinner()) {
     <span class="spinner" aria-hidden="true"></span>
   }

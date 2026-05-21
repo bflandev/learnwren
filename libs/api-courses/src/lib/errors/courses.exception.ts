@@ -1,4 +1,5 @@
 import type { CoursesErrorCode } from './courses-error.codes';
+import type { CourseStatus, PublishBlockReason } from '@learnwren/shared-data-models';
 
 export class CoursesException extends Error {
   constructor(
@@ -43,5 +44,33 @@ export class StaleReorderException extends CoursesException {
       'Reorder body does not match current children — refetch and retry.',
       409,
     );
+  }
+}
+
+export class InvalidTransitionException extends CoursesException {
+  constructor(currentState: CourseStatus, requested: CourseStatus) {
+    super(
+      'INVALID_TRANSITION',
+      `Cannot transition from ${currentState} to ${requested}.`,
+      409,
+      { currentState, requested },
+    );
+  }
+}
+
+export class PublishNotEligibleException extends CoursesException {
+  constructor(reasons: PublishBlockReason[]) {
+    super(
+      'PUBLISH_NOT_ELIGIBLE',
+      'Course does not meet publish requirements.',
+      409,
+      { reasons },
+    );
+  }
+}
+
+export class CourseArchivedException extends CoursesException {
+  constructor() {
+    super('COURSE_ARCHIVED', 'Cannot check publish eligibility on an archived course.', 409);
   }
 }

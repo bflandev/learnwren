@@ -46,6 +46,8 @@ Deferred to post-MVP: Instructor Dashboard (EP-07), Platform Administration (EP-
 | UC-02-03 | Add and Manage Lessons | Instructor | Primary Task |
 | UC-02-04 | Publish or Unpublish a Course | Instructor | Primary Task |
 
+> **Note on UC-02-04 in MVP:** UC-02-04 is in scope, addressed by `docs/superpowers/specs/2026-05-20-publish-gate-slice-d-design.md` (slice D, status DRAFT → APPROVED at slice merge).
+
 ### EP-03: Video Management and DRM
 
 | ID | Use Case | Primary Actor | Level |

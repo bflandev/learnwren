@@ -5,6 +5,18 @@
 @if (tree() === null) {
   <p>Loading…</p>
 } @else {
+  <lib-course-publish-bar
+    [course]="tree()!.course"
+    (courseUpdated)="onCourseUpdated($event)"
+    (requestConfirm)="requestPublishConfirm($event)"
+  />
+  @if (tree()!.course.status === 'DRAFT') {
+    <lib-publish-eligibility-panel
+      (jumpToModule)="onJumpToModule($event)"
+      (jumpToLesson)="onJumpToLesson($event)"
+    />
+  }
+
   <lib-course-meta-panel
     [course]="tree()!.course"
     (update)="onUpdateCourse($event)"
@@ -24,6 +36,7 @@
     (deleteLesson)="requestDeleteLesson($event)"
     (reorderLessons)="onReorderLessons($event)"
     (videoChanged)="refresh()"
+    (videoStateChanged)="onVideoStateChanged($event)"
   ></lib-module-tree>
 }
 

@@ -1,12 +1,13 @@
 <ul cdkDropList (cdkDropListDropped)="onDrop($event)" data-testid="lesson-list">
   @for (lesson of lessons(); track lesson.id) {
-    <li cdkDrag>
+    <li cdkDrag [attr.data-lesson-id]="lesson.id">
       <lib-lesson-item
         [lesson]="lesson"
         [courseId]="courseId()"
         (rename)="renameLesson.emit({ lessonId: lesson.id, title: $event })"
         (delete)="deleteLesson.emit(lesson.id)"
         (videoChanged)="videoChanged.emit()"
+        (videoStateChanged)="videoStateChanged.emit($event)"
       ></lib-lesson-item>
     </li>
   } @empty {
