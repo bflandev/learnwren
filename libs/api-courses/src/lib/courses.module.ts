@@ -21,7 +21,7 @@ import { VideoModule } from './video/video.module';
     CoursesRepository,
     CoursesExceptionFilter,
     CourseOwnerGuard,
-    PublishService,                    // NEW (slice D)
+    PublishService,
   ],
   exports: [CoursesRepository, CourseOwnerGuard],
 })

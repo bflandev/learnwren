@@ -27,8 +27,9 @@ function nowIso(): ISODateString {
 }
 
 function isVideoNotFound(e: unknown): boolean {
-  // Avoid a static import of VideoNotFoundException to keep the project graph
-  // unchanged. Match by error name (Nest exception classes set this).
+  // Detects a "video not found" error structurally (by name/message) so an
+  // orphan lesson.videoId — one pointing at a deleted Video — folds into a
+  // LESSON_HAS_NO_VIDEO reason instead of aborting eligibility computation.
   return e instanceof Error && (e.name === 'VideoNotFoundException' || /not found/i.test(e.message));
 }
 
@@ -120,7 +121,7 @@ export class PublishService {
   /**
    * Same shape as computeEligibility but threads `tx` through module + lesson
    * reads. Video reads remain non-transactional — see slice D design spec §5.4
-   * for the rationale (the runtime forwardRef seam can't carry a Firestore tx).
+   * for the rationale.
    */
   private async computeEligibilityInTxn(
     t: adminFirestore.Transaction,
