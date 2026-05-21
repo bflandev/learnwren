@@ -71,6 +71,10 @@ const controllers = [
     ManifestService,
     KeyService,
     EnrollmentOrOwnerGuard,
+    // Also registered as a provider (not only a controller) so the dev-only
+    // FakeTranscoderController can inject it and delegate to the real webhook
+    // handler. Nest does not expose controllers through the DI container.
+    TranscoderEventsController,
   ],
   exports: [VideoService],
 })
