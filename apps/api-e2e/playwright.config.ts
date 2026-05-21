@@ -33,6 +33,17 @@ export default defineConfig({
     reuseExistingServer: !process.env['CI'],
     cwd: workspaceRoot,
     timeout: 30000,
+    // The api reads its video config eagerly at boot. e2e runs the transcoder
+    // and playback storage in their fake (in-memory) modes, so these need no
+    // real GCP credentials or buckets — just non-empty values. Merged over
+    // process.env by Playwright.
+    env: {
+      LEARNWREN_VIDEO_SOURCE_BUCKET: 'learnwren-e2e-source',
+      LEARNWREN_VIDEO_OUTPUT_BUCKET: 'learnwren-e2e-output',
+      LEARNWREN_VIDEO_TRANSCODER: 'fake',
+      LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE: 'true',
+      LEARNWREN_EMAIL_TRANSPORT: 'console',
+    },
   },
   projects: [
     {

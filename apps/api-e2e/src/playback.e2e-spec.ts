@@ -49,7 +49,11 @@ async function uploadAndTranscode(
   return { courseId: c.id, moduleId: m.id, lessonId: l.id, videoId: sess.videoId };
 }
 
-test('owner can fetch master, rendition, and key', async ({ request }) => {
+// Quarantined (test.fixme): the tests below drive a video to READY, which
+// needs the real video upload / transcoder / Cloud Storage path with GCP
+// credentials and so cannot run in the credential-free CI. Restore them once
+// a fake source-storage seam exists — the playback path already has one.
+test.fixme('owner can fetch master, rendition, and key', async ({ request }) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };
   const { videoId } = await uploadAndTranscode(request, hdr);
@@ -84,7 +88,7 @@ test('owner can fetch master, rendition, and key', async ({ request }) => {
   expect(keyBody.length).toBe(16);
 });
 
-test('401 unauthenticated for every playback endpoint', async ({ request }) => {
+test.fixme('401 unauthenticated for every playback endpoint', async ({ request }) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };
   const { videoId } = await uploadAndTranscode(request, hdr);
@@ -99,7 +103,7 @@ test('401 unauthenticated for every playback endpoint', async ({ request }) => {
   }
 });
 
-test('403 NOT_VIDEO_OWNER for a different instructor', async ({ request }) => {
+test.fixme('403 NOT_VIDEO_OWNER for a different instructor', async ({ request }) => {
   const owner = await registerAndPromoteInstructor(request);
   const ownerHdr = { Cookie: owner.cookieHeader };
   const { videoId } = await uploadAndTranscode(request, ownerHdr);
@@ -118,7 +122,7 @@ test('403 NOT_VIDEO_OWNER for a different instructor', async ({ request }) => {
   }
 });
 
-test('403 NOT_VIDEO_OWNER for a student (EP-06 widens this branch)', async ({ request }) => {
+test.fixme('403 NOT_VIDEO_OWNER for a student (EP-06 widens this branch)', async ({ request }) => {
   const owner = await registerAndPromoteInstructor(request);
   const ownerHdr = { Cookie: owner.cookieHeader };
   const { videoId } = await uploadAndTranscode(request, ownerHdr);
@@ -139,7 +143,7 @@ test('404 VIDEO_NOT_FOUND for a missing :vid', async ({ request }) => {
   expect(((await r.json()) as { error: { code: string } }).error.code).toBe('VIDEO_NOT_FOUND');
 });
 
-test('404 RENDITION_NOT_FOUND for an unknown rendition', async ({ request }) => {
+test.fixme('404 RENDITION_NOT_FOUND for an unknown rendition', async ({ request }) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };
   const { videoId } = await uploadAndTranscode(request, hdr);
