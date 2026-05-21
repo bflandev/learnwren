@@ -1,13 +1,17 @@
 # Development
 
-This document captures the local development setup for Learn Wren. For product specifications, see `docs/epics/`. For design specs, see `docs/superpowers/specs/`. For secrets management, see `docs/secrets.md`.
+Local development reference for Learn Wren. For the feature set and the HTTP API
+surface, see [`../README.md`](../README.md) and [`USER_GUIDE.md`](./USER_GUIDE.md).
+For product specs see [`epics/`](./epics/), for design specs
+[`superpowers/specs/`](./superpowers/specs/), and for the secrets contract
+[`secrets.md`](./secrets.md).
 
 ## Prerequisites
 
-- Node.js 22 (LTS). Pinned in `.nvmrc`. Install via `nvm install 22 && nvm use 22` or Volta.
-- pnpm. Activated via Corepack: `corepack enable && corepack prepare pnpm@latest --activate`.
-- Java 21 (`openjdk@21`). Required by the Firebase Emulator Suite. On macOS: `brew install openjdk@21` and ensure it's on `PATH` (e.g., `export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"`).
-- 1Password CLI ≥ 2.x for secrets (`brew install --cask 1password-cli` on macOS, then `op signin`). See `docs/secrets.md`.
+- **Node.js 22** (LTS). Pinned in `.nvmrc`. Install via `nvm install 22 && nvm use 22` or Volta.
+- **pnpm.** Activated via Corepack: `corepack enable && corepack prepare pnpm@latest --activate`.
+- **Java 21.** Required by the Firebase Emulator Suite. macOS: `brew install --cask temurin` (ensure it is on `PATH`).
+- **1Password CLI ≥ 2.x** for secrets (`brew install --cask 1password-cli`, then `op signin`). See `secrets.md`.
 
 ## Install
 
@@ -15,24 +19,84 @@ This document captures the local development setup for Learn Wren. For product s
 pnpm install
 ```
 
+## Environment
+
+The NestJS api reads its **video configuration from environment variables at
+boot** — `nx serve api` / `pnpm start` exits immediately with
+`LEARNWREN_VIDEO_SOURCE_BUCKET env var is required` if they are absent. Supply
+them one of two ways before running the app:
+
+- **With 1Password access** — render `.env` from `.env.tpl`, then start normally
+  (Nx loads `.env` for `serve`/`test`):
+
+  ```bash
+  pnpm secrets:render
+  pnpm start
+  ```
+
+  Or inject without writing a file: `pnpm secrets:run -- pnpm start`.
+
+- **Credential-free emulator dev** — the transcoder and playback storage have
+  in-memory fakes, so no GCP project or buckets are needed. Put the non-secret
+  fake-mode values in `.env`:
+
+  ```bash
+  LEARNWREN_VIDEO_SOURCE_BUCKET=learnwren-dev-source
+  LEARNWREN_VIDEO_OUTPUT_BUCKET=learnwren-dev-output
+  LEARNWREN_VIDEO_TRANSCODER=fake
+  LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true
+  LEARNWREN_EMAIL_TRANSPORT=console
+  ```
+
+`.env` is gitignored. `LEARNWREN_VIDEO_TRANSCODER=fake` and
+`LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true` are rejected when `NODE_ENV=production`.
+
+## Run (emulator mode)
+
+Boot the Firebase Emulator Suite in one terminal:
+
+```bash
+pnpm emulators
+```
+
+Run both apps in another — Angular on `:4200`, NestJS on `:3333`:
+
+```bash
+pnpm start
+```
+
+Both apps target the reserved `demo-learnwren` project against the local
+emulators — no real Firebase credentials are needed. Verify the wiring:
+
+```bash
+curl http://localhost:3333/api/health
+curl http://localhost:3333/api/firestore-smoke
+```
+
+The Emulator UI is at `http://127.0.0.1:4000` — inspect Firestore data, manage
+Auth users, and browse Storage buckets while the apps run.
+
 ## Scripts
 
-All scripts run from the repo root.
+All scripts run from the repo root and delegate to Nx.
 
 | Command | Description |
 | :--- | :--- |
-| `pnpm start` | Run `web` (port 4200) and `api` (port 3333) in parallel. |
-| `pnpm start:web` | Run only the Angular SPA. |
-| `pnpm start:api` | Run only the NestJS API. |
+| `pnpm start` | Serve `web` (4200) and `api` (3333) in parallel. |
+| `pnpm start:web` / `pnpm start:api` | Serve a single app. |
 | `pnpm emulators` | Start the Firebase Emulator Suite (Auth, Firestore, Storage, UI). |
 | `pnpm build` | Build all buildable projects to `dist/`. |
 | `pnpm test` | Run all unit tests (Vitest). |
-| `pnpm lint` | Run ESLint across all projects. |
-| `pnpm e2e` | Run all Playwright E2E suites. |
-| `pnpm typecheck` | Run `tsc --noEmit` for all projects. |
-| `pnpm affected` | Run lint + test + build + typecheck only for projects affected by the current branch's changes. |
+| `pnpm lint` / `pnpm typecheck` | Lint / type-check all projects. |
+| `pnpm e2e` | Run the Playwright suites (`web-e2e`, then `api-e2e`). |
+| `pnpm affected` | Lint + test + build + typecheck for projects affected by the branch. |
+| `pnpm crap` / `pnpm mutate` | Regenerate the CRAP-score and mutation reports (see `docs/quality/`). |
+| `pnpm tools:promote-to-instructor <email>` | Promote a verified user to the `INSTRUCTOR` role. |
 | `pnpm secrets:render` | Render `.env` from `.env.tpl` via 1Password (`op inject`). |
-| `pnpm secrets:run` | Run a command with secrets injected in-memory (`op run`). |
+| `pnpm secrets:run -- <cmd>` | Run `<cmd>` with secrets injected in-memory (`op run`). |
+
+To target a single project, invoke Nx directly — e.g. `pnpm nx test api-auth`,
+`pnpm nx build api`, `pnpm nx lint shared-data-models`.
 
 ## Ports
 
@@ -45,141 +109,101 @@ All scripts run from the repo root.
 | Firebase Storage emulator | 9199 |
 | Firebase Emulator UI | 4000 |
 
-## Emulators
+## Running the e2e suites
 
-Run `pnpm emulators` in one terminal and `pnpm start` in another. Both apps connect to the emulators on boot under the reserved `demo-learnwren` project ID — no real Firebase credentials are needed for local development.
+`api-e2e` is a Playwright suite that runs against the Firebase emulators.
+Playwright starts the api itself — its `webServer` config in
+`apps/api-e2e/playwright.config.ts` supplies the fake-mode video env — so you
+only need the emulators running:
 
-The Emulator UI dashboard is at `http://127.0.0.1:4000`. Use it to inspect Firestore data, manage Auth users, and browse Storage buckets while the apps are running.
+```bash
+# emulators in one terminal:
+pnpm emulators
+# then, in another:
+pnpm nx e2e api-e2e
 
-By default, both apps point at the emulators. To target the real Firebase project instead, see **Real-project mode** below.
+# or one-shot (boots the emulators, runs the suite, tears them down):
+pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e api-e2e'
+```
+
+15 video upload/playback/publish tests are marked `test.fixme`: they exercise
+the real Cloud Storage upload / `ffprobe` path, which needs GCP credentials.
+The remaining 64 run credential-free. CI runs this suite on every push and PR
+(`.github/workflows/ci.yml`, the `e2e` job — which uses the one-shot form above).
 
 ## Real-project mode
 
-`apps/web` and `apps/api` read `LEARNWREN_FIREBASE_TARGET` at startup. When the variable is unset, empty, or any value other than `production`, the apps target the local emulators (the default — no real credentials required). Setting `LEARNWREN_FIREBASE_TARGET=production` switches both apps to the real Firebase project.
+`apps/web` and `apps/api` read `LEARNWREN_FIREBASE_TARGET` at startup. When the
+variable is unset, empty, or anything other than `production`, the apps target
+the local emulators (the default). Setting `LEARNWREN_FIREBASE_TARGET=production`
+switches both apps to the real Firebase project.
 
 ### Prerequisites (one-time)
 
-Before the real-project mode works at all, the following must be true in the Firebase console for the project named in `.firebaserc`'s `production` alias:
+For the project named in `.firebaserc`'s `production` alias:
 
 - The project is on the **Blaze** plan.
 - **Authentication** has Email/Password enabled.
 - **Firestore** is created in **Native mode**.
 - **Cloud Storage** has a default bucket.
-- A **Web app** is registered via `firebase --project <id> apps:create WEB "Learn Wren Web"`; the SDK config is captured via `firebase --project <id> apps:sdkconfig WEB <appId>`.
-- A **service account JSON** is downloaded from the Firebase console (Project Settings → Service accounts → Generate new private key) and saved to a path outside the repo. See `docs/secrets.md` § Service-account JSON for local-against-prod runs.
-- The **`learnwren` 1Password vault** has `Web SDK Config` and `Admin SDK Config` items populated. See `docs/secrets.md` for the field list.
+- A **Web app** is registered (`firebase --project <id> apps:create WEB "Learn Wren Web"`); the SDK config is captured via `firebase --project <id> apps:sdkconfig WEB <appId>`.
+- A **service-account JSON** is downloaded and saved outside the repo (see `secrets.md` § Service-account JSON).
+- The **`learnwren` 1Password vault** has `Web SDK Config` and `Admin SDK Config` populated, plus the `dev` items the video config references.
 
 ### Run
 
-Run the api against the real project:
-
 ```bash
-LEARNWREN_FIREBASE_TARGET=production \
-  pnpm secrets:run -- pnpm start:api
+LEARNWREN_FIREBASE_TARGET=production pnpm secrets:run -- pnpm start
 ```
 
-Run the web app against the real project:
-
-```bash
-LEARNWREN_FIREBASE_TARGET=production \
-  pnpm secrets:run -- pnpm start:web
-```
-
-Run both:
-
-```bash
-LEARNWREN_FIREBASE_TARGET=production \
-  pnpm secrets:run -- pnpm start
-```
-
-A single `[learnwren] Firebase target = production` warning logs at boot in each app. Hot-reloading the env var is not supported — restart the process.
-
-### Verify
-
-- `apps/api`: hit `GET http://localhost:3333/api/firestore-smoke`. The handler writes a doc to the real Firestore `_smoke` collection. After verification, **delete the resulting document from the Firebase console** so the live project doesn't accumulate smoke garbage.
-- `apps/web`: open `http://localhost:4200`, expand **Dev tools**, click **Run Firestore smoke**. Browser DevTools → Network shows traffic to `firestore.googleapis.com` (not `127.0.0.1:8080`).
+A single `[learnwren] Firebase target = production` warning logs at boot in each
+app. Hot-reloading the variable is not supported — restart the process.
 
 ### Switching back
 
-Open a fresh terminal (or `unset LEARNWREN_FIREBASE_TARGET`) and restart the apps. They return to emulator mode.
+Open a fresh terminal (or `unset LEARNWREN_FIREBASE_TARGET`) and restart the apps.
 
 ## Secrets
 
-Secrets live in the 1Password vault `learnwren`. The committed `.env.tpl` references `op://...` paths; `.env` is gitignored and rendered locally via `pnpm secrets:render`. See `docs/secrets.md` for the vault contract and how to add new secrets.
+Secrets live in the 1Password vault `learnwren`. The committed `.env.tpl`
+references `op://...` paths; `.env` is gitignored and rendered locally via
+`pnpm secrets:render`. See `secrets.md` for the vault contract and how to add
+new secrets.
 
 ## Known constraints
 
-- `@angular/fire` is currently pinned at `21.0.0-rc.0` because no stable Angular 21–compatible release exists yet. Bump to `@angular/fire@^21.x` (with a non-RC version) when GA ships.
+- `@angular/fire` is pinned at `21.0.0-rc.0` because no stable Angular 21–compatible release exists yet. Bump to a non-RC `@angular/fire@^21.x` when GA ships.
 
 ## Auth dev workflow
 
-The auth slice (UC-01-01 register + UC-01-02 login) is wired end to end. The plumbing lives in `libs/api-auth` (NestJS) and `libs/web-auth` (Angular) per `docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`.
+The auth surface lives in `libs/api-auth` (NestJS) and `libs/web-auth` (Angular).
+For the full endpoint and route list see [`USER_GUIDE.md`](./USER_GUIDE.md); the
+dev-specific notes:
 
-### API endpoints
+### Session cookie
 
-All under prefix `/api/auth`:
-
-| Method | Path | Purpose |
-| :--- | :--- | :--- |
-| `POST` | `/auth/register` | `{email, password, displayName}` → `201 {uid, email, emailVerificationSent}`. Validates policy server-side, creates Auth user + Firestore `users/{uid}` doc + `role: 'STUDENT'` claim, sends verification email. |
-| `POST` | `/auth/session` | `{idToken}` → `200 {uid, role}` plus `Set-Cookie: __session=...`. Verifies the ID token then mints a 5-day session cookie. |
-| `POST` | `/auth/logout` | Clears `__session` and revokes refresh tokens. Always `204`. Idempotent. |
-| `GET` | `/auth/me` | Reads the cookie, looks up `users/{uid}`, returns the merged shape `{uid, email, displayName, role, emailVerified}`. Guarded by `FirebaseSessionGuard`. |
-
-Errors are wrapped in `{ error: { code, message, details? } }`. Codes: `INVALID_EMAIL`, `WEAK_PASSWORD`, `INVALID_DISPLAY_NAME`, `EMAIL_ALREADY_EXISTS`, `INVALID_ID_TOKEN`, `RECENT_SIGN_IN_REQUIRED`, `UNAUTHENTICATED`, `INTERNAL`.
-
-### Web routes
-
-| Path | Component | Notes |
-| :--- | :--- | :--- |
-| `/login` | `LoginPageComponent` | Lazy-loaded from `@learnwren/web-auth`. |
-| `/register` | `RegisterPageComponent` | Lazy-loaded; client-side `passwordPolicyValidator` mirrors the server rules. |
-| `/dashboard` | `DashboardComponent` | Protected by `authGuard`. Stub greeting + sign-out button. |
-
-### Cookie
-
-The session cookie is named `__session` (HttpOnly, Secure, SameSite=Strict, Path=/, Max-Age=432000). The name is fixed because Firebase Hosting only forwards the `__session` cookie to a Cloud Function — choosing it now means the future Hosting-rewrite spec doesn't have to rename anything.
+The session cookie is named `__session` (HttpOnly, Secure, SameSite=Strict,
+Path=/, Max-Age 5 days). The name is fixed because Firebase Hosting only forwards
+the `__session` cookie to a Cloud Function — choosing it now means a future
+Hosting-rewrite spec needs no rename.
 
 ### Local proxy
 
-The Angular dev server proxies `/api/**` to `http://127.0.0.1:3333` (the local NestJS server) via `apps/web/proxy.conf.json`. This keeps cookies first-party in dev and removes any need for CORS middleware.
+The Angular dev server proxies `/api/**` to `http://127.0.0.1:3333`
+(`apps/web/proxy.conf.json`). This keeps cookies first-party in dev and removes
+any need for CORS middleware.
 
-### Manual smoke
+### Exercising the lockout flow
 
-With `pnpm emulators` and `pnpm start` running:
+With the emulators and both apps running:
 
-1. Visit `http://localhost:4200/register`.
-2. Fill in display name, email, and password (e.g. `Aa1!aaaaaaaa`). Submit.
-3. Expect redirect to `/dashboard` with the welcome message.
-4. Auth emulator UI (`http://localhost:4000/auth`) shows the new user.
-5. Firestore emulator UI shows the `users/{uid}` document with `role: 'STUDENT'`.
-6. Click "Sign out" → redirect to `/login`. Sign in again with the same credentials → back to `/dashboard`.
+1. Register a user at `http://localhost:4200/register`, then verify the email by
+   clicking the link in the Auth emulator UI (`http://127.0.0.1:4000/auth`).
+2. On `/login`, enter the right email with a wrong password three times — the
+   third attempt returns `423`.
+3. `ConsoleEmailTransport` prints the unlock URL to the api server logs; open it
+   to land on `/auth/unlock`.
 
-### What's deferred
-
-Profile editing, instructor-role request, admin promotion, account deletion, social auth, App Check, and public-profile reads are out of scope for the auth slice. See the spec's "Non-Goals" and "Follow-ups Explicitly Not in Scope" sections.
-
-## Auth hardening — local development
-
-To exercise the lockout flow against the local emulator suite:
-
-1. Start the emulators: `pnpm emulators`
-2. In another terminal: `pnpm secrets:render && pnpm start`
-3. Register a user via the UI at `http://localhost:4200/register`. Verify the user's email by clicking the link in the Auth emulator UI (`http://127.0.0.1:4000/auth`).
-4. Trigger a lockout: enter the right email + wrong password three times on `/login`. The third attempt returns 423.
-5. Check the API server logs for the unlock URL printed by `ConsoleEmailTransport`. Open it in a browser to land on `/auth/unlock?token=...`.
-
-To switch to SMTP email transport, set `LEARNWREN_EMAIL_TRANSPORT=smtp` and configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` in `.env`.
-
-## What is and is not wired up
-
-Current state: the monorepo exists, both apps run, Firebase emulators are wired in, and the auth slice (register + login + session cookie + protected route) is functional.
-
-- The Angular app renders a placeholder hero at `/` plus a dev-only "Dev tools" disclosure with a Firestore smoke widget.
-- The NestJS app exposes `GET /api/health`, `GET /api/firestore-smoke`, and the four `/api/auth/**` endpoints.
-- Both apps import types from `@learnwren/shared-data-models`.
-- `apps/api` consumes `@learnwren/api-firebase` and `@learnwren/api-auth`.
-- `apps/web` consumes `@learnwren/web-auth` for the auth service, guard, interceptor, and pages.
-- Firestore rules carry the four helpers (`isAuthenticated`, `isOwner`, `hasRole`, `isAdmin`) and the `/users/{userId}` rule.
-
-**Profile editing, instructor-role requests, and admin tooling are not yet wired.** Those are the subjects of follow-up specs.
+To send the unlock email over SMTP instead of the console, set
+`LEARNWREN_EMAIL_TRANSPORT=smtp` and the `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER`
+/ `SMTP_PASS` variables.
