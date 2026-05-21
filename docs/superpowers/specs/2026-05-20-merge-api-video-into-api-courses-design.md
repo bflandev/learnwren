@@ -1,9 +1,10 @@
 # Merge `api-video` into `api-courses` — Circular-Dependency Refactor
 
 > [!NOTE]
-> **DOCUMENT STATUS: DRAFT**
+> **DOCUMENT STATUS: APPROVED**
+> Approved 2026-05-20, before implementation.
 
-**Status:** Draft (2026-05-20)
+**Status:** Approved (2026-05-20)
 **Scope:** Eliminate the `libs/api-courses ↔ libs/api-video` circular dependency by merging `api-video` into `api-courses` as a single Nx library. This removes the `forwardRef(() => require(['@learnwren','api-video'].join('/')))` string-fragment seam that hides the cycle from webpack and the Nx graph parser, which currently prevents the bundled `api` server from booting and so blocks the `api-e2e` and `web-e2e` suites. Pure structural refactor — no feature behaviour changes.
 
 This spec sits on top of:
