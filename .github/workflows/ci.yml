@@ -6,6 +6,13 @@ on:
   push:
     branches: [main]
 
+# nrwl/nx-set-shas reads past workflow runs to derive the affected base, which
+# needs actions:read. Declared explicitly (least privilege) — both jobs are
+# read-only.
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   affected:
     name: Lint, test, build, typecheck (affected)
