@@ -30,4 +30,9 @@
       (uploaded)="onVideoUploaded()"
     />
   }
+  <lib-materials-list
+    [courseId]="courseId()"
+    [moduleId]="lesson().moduleId"
+    [lessonId]="lesson().id"
+  />
 </div>

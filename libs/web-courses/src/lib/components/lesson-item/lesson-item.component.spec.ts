@@ -13,6 +13,7 @@ import {
   VideoStateBadgeComponent,
 } from '@learnwren/web-video';
 
+import { MaterialsService } from '../../materials/materials.service';
 import { LessonItemComponent } from './lesson-item.component';
 
 const LESSON: Lesson = {
@@ -26,12 +27,14 @@ const LESSON: Lesson = {
 
 describe('LessonItemComponent', () => {
   function build(): ReturnType<typeof TestBed.createComponent<LessonItemComponent>> {
+    const materialsStub = { listMaterials: vi.fn().mockReturnValue(of([])) };
     TestBed.configureTestingModule({
       imports: [LessonItemComponent],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
         VideoService,
+        { provide: MaterialsService, useValue: materialsStub },
       ],
     });
     const fixture = TestBed.createComponent(LessonItemComponent);
@@ -78,6 +81,11 @@ describe('LessonItemComponent', () => {
     expect(spy).toHaveBeenCalled();
   });
 
+  it('renders the materials list below the lesson', () => {
+    const fixture = build();
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="materials-list"]')).not.toBeNull();
+  });
+
   it('renders VideoStateBadgeComponent when lesson.videoId is set', () => {
     const mockVideo: Video = {
       id: 'v1' as VideoId,
@@ -96,6 +104,7 @@ describe('LessonItemComponent', () => {
     };
 
     const mockApi = { getVideo: vi.fn().mockReturnValue(of(mockVideo)) };
+    const materialsStub = { listMaterials: vi.fn().mockReturnValue(of([])) };
 
     TestBed.configureTestingModule({
       imports: [LessonItemComponent],
@@ -103,6 +112,7 @@ describe('LessonItemComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: VideoService, useValue: mockApi },
+        { provide: MaterialsService, useValue: materialsStub },
       ],
     });
 
@@ -146,6 +156,7 @@ describe('LessonItemComponent video render switch', () => {
     const playerStub = {
       attach: vi.fn().mockReturnValue({ dispose: () => undefined }),
     };
+    const materialsStub = { listMaterials: vi.fn().mockReturnValue(of([])) };
     TestBed.configureTestingModule({
       imports: [LessonItemComponent],
       providers: [
@@ -153,6 +164,7 @@ describe('LessonItemComponent video render switch', () => {
         provideHttpClientTesting(),
         { provide: VideoService, useValue: apiStub },
         { provide: VideoPlayerService, useValue: playerStub },
+        { provide: MaterialsService, useValue: materialsStub },
       ],
     });
     const fixture = TestBed.createComponent(LessonItemComponent);

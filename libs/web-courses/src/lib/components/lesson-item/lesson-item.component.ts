@@ -20,10 +20,12 @@ import {
   VideoUploadComponent,
 } from '@learnwren/web-video';
 
+import { MaterialsListComponent } from '../../materials/materials-list.component';
+
 @Component({
   selector: 'lib-lesson-item',
   standalone: true,
-  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent],
+  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent],
   templateUrl: './lesson-item.component.html',
 })
 export class LessonItemComponent {
