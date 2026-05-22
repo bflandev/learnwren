@@ -89,13 +89,15 @@ One field is added:
 ```ts
 export interface Course {
   // ... existing fields ...
-  enrollmentCount: number; // NEW — count of ACTIVE enrolments; maintained transactionally
+  enrollmentCount?: number; // NEW — count of ACTIVE enrolments; absent on pre-Slice-B docs
 }
 ```
 
-The counter is maintained by a **read-modify-write of the `Course` document inside the same Firestore transaction** as the enrolment write — both the enrol and unenrol transactions already read the course document, so the counter update is atomic and conflict-safe without `FieldValue.increment` (which the `fake-firestore` test double does not model). All reads treat a missing value as `0` (`course.enrollmentCount ?? 0`); the decrement floors at `0` (`Math.max(0, n - 1)`).
+The field is **optional**: courses created before this slice do not carry it, and the type reflects that honestly rather than forcing a data migration. Every read treats a missing value as `0` (`course.enrollmentCount ?? 0`). Making it optional also means no existing `Course` construction site (production or test) needs to change.
 
-**No data migration.** `Course` documents created before this slice will not carry `enrollmentCount`. The first enrol against such a course reads it as `0` and writes `1`. New courses created after this slice are seeded with `enrollmentCount: 0` by `CoursesService.createCourse` so the field is present from birth.
+The counter is maintained by a **read-modify-write of the `Course` document inside the same Firestore transaction** as the enrolment write — both the enrol and unenrol transactions already read the course document, so the counter update is atomic and conflict-safe without `FieldValue.increment` (which the `fake-firestore` test double does not model). The decrement floors at `0` (`Math.max(0, n - 1)`).
+
+**No data migration.** The first enrol against a pre-Slice-B course reads its count as `0` and writes `1`. New courses created after this slice are seeded with `enrollmentCount: 0` by `CoursesService.createCourse` so the field is present from birth.
 
 ### Storage — the `enrollments` collection
 
@@ -250,7 +252,7 @@ The Enrol and Leave controls are disabled while their request is in flight, prev
 ### Guest auto-enrol after login (UC-05-04 ext 1a)
 
 1. A logged-out visitor clicks **Enrol**. The panel navigates to `/login` with `redirect` set to `/catalog/:id?enroll=1`.
-2. The existing login page already honours `redirect` and routes there verbatim after a successful login — **no login-page change is needed**.
+2. **The login page is updated to honour the `redirect` query param.** It currently ignores it and always navigates to `/dashboard` after login — even though `authGuard` already appends `redirect` to the login URL for protected routes. This slice fixes that pre-existing gap: after a successful login the page navigates to the `redirect` value when present (and only when it is a same-origin path beginning with `/`, otherwise `/dashboard`). This both enables the auto-enrol return trip and makes `authGuard`'s existing `redirect` param work as intended.
 3. Back on `/catalog/:id?enroll=1`, the panel — on init, seeing `enroll=1` in the query params **and** an authenticated user — fires `enroll(courseId)` automatically, then removes the `enroll` param from the URL (a `router.navigate` with `queryParams: { enroll: null }`, `replaceUrl: true`) so a refresh does not re-trigger it.
 4. If that auto-enrol fails with `COURSE_NOT_AVAILABLE`, the not-available handling below applies.
 
@@ -293,6 +295,7 @@ Following the established slice posture — a `.spec.ts` beside every new source
 - **Updated `material-access.guard.spec.ts`** — the analogous enrolled-student-allowed / non-enrolled-denied cases.
 - **Updated `catalog.service.spec.ts`** — `POPULAR` orders by `enrollmentCount` descending; ties break by newest; a course with no `enrollmentCount` field sorts as `0`.
 - **`web-enrollment` component/service specs** — `EnrollmentService` HTTP calls; `CourseEnrollmentPanelComponent` renders each state, fires enrol/unenrol, runs the guest-redirect and `enroll=1` auto-enrol paths, and shows the `COURSE_NOT_AVAILABLE` redirect.
+- **Updated `login-page.component.spec.ts`** — a successful login with a `redirect=/path` query param navigates to that path; with no `redirect`, to `/dashboard`; a `redirect` value not starting with `/` is ignored in favour of `/dashboard`.
 
 ### `api-e2e` (Playwright)
 
@@ -319,7 +322,8 @@ A suggested order; the implementation plan will refine it:
 3. **`enrollment/` submodule** — `EnrollmentRepository` → `EnrollmentService` → `EnrollmentController` + DTO; new error codes/exceptions; register in `CoursesModule` and export `EnrollmentRepository`.
 4. **`POPULAR` sort** — `catalog.service.ts` `sortCourses` branch; seed `enrollmentCount: 0` in `CoursesService.createCourse`.
 5. **Guard wiring** — `EnrollmentOrOwnerGuard` and `MaterialAccessGuard` inject `EnrollmentRepository`; remove the `TODO(EP-06)` markers.
-6. **`web-enrollment` library** — `EnrollmentService`, then `CourseEnrollmentPanelComponent` (state machine, dialog, guest/auto-enrol).
-7. **`web-catalog` integration** — render the panel on `CourseDetailPageComponent`; add the "Most Popular" option to `catalog-filter-bar`.
-8. **E2E** — `api-e2e` enrolment spec; `web-e2e` enrol journeys.
-9. **Documentation** — README, USER_GUIDE, use-case drift banner.
+6. **Login page** — make `LoginPageComponent` honour the `redirect` query param.
+7. **`web-enrollment` library** — `EnrollmentService`, then `CourseEnrollmentPanelComponent` (state machine, dialog, guest/auto-enrol).
+8. **`web-catalog` integration** — render the panel on `CourseDetailPageComponent`. The `catalog-filter-bar` sort `<select>` is already `@for`-driven from `CATALOG_SORT_OPTIONS`, so `POPULAR` appears automatically once step 1 lands — no component change.
+9. **E2E** — `api-e2e` enrolment spec; `web-e2e` enrol journeys.
+10. **Documentation** — README, USER_GUIDE, use-case drift banner.
