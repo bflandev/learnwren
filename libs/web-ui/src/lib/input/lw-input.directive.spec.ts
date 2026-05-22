@@ -18,6 +18,20 @@ class HostComponent {}
 })
 class WithClassHost {}
 
+@Component({
+  standalone: true,
+  imports: [LwInputDirective],
+  template: `<textarea lwInput></textarea>`,
+})
+class TextareaHost {}
+
+@Component({
+  standalone: true,
+  imports: [LwInputDirective],
+  template: `<select lwInput></select>`,
+})
+class SelectHost {}
+
 describe('LwInputDirective', () => {
   it('applies the design-system input classes to the host input', () => {
     const fixture = TestBed.createComponent(HostComponent);
@@ -38,5 +52,21 @@ describe('LwInputDirective', () => {
     const input: HTMLInputElement = fixture.nativeElement.querySelector('input');
     expect(input.classList.contains('mt-1')).toBe(true);
     expect(input.classList.contains('bg-bg')).toBe(true);
+  });
+
+  it('styles a textarea with lwInput', () => {
+    const fixture = TestBed.createComponent(TextareaHost);
+    fixture.detectChanges();
+    const el: HTMLTextAreaElement = fixture.nativeElement.querySelector('textarea');
+    expect(el.classList.contains('bg-bg')).toBe(true);
+    expect(el.classList.contains('border-line')).toBe(true);
+  });
+
+  it('styles a select with lwInput', () => {
+    const fixture = TestBed.createComponent(SelectHost);
+    fixture.detectChanges();
+    const el: HTMLSelectElement = fixture.nativeElement.querySelector('select');
+    expect(el.classList.contains('bg-bg')).toBe(true);
+    expect(el.classList.contains('border-line')).toBe(true);
   });
 });

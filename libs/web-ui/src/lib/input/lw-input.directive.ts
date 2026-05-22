@@ -1,7 +1,7 @@
 import { Directive } from '@angular/core';
 
 @Directive({
-  selector: 'input[lwInput]',
+  selector: 'input[lwInput], textarea[lwInput], select[lwInput]',
   standalone: true,
   host: {
     class:
