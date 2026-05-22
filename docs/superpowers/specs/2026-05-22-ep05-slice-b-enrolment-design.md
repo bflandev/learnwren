@@ -93,7 +93,9 @@ export interface Course {
 }
 ```
 
-**No data migration.** `Course` documents created before this slice will not carry `enrollmentCount`. All reads treat a missing value as `0` (`course.enrollmentCount ?? 0`). The first enrol against such a course uses Firestore's `FieldValue.increment(1)`, which creates the field at `1`. New courses created after this slice should be seeded with `enrollmentCount: 0` by `CoursesService.createCourse` so the field is present from birth.
+The counter is maintained by a **read-modify-write of the `Course` document inside the same Firestore transaction** as the enrolment write — both the enrol and unenrol transactions already read the course document, so the counter update is atomic and conflict-safe without `FieldValue.increment` (which the `fake-firestore` test double does not model). All reads treat a missing value as `0` (`course.enrollmentCount ?? 0`); the decrement floors at `0` (`Math.max(0, n - 1)`).
+
+**No data migration.** `Course` documents created before this slice will not carry `enrollmentCount`. The first enrol against such a course reads it as `0` and writes `1`. New courses created after this slice are seeded with `enrollmentCount: 0` by `CoursesService.createCourse` so the field is present from birth.
 
 ### Storage — the `enrollments` collection
 
@@ -167,8 +169,8 @@ Both mutations run inside a single `firestore.runTransaction` so the enrolment d
 1. Read the `Course` document.
    - Missing, or `status !== 'PUBLISHED'` → throw `CourseNotAvailableException` (UC-05-04 ext 4a — the course was unpublished between page load and the click).
 2. Read the enrolment document by composite ID.
-   - **Absent** → create it: `status: 'ACTIVE'`, `progress: []`, `withdrawnAt: null`, `createdAt`/`updatedAt` = now. Increment `Course.enrollmentCount` via `FieldValue.increment(1)`.
-   - **Exists, `WITHDRAWN`** → update: `status: 'ACTIVE'`, `withdrawnAt: null`, `updatedAt` = now; **`progress` is left untouched**. Increment `enrollmentCount`.
+   - **Absent** → create it: `status: 'ACTIVE'`, `progress: []`, `withdrawnAt: null`, `createdAt`/`updatedAt` = now. Write `Course.enrollmentCount = (course.enrollmentCount ?? 0) + 1`.
+   - **Exists, `WITHDRAWN`** → update: `status: 'ACTIVE'`, `withdrawnAt: null`, `updatedAt` = now; **`progress` is left untouched**. Write `Course.enrollmentCount = (course.enrollmentCount ?? 0) + 1`.
    - **Exists, `ACTIVE`** → idempotent no-op: return the document unchanged, **no counter change**.
 3. Return the resulting `Enrollment`.
 
@@ -178,7 +180,7 @@ The owner check (a course owner may not enrol in their own course) is enforced i
 
 1. Read the enrolment document by composite ID.
    - Absent, or `status === 'WITHDRAWN'` → throw `NotEnrolledException`.
-   - **Exists, `ACTIVE`** → update: `status: 'WITHDRAWN'`, `withdrawnAt` = now, `updatedAt` = now; **`progress` is left untouched**. Decrement `Course.enrollmentCount` via `FieldValue.increment(-1)`.
+   - **Exists, `ACTIVE`** → update: `status: 'WITHDRAWN'`, `withdrawnAt` = now, `updatedAt` = now; **`progress` is left untouched**. Read the `Course` document in the same transaction; if it exists, write `Course.enrollmentCount = Math.max(0, (course.enrollmentCount ?? 0) - 1)`. If the course document is gone, skip the counter write.
 
 ### `EnrollmentService`
 
