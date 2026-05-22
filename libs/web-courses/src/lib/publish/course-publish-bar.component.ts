@@ -3,6 +3,8 @@ import { Component, computed, EventEmitter, Input, Output, inject, signal } from
 
 import type { Course, CourseStatus } from '@learnwren/shared-data-models';
 
+import { LwButtonDirective, LwPillComponent } from '@learnwren/web-ui';
+
 import { CoursesService } from '../courses.service';
 import { PublishEligibilityService } from './publish-eligibility.service';
 
@@ -11,7 +13,7 @@ type PrimaryActionKind = 'publish' | 'unpublish' | 'restore' | null;
 @Component({
   selector: 'lib-course-publish-bar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LwButtonDirective, LwPillComponent],
   templateUrl: './course-publish-bar.component.html',
 })
 export class CoursePublishBarComponent {

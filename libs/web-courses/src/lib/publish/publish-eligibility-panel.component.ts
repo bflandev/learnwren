@@ -3,12 +3,14 @@ import { Component, EventEmitter, Output, computed, inject } from '@angular/core
 
 import type { LessonId, ModuleId, PublishBlockReason } from '@learnwren/shared-data-models';
 
+import { LwButtonDirective } from '@learnwren/web-ui';
+
 import { PublishEligibilityService } from './publish-eligibility.service';
 
 @Component({
   selector: 'lib-publish-eligibility-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LwButtonDirective],
   templateUrl: './publish-eligibility-panel.component.html',
 })
 export class PublishEligibilityPanelComponent {
