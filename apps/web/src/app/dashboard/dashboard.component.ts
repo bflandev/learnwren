@@ -18,10 +18,13 @@ export class DashboardComponent {
 
   protected readonly displayName = () => this.auth.currentUser()?.displayName ?? '';
   protected readonly role = () => this.auth.currentUser()?.role ?? '';
+  protected readonly isInstructor = () => this.auth.currentUser()?.role === 'INSTRUCTOR';
   readonly courses = signal<Course[] | null>(null);
 
   constructor() {
-    void this.loadCourses();
+    if (this.isInstructor()) {
+      void this.loadCourses();
+    }
   }
 
   private async loadCourses(): Promise<void> {

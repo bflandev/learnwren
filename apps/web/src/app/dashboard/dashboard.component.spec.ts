@@ -2,35 +2,34 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { AuthService } from '@learnwren/web-auth';
 
 import { DashboardComponent } from './dashboard.component';
 
-describe('DashboardComponent', () => {
-  let http: HttpTestingController;
-
-  beforeEach(() => {
-    TestBed.configureTestingModule({
-      imports: [DashboardComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideRouter([]),
-        {
-          provide: AuthService,
-          useValue: {
-            currentUser: () => ({ displayName: 'Ada', role: 'INSTRUCTOR' }),
-            logout: async () => undefined,
-          },
+function configure(role: 'INSTRUCTOR' | 'STUDENT'): HttpTestingController {
+  TestBed.configureTestingModule({
+    imports: [DashboardComponent],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideRouter([]),
+      {
+        provide: AuthService,
+        useValue: {
+          currentUser: () => ({ displayName: 'Ada', role }),
+          logout: async () => undefined,
         },
-      ],
-    });
-    http = TestBed.inject(HttpTestingController);
+      },
+    ],
   });
+  return TestBed.inject(HttpTestingController);
+}
 
+describe('DashboardComponent', () => {
   it('greets the signed-in user', () => {
+    const http = configure('INSTRUCTOR');
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
     http.expectOne('/api/courses').flush([]);
@@ -38,7 +37,8 @@ describe('DashboardComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Welcome back, Ada');
   });
 
-  it('renders a Create a course link to /courses/new', () => {
+  it('renders a Create a course link to /courses/new for an instructor', () => {
+    const http = configure('INSTRUCTOR');
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
     http.expectOne('/api/courses').flush([]);
@@ -51,6 +51,7 @@ describe('DashboardComponent', () => {
   });
 
   it('loads and renders the instructor course titles', async () => {
+    const http = configure('INSTRUCTOR');
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
     http.expectOne('/api/courses').flush([
@@ -64,12 +65,24 @@ describe('DashboardComponent', () => {
     expect(text).toContain('Course Two');
   });
 
-  it('shows the empty state when there are no courses', async () => {
+  it('shows the empty state when an instructor has no courses', async () => {
+    const http = configure('INSTRUCTOR');
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
     http.expectOne('/api/courses').flush([]);
     await fixture.whenStable();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('No courses yet');
+  });
+
+  it('shows a student only the welcome hero, with no instructor section or course request', () => {
+    const http = configure('STUDENT');
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Welcome back, Ada');
+    expect(el.querySelector('[data-testid="create-course"]')).toBeNull();
+    expect(el.textContent).not.toContain('My courses');
+    http.verify();
   });
 });
