@@ -30,4 +30,13 @@ describe('ThemeService', () => {
     expect(document.documentElement.classList.contains('lw-theme-light')).toBe(true);
     expect(document.documentElement.classList.contains('lw-theme-dark')).toBe(false);
   });
+
+  it('set() applies an explicit theme, persists it, and updates the document class', () => {
+    const service = TestBed.inject(ThemeService);
+    service.set('light');
+    expect(service.theme()).toBe('light');
+    expect(localStorage.getItem('lw-theme')).toBe('light');
+    expect(document.documentElement.classList.contains('lw-theme-light')).toBe(true);
+    expect(document.documentElement.classList.contains('lw-theme-dark')).toBe(false);
+  });
 });
