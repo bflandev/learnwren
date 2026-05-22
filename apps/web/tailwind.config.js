@@ -31,9 +31,9 @@ module.exports = {
         bad: 'var(--lw-bad)',
       },
       fontFamily: {
-        sans: 'var(--lw-font-sans)',
-        serif: 'var(--lw-font-serif)',
-        mono: 'var(--lw-font-mono)',
+        sans: ['var(--lw-font-sans)'],
+        serif: ['var(--lw-font-serif)'],
+        mono: ['var(--lw-font-mono)'],
       },
       borderRadius: {
         sm: 'var(--lw-r-sm)',
