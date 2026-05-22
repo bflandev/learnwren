@@ -36,6 +36,7 @@ export class MaterialsListComponent {
   readonly editingId = signal<MaterialId | null>(null);
   readonly draftName = signal('');
   readonly pendingRemoval = signal<Material | null>(null);
+  readonly removedNotice = signal<string | null>(null);
 
   constructor() {
     effect(() => {
@@ -112,9 +113,14 @@ export class MaterialsListComponent {
     try {
       const { downloadUrl } = await firstValueFrom(this.api.getDownloadUrl(m.id));
       this.openDownload(downloadUrl);
-    } catch {
-      // The material was removed since the page loaded — drop it from the list.
-      this.materials.update((list) => list.filter((x) => x.id !== m.id));
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      if (status === 404) {
+        // The material was removed since the page loaded — drop it from the list and notify.
+        this.materials.update((list) => list.filter((x) => x.id !== m.id));
+        this.removedNotice.set('This material is no longer available.');
+      }
+      // For non-404 errors (e.g. 500), leave the row in place and surface no notice.
     }
   }
 
@@ -122,6 +128,7 @@ export class MaterialsListComponent {
   protected openDownload(url: string): void {
     const a = document.createElement('a');
     a.href = url;
+    a.download = '';
     a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();

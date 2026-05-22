@@ -110,4 +110,28 @@ describe('MaterialsListComponent', () => {
     expect(api.getDownloadUrl).toHaveBeenCalledWith('m1');
     expect(openSpy).toHaveBeenCalledWith('http://x/d');
   });
+
+  it('removes the material row and sets removedNotice on a 404 download error', async () => {
+    const api = apiMock({
+      getDownloadUrl: vi.fn().mockReturnValue(throwError(() => ({ status: 404 }))),
+    });
+    const { fixture } = render(api);
+    const cmp = fixture.componentInstance;
+    expect(cmp.materials()).toHaveLength(1);
+    await cmp.download(mat('m1', 'Doc One'));
+    expect(cmp.materials()).toHaveLength(0);
+    expect(cmp.removedNotice()).toBe('This material is no longer available.');
+  });
+
+  it('does NOT remove the material row on a non-404 download error', async () => {
+    const api = apiMock({
+      getDownloadUrl: vi.fn().mockReturnValue(throwError(() => ({ status: 500 }))),
+    });
+    const { fixture } = render(api);
+    const cmp = fixture.componentInstance;
+    expect(cmp.materials()).toHaveLength(1);
+    await cmp.download(mat('m1', 'Doc One'));
+    expect(cmp.materials()).toHaveLength(1);
+    expect(cmp.removedNotice()).toBeNull();
+  });
 });

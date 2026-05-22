@@ -149,6 +149,23 @@ test('rejects unauthenticated, wrong-role, and wrong-instructor requests', async
   expect(((await otherDownload.json()) as { error: { code: string } }).error.code).toBe(
     'NOT_MATERIAL_OWNER',
   );
+
+  const otherRename = await request.patch(`${API_BASE}/materials/${matId}`, {
+    headers: { Cookie: other.cookieHeader },
+    data: { displayName: 'hijack' },
+  });
+  expect(otherRename.status()).toBe(403);
+  expect(((await otherRename.json()) as { error: { code: string } }).error.code).toBe(
+    'NOT_MATERIAL_OWNER',
+  );
+
+  const otherDelete = await request.delete(`${API_BASE}/materials/${matId}`, {
+    headers: { Cookie: other.cookieHeader },
+  });
+  expect(otherDelete.status()).toBe(403);
+  expect(((await otherDelete.json()) as { error: { code: string } }).error.code).toBe(
+    'NOT_MATERIAL_OWNER',
+  );
 });
 
 test('rejects an unsupported file type at upload-url', async ({ request }) => {

@@ -42,6 +42,7 @@ function setup(over: { put?: number; api?: Partial<MaterialsService> } = {}) {
       of({ materialId: 'mat1', uploadUrl: '/api/internal/fake-materials/mat1', expiresAt: 'T' }),
     ),
     complete: vi.fn().mockReturnValue(of({})),
+    remove: vi.fn().mockReturnValue(of(undefined)),
     ...over.api,
   };
   TestBed.configureTestingModule({
@@ -91,6 +92,12 @@ describe('MaterialUploadService', () => {
     expect(completed).toBe(0);
     expect(svc.failures()[0].reason).toMatch(/failed/i);
     expect(api.complete).not.toHaveBeenCalled();
+  });
+
+  it('calls api.remove with the materialId when PUT returns non-2xx (orphan cleanup)', async () => {
+    const { svc, api } = setup({ put: 500 });
+    await svc.uploadFiles(ctx, [makeFile('notes.pdf')]);
+    expect(api.remove).toHaveBeenCalledWith('mat1');
   });
 
   it('records a failure when createUploadUrl errors', async () => {

@@ -102,13 +102,19 @@ export class MaterialUploadService {
         }),
       );
       const contentType = MATERIAL_CONTENT_TYPE_BY_EXTENSION[extension];
-      const status = await this.put(created.uploadUrl, file, contentType, (pct) =>
-        this.setProgress(file.name, pct),
-      );
-      if (status < 200 || status >= 300) {
-        throw new Error(`Upload failed with status ${status}.`);
+      try {
+        const status = await this.put(created.uploadUrl, file, contentType, (pct) =>
+          this.setProgress(file.name, pct),
+        );
+        if (status < 200 || status >= 300) {
+          throw new Error(`Upload failed with status ${status}.`);
+        }
+        await firstValueFrom(this.api.complete(created.materialId));
+      } catch (err) {
+        // Best-effort orphan cleanup: delete the PENDING_UPLOAD doc.
+        await firstValueFrom(this.api.remove(created.materialId)).catch(() => undefined);
+        throw err;
       }
-      await firstValueFrom(this.api.complete(created.materialId));
     } finally {
       this.clearProgress(file.name);
     }
