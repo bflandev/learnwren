@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 
 import type { VideoId } from '@learnwren/shared-data-models';
 
+import { EnrollmentRepository } from '../../enrollment/enrollment.repository';
 import {
   NotVideoOwnerException,
   VideoNotFoundException,
@@ -12,7 +13,10 @@ import { VideoRepository } from '../video.repository';
 
 @Injectable()
 export class EnrollmentOrOwnerGuard implements CanActivate {
-  constructor(private readonly repo: VideoRepository) {}
+  constructor(
+    private readonly repo: VideoRepository,
+    private readonly enrollment: EnrollmentRepository,
+  ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest<VideoScopedRequest>();
@@ -28,11 +32,10 @@ export class EnrollmentOrOwnerGuard implements CanActivate {
       return true;
     }
 
-    // TODO(EP-06): enrolled-student playback. Wire an EnrollmentRepository here:
-    //   if (await this.enrollment.isEnrolled(req.user.uid, video.courseId)) {
-    //     req.video = video;
-    //     return true;
-    //   }
+    if (req.user && (await this.enrollment.isEnrolled(req.user.uid, video.courseId))) {
+      req.video = video;
+      return true;
+    }
 
     throw new NotVideoOwnerException();
   }
