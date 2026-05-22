@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, type ParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, type ParamMap } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 
@@ -17,6 +17,7 @@ function setup(id: string | null): HttpTestingController {
   TestBed.configureTestingModule({
     imports: [CourseDetailPageComponent],
     providers: [
+      provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
       { provide: ActivatedRoute, useValue: { paramMap: paramMap.asObservable() } },
@@ -49,6 +50,9 @@ describe('CourseDetailPageComponent', () => {
     expect(text).toContain('the long description');
     expect(text).toContain('Intro');
     expect(text).toContain('2 lessons');
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('lib-course-enrollment-panel'),
+    ).not.toBeNull();
   });
 
   it('renders the not-found state on a 404', async () => {

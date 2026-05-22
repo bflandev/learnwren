@@ -26,6 +26,7 @@
           }
           <lw-pill tone="default">{{ course()!.lessonCount }} lessons</lw-pill>
         </div>
+        <lib-course-enrollment-panel [courseId]="course()!.id" />
       </header>
 
       <p class="text-ink">{{ course()!.description }}</p>

@@ -5,6 +5,7 @@ import { ActivatedRoute, type ParamMap } from '@angular/router';
 
 import type { CourseCatalogDetail } from '@learnwren/shared-data-models';
 import { LwCoverComponent, LwPillComponent } from '@learnwren/web-ui';
+import { CourseEnrollmentPanelComponent } from '@learnwren/web-enrollment';
 
 import { CatalogService } from '../catalog.service';
 import { ModuleOutlineComponent } from '../components/module-outline/module-outline.component';
@@ -13,7 +14,7 @@ import { ModuleOutlineComponent } from '../components/module-outline/module-outl
   selector: 'lib-course-detail-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LwCoverComponent, LwPillComponent, ModuleOutlineComponent],
+  imports: [LwCoverComponent, LwPillComponent, ModuleOutlineComponent, CourseEnrollmentPanelComponent],
   templateUrl: './course-detail-page.component.html',
 })
 export class CourseDetailPageComponent {
