@@ -26,8 +26,8 @@ export interface CourseCatalogPage {
   totalPages: number; // ceil(total / pageSize); 0 when total is 0
 }
 
-/** Catalogue sort options. POPULAR (by enrolment count) is deferred to Slice B. */
-export const CATALOG_SORT_OPTIONS = ['NEWEST', 'ALPHABETICAL'] as const;
+/** Catalogue sort options. POPULAR ranks by Course.enrollmentCount descending. */
+export const CATALOG_SORT_OPTIONS = ['NEWEST', 'ALPHABETICAL', 'POPULAR'] as const;
 export type CatalogSort = (typeof CATALOG_SORT_OPTIONS)[number];
 
 /** Courses shown per page. UC-05-01 requires "at least 20 per page". */
