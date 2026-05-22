@@ -1,0 +1,66 @@
+<div class="flex flex-col items-start gap-2">
+  @switch (state()) {
+    @case ('LOADING') {
+      <button lwButton variant="primary" type="button" disabled>Loading…</button>
+    }
+    @case ('GUEST') {
+      <button lwButton variant="primary" type="button" (click)="goToLogin()">Enrol</button>
+    }
+    @case ('OWNER') {
+      <p class="text-sm text-ink-2">You own this course.</p>
+    }
+    @case ('ENROLLABLE') {
+      <button
+        lwButton
+        variant="primary"
+        type="button"
+        [disabled]="busy()"
+        (click)="enroll()"
+      >
+        Enrol
+      </button>
+    }
+    @case ('ENROLLED') {
+      <p class="text-sm font-medium text-ink">Enrolled ✓</p>
+      <button lwButton type="button" [disabled]="busy()" (click)="openConfirm()">
+        Leave course
+      </button>
+    }
+    @case ('LOAD_ERROR') {
+      <p class="text-sm text-ink-2">Couldn't load enrolment status.</p>
+      <button lwButton type="button" (click)="retry()">Retry</button>
+    }
+  }
+
+  @if (actionError(); as msg) {
+    <p class="text-sm text-bad" role="alert">{{ msg }}</p>
+  }
+</div>
+
+@if (showConfirm()) {
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    role="dialog"
+    aria-modal="true"
+  >
+    <div class="w-full max-w-md rounded-lg border border-line bg-bg p-6">
+      <h2 class="mb-3 text-lg text-ink">Leave this course?</h2>
+      <p class="mb-5 text-sm text-ink-2">
+        You will lose access to videos and materials immediately. Your progress will be
+        saved for 90 days in case you re-enrol.
+      </p>
+      <div class="flex justify-end gap-3">
+        <button lwButton type="button" (click)="cancelConfirm()">Cancel</button>
+        <button
+          lwButton
+          variant="primary"
+          type="button"
+          [disabled]="busy()"
+          (click)="confirmLeave()"
+        >
+          Leave course
+        </button>
+      </div>
+    </div>
+  </div>
+}
