@@ -1,0 +1,42 @@
+<div class="mx-auto w-full max-w-3xl p-6">
+  @if (notFound()) {
+    <div class="text-center">
+      <h1 class="mb-2 text-2xl text-ink">Course not found</h1>
+      <p class="text-ink-2">
+        This course is not available. <a href="/catalog" class="underline">Browse the catalogue</a>.
+      </p>
+    </div>
+  } @else if (error()) {
+    <p class="text-sm text-ink-2">Something went wrong loading this course. Please try again.</p>
+  } @else if (course() === null) {
+    <p class="text-sm text-ink-3">Loading…</p>
+  } @else {
+    <article class="flex flex-col gap-6">
+      <lw-cover [glyph]="course()!.title.charAt(0)" [height]="160" />
+
+      <header class="flex flex-col gap-3">
+        <h1 class="text-3xl text-ink">{{ course()!.title }}</h1>
+        <p class="text-ink-2">By {{ course()!.instructorDisplayName }}</p>
+        <div class="flex flex-wrap gap-2">
+          @if (course()!.difficulty) {
+            <lw-pill tone="default">{{ course()!.difficulty }}</lw-pill>
+          }
+          @if (course()!.category) {
+            <lw-pill tone="default">{{ course()!.category }}</lw-pill>
+          }
+          <lw-pill tone="default">{{ course()!.lessonCount }} lessons</lw-pill>
+        </div>
+      </header>
+
+      <p class="text-ink">{{ course()!.description }}</p>
+      @if (course()!.longDescription) {
+        <p class="whitespace-pre-line text-ink-2">{{ course()!.longDescription }}</p>
+      }
+
+      <section>
+        <h2 class="mb-3 text-xl text-ink">Course content</h2>
+        <lib-module-outline [modules]="course()!.modules" />
+      </section>
+    </article>
+  }
+</div>

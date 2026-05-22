@@ -26,6 +26,9 @@
   ],
   "references": [
     {
+      "path": "../web-ui/tsconfig.lib.json"
+    },
+    {
       "path": "../shared-data-models/tsconfig.lib.json"
     }
   ]
