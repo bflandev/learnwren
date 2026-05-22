@@ -299,7 +299,7 @@ Following the established slice posture — a `.spec.ts` beside every new source
 
 ### `api-e2e` (Playwright)
 
-A new enrolment spec: authenticated `POST` → `201`; `GET` reflects `ACTIVE`; `DELETE` → `204`; `GET` reflects `WITHDRAWN`; re-`POST` restores the same record; enrol on an unpublished course → `409 COURSE_NOT_AVAILABLE`; owner self-enrol → `409 CANNOT_ENROLL_OWN_COURSE`; all three endpoints unauthenticated → `401`; a direct client read/write of `enrollments` is denied by Firestore rules. A regression check that an `ACTIVE`-enrolled student can now reach a video manifest / material download URL endpoint that a non-enrolled user is `403`'d from.
+A new enrolment spec: authenticated `POST` → `201`; `GET` reflects `ACTIVE`; `DELETE` → `204`; `GET` reflects `WITHDRAWN`; re-`POST` restores the same record; enrol on an unpublished course → `409 COURSE_NOT_AVAILABLE`; owner self-enrol → `409 CANNOT_ENROLL_OWN_COURSE`; all three endpoints unauthenticated → `401`; a direct client read/write of `enrollments` is denied by Firestore rules. A guard-wiring regression check: an `ACTIVE`-enrolled student can reach a material download-URL endpoint that a non-enrolled non-owner is `403`'d from. (The analogous video-manifest path is covered by the `EnrollmentOrOwnerGuard` unit spec only — the video `api-e2e` suite is quarantined behind real GCP credentials, so a video-playback e2e is deferred to EP-06.)
 
 ### `web-e2e` (Playwright)
 
