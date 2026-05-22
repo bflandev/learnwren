@@ -1,0 +1,55 @@
+<div class="mx-auto w-full max-w-5xl p-6">
+  <header class="mb-6 flex flex-col gap-4">
+    <h1 class="text-2xl text-ink">Course catalogue</h1>
+    <lib-catalog-filter-bar
+      [category]="category()"
+      [difficulty]="difficulty()"
+      [sort]="sort()"
+      (filterChange)="onFilterChange($event)"
+    />
+  </header>
+
+  @if (error()) {
+    <p class="text-sm text-ink-2">Something went wrong loading the catalogue. Please try again.</p>
+  } @else if (result() === null) {
+    <p class="text-sm text-ink-3">Loading…</p>
+  } @else if (result()!.items.length === 0) {
+    <p class="text-ink-2">
+      @if (filtersActive()) {
+        No courses match your filters. Try adjusting your search criteria.
+      } @else {
+        No courses are available yet.
+      }
+    </p>
+  } @else {
+    <ul class="grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
+      @for (course of result()!.items; track course.id) {
+        <li><lib-course-card [course]="course" /></li>
+      }
+    </ul>
+
+    @if (result()!.totalPages > 1) {
+      <nav class="mt-6 flex items-center justify-center gap-3" aria-label="Pagination">
+        <button
+          type="button"
+          class="lw-btn lw-btn-ghost"
+          [disabled]="result()!.page <= 1"
+          (click)="goToPage(result()!.page - 1)"
+        >
+          Previous
+        </button>
+        <span class="text-sm text-ink-2"
+          >Page {{ result()!.page }} of {{ result()!.totalPages }}</span
+        >
+        <button
+          type="button"
+          class="lw-btn lw-btn-ghost"
+          [disabled]="result()!.page >= result()!.totalPages"
+          (click)="goToPage(result()!.page + 1)"
+        >
+          Next
+        </button>
+      </nav>
+    }
+  }
+</div>
