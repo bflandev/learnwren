@@ -8,6 +8,7 @@ import {
   RegisterPageComponent,
   UnlockPageComponent,
 } from '@learnwren/web-auth';
+import { catalogRoutes } from '@learnwren/web-catalog';
 import { coursesRoutes } from '@learnwren/web-courses';
 
 export const appRoutes: Route[] = [
@@ -37,6 +38,7 @@ export const appRoutes: Route[] = [
     loadComponent: () =>
       import('./dashboard/dashboard.component').then((m) => m.DashboardComponent),
   },
+  ...catalogRoutes,
   ...coursesRoutes,
-  { path: '', pathMatch: 'full', redirectTo: '/login' },
+  { path: '', pathMatch: 'full', redirectTo: '/catalog' },
 ];

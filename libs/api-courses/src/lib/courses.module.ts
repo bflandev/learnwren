@@ -2,6 +2,9 @@ import { forwardRef, Module } from '@nestjs/common';
 
 import { AuthModule } from '@learnwren/api-auth';
 
+import { CatalogController } from './catalog/catalog.controller';
+import { CatalogService } from './catalog/catalog.service';
+import { InstructorDirectory } from './catalog/instructor-directory';
 import { CourseOwnerGuard } from './course-owner.guard';
 import { CoursesController } from './courses.controller';
 import { CoursesExceptionFilter } from './courses.exception-filter';
@@ -18,13 +21,15 @@ import { VideoModule } from './video/video.module';
 // NestJS resolves both cycles with forwardRef.
 @Module({
   imports: [AuthModule, forwardRef(() => VideoModule), forwardRef(() => MaterialsModule)],
-  controllers: [CoursesController],
+  controllers: [CoursesController, CatalogController],
   providers: [
     CoursesService,
     CoursesRepository,
     CoursesExceptionFilter,
     CourseOwnerGuard,
     PublishService,
+    CatalogService,
+    InstructorDirectory,
   ],
   exports: [CoursesRepository, CourseOwnerGuard],
 })

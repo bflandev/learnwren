@@ -7,3 +7,4 @@ export * from './lib/enrollment';
 export * from './lib/video';
 export * from './lib/material';
 export * from './lib/publish';
+export * from './lib/catalog';

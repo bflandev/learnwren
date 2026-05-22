@@ -1,0 +1,11 @@
+<form class="w-44 sm:w-60" (ngSubmit)="submit()">
+  <input
+    type="search"
+    name="catalog-search"
+    placeholder="Search courses"
+    aria-label="Search courses"
+    lwInput
+    [ngModel]="query()"
+    (ngModelChange)="query.set($event)"
+  />
+</form>

@@ -1,20 +1,29 @@
-@if (auth.isAuthenticated()) {
+@if (showHeader()) {
   <header class="sticky top-0 z-10 flex items-center gap-6 border-b border-line bg-bg px-6 py-3.5">
-    <a routerLink="/dashboard"><lw-wordmark [size]="20" /></a>
+    <a routerLink="/catalog"><lw-wordmark [size]="20" /></a>
     <nav class="flex gap-1">
-      <a routerLink="/dashboard" class="lw-btn lw-btn-ghost">Dashboard</a>
-      @if (auth.currentUser()?.role === 'INSTRUCTOR') {
-        <a routerLink="/courses" class="lw-btn lw-btn-ghost">My Courses</a>
+      <a routerLink="/catalog" class="lw-btn lw-btn-ghost">Browse courses</a>
+      @if (auth.isAuthenticated()) {
+        <a routerLink="/dashboard" class="lw-btn lw-btn-ghost">Dashboard</a>
+        @if (auth.currentUser()?.role === 'INSTRUCTOR') {
+          <a routerLink="/courses" class="lw-btn lw-btn-ghost">My Courses</a>
+        }
       }
     </nav>
     <span class="flex-1"></span>
+    <lib-course-search-bar />
     <lw-theme-toggle />
-    <span
-      role="img"
-      class="grid h-8 w-8 place-items-center rounded-full bg-ochre font-serif text-sm italic text-ochre-ink"
-      [attr.aria-label]="'Signed in as ' + (auth.currentUser()?.displayName ?? '')"
-      >{{ initials() }}</span
-    >
+    @if (auth.isAuthenticated()) {
+      <span
+        role="img"
+        class="grid h-8 w-8 place-items-center rounded-full bg-ochre font-serif text-sm italic text-ochre-ink"
+        [attr.aria-label]="'Signed in as ' + (auth.currentUser()?.displayName ?? '')"
+        >{{ initials() }}</span
+      >
+    } @else {
+      <a routerLink="/login" class="lw-btn lw-btn-ghost">Log in</a>
+      <a routerLink="/register" class="lw-btn lw-btn-primary">Register</a>
+    }
   </header>
   <main class="bg-bg text-ink">
     <router-outlet />

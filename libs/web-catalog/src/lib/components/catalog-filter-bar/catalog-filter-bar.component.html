@@ -1,0 +1,42 @@
+<div class="flex flex-wrap items-center gap-3">
+  <label class="flex items-center gap-2 text-sm text-ink-2">
+    Category
+    <select
+      class="rounded border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-ochre"
+      [value]="category() ?? ''"
+      (change)="onCategoryChange($any($event.target).value)"
+    >
+      <option value="">All</option>
+      @for (c of categories; track c) {
+        <option [value]="c">{{ c }}</option>
+      }
+    </select>
+  </label>
+
+  <label class="flex items-center gap-2 text-sm text-ink-2">
+    Difficulty
+    <select
+      class="rounded border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-ochre"
+      [value]="difficulty() ?? ''"
+      (change)="onDifficultyChange($any($event.target).value)"
+    >
+      <option value="">All</option>
+      @for (d of difficulties; track d) {
+        <option [value]="d">{{ d }}</option>
+      }
+    </select>
+  </label>
+
+  <label class="flex items-center gap-2 text-sm text-ink-2">
+    Sort
+    <select
+      class="rounded border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-ochre"
+      [value]="sort()"
+      (change)="onSortChange($any($event.target).value)"
+    >
+      @for (s of sorts; track s) {
+        <option [value]="s">{{ s }}</option>
+      }
+    </select>
+  </label>
+</div>
