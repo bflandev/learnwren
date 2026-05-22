@@ -63,6 +63,21 @@ describe('composeReasons', () => {
     });
   });
 
+  it('treats a module with no entry in lessonsByModule as MODULE_HAS_NO_LESSONS', () => {
+    // lessonsByModule shorter than modules → lessonsByModule[i] is undefined.
+    // The `?? []` fallback must still yield MODULE_HAS_NO_LESSONS; an
+    // ArrayDeclaration mutant turning `[]` into a non-empty array would
+    // instead walk a bogus lesson into the loop.
+    const m1 = makeModule('m1', 'M1', 0);
+    const m2 = makeModule('m2', 'M2', 1);
+    const l = makeLesson('l1', 'L1', 0, 'm1', 'v1');
+    const r = composeReasons([m1, m2], [[l]], new Map([['v1' as VideoId, 'READY']]));
+    expect(r).toEqual({
+      eligible: false,
+      reasons: [{ kind: 'MODULE_HAS_NO_LESSONS', moduleId: 'm2', moduleTitle: 'M2', moduleOrder: 1 }],
+    });
+  });
+
   it('returns LESSON_HAS_NO_VIDEO when lesson.videoId is undefined', () => {
     const m = makeModule('m1', 'M1', 0);
     const l = makeLesson('l1', 'L1', 0, 'm1');

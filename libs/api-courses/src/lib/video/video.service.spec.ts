@@ -183,6 +183,33 @@ describe('VideoService.createUploadSession', () => {
   });
 });
 
+describe('VideoService.getVideo', () => {
+  it('returns the video when the repo has it', async () => {
+    const repo = makeRepo();
+    const v = baseVideo();
+    repo.getVideo.mockResolvedValue(v);
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      makeStorage() as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    await expect(svc.getVideo('v1' as VideoId)).resolves.toBe(v);
+  });
+
+  it('throws VIDEO_NOT_FOUND when the repo has no such video', async () => {
+    const repo = makeRepo();
+    repo.getVideo.mockResolvedValue(null);
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      makeStorage() as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    await expect(svc.getVideo('v1' as VideoId)).rejects.toBeInstanceOf(VideoNotFoundException);
+  });
+});
+
 describe('VideoService.completeUpload — slice A (guard tests)', () => {
   it('throws VIDEO_NOT_FOUND when the video is missing', async () => {
     const repo = makeRepo();
@@ -278,11 +305,29 @@ describe('VideoService.markFailed', () => {
       cfg,
       makeTranscoder() as never,
     );
-    await svc.markFailed('v1' as VideoId, 'network error');
+    const result = await svc.markFailed('v1' as VideoId, 'network error');
     expect(repo.updateVideo).toHaveBeenCalledWith(
       'v1',
       expect.objectContaining({ state: 'FAILED', failureReason: 'network error' }),
     );
+    // The returned video must reflect the transition, not just the repo write.
+    expect(result.state).toBe('FAILED');
+    expect(result.failureReason).toBe('network error');
+  });
+
+  it('throws VIDEO_NOT_FOUND when markFailed targets a missing video', async () => {
+    const repo = makeRepo();
+    repo.getVideo.mockResolvedValue(null);
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      makeStorage() as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    await expect(svc.markFailed('v1' as VideoId, 'x')).rejects.toBeInstanceOf(
+      VideoNotFoundException,
+    );
+    expect(repo.updateVideo).not.toHaveBeenCalled();
   });
 
   it('rejects FAILED transition from UPLOADED', async () => {
@@ -336,6 +381,19 @@ describe('VideoService.delete', () => {
     expect(transcoder.cancelJob).toHaveBeenCalledWith('jobs/abc');
     expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
   });
+
+  it('throws VIDEO_NOT_FOUND when deleting a missing video', async () => {
+    const repo = makeRepo();
+    repo.getVideo.mockResolvedValue(null);
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      makeStorage() as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    await expect(svc.delete('v1' as VideoId)).rejects.toBeInstanceOf(VideoNotFoundException);
+    expect(repo.deleteVideoAndDetach).not.toHaveBeenCalled();
+  });
 });
 
 describe('VideoService.deleteForLesson (cascade)', () => {
@@ -364,6 +422,44 @@ describe('VideoService.deleteForLesson (cascade)', () => {
     );
     await svc.deleteForLesson('l1' as LessonId);
     expect(storage.deleteObject).toHaveBeenCalled();
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
+  });
+
+  it('cancels the in-flight transcoder job when cascading a TRANSCODING video', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = makeTranscoder();
+    repo.getVideoByLesson.mockResolvedValue(
+      baseVideo({ state: 'TRANSCODING', transcoderJobName: 'jobs/xyz' }),
+    );
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      transcoder as never,
+    );
+    await svc.deleteForLesson('l1' as LessonId);
+    expect(transcoder.cancelJob).toHaveBeenCalledWith('jobs/xyz');
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
+  });
+
+  it('deletes the output prefix when cascading a READY video', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    repo.getVideoByLesson.mockResolvedValue(
+      baseVideo({
+        state: 'READY',
+        output: { bucket: 'out', manifestPath: 'videos/v1/hls/manifest.m3u8', durationSec: 60 },
+      }),
+    );
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    await svc.deleteForLesson('l1' as LessonId);
+    expect(storage.deletePrefix).toHaveBeenCalledWith({ bucket: 'out', prefix: 'videos/v1/' });
     expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
   });
 });
@@ -473,9 +569,52 @@ describe('VideoService.completeUpload — slice B', () => {
     const video = await svc.completeUpload('v1' as VideoId);
     expect(transcoder.submitJob).toHaveBeenCalledTimes(3);
     expect(video.state).toBe('FAILED');
+    // The failure reason must carry the *last* attempt's error, not the
+    // initial 'unknown' placeholder — pins the catch body and the result shape.
     expect(repo.markFailedFromSubmission).toHaveBeenCalledWith(
-      expect.objectContaining({ failureReason: expect.stringMatching(/TRANSCODER_SUBMIT_FAILED/) }),
+      expect.objectContaining({
+        failureReason: expect.stringMatching(/TRANSCODER_SUBMIT_FAILED: t3/),
+      }),
     );
+  });
+
+  it('builds the transcoder job input with source/output URIs, key, height and videoId', async () => {
+    const { svc, transcoder } = makeServiceWithTranscoder({ probe: { height: 720, durationSec: 30 } });
+    await svc.completeUpload('v1' as VideoId);
+    expect(transcoder.submitJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        videoId: 'v1',
+        sourceUri: 'gs://src-bucket/videos/v1/source.mp4',
+        outputUriPrefix: 'gs://out-bucket/videos/v1/hls/',
+        encryptionKey: expect.objectContaining({ bytes: expect.any(Uint8Array) }),
+        sourceHeight: 720,
+      }),
+    );
+  });
+
+  it('sleeps with exponential backoff between retries but not after the final attempt', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = {
+      submitJob: vi.fn(async () => {
+        throw new Error('always fails');
+      }),
+      parseEvent: vi.fn(),
+      cancelJob: vi.fn(),
+    };
+    repo.getVideo.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
+    storage.headObject.mockResolvedValue({ size: 1024 });
+    repo.markFailedFromSubmission = vi.fn(async () => baseVideo({ state: 'FAILED' }));
+    const sleep = vi.fn(async () => undefined);
+    const svc = new VideoService(repo as never, storage as never, cfg as never, transcoder as never, {
+      sleep,
+    });
+
+    await svc.completeUpload('v1' as VideoId);
+
+    // 3 attempts → backoff after attempts 0 and 1 only, with the BACKOFF_MS
+    // ladder; never after the last attempt.
+    expect(sleep.mock.calls).toEqual([[1_000], [2_000]]);
   });
 
   it('rejects when state is not PENDING_UPLOAD', async () => {

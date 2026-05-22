@@ -82,7 +82,25 @@ describe('buildJobConfig', () => {
 
   it('throws when sourceHeight is below the lowest rendition', () => {
     expect(() => buildJobConfig({ ...baseInput(), sourceHeight: 240 })).toThrow(
-      /sourceHeight/,
+      'sourceHeight 240px is below the lowest supported rendition (360px).',
     );
+  });
+
+  it('wires input, elementary-stream, mux-stream and manifest keys consistently', () => {
+    // A single rendition (sourceHeight 360) keeps the cross-references — which
+    // the Transcoder API resolves by string key — exact and easy to assert.
+    const cfg = buildJobConfig({ ...baseInput(), sourceHeight: 360 });
+
+    expect(cfg.inputs).toEqual([{ key: 'input0', uri: 'gs://src/videos/v1/source.mp4' }]);
+
+    expect(cfg.elementaryStreams.map((s) => s.key)).toEqual(['video_360p', 'audio_aac']);
+    const audio = cfg.elementaryStreams.find((s) => s.audioStream)!;
+    expect(audio.key).toBe('audio_aac');
+    expect(audio.audioStream!.codec).toBe('aac');
+
+    expect(cfg.muxStreams.map((m) => m.key)).toEqual(['hls_360p']);
+    expect(cfg.muxStreams[0]!.elementaryStreams).toEqual(['video_360p', 'audio_aac']);
+
+    expect(cfg.manifests![0]!.muxStreams).toEqual(['hls_360p']);
   });
 });

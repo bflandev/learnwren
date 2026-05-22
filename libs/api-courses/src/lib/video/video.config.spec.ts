@@ -82,6 +82,15 @@ describe('readVideoConfigFromEnv — slice B fields', () => {
     expect(() => readVideoConfigFromEnv(env)).toThrow(/LEARNWREN_GCP_PROJECT_ID/);
   });
 
+  it('rejects an unrecognised LEARNWREN_VIDEO_TRANSCODER value', () => {
+    // Anything other than "gcp" / "fake" must be rejected with a clear message.
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_TRANSCODER = 'bogus';
+    expect(() => readVideoConfigFromEnv(env)).toThrow(
+      /LEARNWREN_VIDEO_TRANSCODER must be "gcp" or "fake", got "bogus"/,
+    );
+  });
+
   it('accepts a complete gcp config', () => {
     const env = baseEnv();
     env.LEARNWREN_VIDEO_TRANSCODER = 'gcp';
@@ -191,5 +200,24 @@ describe('readVideoConfigFromEnv — playback storage flag', () => {
     env.LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE = 'true';
     env.NODE_ENV = 'production';
     expect(() => readVideoConfigFromEnv(env)).toThrow(/production/i);
+  });
+
+  it('rejects fake playback storage in production by name, with the transcoder valid', () => {
+    // baseEnv()'s fake transcoder would also throw in production, masking
+    // which guard fired. A complete gcp config isolates the playback-storage
+    // guard so the assertion pins *its* message.
+    const env: NodeJS.ProcessEnv = {
+      NODE_ENV: 'production',
+      LEARNWREN_VIDEO_SOURCE_BUCKET: 'src',
+      LEARNWREN_VIDEO_OUTPUT_BUCKET: 'out',
+      LEARNWREN_VIDEO_TRANSCODER: 'gcp',
+      LEARNWREN_GCP_PROJECT_ID: 'p1',
+      LEARNWREN_TRANSCODER_LOCATION: 'us-central1',
+      LEARNWREN_TRANSCODER_TOPIC: 'projects/p1/topics/t',
+      LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE: 'https://x/api/internal/transcoder-events',
+      LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL: 'inv@p1.iam.gserviceaccount.com',
+      LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE: 'true',
+    };
+    expect(() => readVideoConfigFromEnv(env)).toThrow(/LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE/);
   });
 });

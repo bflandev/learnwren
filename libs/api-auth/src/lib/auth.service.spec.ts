@@ -459,7 +459,34 @@ describe('AuthService.logoutSideEffects', () => {
 
     expect(auth.verifySessionCookie).toHaveBeenCalledWith('valid.cookie', true);
     expect(auth.revokeRefreshTokens).toHaveBeenCalledTimes(1);
+    // Revocation must target the uid decoded from the cookie — a StringLiteral
+    // mutant on `decoded['uid']` would call revokeRefreshTokens(undefined),
+    // revoking nothing while still reporting success.
+    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('uid-abc');
     await expect(auth.verifySessionCookie('valid.cookie', true)).rejects.toThrow();
+  });
+
+  it('gives up after LOGOUT_REVOKE_MAX_ATTEMPTS when revocation never confirms', async () => {
+    // verifySessionCookie never rejects, so isSessionCookieRevoked stays false
+    // and the retry loop runs to exhaustion. Pins the loop bound exactly: a
+    // `<` → `<=` mutant would revoke 5×, and an `attempt++` → `attempt--`
+    // mutant would loop forever (Stryker kills that one via timeout).
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(1_700_000_000 * 1000 + 300));
+      const verifySessionCookie = vi.fn(async () => ({ uid: 'uid-abc', iat: 1_700_000_000 }));
+      const revokeRefreshTokens = vi.fn(async () => undefined);
+      const auth = { ...buildFakeAuth(), verifySessionCookie, revokeRefreshTokens };
+      const service = await buildModule(auth as unknown as FakeAuth, buildFakeFirestore());
+
+      const pending = service.logoutSideEffects('stubborn.cookie');
+      await vi.advanceTimersByTimeAsync(20_000);
+      await pending;
+
+      expect(revokeRefreshTokens).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('is a no-op when the cookie is undefined', async () => {

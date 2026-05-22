@@ -31,11 +31,24 @@ const video: Video = {
 };
 
 describe('VideoOwnerGuard', () => {
-  it('throws VIDEO_NOT_FOUND when :vid is missing', async () => {
-    const guard = new VideoOwnerGuard(makeRepo(null));
+  it('throws VIDEO_NOT_FOUND without hitting the repo when :vid is missing', async () => {
+    // The `if (!vid)` guard short-circuits before the repo lookup. A
+    // ConditionalExpression mutant skipping it would call getVideo(undefined).
+    const repo = makeRepo(null);
+    const guard = new VideoOwnerGuard(repo);
     await expect(
       guard.canActivate(ctxFor({ params: {}, user: { uid: 'u1' } })),
     ).rejects.toBeInstanceOf(VideoNotFoundException);
+    expect(repo.getVideo).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_VIDEO_OWNER when no user is attached (defensive)', async () => {
+    // `req.user?.uid` must tolerate a missing user. An OptionalChaining mutant
+    // dropping the `?.` would throw a TypeError instead of NOT_VIDEO_OWNER.
+    const guard = new VideoOwnerGuard(makeRepo(video));
+    await expect(
+      guard.canActivate(ctxFor({ params: { vid: 'v1' } })),
+    ).rejects.toBeInstanceOf(NotVideoOwnerException);
   });
 
   it('throws VIDEO_NOT_FOUND when video does not exist', async () => {

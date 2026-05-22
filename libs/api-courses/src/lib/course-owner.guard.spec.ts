@@ -72,6 +72,15 @@ describe('CourseOwnerGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(CourseNotFoundException);
   });
 
+  it('throws CourseNotFoundException without hitting the repo when :cid is missing', async () => {
+    // The `if (!cid)` guard short-circuits before the repo lookup. A
+    // ConditionalExpression mutant skipping it would fall through to
+    // repo.getCourse(''), so pin that the repo is never called.
+    const ctx = buildContext({ cid: '', userUid: 'uid-1' });
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(CourseNotFoundException);
+    expect(repo.getCourse).not.toHaveBeenCalled();
+  });
+
   it('throws NotCourseOwnerException when another user owns the course', async () => {
     repo.getCourse.mockResolvedValue(makeCourse({ instructorId: 'uid-2' as UserId }));
     const ctx = buildContext({ cid: 'cid-1', userUid: 'uid-1' });

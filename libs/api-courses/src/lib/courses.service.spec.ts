@@ -107,6 +107,10 @@ describe('CoursesService — course operations', () => {
       expect(out.longDescription).toBeUndefined();
       expect(out.category).toBeUndefined();
       expect(out.difficulty).toBeUndefined();
+      // nowIso() must stamp both timestamps with a real ISO instant — a
+      // BlockStatement mutant emptying nowIso would leave them undefined.
+      expect(out.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+      expect(out.updatedAt).toBe(out.createdAt);
       expect(repo.createCourse).toHaveBeenCalledWith(out);
     });
 
@@ -329,6 +333,18 @@ describe('CoursesService — module operations', () => {
       const { StaleReorderException } = await import('./errors/courses.exception');
       await expect(
         service.reorderModules(CID, ['a', 'b', 'c'] as ModuleId[]),
+      ).rejects.toBeInstanceOf(StaleReorderException);
+      expect(repo.writeModuleOrder).not.toHaveBeenCalled();
+    });
+
+    it('throws StaleReorderException when proposed is longer via a duplicate (set sizes still match)', async () => {
+      // current=2, proposed=3 but one id is duplicated → both as Sets have
+      // size 2, so only the `length` check catches it. Pins that check; a
+      // ConditionalExpression mutant skipping it would let the reorder through.
+      repo.listModulesByCourse.mockResolvedValue([m('a', 0), m('b', 1)]);
+      const { StaleReorderException } = await import('./errors/courses.exception');
+      await expect(
+        service.reorderModules(CID, ['a', 'b', 'b'] as ModuleId[]),
       ).rejects.toBeInstanceOf(StaleReorderException);
       expect(repo.writeModuleOrder).not.toHaveBeenCalled();
     });

@@ -1,12 +1,16 @@
 // Stryker config scoped to libs/api-courses — slice D update (EP-03 publish gate).
 //
 // Excluded from mutation:
+// - testing/** — test-only fakes (fake-firestore); mutating test infra is noise.
 // - courses.repository.ts — thin Firestore adapter, verified by api-e2e.
-// - *.module.ts, dto/**, types/** — DI wiring, type-only code.
+// - **/*.module.ts, dto/**, types/**, video/dto/**, video/types/** — DI wiring
+//   and type-only code.
 // - courses.exception-filter.ts — covered by unit tests but mutation noise is high
 //   (parseFieldErrors trims to first word; mutants that change the trim behaviour
 //   are equivalent for the body-shape contract).
-// - errors/courses-error.codes.ts — type-only union, no runtime logic.
+// - errors/courses-error.codes.ts, video/errors/video-error.codes.ts — type-only
+//   unions, no runtime logic.
+// - video/transcoder/transcoder.port.ts — port interface, no runtime logic.
 // - errors/courses.exception.ts is NOW included: slice D added InvalidTransitionException,
 //   PublishNotEligibleException, CourseArchivedException; these carry runtime behaviour
 //   (status codes, detail shapes) that should be mutation-tested.
@@ -22,12 +26,17 @@ export default {
     'libs/api-courses/src/lib/**/*.ts',
     '!libs/api-courses/src/lib/**/*.spec.ts',
     '!libs/api-courses/src/lib/**/*.test.ts',
+    '!libs/api-courses/src/lib/testing/**',
+    '!libs/api-courses/src/lib/**/*.module.ts',
     '!libs/api-courses/src/lib/courses.repository.ts',
-    '!libs/api-courses/src/lib/courses.module.ts',
     '!libs/api-courses/src/lib/courses.exception-filter.ts',
     '!libs/api-courses/src/lib/dto/**',
     '!libs/api-courses/src/lib/types/**',
     '!libs/api-courses/src/lib/errors/courses-error.codes.ts',
+    '!libs/api-courses/src/lib/video/dto/**',
+    '!libs/api-courses/src/lib/video/types/**',
+    '!libs/api-courses/src/lib/video/errors/video-error.codes.ts',
+    '!libs/api-courses/src/lib/video/transcoder/transcoder.port.ts',
     '!libs/api-courses/src/index.ts',
   ],
   reporters: ['progress', 'clear-text', 'html', 'json'],

@@ -130,6 +130,70 @@ describe('PublishService.computeEligibility', () => {
     expect(r.reasons[0]).toMatchObject({ kind: 'LESSON_HAS_NO_VIDEO', lessonId: 'l1' });
   });
 
+  it('folds an error by name even when its message has no "not found" text', async () => {
+    // isVideoNotFound's name branch — message intentionally lacks "not found".
+    repo.getCourse.mockResolvedValue(makeCourse());
+    repo.listModulesByCourse.mockResolvedValue([makeModule('m1', 0)]);
+    repo.listLessonsByModule.mockResolvedValue([makeLesson('l1', 'm1', 0, 'v-orphan')]);
+    const err = new Error('the requested resource is gone');
+    err.name = 'VideoNotFoundException';
+    videoSvc.getVideo.mockRejectedValue(err);
+    const r = await service.computeEligibility(COURSE);
+    expect(r.reasons[0]).toMatchObject({ kind: 'LESSON_HAS_NO_VIDEO', lessonId: 'l1' });
+  });
+
+  it('folds an error by message even when its name is generic', async () => {
+    // isVideoNotFound's regex branch — name is the default 'Error'.
+    repo.getCourse.mockResolvedValue(makeCourse());
+    repo.listModulesByCourse.mockResolvedValue([makeModule('m1', 0)]);
+    repo.listLessonsByModule.mockResolvedValue([makeLesson('l1', 'm1', 0, 'v-orphan')]);
+    videoSvc.getVideo.mockRejectedValue(new Error('Video Not Found in datastore'));
+    const r = await service.computeEligibility(COURSE);
+    expect(r.reasons[0]).toMatchObject({ kind: 'LESSON_HAS_NO_VIDEO', lessonId: 'l1' });
+  });
+
+  it('rethrows an unrelated getVideo error instead of folding it', async () => {
+    // Neither name nor message marks it as not-found → must propagate.
+    repo.getCourse.mockResolvedValue(makeCourse());
+    repo.listModulesByCourse.mockResolvedValue([makeModule('m1', 0)]);
+    repo.listLessonsByModule.mockResolvedValue([makeLesson('l1', 'm1', 0, 'v1')]);
+    const err = new Error('quota exceeded');
+    err.name = 'QuotaError';
+    videoSvc.getVideo.mockRejectedValue(err);
+    await expect(service.computeEligibility(COURSE)).rejects.toThrow('quota exceeded');
+  });
+
+  it('rethrows a non-Error throw from getVideo (does not fold)', async () => {
+    // A plain object mimicking a not-found error — `e instanceof Error`
+    // must reject the fold so it propagates rather than silently folding.
+    repo.getCourse.mockResolvedValue(makeCourse());
+    repo.listModulesByCourse.mockResolvedValue([makeModule('m1', 0)]);
+    repo.listLessonsByModule.mockResolvedValue([makeLesson('l1', 'm1', 0, 'v1')]);
+    videoSvc.getVideo.mockRejectedValue({
+      name: 'VideoNotFoundException',
+      message: 'Video not found.',
+    });
+    await expect(service.computeEligibility(COURSE)).rejects.toEqual({
+      name: 'VideoNotFoundException',
+      message: 'Video not found.',
+    });
+  });
+
+  it('does not read a video for a lesson with no videoId', async () => {
+    // The `.filter(Boolean)` drops undefined videoIds before the getVideo
+    // fan-out — without it, getVideo(undefined) would be called.
+    repo.getCourse.mockResolvedValue(makeCourse());
+    repo.listModulesByCourse.mockResolvedValue([makeModule('m1', 0)]);
+    repo.listLessonsByModule.mockResolvedValue([
+      makeLesson('l1', 'm1', 0, 'v1'),
+      makeLesson('l2', 'm1', 1),
+    ]);
+    videoSvc.getVideo.mockResolvedValue(makeVideo('v1', 'READY'));
+    await service.computeEligibility(COURSE);
+    expect(videoSvc.getVideo).toHaveBeenCalledWith('v1');
+    expect(videoSvc.getVideo).not.toHaveBeenCalledWith(undefined);
+  });
+
   it('deduplicates videoId reads across lessons', async () => {
     repo.getCourse.mockResolvedValue(makeCourse());
     repo.listModulesByCourse.mockResolvedValue([makeModule('m1', 0)]);
@@ -205,6 +269,45 @@ describe('PublishService.publish', () => {
       code: 'PUBLISH_NOT_ELIGIBLE',
       details: { reasons: [{ kind: 'COURSE_HAS_NO_MODULES' }] },
     });
+  });
+
+  it('folds an orphan video transactionally and rejects publish as not eligible', async () => {
+    // Exercises computeEligibilityInTxn's video fan-out: l2 has no videoId
+    // (filtered out), l3 points at a deleted video (folded to null via the
+    // not-found catch). Without the filters / catch this path crashes.
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(makeCourse({ status: 'DRAFT' }));
+    (repo as never as Record<string, unknown>).listModulesByCourseInTxn = vi.fn().mockResolvedValue([makeModule('m1', 0)]);
+    (repo as never as Record<string, unknown>).listLessonsByModuleInTxn = vi.fn().mockResolvedValue([
+      makeLesson('l1', 'm1', 0, 'v1'),
+      makeLesson('l2', 'm1', 1),
+      makeLesson('l3', 'm1', 2, 'v-orphan'),
+    ]);
+    videoSvc.getVideo.mockImplementation(async (vid: string) => {
+      if (vid === 'v1') return makeVideo('v1', 'READY');
+      const err = new Error('Video not found.');
+      err.name = 'VideoNotFoundException';
+      throw err;
+    });
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+
+    await expect(service.publish(COURSE)).rejects.toMatchObject({ code: 'PUBLISH_NOT_ELIGIBLE' });
+    expect(videoSvc.getVideo).not.toHaveBeenCalledWith(undefined);
+    expect(videoSvc.getVideo).toHaveBeenCalledWith('v1');
+    expect(videoSvc.getVideo).toHaveBeenCalledWith('v-orphan');
+  });
+
+  it('rethrows an unrelated getVideo error raised during publish revalidation', async () => {
+    (repo as never as Record<string, unknown>).getCourseInTxn = vi.fn().mockResolvedValue(makeCourse({ status: 'DRAFT' }));
+    (repo as never as Record<string, unknown>).listModulesByCourseInTxn = vi.fn().mockResolvedValue([makeModule('m1', 0)]);
+    (repo as never as Record<string, unknown>).listLessonsByModuleInTxn = vi.fn().mockResolvedValue([
+      makeLesson('l1', 'm1', 0, 'v1'),
+    ]);
+    videoSvc.getVideo.mockRejectedValue(Object.assign(new Error('quota exceeded'), { name: 'QuotaError' }));
+    const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
+    service = new PublishService(repo as never, videoSvc as never, fakeFs as never);
+
+    await expect(service.publish(COURSE)).rejects.toThrow('quota exceeded');
   });
 });
 
