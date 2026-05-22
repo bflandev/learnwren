@@ -8,7 +8,7 @@ import { AuthService } from '@learnwren/web-auth';
 
 import { App } from './app';
 
-function configure(user: { displayName: string } | null): void {
+function configure(user: { displayName: string; role?: string } | null): void {
   const currentUser = signal(user);
   const fakeAuth = {
     currentUser,
@@ -54,5 +54,25 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('EW');
+  });
+
+  it('shows the My Courses nav link for an instructor', () => {
+    configure({ displayName: 'Etta Wren', role: 'INSTRUCTOR' });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      'a[routerLink="/courses"]',
+    );
+    expect(link).not.toBeNull();
+  });
+
+  it('hides the My Courses nav link for a student', () => {
+    configure({ displayName: 'Etta Wren', role: 'STUDENT' });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      'a[routerLink="/courses"]',
+    );
+    expect(link).toBeNull();
   });
 });
