@@ -6,12 +6,14 @@ import {
 } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
+import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
+
 import { AuthService } from '../auth.service';
 
 @Component({
   selector: 'app-forgot-password-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, LwButtonDirective, LwInputDirective],
   templateUrl: './forgot-password-page.component.html',
 })
 export class ForgotPasswordPageComponent {
