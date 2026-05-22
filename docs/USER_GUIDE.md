@@ -37,7 +37,7 @@ This guide covers **every feature wired up so far** from two angles:
 | Publishing | Publish eligibility gate, publish / unpublish / archive / restore | Built |
 | Discovery | Course catalogue, search, enrollment | Not built |
 | Learning | Enrolled-student playback, progress tracking | Not built |
-| Materials | Lesson file attachments | Not built |
+| Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
 | Cover images | Course cover image upload | Not built |
 
 ---
@@ -246,7 +246,20 @@ Each lesson holds at most one video. In the lesson editor:
    Because playback is owner-gated, you (the course owner) can preview your own video
    right in the editor.
 
-## 2.9 Publishing a course
+## 2.9 Lesson materials
+
+Below each lesson's video, instructors can attach supplementary files —
+PDF, DOCX, PPTX, XLSX, TXT, or ZIP, up to 50 MB each. Click **Add material**
+and choose one or more files; unsupported or oversized files are skipped with
+an inline message while the rest upload. Each material gets its filename as a
+default display name, which you can rename inline. **Download** fetches the
+file through a short-lived signed link; **Remove** deletes it after a
+confirmation prompt.
+
+Today, downloads are available to the course owner. Enrolled-student access to
+lesson materials is delivered with the learning experience (EP-06).
+
+## 2.10 Publishing a course
 
 A course starts as a **`DRAFT`**. Before students could ever see it, it must pass a
 **publish eligibility gate**. The course editor shows a **publish bar** and an
@@ -533,7 +546,6 @@ These are specified in `docs/epics/` and `docs/use-cases/` but **not yet impleme
   enrollment. Courses can be published but nobody can browse to them.
 - **Enrolled-student learning experience (EP-06)** — no student-facing course player
   or progress tracking. `EnrollmentOrOwnerGuard` currently only admits the owner.
-- **Lesson materials (EP-04)** — no file attachments on lessons.
 - **Course cover images** — upload is deferred.
 - **Self-service instructor requests** — promotion is CLI-only; there is no in-app
   "become an instructor" flow.

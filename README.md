@@ -4,7 +4,9 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 
 > [!NOTE]
 > **PROJECT STATUS: EARLY DEVELOPMENT**
-> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route), the course authoring slice (EP-02 US-02-01..03: instructor role promotion, REST course surface, drag-and-drop editor), and **EP-03 slices A + B + C (video upload through owner playback): instructor uploads MP4 / MOV / MKV ≤ 10 GB to a lesson via resumable upload, ffprobe + GCP Transcoder API + AES-128 HLS produce playable manifests on the output bucket, the lesson editor swaps the badge for an inline `<video>` element that streams via hls.js (or native HLS on Safari/iOS) once the video is READY** are wired up. Cover image upload is deferred. **EP-03 slice D (course publish gate) complete: instructors can publish / unpublish / archive / restore courses with structured eligibility feedback.** Catalogue (EP-05) and enrolled-student playback (EP-06) remain deferred. Instructor dashboard and platform administration remain in post-MVP planning.
+> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route), the course authoring slice (EP-02 US-02-01..03: instructor role promotion, REST course surface, drag-and-drop editor), and **EP-03 slices A + B + C (video upload through owner playback): instructor uploads MP4 / MOV / MKV ≤ 10 GB to a lesson via resumable upload, ffprobe + GCP Transcoder API + AES-128 HLS produce playable manifests on the output bucket, the lesson editor swaps the badge for an inline `<video>` element that streams via hls.js (or native HLS on Safari/iOS) once the video is READY** are wired up. Cover image upload is deferred. **EP-03 slice D (course publish gate) complete: instructors can publish / unpublish / archive / restore courses with structured eligibility feedback.**
+> **EP-04 (Lesson Materials) complete: instructors attach, rename, and remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP — up to 50 MB each) on a lesson, and download them via a short-lived signed URL. Enrolled-student download arrives with EP-06.**
+> Catalogue (EP-05) and enrolled-student playback (EP-06) remain deferred. Instructor dashboard and platform administration remain in post-MVP planning.
 
 ---
 
@@ -125,6 +127,17 @@ The API endpoints exposed by slice D (course publish gate):
 | `POST` | `/api/courses/:cid/unpublish`           | Transition PUBLISHED → DRAFT. |
 | `POST` | `/api/courses/:cid/archive`             | Transition DRAFT or PUBLISHED → ARCHIVED. |
 | `POST` | `/api/courses/:cid/restore`             | Transition ARCHIVED → DRAFT. |
+
+The API endpoints exposed by EP-04 (lesson materials):
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `POST` | `/api/courses/:cid/modules/:mid/lessons/:lid/materials/upload-url` | Validate type + size; create a `PENDING_UPLOAD` material; return a signed upload URL. |
+| `POST` | `/api/materials/:matId/complete` | HEAD-verify the uploaded object; transition the material to `READY`. |
+| `GET`  | `/api/courses/:cid/modules/:mid/lessons/:lid/materials` | List the lesson's `READY` materials. |
+| `PATCH`| `/api/materials/:matId` | Rename a material's display name. |
+| `DELETE` | `/api/materials/:matId` | Remove a material (storage object + metadata). |
+| `GET`  | `/api/materials/:matId/download-url` | Mint a 15-minute signed download URL (owner-gated; enrolled students in EP-06). |
 
 For the full auth dev workflow, the deferred items, and error-code → prose mappings, see [`docs/development.md`](./docs/development.md#auth-dev-workflow) and the design specs at [`docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`](./docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md) and [`docs/superpowers/specs/2026-05-06-auth-hardening-design.md`](./docs/superpowers/specs/2026-05-06-auth-hardening-design.md).
 

@@ -37,6 +37,15 @@ When `NODE_ENV=production` the api requires real `LEARNWREN_VIDEO_*` buckets and
 a real transcoder — the `fake` transcoder and `fake` playback storage are
 rejected.
 
+Notable environment variables:
+
+- `LEARNWREN_MATERIALS_BUCKET` — Cloud Storage bucket for lesson materials
+  (EP-04). Outside production it defaults to `learnwren-dev-materials` and
+  needs no provisioning. In emulator/dev mode the materials storage runs in
+  `fake` mode: signed upload/download URLs are replaced by internal passthrough
+  endpoints (`/api/internal/fake-materials/:matId`) so no GCP credentials are
+  required.
+
 ## Run (emulator mode)
 
 Boot the Firebase Emulator Suite in one terminal:

@@ -67,6 +67,8 @@ Deferred to post-MVP: Instructor Dashboard (EP-07), Platform Administration (EP-
 | UC-04-01 | Attach Materials to a Lesson | Instructor | Primary Task |
 | UC-04-02 | Download Lesson Materials | Student | Primary Task |
 
+> **Note on UC-04-01 / UC-04-02 in MVP:** Both are addressed by `docs/superpowers/specs/2026-05-21-lesson-materials-design.md`. UC-04-02's download endpoint ships owner-gated; the enrolled-student precondition is wired when EP-06 lands.
+
 ### EP-05: Course Discovery and Enrollment
 
 | ID | Use Case | Primary Actor | Level |

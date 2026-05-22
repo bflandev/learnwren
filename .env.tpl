@@ -59,6 +59,15 @@ LEARNWREN_TRANSCODER_TOPIC=op://learnwren/dev/LEARNWREN_TRANSCODER_TOPIC
 LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE=op://learnwren/dev/LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE
 LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL=op://learnwren/dev/LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL
 
+# ── Lesson materials (EP-04) ─────────────────────────────────────────
+# Cloud Storage bucket for instructor-uploaded lesson materials (PDF,
+# DOCX, PPTX, XLSX, TXT, ZIP). Separate from the video buckets so a
+# future video-source lifecycle rule cannot sweep materials away.
+# Outside production this defaults to `learnwren-dev-materials` and needs
+# no provisioning — the Storage emulator hosts it on demand. In production,
+# create it and grant the Cloud Functions SA roles/storage.objectAdmin.
+LEARNWREN_MATERIALS_BUCKET=op://learnwren/dev/LEARNWREN_MATERIALS_BUCKET
+
 # Web client poll interval while a video is TRANSCODING. Override in e2e
 # to reduce wall-clock duration of tests.
 LEARNWREN_WEB_VIDEO_POLL_INTERVAL_MS=5000
