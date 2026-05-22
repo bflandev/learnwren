@@ -117,6 +117,24 @@ describe('EnrollmentRepository.withdraw', () => {
     await repo.withdraw(UID, CID);
     await expect(repo.withdraw(UID, CID)).rejects.toBeInstanceOf(NotEnrolledException);
   });
+
+  it('succeeds when the course document is missing (force-deleted while student was enrolled)', async () => {
+    const now = new Date().toISOString() as ISODateString;
+    const active: Enrollment = {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'ACTIVE',
+      progress: [],
+      withdrawnAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const { repo, db } = repoWith({});
+    db.__store.set(`enrollments/${ID}`, active as unknown as Record<string, unknown>);
+    await expect(repo.withdraw(UID, CID)).resolves.toBeUndefined();
+    expect(db.__store.get(`enrollments/${ID}`)?.['status']).toBe('WITHDRAWN');
+  });
 });
 
 describe('EnrollmentRepository.isEnrolled / getEnrollment', () => {
@@ -134,5 +152,14 @@ describe('EnrollmentRepository.isEnrolled / getEnrollment', () => {
     expect(await repo.getEnrollment(UID, CID)).toBeNull();
     await repo.enroll(UID, CID);
     expect((await repo.getEnrollment(UID, CID))?.status).toBe('ACTIVE');
+  });
+
+  it('getEnrollment returns a WITHDRAWN record as-is (not null)', async () => {
+    const { repo } = repoWith({ [`courses/${CID}`]: course() });
+    await repo.enroll(UID, CID);
+    await repo.withdraw(UID, CID);
+    const result = await repo.getEnrollment(UID, CID);
+    expect(result).not.toBeNull();
+    expect(result?.status).toBe('WITHDRAWN');
   });
 });

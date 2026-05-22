@@ -112,6 +112,8 @@ export class EnrollmentRepository {
       const now = nowIso();
       t.update(enrollmentRef, { status: 'WITHDRAWN', withdrawnAt: now, updatedAt: now });
 
+      // If the course was deleted while the student was enrolled, the
+      // withdrawal still proceeds — there is no counter left to correct.
       if (courseSnap.exists) {
         const course = courseSnap.data() as Course;
         const nextCount = Math.max(0, (course.enrollmentCount ?? 0) - 1);
