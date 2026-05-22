@@ -5,3 +5,4 @@ export * from './lib/wordmark/lw-wordmark.component';
 export * from './lib/card/lw-card.component';
 export * from './lib/pill/lw-pill.component';
 export * from './lib/progress/lw-progress.component';
+export * from './lib/cover/lw-cover.component';
