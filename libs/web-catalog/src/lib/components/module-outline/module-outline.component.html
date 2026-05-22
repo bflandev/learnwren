@@ -1,0 +1,16 @@
+@if (modules().length === 0) {
+  <p class="text-sm text-ink-3">No lessons yet.</p>
+} @else {
+  <ol class="flex list-none flex-col gap-4 p-0">
+    @for (module of modules(); track $index) {
+      <li>
+        <h3 class="mb-2 text-base text-ink">{{ module.title }}</h3>
+        <ul class="flex list-none flex-col gap-1 p-0 pl-4">
+          @for (lesson of module.lessons; track $index) {
+            <li class="text-sm text-ink-2">{{ lesson.title }}</li>
+          }
+        </ul>
+      </li>
+    }
+  </ol>
+}
