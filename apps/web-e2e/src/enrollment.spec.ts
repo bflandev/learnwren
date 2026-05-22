@@ -80,10 +80,19 @@ test('a guest who clicks Enrol is sent to login and auto-enrolled on return', as
   await page.getByRole('button', { name: 'Enrol' }).click();
   await page.waitForURL(/\/login/, { timeout: 10_000 });
 
+  // Client-side router navigation flips the URL before Angular finishes
+  // wiring the reactive form — without this wait, the first fill() can race
+  // the formControlName directive and silently fail to bind. Waiting for the
+  // Sign in button to be both visible and disabled (its initial empty-form
+  // state) is the cleanest "form is mounted" signal.
+  const submit = page.getByRole('button', { name: /sign in/i });
+  await expect(submit).toBeDisabled();
+
   // Log in — the page should return to the course and auto-enrol.
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  await expect(submit).toBeEnabled();
+  await submit.click();
 
   await page.waitForURL(new RegExp(`/catalog/${courseId}`), { timeout: 10_000 });
   await expect(page.getByText('Enrolled', { exact: false })).toBeVisible({ timeout: 10_000 });
