@@ -11,6 +11,7 @@ import { CoursesService, type CourseTree, type UpdateCourseInput } from '../cour
 import { CoursePublishBarComponent } from '../publish/course-publish-bar.component';
 import { PublishEligibilityPanelComponent } from '../publish/publish-eligibility-panel.component';
 import { PublishEligibilityService } from '../publish/publish-eligibility.service';
+import { LwButtonDirective } from '@learnwren/web-ui';
 
 type PendingConfirm =
   | { kind: 'deleteCourse' }
@@ -22,7 +23,7 @@ type PendingConfirm =
 @Component({
   selector: 'lib-course-editor-page',
   standalone: true,
-  imports: [RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, ConfirmDialogComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent],
+  imports: [RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, ConfirmDialogComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent, LwButtonDirective],
   templateUrl: './course-editor-page.component.html',
 })
 export class CourseEditorPageComponent {
