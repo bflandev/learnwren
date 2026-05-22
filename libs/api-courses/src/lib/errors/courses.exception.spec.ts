@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CannotEnrollOwnCourseException,
   CourseArchivedException,
   CourseNotFoundException,
+  CourseNotAvailableException,
   CoursesException,
   InvalidTransitionException,
   LessonNotFoundException,
   ModuleNotFoundException,
   NotCourseOwnerException,
+  NotEnrolledException,
   PublishNotEligibleException,
   StaleReorderException,
 } from './courses.exception';
@@ -84,5 +87,28 @@ describe('slice D exceptions', () => {
     expect(e.code).toBe('COURSE_ARCHIVED');
     expect(e.status).toBe(409);
     expect(e.message).toBe('Cannot check publish eligibility on an archived course.');
+  });
+});
+
+describe('slice B enrolment exceptions', () => {
+  it('CourseNotAvailableException is 409 with code COURSE_NOT_AVAILABLE', () => {
+    const e = new CourseNotAvailableException();
+    expect(e.code).toBe('COURSE_NOT_AVAILABLE');
+    expect(e.status).toBe(409);
+    expect(e.message).toBe('This course is no longer available.');
+  });
+
+  it('CannotEnrollOwnCourseException is 409 with code CANNOT_ENROLL_OWN_COURSE', () => {
+    const e = new CannotEnrollOwnCourseException();
+    expect(e.code).toBe('CANNOT_ENROLL_OWN_COURSE');
+    expect(e.status).toBe(409);
+    expect(e.message).toBe('You cannot enrol in a course you own.');
+  });
+
+  it('NotEnrolledException is 404 with code NOT_ENROLLED', () => {
+    const e = new NotEnrolledException();
+    expect(e.code).toBe('NOT_ENROLLED');
+    expect(e.status).toBe(404);
+    expect(e.message).toBe('You are not enrolled in this course.');
   });
 });
