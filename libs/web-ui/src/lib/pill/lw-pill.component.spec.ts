@@ -30,4 +30,11 @@ describe('LwPillComponent', () => {
 
     expect((fixture.nativeElement as HTMLElement).style.color).toBe('var(--lw-bad)');
   });
+
+  it('does not apply an inline color for the default tone', () => {
+    const fixture = TestBed.createComponent(LwPillComponent);
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).style.color).toBe('');
+  });
 });
