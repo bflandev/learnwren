@@ -2,6 +2,9 @@
 
 This document contains the fully-dressed Cockburn use cases for the learning experience: watching videos, tracking progress, resuming sessions, and navigating course content.
 
+> [!NOTE]
+> **DRIFT — this spec is unimplemented.** Frozen 2026-03-27. EP-06 (lesson playback for students, progress tracking, resume, course-outline navigation) is entirely deferred. The only footprint in shipped code is two `TODO(EP-06)` owner-only access guards. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-06--learning-experience).
+
 ---
 
 ## UC-06-01 — Watch a Lesson Video
