@@ -21,6 +21,7 @@ import {
   StaleReorderException,
 } from './errors/courses.exception';
 import type { CourseTree } from './types/loaded-course';
+import { MaterialsService } from './materials/materials.service';
 import { VideoService } from './video/video.service';
 
 export interface CreateCourseInput {
@@ -50,6 +51,9 @@ export class CoursesService {
     // forwardRef resolves the CoursesModule ↔ VideoModule runtime cycle.
     @Inject(forwardRef(() => VideoService))
     private readonly videoSvc: VideoService,
+    // forwardRef resolves the CoursesModule ↔ MaterialsModule runtime cycle.
+    @Inject(forwardRef(() => MaterialsService))
+    private readonly materialsSvc: MaterialsService,
   ) {}
 
   async createCourse(uid: UserId, input: CreateCourseInput): Promise<Course> {
@@ -169,6 +173,7 @@ export class CoursesService {
     const existing = await this.repo.getLesson(cid, mid, lid);
     if (!existing) throw new LessonNotFoundException();
     await this.videoSvc.deleteForLesson(lid);
+    await this.materialsSvc.deleteForLesson(lid);
     await this.repo.deleteLesson(cid, mid, lid);
   }
 

@@ -8,13 +8,16 @@ import { CoursesExceptionFilter } from './courses.exception-filter';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
 import { PublishService } from './publish/publish.service';
+import { MaterialsModule } from './materials/materials.module';
 import { VideoModule } from './video/video.module';
 
 // VideoModule ↔ CoursesModule are mutually dependent (CoursesService cascades
 // deletes into VideoService; VideoController injects CoursesRepository).
-// NestJS resolves the cycle with forwardRef.
+// MaterialsModule ↔ CoursesModule are mutually dependent (CoursesService cascades
+// deletes into MaterialsService; MaterialsController injects CoursesRepository).
+// NestJS resolves both cycles with forwardRef.
 @Module({
-  imports: [AuthModule, forwardRef(() => VideoModule)],
+  imports: [AuthModule, forwardRef(() => VideoModule), forwardRef(() => MaterialsModule)],
   controllers: [CoursesController],
   providers: [
     CoursesService,

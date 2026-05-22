@@ -58,6 +58,12 @@ function buildVideoSvcFake() {
   };
 }
 
+function buildMaterialsSvcFake() {
+  return {
+    deleteForLesson: vi.fn(async () => undefined),
+  };
+}
+
 function buildRepoFake(): RepoFake {
   return {
     newId: vi.fn(() => 'generated-id'),
@@ -89,7 +95,7 @@ describe('CoursesService — course operations', () => {
     repo = buildRepoFake();
     let counter = 0;
     repo.newId.mockImplementation(() => `id-${++counter}`);
-    service = new CoursesService(repo as unknown as CoursesRepository, buildVideoSvcFake() as never);
+    service = new CoursesService(repo as unknown as CoursesRepository, buildVideoSvcFake() as never, buildMaterialsSvcFake() as never);
   });
 
   describe('createCourse', () => {
@@ -209,7 +215,7 @@ describe('CoursesService — module operations', () => {
     repo = buildRepoFake();
     let counter = 0;
     repo.newId.mockImplementation(() => `id-${++counter}`);
-    service = new CoursesService(repo as unknown as CoursesRepository, buildVideoSvcFake() as never);
+    service = new CoursesService(repo as unknown as CoursesRepository, buildVideoSvcFake() as never, buildMaterialsSvcFake() as never);
   });
 
   describe('createModule', () => {
@@ -396,7 +402,7 @@ describe('CoursesService — lesson operations', () => {
     repo = buildRepoFake();
     let counter = 0;
     repo.newId.mockImplementation(() => `id-${++counter}`);
-    service = new CoursesService(repo as unknown as CoursesRepository, buildVideoSvcFake() as never);
+    service = new CoursesService(repo as unknown as CoursesRepository, buildVideoSvcFake() as never, buildMaterialsSvcFake() as never);
     repo.getModule.mockResolvedValue({
       id: MID,
       courseId: CID,
@@ -501,7 +507,7 @@ describe('CoursesService — lesson operations', () => {
 
     it('cascades to VideoService.deleteForLesson before deleting the lesson doc', async () => {
       const videoSvc = buildVideoSvcFake();
-      const svc = new CoursesService(repo as unknown as CoursesRepository, videoSvc as never);
+      const svc = new CoursesService(repo as unknown as CoursesRepository, videoSvc as never, buildMaterialsSvcFake() as never);
       repo.getLesson.mockResolvedValue({
         id: 'lid-1' as LessonId,
         moduleId: MID,
@@ -521,11 +527,37 @@ describe('CoursesService — lesson operations', () => {
       expect(dflCallIdx).toBeLessThan(dlCallIdx);
     });
 
+    it('cascades to MaterialsService.deleteForLesson before deleting the lesson doc', async () => {
+      const videoSvc = buildVideoSvcFake();
+      const materialsSvc = buildMaterialsSvcFake();
+      const svc = new CoursesService(
+        repo as unknown as CoursesRepository,
+        videoSvc as never,
+        materialsSvc as never,
+      );
+      repo.getLesson.mockResolvedValue({
+        id: 'lid-1' as LessonId,
+        moduleId: MID,
+        title: 'L',
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      });
+      await svc.deleteLesson(CID, MID, 'lid-1' as LessonId);
+      expect(materialsSvc.deleteForLesson).toHaveBeenCalledWith('lid-1');
+
+      const mflCallIdx = (
+        materialsSvc.deleteForLesson as unknown as { mock: { invocationCallOrder: number[] } }
+      ).mock.invocationCallOrder[0];
+      const dlCallIdx = repo.deleteLesson.mock.invocationCallOrder[0];
+      expect(mflCallIdx).toBeLessThan(dlCallIdx);
+    });
+
     it('does not delete the lesson doc when deleteForLesson rejects', async () => {
       const videoSvc = {
         deleteForLesson: vi.fn().mockRejectedValue(new Error('storage down')),
       };
-      const svc = new CoursesService(repo as unknown as CoursesRepository, videoSvc as never);
+      const svc = new CoursesService(repo as unknown as CoursesRepository, videoSvc as never, buildMaterialsSvcFake() as never);
       repo.getLesson.mockResolvedValue({
         id: 'lid-1' as LessonId,
         moduleId: MID,
