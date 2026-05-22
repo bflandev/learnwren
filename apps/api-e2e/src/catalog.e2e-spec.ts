@@ -69,7 +69,7 @@ test('GET /catalog filters by category', async ({ request }) => {
 });
 
 test('GET /catalog rejects an invalid sort with 400', async ({ request }) => {
-  const res = await request.get(`${API_BASE}/catalog?sort=POPULAR`);
+  const res = await request.get(`${API_BASE}/catalog?sort=TRENDING`);
   expect(res.status()).toBe(400);
 });
 
