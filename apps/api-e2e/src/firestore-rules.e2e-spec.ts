@@ -229,3 +229,38 @@ test('INSTRUCTOR client cannot delete /videoKeys/{kid}', async () => {
   const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
   await assertFails(deleteDoc(doc(ctx.firestore(), 'videoKeys', 'k1')));
 });
+
+test('anonymous client cannot read /materials/{matId}', async () => {
+  const ctx = testEnv.unauthenticatedContext();
+  await assertFails(getDoc(doc(ctx.firestore(), 'materials', 'm1')));
+});
+
+test('anonymous client cannot write /materials/{matId}', async () => {
+  const ctx = testEnv.unauthenticatedContext();
+  await assertFails(setDoc(doc(ctx.firestore(), 'materials', 'm1'), { state: 'READY' }));
+});
+
+test('STUDENT client cannot read /materials/{matId}', async () => {
+  const ctx = testEnv.authenticatedContext('student-uid', { role: 'STUDENT' });
+  await assertFails(getDoc(doc(ctx.firestore(), 'materials', 'm1')));
+});
+
+test('STUDENT client cannot write /materials/{matId}', async () => {
+  const ctx = testEnv.authenticatedContext('student-uid', { role: 'STUDENT' });
+  await assertFails(setDoc(doc(ctx.firestore(), 'materials', 'm1'), { state: 'READY' }));
+});
+
+test('INSTRUCTOR client cannot read /materials/{matId}', async () => {
+  const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
+  await assertFails(getDoc(doc(ctx.firestore(), 'materials', 'm1')));
+});
+
+test('INSTRUCTOR client cannot write /materials/{matId}', async () => {
+  const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
+  await assertFails(setDoc(doc(ctx.firestore(), 'materials', 'm1'), { state: 'READY' }));
+});
+
+test('INSTRUCTOR client cannot delete /materials/{matId}', async () => {
+  const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
+  await assertFails(deleteDoc(doc(ctx.firestore(), 'materials', 'm1')));
+});
