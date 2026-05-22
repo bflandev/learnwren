@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
   AfterViewInit,
   Component,
@@ -12,14 +11,14 @@ import {
 
 import type { VideoId } from '@learnwren/shared-data-models';
 
+import { LwButtonDirective } from '@learnwren/web-ui';
 import { VideoPlayerService, type PlayerHandle } from './video-player.service';
 
 @Component({
   selector: 'lib-video-player',
   standalone: true,
-  imports: [CommonModule],
+  imports: [LwButtonDirective],
   templateUrl: './video-player.component.html',
-  styleUrls: ['./video-player.component.css'],
 })
 export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
   readonly videoId = input.required<VideoId>();
