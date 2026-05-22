@@ -10,27 +10,21 @@
  *   tsx tools/migrate-auth-2026-05-cleanup-unverified.ts          # dry run, lists only
  *   tsx tools/migrate-auth-2026-05-cleanup-unverified.ts --confirm # deletes
  *
- * Requires: FIREBASE_SERVICE_ACCOUNT_JSON_PATH + LEARNWREN_API_FIREBASE_PROJECT_ID
- * for prod, or running against the emulator with FIREBASE_AUTH_EMULATOR_HOST +
- * FIRESTORE_EMULATOR_HOST exported.
+ * Targets the local Firebase emulators by default. To run against production,
+ * set LEARNWREN_FIREBASE_TARGET=production together with
+ * LEARNWREN_API_FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT_JSON_PATH.
  */
 
 import * as admin from 'firebase-admin';
 
+import { initFirebaseApp, resolveMode } from './firebase-admin-init';
+
 async function main(): Promise<void> {
   const confirm = process.argv.includes('--confirm');
 
-  const projectId =
-    process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] ?? 'demo-learnwren';
-  const credentialPath = process.env['FIREBASE_SERVICE_ACCOUNT_JSON_PATH'];
-
-  if (admin.apps.length === 0) {
-    if (credentialPath) {
-      admin.initializeApp({ projectId, credential: admin.credential.cert(credentialPath) });
-    } else {
-      admin.initializeApp({ projectId });
-    }
-  }
+  const mode = resolveMode();
+  console.log(`[migrate] Target: ${mode}.`);
+  initFirebaseApp(mode);
 
   const auth = admin.auth();
   const firestore = admin.firestore();

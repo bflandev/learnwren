@@ -86,9 +86,14 @@ All scripts run from the repo root and delegate to Nx.
 | `pnpm e2e` | Run the Playwright suites (`web-e2e`, then `api-e2e`). |
 | `pnpm affected` | Lint + test + build + typecheck for projects affected by the branch. |
 | `pnpm crap` / `pnpm mutate` | Regenerate the CRAP-score and mutation reports (see `docs/quality/`). |
-| `pnpm tools:promote-to-instructor <email>` | Promote a verified user to the `INSTRUCTOR` role. |
+| `pnpm tools:promote-to-instructor <email>` | Promote a verified user to the `INSTRUCTOR` role (emulator by default — see below). |
 | `pnpm secrets:render` | Render `.env` from `.env.tpl` via 1Password (`op inject`). |
 | `pnpm secrets:run -- <cmd>` | Run `<cmd>` with secrets injected in-memory (`op run`). |
+
+`tools:promote-to-instructor` targets the local emulators by default, so it
+works with `pnpm emulators` running and needs no extra setup. To promote a user
+in production instead, set `LEARNWREN_FIREBASE_TARGET=production` together with
+`LEARNWREN_API_FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT_JSON_PATH`.
 
 To target a single project, invoke Nx directly — e.g. `pnpm nx test api-auth`,
 `pnpm nx build api`, `pnpm nx lint shared-data-models`.
