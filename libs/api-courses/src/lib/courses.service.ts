@@ -67,6 +67,7 @@ export class CoursesService {
       difficulty: input.difficulty,
       instructorId: uid,
       status: 'DRAFT',
+      enrollmentCount: 0,
       createdAt: now,
       updatedAt: now,
     };
