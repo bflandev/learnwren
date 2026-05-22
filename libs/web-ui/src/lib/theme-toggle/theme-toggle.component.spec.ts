@@ -10,11 +10,13 @@ describe('ThemeToggleComponent', () => {
     document.documentElement.className = '';
   });
 
-  it('renders a button', () => {
+  it('renders a button labelled for the current theme', () => {
     const fixture = TestBed.createComponent(ThemeToggleComponent);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('button')).not.toBeNull();
+    const button: HTMLButtonElement = fixture.nativeElement.querySelector('button');
+    expect(button).not.toBeNull();
+    expect(button.getAttribute('aria-label')).toBe('Switch to light theme');
   });
 
   it('toggles the theme service when clicked', () => {
