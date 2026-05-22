@@ -1,29 +1,57 @@
 @if (eligibility(); as e) {
-  <div class="panel" data-testid="eligibility-panel">
+  <div
+    class="panel rounded-lg border border-line bg-bg-2 p-4"
+    data-testid="eligibility-panel"
+  >
     @if (e.eligible) {
-      <div class="panel-header ok">
+      <div class="panel-header ok flex items-center gap-2 text-good">
         <span>&#x2713; Ready to publish</span>
       </div>
     } @else {
-      <div class="panel-header blocked">
-        <span>&#x24D8; {{ reasonCount() }} thing{{ reasonCount() === 1 ? '' : 's' }} to fix before publishing</span>
+      <div class="panel-header blocked flex items-center gap-2 text-warn">
+        <span
+          >&#x24D8; {{ reasonCount() }} thing{{ reasonCount() === 1 ? '' : 's' }} to fix
+          before publishing</span
+        >
       </div>
-      <ul class="reasons">
+      <ul class="reasons mt-3 space-y-2">
         @for (r of e.reasons; track $index) {
-          <li>
-            <span class="reason-text">{{ reasonText(r) }}</span>
+          <li class="flex flex-wrap items-center gap-2">
+            <span class="reason-text text-sm text-ink-2">{{ reasonText(r) }}</span>
             @if (jumpLinkVisible(r) === 'lesson') {
-              <button type="button" class="jump" data-testid="jump-lesson" (click)="onJump(r)">Jump to lesson &#x25B8;</button>
+              <button
+                lwButton
+                variant="ghost"
+                type="button"
+                class="jump"
+                data-testid="jump-lesson"
+                (click)="onJump(r)"
+              >
+                Jump to lesson &#x25B8;
+              </button>
             }
             @if (jumpLinkVisible(r) === 'module') {
-              <button type="button" class="jump" data-testid="jump-module" (click)="onJump(r)">Jump to module &#x25B8;</button>
+              <button
+                lwButton
+                variant="ghost"
+                type="button"
+                class="jump"
+                data-testid="jump-module"
+                (click)="onJump(r)"
+              >
+                Jump to module &#x25B8;
+              </button>
             }
           </li>
         }
       </ul>
     }
     @if (lastError(); as msg) {
-      <div class="error-banner" role="alert" data-testid="eligibility-error">
+      <div
+        class="error-banner mt-3 text-sm text-bad"
+        role="alert"
+        data-testid="eligibility-error"
+      >
         <span>Couldn't check publish status — {{ msg }}</span>
       </div>
     }

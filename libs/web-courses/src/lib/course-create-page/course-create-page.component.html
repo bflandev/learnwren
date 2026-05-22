@@ -1,55 +1,85 @@
-<header>
-  <h1>Create Course</h1>
-  <a routerLink="/courses">Cancel</a>
-</header>
+<div class="mx-auto w-full max-w-2xl p-6">
+  <header class="mb-6 flex items-center justify-between gap-4">
+    <h1 class="text-2xl">Create course</h1>
+    <a routerLink="/courses" class="lw-btn lw-btn-ghost">Cancel</a>
+  </header>
 
-<form [formGroup]="form" (ngSubmit)="submit()">
-  <label>
-    Title
-    <input data-testid="title" formControlName="title" maxlength="100" />
-  </label>
-  @for (e of fieldErrors()['title'] ?? []; track e) {
-    <p class="error">{{ e }}</p>
-  }
-
-  <label>
-    Short description
-    <textarea data-testid="description" formControlName="description" maxlength="500"></textarea>
-  </label>
-  @for (e of fieldErrors()['description'] ?? []; track e) {
-    <p class="error">{{ e }}</p>
-  }
-
-  <label>
-    Long description (optional)
-    <textarea formControlName="longDescription" maxlength="5000"></textarea>
-  </label>
-
-  <label>
-    Category (optional)
-    <select formControlName="category">
-      <option value="">—</option>
-      @for (c of categories; track c) {
-        <option [value]="c">{{ c }}</option>
+  <lw-card class="p-6">
+    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
+      <label class="block">
+        <span class="text-sm font-medium text-ink-2">Title</span>
+        <input
+          lwInput
+          data-testid="title"
+          formControlName="title"
+          maxlength="100"
+          class="mt-1"
+        />
+      </label>
+      @for (e of fieldErrors()['title'] ?? []; track e) {
+        <p class="error text-sm text-bad">{{ e }}</p>
       }
-    </select>
-  </label>
 
-  <label>
-    Difficulty (optional)
-    <select formControlName="difficulty">
-      <option value="">—</option>
-      @for (d of difficulties; track d) {
-        <option [value]="d">{{ d }}</option>
+      <label class="block">
+        <span class="text-sm font-medium text-ink-2">Short description</span>
+        <textarea
+          lwInput
+          data-testid="description"
+          formControlName="description"
+          maxlength="500"
+          rows="3"
+          class="mt-1"
+        ></textarea>
+      </label>
+      @for (e of fieldErrors()['description'] ?? []; track e) {
+        <p class="error text-sm text-bad">{{ e }}</p>
       }
-    </select>
-  </label>
 
-  @if (genericError()) {
-    <p class="error" data-testid="generic-error">{{ genericError() }}</p>
-  }
+      <label class="block">
+        <span class="text-sm font-medium text-ink-2">Long description (optional)</span>
+        <textarea
+          lwInput
+          formControlName="longDescription"
+          maxlength="5000"
+          rows="5"
+          class="mt-1"
+        ></textarea>
+      </label>
 
-  <button data-testid="submit" type="submit" [disabled]="form.invalid || busy()">
-    {{ busy() ? 'Creating…' : 'Create' }}
-  </button>
-</form>
+      <label class="block">
+        <span class="text-sm font-medium text-ink-2">Category (optional)</span>
+        <select lwInput formControlName="category" class="mt-1">
+          <option value="">—</option>
+          @for (c of categories; track c) {
+            <option [value]="c">{{ c }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="block">
+        <span class="text-sm font-medium text-ink-2">Difficulty (optional)</span>
+        <select lwInput formControlName="difficulty" class="mt-1">
+          <option value="">—</option>
+          @for (d of difficulties; track d) {
+            <option [value]="d">{{ d }}</option>
+          }
+        </select>
+      </label>
+
+      @if (genericError()) {
+        <p class="error text-sm text-bad" data-testid="generic-error">{{ genericError() }}</p>
+      }
+
+      <button
+        lwButton
+        variant="primary"
+        data-testid="submit"
+        type="submit"
+        class="w-full justify-center disabled:opacity-50"
+        [disabled]="form.invalid || busy()"
+      >
+        {{ busy() ? 'Creating…' : 'Create' }}
+      </button>
+    </form>
+  </lw-card>
+</div>

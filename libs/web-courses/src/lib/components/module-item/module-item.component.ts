@@ -3,12 +3,14 @@ import { FormsModule } from '@angular/forms';
 
 import type { CourseId, Lesson, Module, VideoState } from '@learnwren/shared-data-models';
 
+import { LwButtonDirective, LwCardComponent, LwInputDirective } from '@learnwren/web-ui';
+
 import { LessonListComponent } from '../lesson-list/lesson-list.component';
 
 @Component({
   selector: 'lib-module-item',
   standalone: true,
-  imports: [FormsModule, LessonListComponent],
+  imports: [FormsModule, LessonListComponent, LwButtonDirective, LwCardComponent, LwInputDirective],
   templateUrl: './module-item.component.html',
 })
 export class ModuleItemComponent {

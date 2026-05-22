@@ -1,4 +1,9 @@
-<div cdkDropList (cdkDropListDropped)="onDrop($event)" data-testid="module-tree">
+<div
+  cdkDropList
+  (cdkDropListDropped)="onDrop($event)"
+  data-testid="module-tree"
+  class="space-y-3"
+>
   @for (node of nodes(); track node.module.id) {
     <div cdkDrag [attr.data-module-id]="node.module.id">
       <lib-module-item
@@ -16,6 +21,6 @@
       ></lib-module-item>
     </div>
   } @empty {
-    <p class="empty">No modules yet. Click "Add Module" to begin.</p>
+    <p class="empty text-sm text-ink-3">No modules yet. Click "Add module" to begin.</p>
   }
 </div>

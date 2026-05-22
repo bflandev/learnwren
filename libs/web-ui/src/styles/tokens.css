@@ -1,0 +1,240 @@
+/* Learn Wren — design tokens
+   Studio/craft, video-first. Earth-tone palette inspired by the wren bird:
+   warm browns, ochre, moss. Dark mode is the default; light mode is
+   adjusted to a warm paper.
+*/
+
+:root,
+.lw-theme-dark {
+  /* Surfaces */
+  --lw-bg:        oklch(18% 0.012 60);   /* near-black with brown undertone */
+  --lw-bg-2:      oklch(22% 0.014 62);   /* card / panel */
+  --lw-bg-3:      oklch(26% 0.016 64);   /* hover / inset */
+  --lw-line:      oklch(32% 0.014 68);   /* hairlines */
+  --lw-line-2:    oklch(40% 0.014 68);   /* stronger separators */
+
+  /* Ink */
+  --lw-ink:       oklch(96% 0.012 80);   /* warm white */
+  --lw-ink-2:     oklch(82% 0.014 78);   /* secondary text */
+  --lw-ink-3:     oklch(62% 0.014 76);   /* tertiary / meta */
+  --lw-ink-4:     oklch(48% 0.012 72);   /* placeholder */
+
+  /* Accents — same chroma, different hues, anchored on ochre. */
+  --lw-ochre:     oklch(78% 0.13 75);    /* primary accent — warm gold */
+  --lw-ochre-2:   oklch(68% 0.13 70);
+  --lw-ochre-ink: oklch(20% 0.04 70);    /* ink on ochre */
+
+  --lw-moss:      oklch(70% 0.10 145);   /* secondary — moss green */
+  --lw-clay:      oklch(64% 0.13 35);    /* tertiary — clay/terracotta */
+  --lw-rust:      oklch(58% 0.15 40);
+
+  /* Status */
+  --lw-good:      oklch(74% 0.12 145);
+  --lw-warn:      oklch(78% 0.13 75);
+  --lw-bad:       oklch(64% 0.18 25);
+
+  /* Type */
+  --lw-font-sans: "Inter Tight", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --lw-font-serif: "Source Serif 4", "Source Serif Pro", "Iowan Old Style", Georgia, serif;
+  --lw-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Radii / shadows */
+  --lw-r-sm: 6px;
+  --lw-r:    10px;
+  --lw-r-lg: 16px;
+  --lw-r-xl: 22px;
+
+  --lw-shadow-1: 0 1px 0 oklch(100% 0 0 / 0.04) inset, 0 1px 2px oklch(0% 0 0 / 0.4);
+  --lw-shadow-2: 0 1px 0 oklch(100% 0 0 / 0.05) inset, 0 12px 32px oklch(0% 0 0 / 0.5);
+}
+
+.lw-theme-light {
+  --lw-bg:        oklch(96% 0.008 80);
+  --lw-bg-2:      oklch(99% 0.006 84);
+  --lw-bg-3:      oklch(93% 0.012 80);
+  --lw-line:      oklch(86% 0.014 75);
+  --lw-line-2:    oklch(76% 0.018 72);
+
+  --lw-ink:       oklch(22% 0.012 60);
+  --lw-ink-2:     oklch(38% 0.014 64);
+  --lw-ink-3:     oklch(52% 0.014 70);
+  --lw-ink-4:     oklch(64% 0.012 72);
+
+  --lw-ochre:     oklch(64% 0.14 70);
+  --lw-ochre-2:   oklch(58% 0.14 65);
+  --lw-ochre-ink: oklch(98% 0.01 80);
+
+  --lw-moss:      oklch(50% 0.12 145);
+  --lw-clay:      oklch(52% 0.14 35);
+  --lw-rust:      oklch(48% 0.15 38);
+
+  --lw-shadow-1: 0 1px 0 oklch(100% 0 0 / 0.6) inset, 0 1px 2px oklch(0% 0 0 / 0.06);
+  --lw-shadow-2: 0 1px 0 oklch(100% 0 0 / 0.6) inset, 0 12px 32px oklch(0% 0 0 / 0.08);
+}
+
+/* Density — applied at the artboard or root level via class */
+.lw-density-compact     { --lw-pad: 12px; --lw-gap: 10px; --lw-card-pad: 12px; --lw-card-gap: 8px; }
+.lw-density-cozy        { --lw-pad: 18px; --lw-gap: 14px; --lw-card-pad: 16px; --lw-card-gap: 10px; }
+.lw-density-comfortable { --lw-pad: 24px; --lw-gap: 20px; --lw-card-pad: 20px; --lw-card-gap: 14px; }
+
+/* App-level resets used inside artboards */
+.lw-screen {
+  background: var(--lw-bg);
+  color: var(--lw-ink);
+  font-family: var(--lw-font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+.lw-screen, .lw-screen * { box-sizing: border-box; }
+.lw-screen h1, .lw-screen h2, .lw-screen h3, .lw-screen h4 {
+  font-family: var(--lw-font-serif);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-wrap: balance;
+}
+.lw-screen p { margin: 0; }
+.lw-screen button { font-family: inherit; cursor: pointer; }
+
+/* Wordmark */
+.lw-wordmark {
+  font-family: var(--lw-font-serif);
+  font-weight: 500;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--lw-ink);
+}
+.lw-wordmark::before {
+  content: "";
+  width: 10px; height: 10px;
+  background: var(--lw-ochre);
+  border-radius: 999px;
+  display: inline-block;
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--lw-ochre) 22%, transparent);
+}
+
+/* Buttons */
+.lw-btn {
+  font: inherit; font-weight: 500;
+  border: 1px solid var(--lw-line-2);
+  background: var(--lw-bg-2);
+  color: var(--lw-ink);
+  padding: 10px 14px;
+  border-radius: var(--lw-r);
+  display: inline-flex; align-items: center; gap: 8px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.lw-btn:hover { background: var(--lw-bg-3); }
+.lw-btn-primary {
+  background: var(--lw-ochre);
+  color: var(--lw-ochre-ink);
+  border-color: transparent;
+  font-weight: 600;
+}
+.lw-btn-primary:hover { background: var(--lw-ochre-2); }
+.lw-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--lw-ink-2);
+}
+.lw-btn-ghost:hover { background: var(--lw-bg-2); color: var(--lw-ink); }
+
+.lw-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--lw-line);
+  background: var(--lw-bg-2);
+  color: var(--lw-ink-2);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  font-feature-settings: "ss01";
+}
+.lw-pill-active {
+  background: var(--lw-ink);
+  color: var(--lw-bg);
+  border-color: var(--lw-ink);
+}
+
+.lw-meta {
+  color: var(--lw-ink-3);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.lw-mono { font-family: var(--lw-font-mono); font-feature-settings: "ss01"; }
+
+/* Cover placeholder — striped, with monospace label */
+.lw-cover {
+  position: relative;
+  border-radius: var(--lw-r);
+  overflow: hidden;
+  background: var(--lw-bg-3);
+  display: flex; align-items: flex-end;
+}
+.lw-cover[data-tone="ochre"] { background: linear-gradient(135deg, oklch(40% 0.08 75), oklch(30% 0.06 80)); }
+.lw-cover[data-tone="moss"]  { background: linear-gradient(135deg, oklch(38% 0.08 145), oklch(28% 0.05 145)); }
+.lw-cover[data-tone="clay"]  { background: linear-gradient(135deg, oklch(40% 0.10 35), oklch(28% 0.07 30)); }
+.lw-cover[data-tone="ink"]   { background: linear-gradient(135deg, oklch(28% 0.02 60), oklch(20% 0.02 60)); }
+.lw-cover[data-tone="paper"] { background: linear-gradient(135deg, oklch(74% 0.06 80), oklch(60% 0.05 78)); }
+.lw-cover[data-tone="bark"]  { background: linear-gradient(135deg, oklch(34% 0.04 50), oklch(24% 0.03 50)); }
+.lw-cover::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 14px,
+    oklch(100% 0 0 / 0.04) 14px 15px
+  );
+  pointer-events: none;
+}
+.lw-cover-label {
+  position: absolute; top: 10px; left: 10px;
+  font-family: var(--lw-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: oklch(100% 0 0 / 0.7);
+  background: oklch(0% 0 0 / 0.35);
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.lw-cover-glyph {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-family: var(--lw-font-serif);
+  font-style: italic;
+  font-size: 64px;
+  color: oklch(100% 0 0 / 0.16);
+  user-select: none;
+}
+
+/* Progress bar */
+.lw-progress {
+  height: 3px;
+  background: var(--lw-line);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+.lw-progress > span {
+  position: absolute; inset: 0 auto 0 0;
+  background: var(--lw-ochre);
+  border-radius: 999px;
+}
+
+/* Scrollbar styling inside artboards */
+.lw-screen *::-webkit-scrollbar { width: 8px; height: 8px; }
+.lw-screen *::-webkit-scrollbar-thumb {
+  background: var(--lw-line-2); border-radius: 999px;
+}
+.lw-screen *::-webkit-scrollbar-track { background: transparent; }

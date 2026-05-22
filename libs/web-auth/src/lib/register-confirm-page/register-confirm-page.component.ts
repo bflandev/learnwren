@@ -2,12 +2,13 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
+import { LwButtonDirective } from '@learnwren/web-ui';
 import { AuthService } from '../auth.service';
 
 @Component({
   selector: 'app-register-confirm-page',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, LwButtonDirective],
   templateUrl: './register-confirm-page.component.html',
 })
 export class RegisterConfirmPageComponent {

@@ -1,8 +1,10 @@
 import { Component, EventEmitter, Output, input } from '@angular/core';
+import { LwButtonDirective, LwCardComponent } from '@learnwren/web-ui';
 
 @Component({
   selector: 'lib-confirm-dialog',
   standalone: true,
+  imports: [LwButtonDirective, LwCardComponent],
   templateUrl: './confirm-dialog.component.html',
 })
 export class ConfirmDialogComponent {

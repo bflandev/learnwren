@@ -20,12 +20,14 @@ import {
   VideoUploadComponent,
 } from '@learnwren/web-video';
 
+import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
+
 import { MaterialsListComponent } from '../../materials/materials-list.component';
 
 @Component({
   selector: 'lib-lesson-item',
   standalone: true,
-  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent],
+  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, LwButtonDirective, LwInputDirective],
   templateUrl: './lesson-item.component.html',
 })
 export class LessonItemComponent {

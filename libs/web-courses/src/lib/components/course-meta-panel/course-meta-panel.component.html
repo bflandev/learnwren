@@ -1,30 +1,44 @@
-<section class="course-meta" data-testid="course-meta">
-  <label>
-    Title
-    <input
-      data-testid="course-title"
-      type="text"
-      [ngModel]="draftTitle() || course().title"
-      (focus)="syncDrafts()"
-      (ngModelChange)="draftTitle.set($event)"
-      (blur)="commitTitle()"
-      maxlength="100"
-    />
-  </label>
+<lw-card class="course-meta p-5" data-testid="course-meta">
+  <h2 class="mb-3 text-lg">Course details</h2>
+  <div class="space-y-4">
+    <label class="block">
+      <span class="text-sm font-medium text-ink-2">Title</span>
+      <input
+        lwInput
+        data-testid="course-title"
+        type="text"
+        [ngModel]="draftTitle() || course().title"
+        (focus)="syncDrafts()"
+        (ngModelChange)="draftTitle.set($event)"
+        (blur)="commitTitle()"
+        maxlength="100"
+        class="mt-1"
+      />
+    </label>
 
-  <label>
-    Description
-    <textarea
-      data-testid="course-description"
-      [ngModel]="draftDescription() || course().description"
-      (focus)="syncDrafts()"
-      (ngModelChange)="draftDescription.set($event)"
-      (blur)="commitDescription()"
-      maxlength="500"
-    ></textarea>
-  </label>
+    <label class="block">
+      <span class="text-sm font-medium text-ink-2">Description</span>
+      <textarea
+        lwInput
+        data-testid="course-description"
+        [ngModel]="draftDescription() || course().description"
+        (focus)="syncDrafts()"
+        (ngModelChange)="draftDescription.set($event)"
+        (blur)="commitDescription()"
+        maxlength="500"
+        rows="3"
+        class="mt-1"
+      ></textarea>
+    </label>
 
-  <button data-testid="delete-course" type="button" (click)="deleteCourse.emit()">
-    Delete course
-  </button>
-</section>
+    <button
+      lwButton
+      data-testid="delete-course"
+      type="button"
+      class="text-bad"
+      (click)="deleteCourse.emit()"
+    >
+      Delete course
+    </button>
+  </div>
+</lw-card>

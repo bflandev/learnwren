@@ -2,13 +2,14 @@ import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import type { Course } from '@learnwren/shared-data-models';
+import { LwCardComponent, LwCoverComponent, LwPillComponent } from '@learnwren/web-ui';
 
 import { CoursesService } from '../courses.service';
 
 @Component({
   selector: 'lib-courses-list-page',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, LwCardComponent, LwCoverComponent, LwPillComponent],
   templateUrl: './courses-list-page.component.html',
 })
 export class CoursesListPageComponent {

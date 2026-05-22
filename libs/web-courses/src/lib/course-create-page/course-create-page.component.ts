@@ -10,13 +10,15 @@ import {
   type CourseDifficulty,
 } from '@learnwren/shared-data-models';
 
+import { LwButtonDirective, LwCardComponent, LwInputDirective } from '@learnwren/web-ui';
+
 import { CoursesService } from '../courses.service';
 import type { CoursesApiErrorBody } from '../types/api-error';
 
 @Component({
   selector: 'lib-course-create-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, LwButtonDirective, LwCardComponent, LwInputDirective],
   templateUrl: './course-create-page.component.html',
 })
 export class CourseCreatePageComponent {

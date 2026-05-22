@@ -1,19 +1,58 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+
+import { AuthService } from '@learnwren/web-auth';
+
 import { App } from './app';
 
-describe('App', () => {
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [App],
-    }).compileComponents();
+function configure(user: { displayName: string } | null): void {
+  const currentUser = signal(user);
+  const fakeAuth = {
+    currentUser,
+    isAuthenticated: () => currentUser() != null,
+  };
+  TestBed.configureTestingModule({
+    imports: [App],
+    providers: [
+      provideRouter([]),
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      { provide: AuthService, useValue: fakeAuth },
+    ],
   });
+}
 
-  it('should render the Learn Wren placeholder hero with Tailwind styling', () => {
+describe('App', () => {
+  it('renders the router outlet', () => {
+    configure(null);
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
-    const hero: HTMLElement | null = fixture.nativeElement.querySelector('[data-testid="hero"]');
-    expect(hero).not.toBeNull();
-    expect(hero!.textContent).toContain('Learn Wren');
-    expect(hero!.classList.contains('text-3xl')).toBe(true);
+    expect(fixture.nativeElement.querySelector('router-outlet')).not.toBeNull();
+  });
+
+  it('hides the top nav when the user is unauthenticated', () => {
+    configure(null);
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('header')).toBeNull();
+  });
+
+  it('shows the top nav with the wordmark when authenticated', () => {
+    configure({ displayName: 'Etta Wren' });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const header: HTMLElement | null = fixture.nativeElement.querySelector('header');
+    expect(header).not.toBeNull();
+    expect(header!.querySelector('.lw-wordmark')).not.toBeNull();
+  });
+
+  it('renders the user initials in the avatar when authenticated', () => {
+    configure({ displayName: 'Etta Wren' });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('EW');
   });
 });

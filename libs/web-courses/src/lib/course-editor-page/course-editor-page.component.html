@@ -1,52 +1,63 @@
-<header>
-  <a routerLink="/courses">← My Courses</a>
-</header>
+<div class="mx-auto w-full max-w-4xl p-6">
+  <header class="mb-5">
+    <a routerLink="/courses" class="text-sm text-ochre hover:underline">← My Courses</a>
+  </header>
 
-@if (tree() === null) {
-  <p>Loading…</p>
-} @else {
-  <lib-course-publish-bar
-    [course]="tree()!.course"
-    (courseUpdated)="onCourseUpdated($event)"
-    (requestConfirm)="requestPublishConfirm($event)"
-  />
-  @if (tree()!.course.status === 'DRAFT') {
-    <lib-publish-eligibility-panel
-      (jumpToModule)="onJumpToModule($event)"
-      (jumpToLesson)="onJumpToLesson($event)"
-    />
+  @if (tree() === null) {
+    <p class="text-sm text-ink-3">Loading…</p>
+  } @else {
+    <div class="space-y-5">
+      <lib-course-publish-bar
+        [course]="tree()!.course"
+        (courseUpdated)="onCourseUpdated($event)"
+        (requestConfirm)="requestPublishConfirm($event)"
+      />
+      @if (tree()!.course.status === 'DRAFT') {
+        <lib-publish-eligibility-panel
+          (jumpToModule)="onJumpToModule($event)"
+          (jumpToLesson)="onJumpToLesson($event)"
+        />
+      }
+
+      <lib-course-meta-panel
+        [course]="tree()!.course"
+        (update)="onUpdateCourse($event)"
+        (deleteCourse)="requestDeleteCourse()"
+      ></lib-course-meta-panel>
+
+      <div class="flex items-center justify-between gap-4">
+        <h2 class="text-lg">Modules</h2>
+        <button lwButton data-testid="add-module" type="button" (click)="addModule()">
+          Add module
+        </button>
+      </div>
+
+      <lib-module-tree
+        [nodes]="nodes()"
+        [courseId]="cid()"
+        (reorderModules)="onReorderModules($event)"
+        (renameModule)="onRenameModule($event)"
+        (deleteModule)="requestDeleteModule($event)"
+        (addLesson)="onAddLesson($event)"
+        (renameLesson)="onRenameLesson($event)"
+        (deleteLesson)="requestDeleteLesson($event)"
+        (reorderLessons)="onReorderLessons($event)"
+        (videoChanged)="refresh()"
+        (videoStateChanged)="onVideoStateChanged($event)"
+      ></lib-module-tree>
+    </div>
   }
 
-  <lib-course-meta-panel
-    [course]="tree()!.course"
-    (update)="onUpdateCourse($event)"
-    (deleteCourse)="requestDeleteCourse()"
-  ></lib-course-meta-panel>
+  @if (error()) {
+    <p class="error mt-4 text-sm text-bad" data-testid="editor-error" role="alert">
+      {{ error() }}
+    </p>
+  }
 
-  <button data-testid="add-module" type="button" (click)="addModule()">Add module</button>
-
-  <lib-module-tree
-    [nodes]="nodes()"
-    [courseId]="cid()"
-    (reorderModules)="onReorderModules($event)"
-    (renameModule)="onRenameModule($event)"
-    (deleteModule)="requestDeleteModule($event)"
-    (addLesson)="onAddLesson($event)"
-    (renameLesson)="onRenameLesson($event)"
-    (deleteLesson)="requestDeleteLesson($event)"
-    (reorderLessons)="onReorderLessons($event)"
-    (videoChanged)="refresh()"
-    (videoStateChanged)="onVideoStateChanged($event)"
-  ></lib-module-tree>
-}
-
-@if (error()) {
-  <p class="error" data-testid="editor-error" role="alert">{{ error() }}</p>
-}
-
-@if (pendingConfirm()) {
-  <lib-confirm-dialog
-    [message]="confirmMessage()"
-    (closed)="onConfirmClosed($event)"
-  ></lib-confirm-dialog>
-}
+  @if (pendingConfirm()) {
+    <lib-confirm-dialog
+      [message]="confirmMessage()"
+      (closed)="onConfirmClosed($event)"
+    ></lib-confirm-dialog>
+  }
+</div>

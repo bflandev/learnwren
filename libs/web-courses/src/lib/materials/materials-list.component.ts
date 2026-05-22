@@ -11,6 +11,8 @@ import type {
   ModuleId,
 } from '@learnwren/shared-data-models';
 
+import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
+
 import { ConfirmDialogComponent } from '../components/confirm-dialog/confirm-dialog.component';
 import { MaterialUploadService } from './material-upload.service';
 import { MaterialsService } from './materials.service';
@@ -18,7 +20,7 @@ import { MaterialsService } from './materials.service';
 @Component({
   selector: 'lib-materials-list',
   standalone: true,
-  imports: [FormsModule, ConfirmDialogComponent],
+  imports: [FormsModule, ConfirmDialogComponent, LwButtonDirective, LwInputDirective],
   templateUrl: './materials-list.component.html',
   providers: [MaterialUploadService],
 })

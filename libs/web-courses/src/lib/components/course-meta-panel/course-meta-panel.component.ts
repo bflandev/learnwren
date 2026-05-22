@@ -2,13 +2,14 @@ import { Component, EventEmitter, Output, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import type { Course } from '@learnwren/shared-data-models';
+import { LwButtonDirective, LwCardComponent, LwInputDirective } from '@learnwren/web-ui';
 
 import type { UpdateCourseInput } from '../../courses.service';
 
 @Component({
   selector: 'lib-course-meta-panel',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, LwButtonDirective, LwCardComponent, LwInputDirective],
   templateUrl: './course-meta-panel.component.html',
 })
 export class CourseMetaPanelComponent {

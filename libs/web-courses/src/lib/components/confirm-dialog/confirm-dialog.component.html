@@ -1,7 +1,24 @@
-<div role="dialog" aria-modal="true" data-testid="confirm-dialog">
-  <p>{{ message() }}</p>
-  <div>
-    <button type="button" data-testid="confirm-cancel" (click)="closed.emit(false)">{{ cancelLabel() }}</button>
-    <button type="button" data-testid="confirm-go" (click)="closed.emit(true)">{{ confirmLabel() }}</button>
-  </div>
+<div
+  role="dialog"
+  aria-modal="true"
+  data-testid="confirm-dialog"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+>
+  <lw-card class="w-full max-w-sm p-6">
+    <p class="text-ink">{{ message() }}</p>
+    <div class="mt-5 flex justify-end gap-2">
+      <button lwButton type="button" data-testid="confirm-cancel" (click)="closed.emit(false)">
+        {{ cancelLabel() }}
+      </button>
+      <button
+        lwButton
+        variant="primary"
+        type="button"
+        data-testid="confirm-go"
+        (click)="closed.emit(true)"
+      >
+        {{ confirmLabel() }}
+      </button>
+    </div>
+  </lw-card>
 </div>

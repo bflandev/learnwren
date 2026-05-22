@@ -1,32 +1,49 @@
-<div class="publish-bar" data-testid="publish-bar">
-  <span class="title">{{ course.title }}</span>
-  <span
-    class="pill pill-{{ status() | lowercase }}"
+<div
+  class="publish-bar flex flex-wrap items-center gap-3 rounded-lg border border-line bg-bg-2 p-4"
+  data-testid="publish-bar"
+>
+  <span class="title text-lg text-ink">{{ course.title }}</span>
+  <lw-pill
     data-testid="publish-bar-pill"
-  >{{ status() }}</span>
+    [tone]="status() === 'PUBLISHED' ? 'good' : status() === 'ARCHIVED' ? 'default' : 'ochre'"
+    >{{ status() }}</lw-pill
+  >
+
+  <span class="flex-1"></span>
 
   <button
+    lwButton
+    variant="primary"
     type="button"
-    class="primary"
     data-testid="publish-bar-primary"
+    class="disabled:opacity-50"
     [disabled]="primaryDisabled()"
     (click)="onPrimary()"
-    [attr.title]="primaryKind() === 'publish' && !primaryDisabled() ? null
-                  : primaryKind() === 'publish' ? 'Resolve the issues below first'
-                  : null"
-  >{{ primaryLabel() }}</button>
+    [attr.title]="
+      primaryKind() === 'publish' && !primaryDisabled()
+        ? null
+        : primaryKind() === 'publish'
+          ? 'Resolve the issues below first'
+          : null
+    "
+  >
+    {{ primaryLabel() }}
+  </button>
 
   @if (canArchive()) {
     <button
+      lwButton
       type="button"
-      class="secondary"
       data-testid="publish-bar-archive"
+      class="disabled:opacity-50"
       [disabled]="inFlight()"
       (click)="onArchive()"
-    >Archive course…</button>
+    >
+      Archive course…
+    </button>
   }
 
   @if (genericError(); as msg) {
-    <div class="banner" role="alert">{{ msg }}</div>
+    <div class="banner w-full text-sm text-bad" role="alert">{{ msg }}</div>
   }
 </div>
