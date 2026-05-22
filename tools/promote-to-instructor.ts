@@ -9,12 +9,15 @@
  * Usage:
  *   pnpm tools:promote-to-instructor <email>
  *
- * Requires: FIREBASE_SERVICE_ACCOUNT_JSON_PATH + LEARNWREN_API_FIREBASE_PROJECT_ID
- * for prod, or running against the emulator with FIREBASE_AUTH_EMULATOR_HOST +
- * FIRESTORE_EMULATOR_HOST exported.
+ * Targets the local Firebase emulators by default (no setup needed beyond
+ * `pnpm emulators`). To run against production, set
+ * LEARNWREN_FIREBASE_TARGET=production together with
+ * LEARNWREN_API_FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT_JSON_PATH.
  */
 
 import * as admin from 'firebase-admin';
+
+import { initFirebaseApp, resolveMode } from './firebase-admin-init';
 
 type AuthLike = Pick<admin.auth.Auth, 'getUserByEmail' | 'setCustomUserClaims'>;
 type FirestoreLike = Pick<admin.firestore.Firestore, 'collection'>;
@@ -48,22 +51,11 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const projectId =
-    process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] ?? 'demo-learnwren';
-  const credentialPath = process.env['FIREBASE_SERVICE_ACCOUNT_JSON_PATH'];
-
-  if (admin.apps.length === 0) {
-    if (credentialPath) {
-      admin.initializeApp({
-        projectId,
-        credential: admin.credential.cert(credentialPath),
-      });
-    } else {
-      admin.initializeApp({ projectId });
-    }
-  }
+  const mode = resolveMode();
+  console.log(`[promote] Target: ${mode}.`);
 
   try {
+    initFirebaseApp(mode);
     await promoteToInstructor(email, admin.auth(), admin.firestore());
   } catch (err) {
     console.error(`[promote] Failed: ${err instanceof Error ? err.message : String(err)}`);
