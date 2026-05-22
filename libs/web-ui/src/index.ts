@@ -3,3 +3,4 @@ export * from './lib/icon/lw-icon.component';
 export * from './lib/button/lw-button.directive';
 export * from './lib/wordmark/lw-wordmark.component';
 export * from './lib/card/lw-card.component';
+export * from './lib/pill/lw-pill.component';
