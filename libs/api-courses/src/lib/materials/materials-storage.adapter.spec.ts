@@ -17,7 +17,8 @@ function storageWith(file: Record<string, unknown>) {
 }
 
 describe('MaterialsStorageAdapter — fake mode', () => {
-  it('signUploadUrl returns an internal passthrough URL', async () => {
+  it('signUploadUrl returns an internal passthrough URL with a future expiresAt', async () => {
+    const before = Date.now();
     const a = new MaterialsStorageAdapter(storageWith({}), fakeCfg);
     const r = await a.signUploadUrl({
       bucket: 'b',
@@ -26,10 +27,15 @@ describe('MaterialsStorageAdapter — fake mode', () => {
       materialId: 'm1',
     });
     expect(r.uploadUrl).toBe('/api/internal/fake-materials/m1');
-    expect(typeof r.expiresAt).toBe('string');
+    // expiresAt must be in the future (now + 900s), not in the past.
+    // Kills ArithmeticOperator mutants that replace `+` with `-` or `*` with `/`.
+    const expiresMs = new Date(r.expiresAt).getTime();
+    expect(expiresMs).toBeGreaterThan(before + 800_000);
+    expect(expiresMs).toBeLessThan(before + 1_000_000);
   });
 
-  it('signDownloadUrl returns an internal passthrough URL', async () => {
+  it('signDownloadUrl returns an internal passthrough URL with a future expiresAt', async () => {
+    const before = Date.now();
     const a = new MaterialsStorageAdapter(storageWith({}), fakeCfg);
     const r = await a.signDownloadUrl({
       bucket: 'b',
@@ -40,11 +46,15 @@ describe('MaterialsStorageAdapter — fake mode', () => {
       ttlSec: 900,
     });
     expect(r.downloadUrl).toBe('/api/internal/fake-materials/m1');
+    const expiresMs = new Date(r.expiresAt).getTime();
+    expect(expiresMs).toBeGreaterThan(before + 800_000);
+    expect(expiresMs).toBeLessThan(before + 1_000_000);
   });
 });
 
 describe('MaterialsStorageAdapter — real mode', () => {
   it('signUploadUrl asks Cloud Storage for a v4 write URL bound to the content-type', async () => {
+    const before = Date.now();
     const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example/upload']);
     const a = new MaterialsStorageAdapter(storageWith({ getSignedUrl }), realCfg);
     const r = await a.signUploadUrl({
@@ -57,9 +67,14 @@ describe('MaterialsStorageAdapter — real mode', () => {
     expect(getSignedUrl).toHaveBeenCalledWith(
       expect.objectContaining({ version: 'v4', action: 'write', contentType: 'application/pdf' }),
     );
+    // expiresAt must be a future timestamp (now + 900s). Kills arithmetic-operator mutants.
+    const expiresMs = new Date(r.expiresAt).getTime();
+    expect(expiresMs).toBeGreaterThan(before + 800_000);
+    expect(expiresMs).toBeLessThan(before + 1_000_000);
   });
 
   it('signDownloadUrl requests a read URL with attachment disposition', async () => {
+    const before = Date.now();
     const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example/download']);
     const a = new MaterialsStorageAdapter(storageWith({ getSignedUrl }), realCfg);
     const r = await a.signDownloadUrl({
@@ -72,10 +87,15 @@ describe('MaterialsStorageAdapter — real mode', () => {
     });
     expect(r.downloadUrl).toBe('https://signed.example/download');
     const opts = getSignedUrl.mock.calls[0]![0] as Record<string, unknown>;
+    expect(opts['version']).toBe('v4');
     expect(opts['action']).toBe('read');
     expect(String(opts['responseDisposition'])).toContain('attachment');
     expect(String(opts['responseDisposition'])).toContain('doc.pdf');
     expect(opts['responseType']).toBe('application/pdf');
+    // expiresAt must be a future timestamp (now + 900s). Kills arithmetic-operator mutants.
+    const expiresMs = new Date(r.expiresAt).getTime();
+    expect(expiresMs).toBeGreaterThan(before + 800_000);
+    expect(expiresMs).toBeLessThan(before + 1_000_000);
   });
 
   it('signDownloadUrl sanitizes special characters in the filename', async () => {
@@ -98,10 +118,22 @@ describe('MaterialsStorageAdapter — real mode', () => {
     expect(disposition).not.toContain('"b');
   });
 
-  it('headObject returns the numeric size', async () => {
+  it('headObject returns the numeric size when metadata size is a string', async () => {
     const getMetadata = vi.fn().mockResolvedValue([{ size: '4096' }]);
     const a = new MaterialsStorageAdapter(storageWith({ getMetadata }), realCfg);
     expect(await a.headObject({ bucket: 'b', path: 'p' })).toEqual({ size: 4096 });
+  });
+
+  it('headObject returns the numeric size when metadata size is already a number', async () => {
+    // Distinguishes the ternary branch: `typeof meta.size === 'string' ? Number(meta.size) : meta.size`
+    // With the mutant (hardcoded true), numeric input is still coerced via Number() which is same.
+    // With hardcoded false, string inputs would be returned as-is (a string, not a number).
+    // This test pins that a numeric size in metadata is returned as the same number.
+    const getMetadata = vi.fn().mockResolvedValue([{ size: 8192 }]);
+    const a = new MaterialsStorageAdapter(storageWith({ getMetadata }), realCfg);
+    const result = await a.headObject({ bucket: 'b', path: 'p' });
+    expect(result).toEqual({ size: 8192 });
+    expect(typeof result!.size).toBe('number');
   });
 
   it('headObject returns null when the object is missing (404)', async () => {

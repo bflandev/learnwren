@@ -126,6 +126,21 @@ describe('MaterialsService.createUploadUrl', () => {
       }),
     ).rejects.toThrow(/Unsupported file type/);
   });
+
+  it('accepts a leading-dot filename whose extension is supported (e.g. ".pdf")', async () => {
+    // ".pdf" → lastIndexOf('.') = 0 → dot >= 0 is true, ext = 'pdf' — accepted.
+    // With the mutant `dot > 0` the condition is false, ext = '', rejected.
+    // This distinguishes `dot >= 0` from `dot > 0`.
+    const svc = new MaterialsService(repo as never, fakeStorage().port, cfg);
+    const r = await svc.createUploadUrl({
+      uid: 'u1' as UserId,
+      courseId: 'c1' as CourseId,
+      lessonId: 'l1' as LessonId,
+      filename: '.pdf',
+      sizeBytes: 100,
+    });
+    expect(repo.store.get(r.materialId)!.extension).toBe('pdf');
+  });
 });
 
 describe('MaterialsService.complete', () => {
@@ -142,7 +157,10 @@ describe('MaterialsService.complete', () => {
     expect(r.sizeBytes).toBe(4096);
     expect(typeof r.updatedAt).toBe('string');
     expect(r.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(repo.store.get('m1')!.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const persisted = repo.store.get('m1')!;
+    expect(persisted.state).toBe('READY');
+    expect(persisted.sizeBytes).toBe(4096);
+    expect(persisted.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it('throws MATERIAL_NOT_FOUND for a missing material', async () => {
@@ -177,6 +195,22 @@ describe('MaterialsService.complete', () => {
     const svc = new MaterialsService(repo as never, storage.port, cfg);
     await expect(svc.complete('m1' as MaterialId)).rejects.toThrow(/exceeds/i);
     expect(storage.deleted).toContain('materials/m1/source.pdf');
+  });
+
+  it('accepts a file exactly at the tolerance boundary (size === MAX * 1.05) without throwing', async () => {
+    // MATERIAL_MAX_SIZE_BYTES * SIZE_TOLERANCE exactly — condition is `> tolerance`, not `>=`,
+    // so exact boundary should succeed. This distinguishes `>` from `>=`.
+    const repo = fakeRepo();
+    await repo.create(seedMaterial('m1'));
+    const exactLimit = Math.floor(MATERIAL_MAX_SIZE_BYTES * 1.05);
+    const svc = new MaterialsService(
+      repo as never,
+      fakeStorage({ headObject: async () => ({ size: exactLimit }) }).port,
+      cfg,
+    );
+    const r = await svc.complete('m1' as MaterialId);
+    expect(r.state).toBe('READY');
+    expect(r.sizeBytes).toBe(exactLimit);
   });
 });
 

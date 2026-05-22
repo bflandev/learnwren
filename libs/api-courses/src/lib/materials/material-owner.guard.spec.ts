@@ -52,4 +52,13 @@ describe('MaterialOwnerGuard', () => {
       ),
     ).rejects.toThrow(/access/i);
   });
+
+  it('throws NOT_MATERIAL_OWNER when req.user is undefined (unauthenticated request)', async () => {
+    // Pins `req.user?.uid` optional chaining: without `?.`, accessing `.uid` on undefined
+    // would throw a TypeError rather than denying access cleanly.
+    const guard = new MaterialOwnerGuard(repoReturning(material));
+    await expect(
+      guard.canActivate(ctxFor({ params: { matId: 'm1' as MaterialId } })),
+    ).rejects.toThrow(/access/i);
+  });
 });

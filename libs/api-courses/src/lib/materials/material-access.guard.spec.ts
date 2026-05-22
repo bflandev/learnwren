@@ -46,4 +46,13 @@ describe('MaterialAccessGuard', () => {
     const guard = new MaterialAccessGuard({ get: async () => material } as never);
     await expect(guard.canActivate(ctxFor({ params: {} }))).rejects.toThrow(/not found/i);
   });
+
+  it('throws NOT_MATERIAL_OWNER when req.user is undefined (unauthenticated request)', async () => {
+    // Pins the `req.user?.uid` optional-chaining: without `?.`, accessing `.uid` on undefined
+    // would throw a TypeError rather than treating the uid as undefined and denying access.
+    const guard = new MaterialAccessGuard({ get: async () => material } as never);
+    await expect(
+      guard.canActivate(ctxFor({ params: { matId: 'm1' } })),
+    ).rejects.toThrow(/access/i);
+  });
 });
