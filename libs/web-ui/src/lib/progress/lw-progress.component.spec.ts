@@ -32,4 +32,16 @@ describe('LwProgressComponent', () => {
       '0%',
     );
   });
+
+  it('exposes the percentage to assistive technology', () => {
+    const fixture = TestBed.createComponent(LwProgressComponent);
+    fixture.componentRef.setInput('value', 0.4);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.getAttribute('role')).toBe('progressbar');
+    expect(host.getAttribute('aria-valuemin')).toBe('0');
+    expect(host.getAttribute('aria-valuemax')).toBe('100');
+    expect(host.getAttribute('aria-valuenow')).toBe('40');
+  });
 });

@@ -5,7 +5,13 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<span [style.width.%]="pct()"></span>`,
-  host: { class: 'lw-progress block' },
+  host: {
+    class: 'lw-progress block',
+    role: 'progressbar',
+    'aria-valuemin': '0',
+    'aria-valuemax': '100',
+    '[attr.aria-valuenow]': 'pct()',
+  },
 })
 export class LwProgressComponent {
   /** Progress fraction in the range 0..1. */
