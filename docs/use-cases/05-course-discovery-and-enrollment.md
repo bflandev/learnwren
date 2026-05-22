@@ -3,7 +3,21 @@
 This document contains the fully-dressed Cockburn use cases for browsing, searching, viewing, enrolling, and unenrolling from courses.
 
 > [!NOTE]
-> **DRIFT — this spec is unimplemented.** Frozen 2026-03-27. EP-05 (course discovery, search, course-detail, enrolment) is entirely deferred — no catalogue, search, or enrolment surface exists. The `Enrollment` type in `shared-data-models` is a forward declaration with no behavior behind it. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-05--course-discovery-and-enrollment).
+> **IMPLEMENTED — EP-05 complete.** UC-05-01 through UC-05-05 are wired end to end.
+>
+> - **Slice A (UC-05-01..03, merged 2026-05-22):** public catalogue with category/difficulty filters, Newest/Alphabetical sort, keyword search, and course-detail page.
+> - **Slice B (UC-05-04..05, merged 2026-05-22):** authenticated enrolment and unenrolment; guest auto-enrol after login; leave-course confirmation dialog; enrolment grants video/material access via `EnrollmentOrOwnerGuard` and `MaterialAccessGuard`.
+>
+> The `POPULAR` sort named in extension 2c of UC-05-01 is now live — the catalogue accepts `sort=POPULAR` and ranks courses by `enrollmentCount` descending.
+>
+> The `Enrollment` type in `shared-data-models` is fully backed by behaviour (`ACTIVE`/`WITHDRAWN` lifecycle, composite-ID Firestore document, `enrollmentCount` counter on `Course`).
+>
+> **Deferred items (documented follow-ups, not spec drift):**
+> - The "Continue Learning" button and lesson player — EP-06.
+> - The 90-day hard-delete purge of `WITHDRAWN` enrolments — soft-delete and restore ship in Slice B; the scheduled purge does not.
+> - Access revocation when a course is unpublished after enrolment — guards check ownership/active-enrolment but not current `Course.status` at playback time.
+>
+> See the [Specification Drift Report](../quality/spec-drift-report.md#ep-05--course-discovery-and-enrollment) for the historical record.
 
 ---
 
