@@ -1,9 +1,11 @@
-<section class="module-item" data-testid="module-item">
-  <header>
+<lw-card class="module-item block p-4" data-testid="module-item">
+  <header class="mb-3 flex flex-wrap items-center gap-2">
     @if (editing()) {
       <input
+        lwInput
         data-testid="module-rename-input"
         type="text"
+        class="flex-1"
         [ngModel]="draftTitle()"
         (ngModelChange)="draftTitle.set($event)"
         (blur)="commit()"
@@ -11,9 +13,24 @@
         (keydown.escape)="cancel()"
       />
     } @else {
-      <button type="button" data-testid="module-title" (click)="startEdit()">{{ module().title }}</button>
+      <button
+        type="button"
+        data-testid="module-title"
+        class="flex-1 text-left font-serif text-lg text-ink"
+        (click)="startEdit()"
+      >
+        {{ module().title }}
+      </button>
     }
-    <button data-testid="module-delete" type="button" (click)="deleteModule.emit()">Delete module</button>
+    <button
+      lwButton
+      data-testid="module-delete"
+      type="button"
+      class="text-bad"
+      (click)="deleteModule.emit()"
+    >
+      Delete module
+    </button>
   </header>
 
   <lib-lesson-list
@@ -28,8 +45,10 @@
 
   @if (addingLesson()) {
     <input
+      lwInput
       data-testid="add-lesson-input"
       type="text"
+      class="mt-3"
       [ngModel]="newLessonTitle()"
       (ngModelChange)="newLessonTitle.set($event)"
       (blur)="commitAddLesson()"
@@ -37,6 +56,15 @@
       placeholder="New lesson title"
     />
   } @else {
-    <button data-testid="add-lesson" type="button" (click)="beginAddLesson()">Add lesson</button>
+    <button
+      lwButton
+      variant="ghost"
+      data-testid="add-lesson"
+      type="button"
+      class="mt-3"
+      (click)="beginAddLesson()"
+    >
+      Add lesson
+    </button>
   }
-</section>
+</lw-card>
