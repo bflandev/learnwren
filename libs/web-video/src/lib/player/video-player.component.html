@@ -1,15 +1,22 @@
-<video
-  #playerEl
-  controls
-  preload="metadata"
-  crossorigin="use-credentials"
-  class="player"
-  data-testid="video-player"
-></video>
+<div class="overflow-hidden rounded-lg bg-black">
+  <video
+    #playerEl
+    controls
+    preload="metadata"
+    crossorigin="use-credentials"
+    class="block w-full"
+    data-testid="video-player"
+  ></video>
+</div>
 @if (error(); as msg) {
-  <div class="error" role="alert" data-testid="video-player-error">
+  <div
+    class="mt-2 flex items-center gap-2 text-sm text-bad"
+    role="alert"
+    data-testid="video-player-error"
+  >
     <span>{{ msg }}</span>
     <button
+      lwButton
       type="button"
       (click)="retry()"
       data-testid="video-player-retry"

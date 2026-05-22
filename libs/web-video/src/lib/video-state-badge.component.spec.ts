@@ -103,4 +103,48 @@ describe('VideoStateBadgeComponent — slice B copy', () => {
     subject.next(video('TRANSCODING'));
     expect(emissions).toEqual([]);
   });
+
+  it('maps READY to the good pill tone', () => {
+    fixture.componentRef.setInput('video', video('READY'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.tone()).toBe('good');
+  });
+
+  it('maps FAILED to the bad pill tone', () => {
+    fixture.componentRef.setInput('video', video('FAILED'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.tone()).toBe('bad');
+  });
+
+  it('maps TRANSCODING to the warn pill tone', () => {
+    fixture.componentRef.setInput('video', video('TRANSCODING'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.tone()).toBe('warn');
+  });
+
+  it('maps a stalled TRANSCODING video to the bad pill tone', () => {
+    const stale: Video = {
+      ...video('TRANSCODING'),
+      updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
+    };
+    fixture.componentRef.setInput('video', stale);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.tone()).toBe('bad');
+  });
+
+  it('maps PENDING_UPLOAD to the warn pill tone', () => {
+    fixture.componentRef.setInput('video', video('PENDING_UPLOAD'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.tone()).toBe('warn');
+  });
+
+  it('maps a stalled PENDING_UPLOAD video to the bad pill tone', () => {
+    const stale: Video = {
+      ...video('PENDING_UPLOAD'),
+      updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
+    };
+    fixture.componentRef.setInput('video', stale);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.tone()).toBe('bad');
+  });
 });

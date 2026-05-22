@@ -1,29 +1,41 @@
 @let s = svc.state();
 @switch (s.kind) {
   @case ('idle') {
-    <label class="upload-zone" data-testid="upload-video">
-      <span>Drag a video file here, or click to choose. MP4, MOV, or MKV up to 10 GB.</span>
+    <label
+      class="upload-zone flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed border-line bg-bg p-6 text-center"
+      data-testid="upload-video"
+    >
+      <span class="text-sm text-ink-2">
+        Drag a video file here, or click to choose. MP4, MOV, or MKV up to 10 GB.
+      </span>
       <input
         type="file"
         accept="video/mp4,video/quicktime,video/x-matroska,.mp4,.mov,.mkv,.m4v"
+        class="sr-only"
         (change)="onFile($any($event.target).files?.[0] ?? null)"
       />
     </label>
   }
-  @case ('creating-session') { <p>Preparing upload…</p> }
+  @case ('creating-session') {
+    <p class="text-sm text-ink-3">Preparing upload…</p>
+  }
   @case ('uploading') {
-    <div>
-      <progress [value]="s.percent" max="100"></progress>
-      <span>{{ s.percent }}%</span>
-      <button type="button" (click)="onCancel()">Cancel</button>
+    <div class="flex items-center gap-3">
+      <lw-progress class="flex-1" [value]="s.percent / 100" />
+      <span class="text-sm text-ink-2">{{ s.percent }}%</span>
+      <button lwButton type="button" (click)="onCancel()">Cancel</button>
     </div>
   }
-  @case ('finalizing') { <p>Finishing up…</p> }
-  @case ('canceling') { <p>Cancelling…</p> }
+  @case ('finalizing') {
+    <p class="text-sm text-ink-3">Finishing up…</p>
+  }
+  @case ('canceling') {
+    <p class="text-sm text-ink-3">Cancelling…</p>
+  }
   @case ('failed') {
-    <div role="alert">
-      <p>{{ s.reason }}</p>
-      <button type="button" (click)="onRetry()">Try again</button>
+    <div role="alert" class="rounded-lg border border-line bg-bg-2 p-4">
+      <p class="text-sm text-bad">{{ s.reason }}</p>
+      <button lwButton type="button" class="mt-2" (click)="onRetry()">Try again</button>
     </div>
   }
 }

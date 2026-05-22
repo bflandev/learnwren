@@ -42,7 +42,7 @@ describe('VideoUploadComponent', () => {
     const svc = buildFakeSvc({ kind: 'uploading', percent: 42, videoId: 'v1' as never });
     const { fixture } = build(svc);
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('progress')).toBeTruthy();
+    expect(el.querySelector('lw-progress')).toBeTruthy();
     expect(el.textContent).toContain('42');
   });
 
