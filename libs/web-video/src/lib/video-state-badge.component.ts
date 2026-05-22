@@ -4,6 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { Video, VideoState } from '@learnwren/shared-data-models';
 
 import { VideoStatePollingService } from './polling/video-state-polling.service';
+import { LwPillComponent, type LwPillTone } from '@learnwren/web-ui';
 
 const STUCK_THRESHOLD_MIN = 30;
 const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
@@ -12,6 +13,7 @@ const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
   selector: 'lib-video-state-badge',
   standalone: true,
   templateUrl: './video-state-badge.component.html',
+  imports: [LwPillComponent],
 })
 export class VideoStateBadgeComponent implements OnInit {
   readonly video = input.required<Video>();
@@ -39,6 +41,24 @@ export class VideoStateBadgeComponent implements OnInit {
         return 'Transcoding failed — delete and re-upload';
       default:
         return '';
+    }
+  });
+
+  readonly tone = computed<LwPillTone>(() => {
+    const v = this.current();
+    if (this.isStuck(v, 'PENDING_UPLOAD')) return 'bad';
+    if (this.isStuck(v, 'TRANSCODING')) return 'bad';
+    switch (v.state) {
+      case 'PENDING_UPLOAD':
+      case 'UPLOADED':
+      case 'TRANSCODING':
+        return 'warn';
+      case 'READY':
+        return 'good';
+      case 'FAILED':
+        return 'bad';
+      default:
+        return 'default';
     }
   });
 

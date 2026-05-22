@@ -1,6 +1,14 @@
-<span class="badge" data-testid="video-state-badge" [attr.data-video-id]="video().id" [attr.data-state]="video().state">
+<lw-pill
+  data-testid="video-state-badge"
+  [attr.data-video-id]="video().id"
+  [attr.data-state]="video().state"
+  [tone]="tone()"
+>
   @if (showSpinner()) {
-    <span class="spinner" aria-hidden="true"></span>
+    <span
+      class="spinner mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-line border-t-ochre align-[-2px]"
+      aria-hidden="true"
+    ></span>
   }
   {{ label() }}
-</span>
+</lw-pill>
