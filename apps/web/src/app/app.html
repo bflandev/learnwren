@@ -1,6 +1,23 @@
-<main class="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-  <section data-testid="hero" class="text-3xl font-semibold text-slate-900">
-    Learn Wren
-  </section>
-  <router-outlet />
-</main>
+@if (auth.isAuthenticated()) {
+  <header class="sticky top-0 z-10 flex items-center gap-6 border-b border-line bg-bg px-6 py-3.5">
+    <a routerLink="/dashboard"><lw-wordmark [size]="20" /></a>
+    <nav class="flex gap-1">
+      <a routerLink="/dashboard" class="lw-btn lw-btn-ghost">Dashboard</a>
+      <a routerLink="/courses" class="lw-btn lw-btn-ghost">My Courses</a>
+    </nav>
+    <span class="flex-1"></span>
+    <lw-theme-toggle />
+    <span
+      class="grid h-8 w-8 place-items-center rounded-full bg-ochre font-serif text-sm italic text-ochre-ink"
+      [attr.aria-label]="'Signed in as ' + (auth.currentUser()?.displayName ?? '')"
+      >{{ initials() }}</span
+    >
+  </header>
+  <main class="bg-bg text-ink">
+    <router-outlet />
+  </main>
+} @else {
+  <main class="flex min-h-screen flex-col items-center justify-center bg-bg text-ink">
+    <router-outlet />
+  </main>
+}

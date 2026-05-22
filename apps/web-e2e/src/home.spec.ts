@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-test('home page renders the Learn Wren placeholder hero', async ({ page }) => {
+test('the root path redirects to the login page', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByTestId('hero')).toBeVisible();
-  await expect(page.getByTestId('hero')).toHaveText('Learn Wren');
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.locator('input[formControlName="email"]')).toBeVisible();
 });
