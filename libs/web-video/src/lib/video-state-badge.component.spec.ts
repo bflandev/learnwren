@@ -131,4 +131,20 @@ describe('VideoStateBadgeComponent — slice B copy', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.tone()).toBe('bad');
   });
+
+  it('maps PENDING_UPLOAD to the warn pill tone', () => {
+    fixture.componentRef.setInput('video', video('PENDING_UPLOAD'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.tone()).toBe('warn');
+  });
+
+  it('maps a stalled PENDING_UPLOAD video to the bad pill tone', () => {
+    const stale: Video = {
+      ...video('PENDING_UPLOAD'),
+      updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
+    };
+    fixture.componentRef.setInput('video', stale);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.tone()).toBe('bad');
+  });
 });
