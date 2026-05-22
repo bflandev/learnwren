@@ -47,6 +47,15 @@ export class CoursesRepository {
     return snap.docs.map((d) => d.data() as Course);
   }
 
+  /** Every course with status PUBLISHED. The catalogue's only Firestore query. */
+  async listPublished(): Promise<Course[]> {
+    const snap = await this.firestore
+      .collection(COURSES)
+      .where('status', '==', 'PUBLISHED')
+      .get();
+    return snap.docs.map((d) => d.data() as Course);
+  }
+
   async updateCourse(cid: CourseId, patch: Partial<Course>): Promise<void> {
     await this.firestore
       .collection(COURSES)

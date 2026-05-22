@@ -548,3 +548,28 @@ describe('CoursesRepository.updateStatusInTxn', () => {
     expect(fake.__store.size).toBe(0);
   });
 });
+
+describe('CoursesRepository.listPublished', () => {
+  it('returns only courses whose status is PUBLISHED', async () => {
+    const fake = createFakeFirestore({
+      'courses/c-draft': { id: 'c-draft', title: 'Draft', status: 'DRAFT' },
+      'courses/c-pub-1': { id: 'c-pub-1', title: 'Pub One', status: 'PUBLISHED' },
+      'courses/c-pub-2': { id: 'c-pub-2', title: 'Pub Two', status: 'PUBLISHED' },
+      'courses/c-arch': { id: 'c-arch', title: 'Archived', status: 'ARCHIVED' },
+    });
+    const repo = await buildRepo(fake);
+
+    const result = await repo.listPublished();
+
+    expect(result.map((c) => c.id).sort()).toEqual(['c-pub-1', 'c-pub-2']);
+  });
+
+  it('returns an empty array when no course is published', async () => {
+    const fake = createFakeFirestore({
+      'courses/c-draft': { id: 'c-draft', title: 'Draft', status: 'DRAFT' },
+    });
+    const repo = await buildRepo(fake);
+
+    expect(await repo.listPublished()).toEqual([]);
+  });
+});
