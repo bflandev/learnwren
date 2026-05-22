@@ -1,34 +1,38 @@
-<section class="mx-auto mt-12 max-w-md rounded border border-slate-200 bg-white p-6 space-y-3">
+<section class="w-full max-w-md space-y-3 rounded-lg border border-line bg-bg-2 p-6">
   @switch (state().kind) {
     @case ('pending') {
-      <p class="text-sm text-slate-700">Unlocking your account…</p>
+      <p class="text-sm text-ink-2">Unlocking your account…</p>
     }
     @case ('ok') {
-      <h1 class="text-xl font-semibold">Account unlocked</h1>
-      <p class="text-sm text-slate-700">You can sign in now.</p>
+      <h1 class="text-xl">Account unlocked</h1>
+      <p class="text-sm text-ink-2">You can sign in now.</p>
       <p>
-        <a routerLink="/login" class="text-blue-700 underline">Continue to sign in</a>
+        <a routerLink="/login" class="text-ochre hover:underline">Continue to sign in</a>
       </p>
     }
     @case ('expired') {
-      <h1 class="text-xl font-semibold">This unlock link has expired</h1>
-      <p class="text-sm text-slate-700">
+      <h1 class="text-xl">This unlock link has expired</h1>
+      <p class="text-sm text-ink-2">
         You can reset your password to regain access.
       </p>
       <p>
-        <a routerLink="/forgot-password" class="text-blue-700 underline">Reset password</a>
+        <a routerLink="/forgot-password" class="text-ochre hover:underline"
+          >Reset password</a
+        >
       </p>
     }
     @case ('invalid') {
-      <h1 class="text-xl font-semibold">This unlock link is invalid</h1>
+      <h1 class="text-xl">This unlock link is invalid</h1>
       <p>
-        <a routerLink="/login" class="text-blue-700 underline">Back to sign in</a>
+        <a routerLink="/login" class="text-ochre hover:underline">Back to sign in</a>
       </p>
     }
     @case ('error') {
-      <p class="text-sm text-red-700" role="alert">
+      <p class="text-sm text-bad" role="alert">
         Something went wrong. Please try again or
-        <a routerLink="/forgot-password" class="text-blue-700 underline">reset your password</a>.
+        <a routerLink="/forgot-password" class="text-ochre hover:underline"
+          >reset your password</a
+        >.
       </p>
     }
   }
