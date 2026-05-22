@@ -1,4 +1,9 @@
-<ul cdkDropList (cdkDropListDropped)="onDrop($event)" data-testid="lesson-list">
+<ul
+  cdkDropList
+  (cdkDropListDropped)="onDrop($event)"
+  data-testid="lesson-list"
+  class="m-0 list-none space-y-2 p-0"
+>
   @for (lesson of lessons(); track lesson.id) {
     <li cdkDrag [attr.data-lesson-id]="lesson.id">
       <lib-lesson-item
@@ -11,6 +16,6 @@
       ></lib-lesson-item>
     </li>
   } @empty {
-    <li class="empty">No lessons yet.</li>
+    <li class="empty text-sm text-ink-3">No lessons yet.</li>
   }
 </ul>

@@ -1,38 +1,60 @@
-<div class="lesson-item" data-testid="lesson-item">
-  @if (editing()) {
-    <input
-      data-testid="lesson-rename-input"
-      type="text"
-      [ngModel]="draftTitle()"
-      (ngModelChange)="draftTitle.set($event)"
-      (blur)="commit()"
-      (keydown.enter)="commit()"
-      (keydown.escape)="cancel()"
-    />
-  } @else {
-    <button type="button" data-testid="lesson-title" (click)="startEdit()">{{ lesson().title }}</button>
-  }
-  <button data-testid="lesson-delete" type="button" (click)="delete.emit()">Delete</button>
-
-  @if (lesson().videoId) {
-    @if (video(); as v) {
-      @if (v.state === 'READY') {
-        <lib-video-player [videoId]="v.id" />
-      } @else {
-        <lib-video-state-badge [video]="v" (stateChanged)="videoStateChanged.emit($event)" />
-      }
+<div class="lesson-item rounded border border-line bg-bg p-3" data-testid="lesson-item">
+  <div class="flex flex-wrap items-center gap-2">
+    @if (editing()) {
+      <input
+        lwInput
+        data-testid="lesson-rename-input"
+        type="text"
+        class="flex-1"
+        [ngModel]="draftTitle()"
+        (ngModelChange)="draftTitle.set($event)"
+        (blur)="commit()"
+        (keydown.enter)="commit()"
+        (keydown.escape)="cancel()"
+      />
+    } @else {
+      <button
+        type="button"
+        data-testid="lesson-title"
+        class="flex-1 text-left text-ink"
+        (click)="startEdit()"
+      >
+        {{ lesson().title }}
+      </button>
     }
-  } @else {
-    <lib-video-upload
+    <button
+      lwButton
+      variant="ghost"
+      data-testid="lesson-delete"
+      type="button"
+      class="text-bad"
+      (click)="delete.emit()"
+    >
+      Delete
+    </button>
+  </div>
+
+  <div class="mt-3 space-y-3">
+    @if (lesson().videoId) {
+      @if (video(); as v) {
+        @if (v.state === 'READY') {
+          <lib-video-player [videoId]="v.id" />
+        } @else {
+          <lib-video-state-badge [video]="v" (stateChanged)="videoStateChanged.emit($event)" />
+        }
+      }
+    } @else {
+      <lib-video-upload
+        [courseId]="courseId()"
+        [moduleId]="lesson().moduleId"
+        [lessonId]="lesson().id"
+        (uploaded)="onVideoUploaded()"
+      />
+    }
+    <lib-materials-list
       [courseId]="courseId()"
       [moduleId]="lesson().moduleId"
       [lessonId]="lesson().id"
-      (uploaded)="onVideoUploaded()"
     />
-  }
-  <lib-materials-list
-    [courseId]="courseId()"
-    [moduleId]="lesson().moduleId"
-    [lessonId]="lesson().id"
-  />
+  </div>
 </div>
