@@ -4,7 +4,7 @@ import {
 } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { of } from 'rxjs';
 
@@ -94,5 +94,37 @@ describe('LoginPageComponent error states', () => {
     await submitPromise;
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain("just reset your password");
+  });
+});
+
+describe('LoginPageComponent post-login navigation', () => {
+  async function loginOk(queryParamMap: Map<string, string>) {
+    const { fixture, httpMock } = setup(queryParamMap);
+    const router = TestBed.inject(Router);
+    const navSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa' });
+    const submitPromise = cmp.submit();
+    httpMock.expectOne('/api/auth/login').flush({});
+    httpMock.expectOne('/api/auth/me').flush({
+      uid: 'u1', email: 'a@b.c', displayName: 'A', role: 'STUDENT', emailVerified: true,
+    });
+    await submitPromise;
+    return navSpy;
+  }
+
+  it('navigates to the redirect param after a successful login', async () => {
+    const navSpy = await loginOk(new Map([['redirect', '/catalog/c-1?enroll=1']]));
+    expect(navSpy).toHaveBeenCalledWith('/catalog/c-1?enroll=1');
+  });
+
+  it('navigates to /dashboard when there is no redirect param', async () => {
+    const navSpy = await loginOk(new Map());
+    expect(navSpy).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('ignores a redirect value that does not start with /', async () => {
+    const navSpy = await loginOk(new Map([['redirect', 'http://evil.example.com']]));
+    expect(navSpy).toHaveBeenCalledWith('/dashboard');
   });
 });

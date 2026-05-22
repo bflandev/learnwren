@@ -74,3 +74,21 @@ export class CourseArchivedException extends CoursesException {
     super('COURSE_ARCHIVED', 'Cannot check publish eligibility on an archived course.', 409);
   }
 }
+
+export class CourseNotAvailableException extends CoursesException {
+  constructor() {
+    super('COURSE_NOT_AVAILABLE', 'This course is no longer available.', 409);
+  }
+}
+
+export class CannotEnrollOwnCourseException extends CoursesException {
+  constructor() {
+    super('CANNOT_ENROLL_OWN_COURSE', 'You cannot enrol in a course you own.', 409);
+  }
+}
+
+export class NotEnrolledException extends CoursesException {
+  constructor() {
+    super('NOT_ENROLLED', 'You are not enrolled in this course.', 404);
+  }
+}

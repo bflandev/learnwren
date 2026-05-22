@@ -119,6 +119,10 @@ function sortCourses(courses: Course[], sort: CatalogSort): Course[] {
   const copy = [...courses];
   if (sort === 'ALPHABETICAL') {
     copy.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+  } else if (sort === 'POPULAR') {
+    copy.sort(
+      (a, b) => (b.enrollmentCount ?? 0) - (a.enrollmentCount ?? 0) || compareNewest(a, b),
+    );
   } else {
     copy.sort(compareNewest);
   }

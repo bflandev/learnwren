@@ -1,0 +1,165 @@
+import { describe, expect, it } from 'vitest';
+
+import type {
+  Course,
+  Enrollment,
+  ISODateString,
+  LessonId,
+  UserId,
+  CourseId,
+} from '@learnwren/shared-data-models';
+
+import {
+  CourseNotAvailableException,
+  NotEnrolledException,
+} from '../errors/courses.exception';
+import { createFakeFirestore } from '../testing/fake-firestore';
+import { EnrollmentRepository, enrollmentId } from './enrollment.repository';
+
+const UID = 'student-1' as UserId;
+const CID = 'course-1' as CourseId;
+const ID = enrollmentId(UID, CID);
+
+function course(over: Partial<Course> = {}): Course {
+  return {
+    id: CID,
+    title: 'Course 1',
+    description: 'desc',
+    instructorId: 'owner-1' as UserId,
+    status: 'PUBLISHED',
+    createdAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+    updatedAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+    ...over,
+  };
+}
+
+function repoWith(seed: Record<string, unknown>) {
+  const db = createFakeFirestore(seed as Record<string, Record<string, unknown>>);
+  return { repo: new EnrollmentRepository(db as never), db };
+}
+
+describe('enrollmentId', () => {
+  it('builds the deterministic composite id', () => {
+    expect(enrollmentId(UID, CID)).toBe('student-1__course-1');
+  });
+});
+
+describe('EnrollmentRepository.enroll', () => {
+  it('creates an ACTIVE enrolment with empty progress and increments the counter', async () => {
+    const { repo, db } = repoWith({ [`courses/${CID}`]: course() });
+    const result = await repo.enroll(UID, CID);
+    expect(result.status).toBe('ACTIVE');
+    expect(result.progress).toEqual([]);
+    expect(result.withdrawnAt).toBeNull();
+    expect(result.id).toBe(ID);
+    expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(1);
+  });
+
+  it('restores a WITHDRAWN enrolment, preserves progress, re-increments the counter', async () => {
+    const withdrawn: Enrollment = {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'WITHDRAWN',
+      progress: [{ lessonId: 'l1' as LessonId, completedAt: null, lastWatchedSeconds: 42 }],
+      withdrawnAt: '2026-02-01T00:00:00.000Z' as ISODateString,
+      createdAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-02-01T00:00:00.000Z' as ISODateString,
+    };
+    const { repo, db } = repoWith({
+      [`courses/${CID}`]: course({ enrollmentCount: 3 }),
+      [`enrollments/${ID}`]: withdrawn,
+    });
+    const result = await repo.enroll(UID, CID);
+    expect(result.status).toBe('ACTIVE');
+    expect(result.withdrawnAt).toBeNull();
+    expect(result.progress).toEqual(withdrawn.progress);
+    expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(4);
+  });
+
+  it('is idempotent when already ACTIVE — no second counter increment', async () => {
+    const { repo, db } = repoWith({ [`courses/${CID}`]: course({ enrollmentCount: 5 }) });
+    await repo.enroll(UID, CID);
+    await repo.enroll(UID, CID);
+    expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(6);
+  });
+
+  it('throws CourseNotAvailableException when the course is missing', async () => {
+    const { repo } = repoWith({});
+    await expect(repo.enroll(UID, CID)).rejects.toBeInstanceOf(CourseNotAvailableException);
+  });
+
+  it('throws CourseNotAvailableException when the course is not PUBLISHED', async () => {
+    const { repo } = repoWith({ [`courses/${CID}`]: course({ status: 'DRAFT' }) });
+    await expect(repo.enroll(UID, CID)).rejects.toBeInstanceOf(CourseNotAvailableException);
+  });
+});
+
+describe('EnrollmentRepository.withdraw', () => {
+  it('flips ACTIVE to WITHDRAWN, stamps withdrawnAt, decrements the counter', async () => {
+    const { repo, db } = repoWith({ [`courses/${CID}`]: course() });
+    await repo.enroll(UID, CID);
+    await repo.withdraw(UID, CID);
+    const stored = db.__store.get(`enrollments/${ID}`);
+    expect(stored?.['status']).toBe('WITHDRAWN');
+    expect(stored?.['withdrawnAt']).toEqual(expect.any(String));
+    expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(0);
+  });
+
+  it('throws NotEnrolledException when there is no enrolment', async () => {
+    const { repo } = repoWith({ [`courses/${CID}`]: course() });
+    await expect(repo.withdraw(UID, CID)).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+
+  it('throws NotEnrolledException when the enrolment is already WITHDRAWN', async () => {
+    const { repo } = repoWith({ [`courses/${CID}`]: course() });
+    await repo.enroll(UID, CID);
+    await repo.withdraw(UID, CID);
+    await expect(repo.withdraw(UID, CID)).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+
+  it('succeeds when the course document is missing (force-deleted while student was enrolled)', async () => {
+    const now = new Date().toISOString() as ISODateString;
+    const active: Enrollment = {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'ACTIVE',
+      progress: [],
+      withdrawnAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const { repo, db } = repoWith({});
+    db.__store.set(`enrollments/${ID}`, active as unknown as Record<string, unknown>);
+    await expect(repo.withdraw(UID, CID)).resolves.toBeUndefined();
+    expect(db.__store.get(`enrollments/${ID}`)?.['status']).toBe('WITHDRAWN');
+  });
+});
+
+describe('EnrollmentRepository.isEnrolled / getEnrollment', () => {
+  it('isEnrolled is true only for an ACTIVE enrolment', async () => {
+    const { repo } = repoWith({ [`courses/${CID}`]: course() });
+    expect(await repo.isEnrolled(UID, CID)).toBe(false);
+    await repo.enroll(UID, CID);
+    expect(await repo.isEnrolled(UID, CID)).toBe(true);
+    await repo.withdraw(UID, CID);
+    expect(await repo.isEnrolled(UID, CID)).toBe(false);
+  });
+
+  it('getEnrollment returns the document as-is, or null when absent', async () => {
+    const { repo } = repoWith({ [`courses/${CID}`]: course() });
+    expect(await repo.getEnrollment(UID, CID)).toBeNull();
+    await repo.enroll(UID, CID);
+    expect((await repo.getEnrollment(UID, CID))?.status).toBe('ACTIVE');
+  });
+
+  it('getEnrollment returns a WITHDRAWN record as-is (not null)', async () => {
+    const { repo } = repoWith({ [`courses/${CID}`]: course() });
+    await repo.enroll(UID, CID);
+    await repo.withdraw(UID, CID);
+    const result = await repo.getEnrollment(UID, CID);
+    expect(result).not.toBeNull();
+    expect(result?.status).toBe('WITHDRAWN');
+  });
+});

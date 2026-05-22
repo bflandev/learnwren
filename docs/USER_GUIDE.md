@@ -35,7 +35,10 @@ This guide covers **every feature wired up so far** from two angles:
 | Video | Transcode to AES-128 HLS, status polling | Built |
 | Video | Owner playback in the lesson editor (hls.js) | Built |
 | Publishing | Publish eligibility gate, publish / unpublish / archive / restore | Built |
-| Discovery | Course catalogue, search, enrollment | Not built |
+| Discovery | Course catalogue (browse, filter, search) | Built |
+| Discovery | Course detail page | Built |
+| Discovery | Enrol in a course, leave a course | Built |
+| Discovery | Guest auto-enrol after login | Built |
 | Learning | Enrolled-student playback, progress tracking | Not built |
 | Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
 | Cover images | Course cover image upload | Not built |
@@ -112,9 +115,9 @@ Hot-reloading the variable is not supported — restart the process to switch mo
 This part walks through the platform as the people who use it: a **student** (any
 registered user) and an **instructor** (a student promoted to author courses).
 
-> Today the meaningful product surface is instructor-facing. A plain student account
-> can register, sign in, and see a dashboard — course discovery and enrolled-student
-> playback are not built yet.
+> Today, students can browse and enrol in published courses. The learning experience
+> (video playback and progress tracking for enrolled students) ships with EP-06 and is
+> not yet built.
 
 ## 2.1 Creating an account
 
@@ -292,6 +295,70 @@ DRAFT  ──────────►  PUBLISHED  ─────────
 The first publish timestamp is kept on the course (`publishedAt`) and survives
 unpublish and archive.
 
+## 2.11 Browsing and discovering courses
+
+Any visitor — logged in or not — can browse the catalogue at **http://localhost:4200**
+(the root redirects there). The catalogue shows all `PUBLISHED` courses as cards.
+
+- **Filter by category or difficulty** using the dropdowns in the filter bar.
+- **Sort** using the sort control: **Newest**, **Alphabetical**, or **Most Popular**
+  (ranked by total enrolment count, descending). Results update immediately on change.
+- **Search** with a keyword in the search bar. Submitting the form runs a relevance
+  search over course titles and descriptions. Clearing the query returns to the full
+  catalogue.
+- **Course detail page** (`/catalog/:id`) shows the full description, instructor name,
+  difficulty, and the complete module/lesson structure (titles only — video content
+  requires enrolment).
+
+## 2.12 Enrolling in a course
+
+Enrolment is open to every logged-in user (including instructors enrolling in courses
+they do not own). To enrol:
+
+1. Open a published course's detail page.
+2. Click **Enrol**. The button is disabled briefly while the request is in flight
+   (preventing double-submissions). On success, the page switches to the **Enrolled**
+   state, showing an enrolled indicator and a **Leave Course** option.
+
+Enrolling grants access to the course's video streams and lesson materials. The
+**Most Popular** catalogue sort reflects the course's live enrolment count.
+
+**If you own the course** (you are its instructor), the detail page shows a quiet
+"You own this course" note instead of an Enrol button — instructors already have full
+access and self-enrolment would distort the popularity ranking.
+
+### Guest auto-enrol
+
+A visitor who is not logged in can still click **Enrol** on a course detail page. They
+are sent to `/login` and, after a successful login, returned to the course detail page
+where the enrolment completes automatically — no second click needed. The `?enroll=1`
+query param drives this round-trip; it is stripped from the URL once the enrolment
+fires so that a page refresh does not re-trigger it.
+
+## 2.13 Leaving a course
+
+An enrolled student can leave any course they are enrolled in:
+
+1. Open the course detail page — it shows the **Enrolled** state with a **Leave Course**
+   link.
+2. Click **Leave Course**. A confirmation dialog appears with the wording: *"Are you
+   sure you want to leave this course? You will lose access to videos and materials
+   immediately. Your progress will be saved for 90 days in case you re-enrol."*
+3. Click **Confirm** to unenrol — the page returns to the **Enrol** state and access to
+   videos and materials is revoked immediately. Click **Cancel** to dismiss the dialog
+   with no change.
+
+Re-enrolling within the 90-day window restores the same enrolment record (including
+any progress data written by EP-06).
+
+> **Note — what is deferred.** The **Continue Learning** button and the lesson player
+> itself ship with EP-06; for now, enrolling lands the student on the course detail page
+> in its enrolled state, with no link into the lesson content. The 90-day hard-delete of
+> withdrawn enrolment records is also deferred (soft-delete and restore on re-enrol are
+> live; the scheduled purge is not). Access is not revoked if an instructor unpublishes a
+> course after a student has already enrolled — that limitation is documented and deferred
+> to a follow-up.
+
 ---
 
 # Part 3 — Developer & API reference
@@ -320,6 +387,8 @@ See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./epics/TECHNICAL_ARCHITECTURE.md).
 | `libs/web-auth` | Angular lib | Auth pages, signal-based `AuthService`, guard, interceptor. |
 | `libs/web-courses` | Angular lib | Course list/create/editor, module tree, publish UI. |
 | `libs/web-video` | Angular lib | Upload component, state badge/polling, hls.js player. |
+| `libs/web-catalog` | Angular lib | Public catalogue, search, and course detail page. |
+| `libs/web-enrollment` | Angular lib | `EnrollmentService` + `CourseEnrollmentPanelComponent` (enrol/leave panel on the course detail page). |
 
 ## 3.2 API conventions
 
@@ -382,7 +451,38 @@ enforce `CourseOwnerGuard` — you can only touch courses you own.
 | `POST` | `/courses/:cid/archive` | `DRAFT`/`PUBLISHED → ARCHIVED` (`200`). |
 | `POST` | `/courses/:cid/restore` | `ARCHIVED → DRAFT` (`200`). |
 
-## 3.5 Video endpoints
+## 3.5 Catalogue endpoints — `/api/catalog`
+
+All catalogue endpoints are **public** — no session cookie required.
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/api/catalog` | Paginated list of `PUBLISHED` courses. Query params: `page`, `sort` (`NEWEST` \| `ALPHABETICAL` \| `POPULAR`), `category`, `difficulty`. |
+| `GET` | `/api/catalog/search` | Relevance-ranked search over course titles and descriptions. Query params: `q`, `page`. |
+| `GET` | `/api/catalog/:cid` | Public course detail (full structure + instructor name); `404` for missing or unpublished courses. |
+
+## 3.6 Enrolment endpoints — `/api/enrollments`
+
+All enrolment endpoints require a valid session cookie (`FirebaseSessionGuard`). Any
+authenticated user may enrol — there is no additional role gate. A caller can only ever
+create, read, or delete **their own** enrolment; the caller's `userId` always comes from
+the session, never from the request body or path.
+
+| Method | Path | Body | Success | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/enrollments` | `{ courseId }` | `201` `Enrollment` | Enrol, or restore a `WITHDRAWN` enrolment. Idempotent — re-enrolling when already `ACTIVE` returns the existing record unchanged. |
+| `DELETE` | `/api/enrollments/:courseId` | — | `204` | Unenrol — soft-delete the caller's enrolment; progress retained for 90 days. |
+| `GET` | `/api/enrollments/:courseId` | — | `200` `EnrollmentStatusView` | The caller's enrolment for that course and whether they own it; drives the course-detail page button state. |
+
+Error codes specific to enrolment:
+
+| Code | HTTP | Meaning |
+| :--- | :--- | :--- |
+| `COURSE_NOT_AVAILABLE` | `409` | Enrol attempted on a missing or non-`PUBLISHED` course. |
+| `CANNOT_ENROLL_OWN_COURSE` | `409` | The course owner clicked Enrol on their own course. |
+| `NOT_ENROLLED` | `404` | `DELETE` called when the caller has no `ACTIVE` enrolment for that course. |
+
+## 3.7 Video endpoints
 
 Upload/management endpoints require session + `INSTRUCTOR`; per-video endpoints add
 `VideoOwnerGuard`.
@@ -397,8 +497,8 @@ Upload/management endpoints require session + `INSTRUCTOR`; per-video endpoints 
 
 ### Playback endpoints — `/api/playback`
 
-Guarded by `FirebaseSessionGuard` + `EnrollmentOrOwnerGuard` (today only the course
-owner passes, since enrollment is not built). Manifests and keys are served
+Guarded by `FirebaseSessionGuard` + `EnrollmentOrOwnerGuard` (course owner **or**
+authenticated student with an `ACTIVE` enrolment). Manifests and keys are served
 `no-store`.
 
 | Method | Path | Purpose |
@@ -422,12 +522,15 @@ owner passes, since enrollment is not built). Manifests and keys are served
 | `GET` | `/api/health` | `{ status:"ok", version, serverTime }`. |
 | `GET` | `/api/firestore-smoke` | Writes a doc via the Admin SDK to prove Firestore wiring. |
 
-## 3.6 Web routes
+## 3.8 Web routes
 
 | Path | Guard | Page |
 | :--- | :--- | :--- |
-| `/` | — | Redirects to `/login`. |
-| `/login` | — | Sign-in page. |
+| `/` | — | Course catalogue (public). |
+| `/catalog` | — | Course catalogue — browse, filter, sort, and paginate PUBLISHED courses. |
+| `/catalog/search` | — | Search results page. |
+| `/catalog/:id` | — | Public course detail page; shows the enrolment panel (state varies by auth/enrolment). |
+| `/login` | — | Sign-in page. Honours a `?redirect=` query param on success (used by guest auto-enrol). |
 | `/register` | — | Registration page (mirrors the password policy client-side). |
 | `/register/confirm` | — | "Check your email" + Resend. |
 | `/forgot-password` | — | Request a password reset. |
@@ -437,7 +540,7 @@ owner passes, since enrollment is not built). Manifests and keys are served
 | `/courses/new` | `instructorRoleGuard` | Create a course. |
 | `/courses/:id/edit` | `instructorRoleGuard` | Course editor: modules, lessons, video, publish bar. |
 
-## 3.7 Roles and guards
+## 3.9 Roles and guards
 
 | Role | Granted | Can do |
 | :--- | :--- | :--- |
@@ -454,10 +557,10 @@ must **sign out and back in** after a role change.
 | `InstructorRoleGuard` | The caller's role is `INSTRUCTOR`. |
 | `CourseOwnerGuard` | The course belongs to the caller. |
 | `VideoOwnerGuard` | The video belongs to the caller. |
-| `EnrollmentOrOwnerGuard` | The caller owns the course (enrollment path not built). |
+| `EnrollmentOrOwnerGuard` | The caller owns the course **or** has an `ACTIVE` enrolment in it. |
 | `PubSubPushGuard` | The transcoder webhook request carries a valid Pub/Sub push token. |
 
-## 3.8 Data models
+## 3.10 Data models
 
 Defined in `libs/shared-data-models` and shared by both apps. IDs are **branded
 strings** (Firestore document IDs); timestamps are **ISO 8601 strings**; enum-like
@@ -477,10 +580,16 @@ fields are **string-literal unions** (not TypeScript enums).
 - **`VideoKey`** — `id, videoId, key` (base64 of a 16-byte AES-128 key).
 - **`PublishEligibility`** — `{ eligible: true, reasons: [] }` or
   `{ eligible: false, reasons: PublishBlockReason[] }`.
-- **`Enrollment` / `LessonProgress`** — defined for the not-yet-built learning
-  experience.
+- **`Enrollment`** — `id` (composite `${userId}__${courseId}`), `userId`, `courseId`,
+  `status (ACTIVE|WITHDRAWN)`, `progress: LessonProgress[]` (owned by EP-06; always `[]`
+  in this slice), `withdrawnAt?`, `createdAt`, `updatedAt`. Stored in the top-level
+  `enrollments` Firestore collection; direct client access is denied by security rules.
+- **`EnrollmentStatusView`** — `{ enrollment: Enrollment | null, isOwner: boolean }` —
+  the authenticated read-model returned by `GET /api/enrollments/:courseId`.
+- **`LessonProgress`** — `lessonId`, `completedAt`, `lastWatchedSeconds` — reserved for
+  the EP-06 learning experience.
 
-## 3.9 Video pipeline configuration
+## 3.11 Video pipeline configuration
 
 The `VideoModule` reads its configuration from environment variables
 (`libs/api-courses/src/lib/video/video.config.ts`):
@@ -520,7 +629,7 @@ curl -X POST http://localhost:3333/api/internal/fake-transcoder/fail/<videoId> \
 The fake transcoder wraps the payload in the same Pub/Sub push envelope the real
 webhook expects, so it exercises the identical `TranscoderEventsController` code path.
 
-## 3.10 Developer commands
+## 3.12 Developer commands
 
 | Command | Description |
 | :--- | :--- |
@@ -542,10 +651,17 @@ Target a single project by invoking Nx directly, e.g. `pnpm nx test api-courses`
 
 These are specified in `docs/epics/` and `docs/use-cases/` but **not yet implemented**:
 
-- **Course discovery & enrollment (EP-05)** — no public catalogue, search, or
-  enrollment. Courses can be published but nobody can browse to them.
-- **Enrolled-student learning experience (EP-06)** — no student-facing course player
-  or progress tracking. `EnrollmentOrOwnerGuard` currently only admits the owner.
+- **Enrolled-student learning experience (EP-06)** — no student-facing lesson player
+  or progress tracking. The **Continue Learning** button does not exist yet; enrolling
+  lands the student on the course detail page in its enrolled state. `EnrollmentOrOwnerGuard`
+  grants access to video/material endpoints for enrolled students, but the player UI is
+  not built.
+- **90-day purge of withdrawn enrolments** — soft-delete and restore-on-re-enrol are
+  live, but the scheduled hard-delete of `WITHDRAWN` enrolments older than 90 days is
+  not implemented.
+- **Access revocation on course unpublish** — an enrolled student retains access if the
+  instructor later unpublishes the course; guards do not re-check `Course.status` on
+  playback.
 - **Course cover images** — upload is deferred.
 - **Self-service instructor requests** — promotion is CLI-only; there is no in-app
   "become an instructor" flow.

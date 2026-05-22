@@ -67,7 +67,9 @@ export class LoginPageComponent {
         this.form.controls.password.value,
       );
       if (result.ok) {
-        await this.router.navigateByUrl('/dashboard');
+        const redirect = this.queryParams()?.get('redirect');
+        const target = redirect && redirect.startsWith('/') ? redirect : '/dashboard';
+        await this.router.navigateByUrl(target);
         return;
       }
       this.errorState.set(this.toErrorState(result));

@@ -1,0 +1,32 @@
+{
+  "name": "web-enrollment",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/web-enrollment/src",
+  "prefix": "lib",
+  "projectType": "library",
+  "tags": ["scope:web"],
+  "targets": {
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "options": {
+        "cwd": "libs/web-enrollment",
+        "command": "tsc --build tsconfig.lib.json --emitDeclarationOnly"
+      },
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default",
+        {
+          "externalDependencies": ["typescript"]
+        }
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/out-tsc/libs/web-enrollment/**/*.{d.ts,d.cts,d.mts}",
+        "{workspaceRoot}/libs/web-enrollment/tsconfig.lib.tsbuildinfo"
+      ]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

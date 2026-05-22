@@ -227,3 +227,17 @@ describe('CatalogService.getCourseDetail', () => {
     });
   });
 });
+
+describe('CatalogService.listCatalogue — POPULAR sort', () => {
+  it('orders by enrollmentCount descending, treating a missing count as 0', async () => {
+    const svc = makeService([
+      course({ id: 'c-low' as CourseId, enrollmentCount: 2 }),
+      course({ id: 'c-high' as CourseId, enrollmentCount: 9 }),
+      course({ id: 'c-none' as CourseId }), // no enrollmentCount field
+    ]);
+
+    const page = await svc.listCatalogue({ sort: 'POPULAR' });
+
+    expect(page.items.map((i) => i.id)).toEqual(['c-high', 'c-low', 'c-none']);
+  });
+});

@@ -117,6 +117,7 @@ describe('CoursesService — course operations', () => {
       // BlockStatement mutant emptying nowIso would leave them undefined.
       expect(out.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
       expect(out.updatedAt).toBe(out.createdAt);
+      expect(out.enrollmentCount).toBe(0);
       expect(repo.createCourse).toHaveBeenCalledWith(out);
     });
 

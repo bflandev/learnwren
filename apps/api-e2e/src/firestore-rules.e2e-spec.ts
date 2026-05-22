@@ -264,3 +264,12 @@ test('INSTRUCTOR client cannot delete /materials/{matId}', async () => {
   const ctx = testEnv.authenticatedContext('inst-uid', { role: 'INSTRUCTOR' });
   await assertFails(deleteDoc(doc(ctx.firestore(), 'materials', 'm1')));
 });
+
+test('authenticated client cannot read or write /enrollments/{id}', async () => {
+  const ctx = testEnv.authenticatedContext('student-A', { role: 'STUDENT' });
+  const ref = doc(ctx.firestore(), 'enrollments', 'student-A__course-1');
+  await assertFails(getDoc(ref));
+  await assertFails(
+    setDoc(ref, { id: 'student-A__course-1', userId: 'student-A', courseId: 'course-1' }),
+  );
+});
