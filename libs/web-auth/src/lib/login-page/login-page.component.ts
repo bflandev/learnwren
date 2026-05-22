@@ -7,6 +7,8 @@ import {
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
+import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
+
 import { AuthService } from '../auth.service';
 
 type LoginErrorState =
@@ -19,7 +21,7 @@ type LoginErrorState =
 @Component({
   selector: 'app-login-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, LwButtonDirective, LwInputDirective],
   templateUrl: './login-page.component.html',
 })
 export class LoginPageComponent {
