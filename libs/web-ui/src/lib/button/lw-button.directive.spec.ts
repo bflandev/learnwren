@@ -39,8 +39,8 @@ describe('LwButtonDirective', () => {
     fixture.componentInstance.variant = 'ghost';
     fixture.detectChanges();
 
-    expect(
-      fixture.nativeElement.querySelector('button').classList.contains('lw-btn-ghost'),
-    ).toBe(true);
+    const btn: HTMLButtonElement = fixture.nativeElement.querySelector('button');
+    expect(btn.classList.contains('lw-btn')).toBe(true);
+    expect(btn.classList.contains('lw-btn-ghost')).toBe(true);
   });
 });
