@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-export type LwPillTone = 'default' | 'good' | 'warn' | 'bad';
+export type LwPillTone = 'default' | 'ochre' | 'good' | 'warn' | 'bad';
 
 @Component({
   selector: 'lw-pill',
@@ -19,6 +19,8 @@ export class LwPillComponent {
 
   protected readonly toneColor = computed<string | null>(() => {
     switch (this.tone()) {
+      case 'ochre':
+        return 'var(--lw-ochre)';
       case 'good':
         return 'var(--lw-good)';
       case 'warn':

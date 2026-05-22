@@ -37,4 +37,12 @@ describe('LwPillComponent', () => {
 
     expect((fixture.nativeElement as HTMLElement).style.color).toBe('');
   });
+
+  it('applies the ochre tone colour', () => {
+    const fixture = TestBed.createComponent(LwPillComponent);
+    fixture.componentRef.setInput('tone', 'ochre');
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).style.color).toBe('var(--lw-ochre)');
+  });
 });
