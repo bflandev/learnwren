@@ -1,26 +1,28 @@
-<section class="materials" data-testid="materials-list">
-  <h4>Lesson materials</h4>
+<section class="materials rounded border border-line bg-bg-2 p-3" data-testid="materials-list">
+  <h4 class="mb-2 text-sm font-medium text-ink-2">Lesson materials</h4>
 
   @if (loadError()) {
-    <p data-testid="materials-load-error">
+    <p data-testid="materials-load-error" class="text-sm text-bad">
       Couldn't load materials.
-      <button type="button" (click)="refresh()">Retry</button>
+      <button lwButton variant="ghost" type="button" (click)="refresh()">Retry</button>
     </p>
   } @else if (materials().length === 0) {
-    <p data-testid="materials-empty">No materials yet.</p>
+    <p data-testid="materials-empty" class="text-sm text-ink-3">No materials yet.</p>
   }
 
   @if (removedNotice(); as notice) {
-    <p data-testid="material-gone">{{ notice }}</p>
+    <p data-testid="material-gone" class="text-sm text-warn">{{ notice }}</p>
   }
 
-  <ul>
+  <ul class="m-0 list-none space-y-1 p-0">
     @for (m of materials(); track m.id) {
-      <li data-testid="material-row">
+      <li data-testid="material-row" class="flex flex-wrap items-center gap-2">
         @if (editingId() === m.id) {
           <input
+            lwInput
             data-testid="material-rename-input"
             type="text"
+            class="flex-1"
             [ngModel]="draftName()"
             (ngModelChange)="draftName.set($event)"
             (blur)="commitRename(m)"
@@ -28,33 +30,56 @@
             (keydown.escape)="cancelRename()"
           />
         } @else {
-          <button type="button" data-testid="material-name" (click)="startRename(m)">
+          <button
+            type="button"
+            data-testid="material-name"
+            class="flex-1 text-left text-sm text-ink"
+            (click)="startRename(m)"
+          >
             {{ m.displayName }}
           </button>
         }
-        <button type="button" data-testid="material-download" (click)="download(m)">Download</button>
-        <button type="button" data-testid="material-remove" (click)="askRemove(m)">Remove</button>
+        <button lwButton variant="ghost" type="button" data-testid="material-download" (click)="download(m)">
+          Download
+        </button>
+        <button
+          lwButton
+          variant="ghost"
+          type="button"
+          data-testid="material-remove"
+          class="text-bad"
+          (click)="askRemove(m)"
+        >
+          Remove
+        </button>
       </li>
     }
   </ul>
 
   @for (p of upload.inFlight(); track p.filename) {
-    <p data-testid="material-uploading">{{ p.filename }} — {{ p.percent }}%</p>
+    <p data-testid="material-uploading" class="text-sm text-ink-3">
+      {{ p.filename }} — {{ p.percent }}%
+    </p>
   }
   @for (f of upload.failures(); track f.filename) {
-    <p data-testid="material-upload-error">{{ f.filename }}: {{ f.reason }}</p>
+    <p data-testid="material-upload-error" class="text-sm text-bad">
+      {{ f.filename }}: {{ f.reason }}
+    </p>
   }
 
-  <label data-testid="material-add">
-    Add material
+  <label data-testid="material-add" class="mt-2 inline-flex cursor-pointer items-center">
+    <span class="lw-btn lw-btn-ghost">Add material</span>
     <input
       type="file"
       multiple
       accept=".pdf,.docx,.pptx,.xlsx,.txt,.zip"
+      class="sr-only"
       (change)="onFilesSelected($event)"
     />
   </label>
-  <p class="hint">PDF, DOCX, PPTX, XLSX, TXT, or ZIP, up to 50 MB each.</p>
+  <p class="hint mt-1 text-xs text-ink-3">
+    PDF, DOCX, PPTX, XLSX, TXT, or ZIP, up to 50 MB each.
+  </p>
 
   @if (pendingRemoval(); as m) {
     <lib-confirm-dialog
