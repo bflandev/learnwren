@@ -18,7 +18,7 @@ export const instructorRoleGuard: CanActivateFn = async (_route, state) => {
     });
   }
   if (user.role !== 'INSTRUCTOR') {
-    return router.createUrlTree(['/']);
+    return router.createUrlTree(['/dashboard']);
   }
   return true;
 };

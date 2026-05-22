@@ -37,11 +37,11 @@ describe('instructorRoleGuard', () => {
     await expect(runGuard()).resolves.toBe(true);
   });
 
-  it('redirects STUDENT to /', async () => {
+  it('redirects STUDENT to /dashboard', async () => {
     auth.currentUser = signal({ role: 'STUDENT' }) as never;
     const tree = await runGuard();
-    expect(router.createUrlTree).toHaveBeenCalledWith(['/']);
-    expect(tree).toEqual({ __path: ['/'] });
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/dashboard']);
+    expect(tree).toEqual({ __path: ['/dashboard'] });
   });
 
   it('redirects unauthenticated to /login with redirect query', async () => {

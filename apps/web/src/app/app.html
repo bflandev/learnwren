@@ -3,7 +3,9 @@
     <a routerLink="/dashboard"><lw-wordmark [size]="20" /></a>
     <nav class="flex gap-1">
       <a routerLink="/dashboard" class="lw-btn lw-btn-ghost">Dashboard</a>
-      <a routerLink="/courses" class="lw-btn lw-btn-ghost">My Courses</a>
+      @if (auth.currentUser()?.role === 'INSTRUCTOR') {
+        <a routerLink="/courses" class="lw-btn lw-btn-ghost">My Courses</a>
+      }
     </nav>
     <span class="flex-1"></span>
     <lw-theme-toggle />
