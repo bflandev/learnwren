@@ -44,9 +44,10 @@ describe('DashboardComponent', () => {
     http.expectOne('/api/courses').flush([]);
     fixture.detectChanges();
     const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
-      'a[routerLink="/courses/new"]',
+      '[data-testid="create-course"]',
     );
     expect(link).not.toBeNull();
+    expect(link!.getAttribute('routerLink')).toBe('/courses/new');
   });
 
   it('loads and renders the instructor course titles', async () => {
