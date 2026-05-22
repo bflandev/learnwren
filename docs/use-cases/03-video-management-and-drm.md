@@ -2,6 +2,9 @@
 
 This document contains the fully-dressed Cockburn use cases for the video pipeline: upload, transcoding, DRM encryption, secure playback, and storage management.
 
+> [!NOTE]
+> **DRIFT — this spec no longer matches the implementation.** Frozen 2026-03-27 and not reconciled since. These use cases assume a commercial multi-DRM architecture (Widevine/PlayReady/FairPlay, CENC/CBCS, MPEG-DASH, a license server with playback tokens, KMS-stored keys); the implementation is a deliberately scoped-down HLS + AES-128 pipeline gated by session cookies. UC-03-05 (Manage Video Storage) is unbuilt. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-03--video-management-and-drm).
+
 ---
 
 ## UC-03-01 — Upload a Video to a Lesson

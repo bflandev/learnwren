@@ -2,6 +2,9 @@
 
 This document contains the fully-dressed Cockburn use cases for browsing, searching, viewing, enrolling, and unenrolling from courses.
 
+> [!NOTE]
+> **DRIFT — this spec is unimplemented.** Frozen 2026-03-27. EP-05 (course discovery, search, course-detail, enrolment) is entirely deferred — no catalogue, search, or enrolment surface exists. The `Enrollment` type in `shared-data-models` is a forward declaration with no behavior behind it. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-05--course-discovery-and-enrollment).
+
 ---
 
 ## UC-05-01 — Browse the Course Catalogue

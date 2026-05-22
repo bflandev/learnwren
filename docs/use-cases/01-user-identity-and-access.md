@@ -2,6 +2,9 @@
 
 This document contains the fully-dressed Cockburn use cases for user registration, authentication, profile management, and role requests.
 
+> [!NOTE]
+> **DRIFT — this spec no longer matches the implementation.** Frozen 2026-03-27 and not reconciled since. UC-01-03 (Manage Profile) and UC-01-04 (Request Instructor Role) are unimplemented. Registration auto-authenticates the user before email verification (UC-01-01), and a suspended account is reported as invalid credentials rather than handled distinctly (UC-01-02). See the [Specification Drift Report](../quality/spec-drift-report.md#ep-01--user-identity-and-access).
+
 ---
 
 ## UC-01-01 — Register a New Account
