@@ -11,6 +11,13 @@ import { LwInputDirective } from './lw-input.directive';
 })
 class HostComponent {}
 
+@Component({
+  standalone: true,
+  imports: [LwInputDirective],
+  template: `<input lwInput class="mt-1" />`,
+})
+class WithClassHost {}
+
 describe('LwInputDirective', () => {
   it('applies the design-system input classes to the host input', () => {
     const fixture = TestBed.createComponent(HostComponent);
@@ -25,15 +32,6 @@ describe('LwInputDirective', () => {
   });
 
   it('preserves any class the consumer puts on the input', () => {
-    TestBed.resetTestingModule();
-
-    @Component({
-      standalone: true,
-      imports: [LwInputDirective],
-      template: `<input lwInput class="mt-1" />`,
-    })
-    class WithClassHost {}
-
     const fixture = TestBed.createComponent(WithClassHost);
     fixture.detectChanges();
 
