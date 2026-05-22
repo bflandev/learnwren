@@ -23,4 +23,11 @@ describe('LwIconComponent', () => {
 
     expect(fixture.nativeElement.querySelector('svg').getAttribute('width')).toBe('16');
   });
+
+  it('defaults the stroke-width to 1.5', () => {
+    const fixture = TestBed.createComponent(LwIconComponent);
+    fixture.componentRef.setInput('name', 'search');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('svg').getAttribute('stroke-width')).toBe('1.5');
+  });
 });
