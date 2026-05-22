@@ -12,7 +12,7 @@ function configure(user: { displayName: string } | null): void {
   const currentUser = signal(user);
   const fakeAuth = {
     currentUser,
-    isAuthenticated: () => currentUser() !== null,
+    isAuthenticated: () => currentUser() != null,
   };
   TestBed.configureTestingModule({
     imports: [App],
