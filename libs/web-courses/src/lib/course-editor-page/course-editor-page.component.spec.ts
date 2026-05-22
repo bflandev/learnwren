@@ -3,9 +3,15 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { Course, VideoState } from '@learnwren/shared-data-models';
 
 import { CourseEditorPageComponent } from './course-editor-page.component';
+import { CoursePublishBarComponent } from '../publish/course-publish-bar.component';
+import { PublishEligibilityService } from '../publish/publish-eligibility.service';
+
+const TS = '2026-05-12T00:00:00.000Z';
 
 function buildTree(): unknown {
   return {
@@ -15,23 +21,58 @@ function buildTree(): unknown {
       description: 'D',
       instructorId: 'uid-1',
       status: 'DRAFT',
-      createdAt: '2026-05-12T00:00:00.000Z',
-      updatedAt: '2026-05-12T00:00:00.000Z',
+      createdAt: TS,
+      updatedAt: TS,
     },
     modules: [
       {
-        module: {
-          id: 'mid-1',
-          courseId: 'cid-1',
-          title: 'M1',
-          order: 0,
-          createdAt: '2026-05-12T00:00:00.000Z',
-          updatedAt: '2026-05-12T00:00:00.000Z',
-        },
+        module: { id: 'mid-1', courseId: 'cid-1', title: 'M1', order: 0, createdAt: TS, updatedAt: TS },
         lessons: [],
       },
     ],
   };
+}
+
+/** A two-module tree where the first module has two lessons — used to exercise reordering. */
+function buildTreeWithLessons(): unknown {
+  return {
+    course: {
+      id: 'cid-1',
+      title: 'T',
+      description: 'D',
+      instructorId: 'uid-1',
+      status: 'DRAFT',
+      createdAt: TS,
+      updatedAt: TS,
+    },
+    modules: [
+      {
+        module: { id: 'mid-1', courseId: 'cid-1', title: 'M1', order: 0, createdAt: TS, updatedAt: TS },
+        lessons: [
+          { id: 'lid-1', moduleId: 'mid-1', title: 'L1', order: 0, createdAt: TS, updatedAt: TS },
+          { id: 'lid-2', moduleId: 'mid-1', title: 'L2', order: 1, createdAt: TS, updatedAt: TS },
+        ],
+      },
+      {
+        module: { id: 'mid-2', courseId: 'cid-1', title: 'M2', order: 1, createdAt: TS, updatedAt: TS },
+        lessons: [],
+      },
+    ],
+  };
+}
+
+/** Typed view of the component's `protected` members so tests can drive them directly. */
+interface EditorInternals {
+  onCourseUpdated(course: Course): void;
+  requestPublishConfirm(kind: 'unpublish' | 'archive'): void;
+  onVideoStateChanged(state: VideoState): void;
+  onJumpToModule(id: string): void;
+  onJumpToLesson(id: string): void;
+  publishBar?: CoursePublishBarComponent;
+}
+
+function internals(component: CourseEditorPageComponent): EditorInternals {
+  return component as unknown as EditorInternals;
 }
 
 describe('CourseEditorPageComponent', () => {
@@ -54,6 +95,19 @@ describe('CourseEditorPageComponent', () => {
     });
     http = TestBed.inject(HttpTestingController);
   });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** Creates the component and resolves its initial course-tree load. */
+  async function initEditor(tree: unknown = buildTree()) {
+    const fixture = TestBed.createComponent(CourseEditorPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/courses/cid-1').flush(tree);
+    await fixture.whenStable();
+    return fixture;
+  }
 
   it('loads the course tree on init', async () => {
     const fixture = TestBed.createComponent(CourseEditorPageComponent);
@@ -191,5 +245,409 @@ describe('CourseEditorPageComponent', () => {
     await closing;
 
     expect(fixture.componentInstance.error()).toContain('Delete failed');
+  });
+
+  it('surfaces an error when the initial course-tree load fails', async () => {
+    const fixture = TestBed.createComponent(CourseEditorPageComponent);
+    fixture.detectChanges();
+    http
+      .expectOne('/api/courses/cid-1')
+      .flush({}, { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.error()).toBe('Failed to load course.');
+  });
+
+  describe('onUpdateCourse', () => {
+    it('PATCHes the course metadata then refreshes the tree', async () => {
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.onUpdateCourse({ title: 'Updated' });
+      const patch = http.expectOne('/api/courses/cid-1');
+      expect(patch.request.method).toBe('PATCH');
+      expect(patch.request.body).toEqual({ title: 'Updated' });
+      patch.flush(null);
+      await fixture.whenStable();
+
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+      expect(fixture.componentInstance.error()).toBeNull();
+    });
+
+    it('surfaces an error and skips the refresh when the PATCH fails', async () => {
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.onUpdateCourse({ title: 'Updated' });
+      http
+        .expectOne('/api/courses/cid-1')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+      await pending;
+
+      expect(fixture.componentInstance.error()).toContain('Failed to save changes');
+      http.expectNone('/api/courses/cid-1');
+    });
+  });
+
+  describe('addModule', () => {
+    it('does nothing when the title prompt is cancelled', async () => {
+      vi.spyOn(window, 'prompt').mockReturnValue(null);
+      const fixture = await initEditor();
+
+      await fixture.componentInstance.addModule();
+
+      http.expectNone((req) => req.method === 'POST');
+    });
+
+    it('POSTs the new module then refreshes the tree', async () => {
+      vi.spyOn(window, 'prompt').mockReturnValue('Module 2');
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.addModule();
+      const post = http.expectOne('/api/courses/cid-1/modules');
+      expect(post.request.method).toBe('POST');
+      expect(post.request.body).toEqual({ title: 'Module 2' });
+      post.flush({ id: 'mid-2' });
+      await fixture.whenStable();
+
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+      expect(fixture.componentInstance.error()).toBeNull();
+    });
+
+    it('surfaces an error when the POST fails', async () => {
+      vi.spyOn(window, 'prompt').mockReturnValue('Module 2');
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.addModule();
+      http
+        .expectOne('/api/courses/cid-1/modules')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+      await pending;
+
+      expect(fixture.componentInstance.error()).toContain('Failed to add module');
+    });
+  });
+
+  describe('onRenameModule', () => {
+    it('PATCHes the module title then refreshes the tree', async () => {
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.onRenameModule({
+        moduleId: 'mid-1',
+        title: 'M1 renamed',
+      });
+      const patch = http.expectOne('/api/courses/cid-1/modules/mid-1');
+      expect(patch.request.method).toBe('PATCH');
+      expect(patch.request.body).toEqual({ title: 'M1 renamed' });
+      patch.flush(null);
+      await fixture.whenStable();
+
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+    });
+
+    it('surfaces an error when the rename fails', async () => {
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.onRenameModule({
+        moduleId: 'mid-1',
+        title: 'M1 renamed',
+      });
+      http
+        .expectOne('/api/courses/cid-1/modules/mid-1')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+      await pending;
+
+      expect(fixture.componentInstance.error()).toContain('Failed to rename module');
+    });
+  });
+
+  describe('onAddLesson', () => {
+    it('POSTs the new lesson then refreshes the tree', async () => {
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.onAddLesson({
+        moduleId: 'mid-1',
+        title: 'New lesson',
+      });
+      const post = http.expectOne('/api/courses/cid-1/modules/mid-1/lessons');
+      expect(post.request.method).toBe('POST');
+      expect(post.request.body).toEqual({ title: 'New lesson' });
+      post.flush({ id: 'lid-1' });
+      await fixture.whenStable();
+
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+    });
+
+    it('surfaces an error when adding a lesson fails', async () => {
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.onAddLesson({
+        moduleId: 'mid-1',
+        title: 'New lesson',
+      });
+      http
+        .expectOne('/api/courses/cid-1/modules/mid-1/lessons')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+      await pending;
+
+      expect(fixture.componentInstance.error()).toContain('Failed to add lesson');
+    });
+  });
+
+  describe('onRenameLesson', () => {
+    it('PATCHes the lesson title then refreshes the tree', async () => {
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.onRenameLesson({
+        moduleId: 'mid-1',
+        lessonId: 'lid-1',
+        title: 'L1 renamed',
+      });
+      const patch = http.expectOne('/api/courses/cid-1/modules/mid-1/lessons/lid-1');
+      expect(patch.request.method).toBe('PATCH');
+      expect(patch.request.body).toEqual({ title: 'L1 renamed' });
+      patch.flush(null);
+      await fixture.whenStable();
+
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+    });
+
+    it('surfaces an error when renaming a lesson fails', async () => {
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.onRenameLesson({
+        moduleId: 'mid-1',
+        lessonId: 'lid-1',
+        title: 'L1 renamed',
+      });
+      http
+        .expectOne('/api/courses/cid-1/modules/mid-1/lessons/lid-1')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+      await pending;
+
+      expect(fixture.componentInstance.error()).toContain('Failed to rename lesson');
+    });
+  });
+
+  describe('reordering', () => {
+    it('onReorderModules reverts the optimistic update when the PUT fails', async () => {
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.onReorderModules(['mid-1']);
+      http
+        .expectOne('/api/courses/cid-1/modules/order')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+      await fixture.whenStable();
+
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+      expect(fixture.componentInstance.error()).toContain('Reorder failed');
+    });
+
+    it('onReorderLessons applies the new order optimistically and PUTs it', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+
+      const pending = fixture.componentInstance.onReorderLessons({
+        moduleId: 'mid-1',
+        lessonIds: ['lid-2', 'lid-1'],
+      });
+
+      const moduleOne = fixture.componentInstance.tree()?.modules[0];
+      expect(moduleOne?.lessons.map((l) => l.id)).toEqual(['lid-2', 'lid-1']);
+      // The untouched module is left exactly as it was.
+      expect(fixture.componentInstance.tree()?.modules[1].module.id).toBe('mid-2');
+
+      const put = http.expectOne('/api/courses/cid-1/modules/mid-1/lessons/order');
+      expect(put.request.method).toBe('PUT');
+      expect(put.request.body).toEqual({ ids: ['lid-2', 'lid-1'] });
+      put.flush([]);
+      await pending;
+      expect(fixture.componentInstance.error()).toBeNull();
+    });
+
+    it('onReorderLessons reverts and surfaces an error when the PUT fails', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+
+      const pending = fixture.componentInstance.onReorderLessons({
+        moduleId: 'mid-1',
+        lessonIds: ['lid-2', 'lid-1'],
+      });
+      http
+        .expectOne('/api/courses/cid-1/modules/mid-1/lessons/order')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+      await fixture.whenStable();
+
+      http.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons());
+      await pending;
+      expect(fixture.componentInstance.error()).toContain('Reorder failed');
+    });
+  });
+
+  describe('publish transitions', () => {
+    it('delegates a confirmed unpublish to the publish bar', async () => {
+      const fixture = await initEditor();
+      fixture.detectChanges();
+
+      const bar = internals(fixture.componentInstance).publishBar;
+      expect(bar).toBeDefined();
+      const transition = vi
+        .spyOn(bar as CoursePublishBarComponent, 'runConfirmedTransition')
+        .mockImplementation(() => undefined);
+
+      internals(fixture.componentInstance).requestPublishConfirm('unpublish');
+      await fixture.componentInstance.onConfirmClosed(true);
+
+      expect(transition).toHaveBeenCalledWith('unpublish');
+      http.expectNone((req) => req.method === 'DELETE');
+    });
+
+    it('delegates a confirmed archive to the publish bar', async () => {
+      const fixture = await initEditor();
+      fixture.detectChanges();
+
+      const bar = internals(fixture.componentInstance).publishBar;
+      expect(bar).toBeDefined();
+      const transition = vi
+        .spyOn(bar as CoursePublishBarComponent, 'runConfirmedTransition')
+        .mockImplementation(() => undefined);
+
+      internals(fixture.componentInstance).requestPublishConfirm('archive');
+      await fixture.componentInstance.onConfirmClosed(true);
+
+      expect(transition).toHaveBeenCalledWith('archive');
+    });
+  });
+
+  describe('onCourseUpdated', () => {
+    it('swaps the updated course into the tree', async () => {
+      const fixture = await initEditor();
+      const updated: Course = {
+        ...(buildTree() as { course: Course }).course,
+        title: 'Renamed course',
+      };
+
+      internals(fixture.componentInstance).onCourseUpdated(updated);
+
+      expect(fixture.componentInstance.tree()?.course.title).toBe('Renamed course');
+    });
+
+    it('re-checks publish eligibility when the course is still a draft', async () => {
+      const fixture = await initEditor();
+      const refresh = vi.spyOn(TestBed.inject(PublishEligibilityService), 'refresh');
+
+      internals(fixture.componentInstance).onCourseUpdated({
+        ...(buildTree() as { course: Course }).course,
+        status: 'DRAFT',
+      });
+
+      expect(refresh).toHaveBeenCalled();
+    });
+
+    it('does not re-check eligibility once the course is published', async () => {
+      const fixture = await initEditor();
+      const refresh = vi.spyOn(TestBed.inject(PublishEligibilityService), 'refresh');
+
+      internals(fixture.componentInstance).onCourseUpdated({
+        ...(buildTree() as { course: Course }).course,
+        status: 'PUBLISHED',
+      });
+
+      expect(refresh).not.toHaveBeenCalled();
+    });
+  });
+
+  it('onVideoStateChanged re-checks publish eligibility', async () => {
+    const fixture = await initEditor();
+    const refresh = vi.spyOn(TestBed.inject(PublishEligibilityService), 'refresh');
+
+    internals(fixture.componentInstance).onVideoStateChanged('READY');
+
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  describe('jump-to navigation', () => {
+    it('onJumpToModule scrolls the matching module element into view', async () => {
+      const fixture = await initEditor();
+      const target = document.createElement('div');
+      target.setAttribute('data-module-id', 'jump-target');
+      const scrollIntoView = vi.fn();
+      target.scrollIntoView = scrollIntoView;
+      document.body.appendChild(target);
+
+      try {
+        internals(fixture.componentInstance).onJumpToModule('jump-target');
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+      } finally {
+        target.remove();
+      }
+    });
+
+    it('onJumpToModule is a no-op when no module element matches', async () => {
+      const fixture = await initEditor();
+      expect(() =>
+        internals(fixture.componentInstance).onJumpToModule('missing'),
+      ).not.toThrow();
+    });
+
+    it('onJumpToLesson scrolls the matching lesson element into view', async () => {
+      const fixture = await initEditor();
+      const target = document.createElement('div');
+      target.setAttribute('data-lesson-id', 'jump-target');
+      const scrollIntoView = vi.fn();
+      target.scrollIntoView = scrollIntoView;
+      document.body.appendChild(target);
+
+      try {
+        internals(fixture.componentInstance).onJumpToLesson('jump-target');
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+      } finally {
+        target.remove();
+      }
+    });
+
+    it('onJumpToLesson is a no-op when no lesson element matches', async () => {
+      const fixture = await initEditor();
+      expect(() =>
+        internals(fixture.componentInstance).onJumpToLesson('missing'),
+      ).not.toThrow();
+    });
+  });
+
+  describe('confirmMessage', () => {
+    it('is empty when nothing is pending', async () => {
+      const fixture = await initEditor();
+      expect(fixture.componentInstance.confirmMessage()).toBe('');
+    });
+
+    it('warns that deleting a course is permanent', async () => {
+      const fixture = await initEditor();
+      fixture.componentInstance.requestDeleteCourse();
+      expect(fixture.componentInstance.confirmMessage()).toContain(
+        'Permanently delete this course',
+      );
+    });
+
+    it('explains that unpublishing returns the course to draft', async () => {
+      const fixture = await initEditor();
+      internals(fixture.componentInstance).requestPublishConfirm('unpublish');
+      expect(fixture.componentInstance.confirmMessage()).toContain('return to draft');
+    });
+
+    it('explains that archiving hides the course from the catalogue', async () => {
+      const fixture = await initEditor();
+      internals(fixture.componentInstance).requestPublishConfirm('archive');
+      expect(fixture.componentInstance.confirmMessage()).toContain(
+        'hidden from the catalogue',
+      );
+    });
+
+    it('falls back to the lesson copy for a pending lesson delete', async () => {
+      const fixture = await initEditor();
+      fixture.componentInstance.requestDeleteLesson({ moduleId: 'mid-1', lessonId: 'lid-1' });
+      expect(fixture.componentInstance.confirmMessage()).toContain('Delete this lesson');
+    });
   });
 });
