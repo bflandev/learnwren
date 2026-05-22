@@ -25,7 +25,7 @@ describe('CatalogQueryDto', () => {
   });
 
   it('rejects an unknown sort value', () => {
-    const dto = plainToInstance(CatalogQueryDto, { sort: 'POPULAR' });
+    const dto = plainToInstance(CatalogQueryDto, { sort: 'TRENDING' });
     expect(validateSync(dto).length).toBeGreaterThan(0);
   });
 
