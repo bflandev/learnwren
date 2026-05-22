@@ -134,4 +134,116 @@ describe('MaterialsListComponent', () => {
     expect(cmp.materials()).toHaveLength(1);
     expect(cmp.removedNotice()).toBeNull();
   });
+
+  describe('onFilesSelected', () => {
+    it('uploads the selected files then refreshes the list', async () => {
+      const api = apiMock();
+      const { fixture } = render(api);
+      const cmp = fixture.componentInstance;
+      const uploadSpy = vi.spyOn(cmp.upload, 'uploadFiles').mockResolvedValue(1);
+      const file = new File(['data'], 'notes.pdf', { type: 'application/pdf' });
+
+      await cmp.onFilesSelected({
+        target: { files: [file], value: 'notes.pdf' },
+      } as unknown as Event);
+
+      expect(uploadSpy).toHaveBeenCalledWith(
+        { courseId: 'c1', moduleId: 'm1', lessonId: 'l1' },
+        [file],
+      );
+      // listMaterials runs once on init and once for the post-upload refresh.
+      expect(api.listMaterials).toHaveBeenCalledTimes(2);
+    });
+
+    it('does nothing when the picker is dismissed with no files', async () => {
+      const api = apiMock();
+      const { fixture } = render(api);
+      const cmp = fixture.componentInstance;
+      const uploadSpy = vi.spyOn(cmp.upload, 'uploadFiles');
+
+      await cmp.onFilesSelected({ target: { files: [], value: '' } } as unknown as Event);
+
+      expect(uploadSpy).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the input exposes no file list', async () => {
+      const api = apiMock();
+      const { fixture } = render(api);
+      const cmp = fixture.componentInstance;
+      const uploadSpy = vi.spyOn(cmp.upload, 'uploadFiles');
+
+      await cmp.onFilesSelected({ target: { files: null, value: '' } } as unknown as Event);
+
+      expect(uploadSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('refresh', () => {
+    it('reloads the materials from the service', async () => {
+      const listMaterials = vi
+        .fn()
+        .mockReturnValueOnce(of([mat('m1', 'Doc One')]))
+        .mockReturnValueOnce(of([mat('m2', 'Doc Two')]));
+      const { fixture } = render(apiMock({ listMaterials }));
+      const cmp = fixture.componentInstance;
+      expect(cmp.materials().map((x) => x.id)).toEqual(['m1']);
+
+      await cmp.refresh();
+
+      expect(cmp.materials().map((x) => x.id)).toEqual(['m2']);
+      expect(cmp.loadError()).toBe(false);
+    });
+
+    it('sets the load error when the reload fails', async () => {
+      const listMaterials = vi
+        .fn()
+        .mockReturnValueOnce(of([mat('m1', 'Doc One')]))
+        .mockReturnValueOnce(throwError(() => new Error('boom')));
+      const { fixture } = render(apiMock({ listMaterials }));
+      const cmp = fixture.componentInstance;
+      expect(cmp.loadError()).toBe(false);
+
+      await cmp.refresh();
+
+      expect(cmp.loadError()).toBe(true);
+    });
+  });
+
+  describe('rename editing state', () => {
+    it('commitRename does nothing when the draft name is blank', async () => {
+      const api = apiMock();
+      const { fixture } = render(api);
+      const cmp = fixture.componentInstance;
+      cmp.startRename(mat('m1', 'Doc One'));
+      cmp.draftName.set('   ');
+
+      await cmp.commitRename(mat('m1', 'Doc One'));
+
+      expect(api.rename).not.toHaveBeenCalled();
+      expect(cmp.editingId()).toBeNull();
+    });
+
+    it('commitRename does nothing when the name is unchanged', async () => {
+      const api = apiMock();
+      const { fixture } = render(api);
+      const cmp = fixture.componentInstance;
+      cmp.startRename(mat('m1', 'Doc One'));
+      cmp.draftName.set('Doc One');
+
+      await cmp.commitRename(mat('m1', 'Doc One'));
+
+      expect(api.rename).not.toHaveBeenCalled();
+    });
+
+    it('cancelRename clears the editing state', () => {
+      const { fixture } = render(apiMock());
+      const cmp = fixture.componentInstance;
+      cmp.startRename(mat('m1', 'Doc One'));
+      expect(cmp.editingId()).toBe('m1');
+
+      cmp.cancelRename();
+
+      expect(cmp.editingId()).toBeNull();
+    });
+  });
 });
