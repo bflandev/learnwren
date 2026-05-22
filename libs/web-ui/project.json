@@ -6,6 +6,25 @@
   "projectType": "library",
   "tags": ["scope:web"],
   "targets": {
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "options": {
+        "cwd": "libs/web-ui",
+        "command": "tsc --build tsconfig.lib.json --emitDeclarationOnly"
+      },
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default",
+        {
+          "externalDependencies": ["typescript"]
+        }
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/out-tsc/libs/web-ui/**/*.{d.ts,d.cts,d.mts}",
+        "{workspaceRoot}/libs/web-ui/tsconfig.lib.tsbuildinfo"
+      ]
+    },
     "lint": {
       "executor": "@nx/eslint:lint"
     }
