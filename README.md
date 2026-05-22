@@ -6,7 +6,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > **PROJECT STATUS: EARLY DEVELOPMENT**
 > The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route), the course authoring slice (EP-02 US-02-01..03: instructor role promotion, REST course surface, drag-and-drop editor), and **EP-03 slices A + B + C (video upload through owner playback): instructor uploads MP4 / MOV / MKV ≤ 10 GB to a lesson via resumable upload, ffprobe + GCP Transcoder API + AES-128 HLS produce playable manifests on the output bucket, the lesson editor swaps the badge for an inline `<video>` element that streams via hls.js (or native HLS on Safari/iOS) once the video is READY** are wired up. Cover image upload is deferred. **EP-03 slice D (course publish gate) complete: instructors can publish / unpublish / archive / restore courses with structured eligibility feedback.**
 > **EP-04 (Lesson Materials) complete: instructors attach, rename, and remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP — up to 50 MB each) on a lesson, and download them via a short-lived signed URL. Enrolled-student download arrives with EP-06.**
-> Catalogue (EP-05) and enrolled-student playback (EP-06) remain deferred. Instructor dashboard and platform administration remain in post-MVP planning.
+> **EP-05 Slice A (Course Discovery) complete:** a public, unauthenticated catalogue of PUBLISHED courses with category/difficulty filters, Newest/Alphabetical sort, and pagination; keyword search over course titles and descriptions; and a public course-detail page. `/` now opens the catalogue. Enrolment (EP-05 Slice B — UC-05-04/05) and enrolled-student playback (EP-06) remain deferred. Instructor dashboard and platform administration remain in post-MVP planning.
 
 ---
 
@@ -25,7 +25,8 @@ learnwren/
 │   ├── shared-data-models/  # TS types shared between web and api
 │   ├── api-firebase/        # NestJS module wrapping firebase-admin (env-driven)
 │   ├── api-auth/            # NestJS auth module (register, login, lockout, verify, reset, unlock, guard)
-│   └── web-auth/            # Angular auth lib (signal-based service, guard, pages)
+│   ├── web-auth/            # Angular auth lib (signal-based service, guard, pages)
+│   └── web-catalog/         # Angular standalone components for public course discovery (catalogue, search, course detail)
 ├── tools/
 │   └── migrate-auth-2026-05-cleanup-unverified.ts  # Pre-deploy script: prune unverified accounts
 └── docs/
@@ -44,6 +45,7 @@ learnwren/
 | `api-firebase` | Library | NestJS module providing the firebase-admin handle + Web API key (emulator/production mode-switching) |
 | `api-auth` | Library | `AuthModule`: controller, service, `FirebaseSessionGuard`, DTOs, error envelope, `AuthAttemptsRepository`, `FirebaseAuthRestClient`, `EmailTransport` |
 | `web-auth` | Library | Angular standalone components (`Login`, `Register`, `RegisterConfirm`, `ForgotPassword`, `Unlock`), signal-based `AuthService`, `authGuard`, interceptor |
+| `web-catalog` | Library | Angular standalone components for public course discovery (catalogue, search, course detail) |
 | `web-e2e`, `api-e2e` | E2E suite | Playwright (api-e2e covers `/auth/**` end-to-end including lockout + Firestore rules) |
 
 The planned production deployment targets are Firebase Hosting (web) and Firebase Cloud Functions (api), backed by Firestore, Cloud Storage, and Firebase Authentication. See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./docs/epics/TECHNICAL_ARCHITECTURE.md).
@@ -138,6 +140,14 @@ The API endpoints exposed by EP-04 (lesson materials):
 | `PATCH`| `/api/materials/:matId` | Rename a material's display name. |
 | `DELETE` | `/api/materials/:matId` | Remove a material (storage object + metadata). |
 | `GET`  | `/api/materials/:matId/download-url` | Mint a 15-minute signed download URL (owner-gated; enrolled students in EP-06). |
+
+The API endpoints exposed by EP-05 Slice A (course discovery — all public, no session cookie):
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/api/catalog` | Paginated list of PUBLISHED courses; `page`, `sort`, `category`, `difficulty` query params. |
+| `GET` | `/api/catalog/search` | Relevance-ranked search of PUBLISHED courses by title/description; `q`, `page` query params. |
+| `GET` | `/api/catalog/:cid` | Public course detail (structure + instructor name); 404 for missing/unpublished. |
 
 For the full auth dev workflow, the deferred items, and error-code → prose mappings, see [`docs/development.md`](./docs/development.md#auth-dev-workflow) and the design specs at [`docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`](./docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md) and [`docs/superpowers/specs/2026-05-06-auth-hardening-design.md`](./docs/superpowers/specs/2026-05-06-auth-hardening-design.md).
 
