@@ -1,0 +1,32 @@
+{
+  "name": "web-catalog",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/web-catalog/src",
+  "prefix": "lib",
+  "projectType": "library",
+  "tags": ["scope:web"],
+  "targets": {
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "options": {
+        "cwd": "libs/web-catalog",
+        "command": "tsc --build tsconfig.lib.json --emitDeclarationOnly"
+      },
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default",
+        {
+          "externalDependencies": ["typescript"]
+        }
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/out-tsc/libs/web-catalog/**/*.{d.ts,d.cts,d.mts}",
+        "{workspaceRoot}/libs/web-catalog/tsconfig.lib.tsbuildinfo"
+      ]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}
