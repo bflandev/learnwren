@@ -95,3 +95,32 @@ describe('Course — slice D fields', () => {
     expect(c.archivedAt).toBeUndefined();
   });
 });
+
+describe('Course — slice B field', () => {
+  it('accepts a course with enrollmentCount set', () => {
+    const c: Course = {
+      id: 'c4' as CourseId,
+      title: 'T',
+      description: 'D',
+      instructorId: 'u1' as UserId,
+      status: 'PUBLISHED',
+      enrollmentCount: 42,
+      createdAt: '2026-05-22T09:00:00.000Z' as ISODateString,
+      updatedAt: '2026-05-22T09:00:00.000Z' as ISODateString,
+    };
+    expect(c.enrollmentCount).toBe(42);
+  });
+
+  it('accepts a course without enrollmentCount (pre-slice-B legacy doc)', () => {
+    const c: Course = {
+      id: 'c5' as CourseId,
+      title: 'T',
+      description: 'D',
+      instructorId: 'u1' as UserId,
+      status: 'DRAFT',
+      createdAt: '2026-05-22T09:00:00.000Z' as ISODateString,
+      updatedAt: '2026-05-22T09:00:00.000Z' as ISODateString,
+    };
+    expect(c.enrollmentCount).toBeUndefined();
+  });
+});
