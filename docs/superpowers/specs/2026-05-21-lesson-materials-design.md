@@ -1,10 +1,10 @@
 # Lesson Materials — EP-04 Design Spec
 
 > [!NOTE]
-> **DOCUMENT STATUS: DRAFT**
-> This document is a living specification and is subject to change. All content is considered provisional until formally approved by project stakeholders.
+> **DOCUMENT STATUS: APPROVED**
+> Approved at EP-04 implementation merge (2026-05-21).
 
-**Status:** Draft (2026-05-21)
+**Status:** Approved (2026-05-21)
 **Scope:** Single implementation slice of EP-04 (Lesson Materials). Delivers UC-04-01 end-to-end — an instructor attaches supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP; ≤ 50 MB each) to a lesson, customises their display names, and removes them — plus UC-04-02's signed-download endpoint, owner-gated. Adds a `Material` schema in `shared-data-models`, a `materials/` submodule in `libs/api-courses`, and a `materials/` submodule in `libs/web-courses`. No new libraries, no new Nx edges, one new env var.
 
 This spec sits on top of:
