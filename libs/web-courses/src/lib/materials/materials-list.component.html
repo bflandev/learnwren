@@ -1,0 +1,62 @@
+<section class="materials" data-testid="materials-list">
+  <h4>Lesson materials</h4>
+
+  @if (loadError()) {
+    <p data-testid="materials-load-error">
+      Couldn't load materials.
+      <button type="button" (click)="refresh()">Retry</button>
+    </p>
+  } @else if (materials().length === 0) {
+    <p data-testid="materials-empty">No materials yet.</p>
+  }
+
+  <ul>
+    @for (m of materials(); track m.id) {
+      <li data-testid="material-row">
+        @if (editingId() === m.id) {
+          <input
+            data-testid="material-rename-input"
+            type="text"
+            [ngModel]="draftName()"
+            (ngModelChange)="draftName.set($event)"
+            (blur)="commitRename(m)"
+            (keydown.enter)="commitRename(m)"
+            (keydown.escape)="cancelRename()"
+          />
+        } @else {
+          <button type="button" data-testid="material-name" (click)="startRename(m)">
+            {{ m.displayName }}
+          </button>
+        }
+        <button type="button" data-testid="material-download" (click)="download(m)">Download</button>
+        <button type="button" data-testid="material-remove" (click)="askRemove(m)">Remove</button>
+      </li>
+    }
+  </ul>
+
+  @for (p of upload.inFlight(); track p.filename) {
+    <p data-testid="material-uploading">{{ p.filename }} — {{ p.percent }}%</p>
+  }
+  @for (f of upload.failures(); track f.filename) {
+    <p data-testid="material-upload-error">{{ f.filename }}: {{ f.reason }}</p>
+  }
+
+  <label data-testid="material-add">
+    Add material
+    <input
+      type="file"
+      multiple
+      accept=".pdf,.docx,.pptx,.xlsx,.txt,.zip"
+      (change)="onFilesSelected($event)"
+    />
+  </label>
+  <p class="hint">PDF, DOCX, PPTX, XLSX, TXT, or ZIP, up to 50 MB each.</p>
+
+  @if (pendingRemoval(); as m) {
+    <lib-confirm-dialog
+      [message]="'Remove \'' + m.displayName + '\'? This cannot be undone.'"
+      confirmLabel="Remove material"
+      (closed)="confirmRemoval($event)"
+    />
+  }
+</section>
