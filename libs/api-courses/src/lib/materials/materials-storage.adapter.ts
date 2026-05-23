@@ -43,6 +43,11 @@ function sanitizeFilename(name: string): string {
   return name.replace(/["\\\r\n]/g, '_');
 }
 
+/** GCS errors expose a numeric `code`; 404 is the canonical "object missing" signal. */
+function isNotFound(err: unknown): boolean {
+  return (err as { code?: number }).code === 404;
+}
+
 @Injectable()
 export class MaterialsStorageAdapter implements MaterialsStoragePort {
   constructor(
@@ -58,13 +63,9 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort {
   }): Promise<SignedUploadUrl> {
     const expiresMs = Date.now() + this.cfg.uploadUrlTtlSec * 1000;
     if (this.cfg.storageImpl === 'fake') {
-      return {
-        uploadUrl: `/api/internal/fake-materials/${input.materialId}`,
-        expiresAt: new Date(expiresMs).toISOString(),
-      };
+      return this.fakeSigned('uploadUrl', input.materialId, expiresMs);
     }
-    const file = this.storage.bucket(input.bucket).file(input.path);
-    const [url] = await file.getSignedUrl({
+    const [url] = await this.fileRef(input).getSignedUrl({
       version: 'v4',
       action: 'write',
       contentType: input.contentType,
@@ -77,13 +78,12 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort {
     bucket: string;
     path: string;
   }): Promise<MaterialObjectMetadata | null> {
-    const file = this.storage.bucket(input.bucket).file(input.path);
     try {
-      const [meta] = await file.getMetadata();
+      const [meta] = await this.fileRef(input).getMetadata();
       const size = typeof meta.size === 'string' ? Number(meta.size) : (meta.size as number);
       return { size };
     } catch (err) {
-      if ((err as { code?: number }).code === 404) return null;
+      if (isNotFound(err)) return null;
       throw err;
     }
   }
@@ -98,13 +98,9 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort {
   }): Promise<SignedDownloadUrl> {
     const expiresMs = Date.now() + input.ttlSec * 1000;
     if (this.cfg.storageImpl === 'fake') {
-      return {
-        downloadUrl: `/api/internal/fake-materials/${input.materialId}`,
-        expiresAt: new Date(expiresMs).toISOString(),
-      };
+      return this.fakeSigned('downloadUrl', input.materialId, expiresMs);
     }
-    const file = this.storage.bucket(input.bucket).file(input.path);
-    const [url] = await file.getSignedUrl({
+    const [url] = await this.fileRef(input).getSignedUrl({
       version: 'v4',
       action: 'read',
       expires: expiresMs,
@@ -115,12 +111,31 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort {
   }
 
   async deleteObject(input: { bucket: string; path: string }): Promise<void> {
-    const file = this.storage.bucket(input.bucket).file(input.path);
     try {
-      await file.delete();
+      await this.fileRef(input).delete();
     } catch (err) {
-      if ((err as { code?: number }).code === 404) return;
+      if (isNotFound(err)) return;
       throw err;
     }
+  }
+
+  private fileRef(input: { bucket: string; path: string }) {
+    return this.storage.bucket(input.bucket).file(input.path);
+  }
+
+  /**
+   * Fake-mode signed-URL response: hands back a local API path the dev server
+   * proxies through the internal fake-materials route. The key name is
+   * parameterised so the same helper serves both upload and download flows.
+   */
+  private fakeSigned<K extends 'uploadUrl' | 'downloadUrl'>(
+    key: K,
+    materialId: string,
+    expiresMs: number,
+  ): { [P in K]: string } & { expiresAt: string } {
+    return {
+      [key]: `/api/internal/fake-materials/${materialId}`,
+      expiresAt: new Date(expiresMs).toISOString(),
+    } as { [P in K]: string } & { expiresAt: string };
   }
 }
