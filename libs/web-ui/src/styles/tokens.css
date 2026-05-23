@@ -187,6 +187,12 @@
 .lw-cover[data-tone="ink"]   { background: linear-gradient(135deg, oklch(28% 0.02 60), oklch(20% 0.02 60)); }
 .lw-cover[data-tone="paper"] { background: linear-gradient(135deg, oklch(74% 0.06 80), oklch(60% 0.05 78)); }
 .lw-cover[data-tone="bark"]  { background: linear-gradient(135deg, oklch(34% 0.04 50), oklch(24% 0.03 50)); }
+.lw-theme-light .lw-cover[data-tone="ochre"] { background: linear-gradient(135deg, oklch(74% 0.13 75), oklch(64% 0.14 70)); }
+.lw-theme-light .lw-cover[data-tone="moss"]  { background: linear-gradient(135deg, oklch(62% 0.12 145), oklch(52% 0.12 145)); }
+.lw-theme-light .lw-cover[data-tone="clay"]  { background: linear-gradient(135deg, oklch(64% 0.13 35), oklch(54% 0.14 35)); }
+.lw-theme-light .lw-cover[data-tone="ink"]   { background: linear-gradient(135deg, oklch(42% 0.014 60), oklch(32% 0.014 60)); }
+.lw-theme-light .lw-cover[data-tone="paper"] { background: linear-gradient(135deg, oklch(86% 0.04 82), oklch(78% 0.05 78)); }
+.lw-theme-light .lw-cover[data-tone="bark"]  { background: linear-gradient(135deg, oklch(50% 0.05 50), oklch(40% 0.05 50)); }
 .lw-cover::before {
   content: "";
   position: absolute; inset: 0;
@@ -218,6 +224,9 @@
   user-select: none;
 }
 .lw-cover[data-tone="paper"] .lw-cover-glyph { color: oklch(20% 0.02 60 / 0.45); }
+.lw-theme-light .lw-cover .lw-cover-glyph { color: oklch(18% 0.02 60 / 0.45); }
+.lw-theme-light .lw-cover[data-tone="ink"] .lw-cover-glyph { color: oklch(100% 0 0 / 0.40); }
+.lw-theme-light .lw-cover[data-tone="bark"] .lw-cover-glyph { color: oklch(100% 0 0 / 0.32); }
 
 /* Progress bar */
 .lw-progress {
