@@ -69,12 +69,12 @@ test('instructor can create a course, add a module + lesson, rename, delete', as
 
   // Delete the lesson
   await page.getByTestId('lesson-delete').click();
-  await page.getByTestId('confirm').click();
+  await page.getByTestId('confirm-go').click();
   await expect(page.getByTestId('lesson-title')).toHaveCount(0);
 
   // Delete the module
   await page.getByTestId('module-delete').click();
-  await page.getByTestId('confirm').click();
+  await page.getByTestId('confirm-go').click();
   await expect(page.getByTestId('module-item')).toHaveCount(0);
 
   // Reload and confirm persistence

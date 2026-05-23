@@ -93,18 +93,18 @@ test('instructor uploads a video and sees the badge', async ({ page }) => {
   await fileInput.setInputFiles(FIXTURE_MP4);
 
   // Progress bar should appear while uploading
-  const progressBar = page.locator('lib-video-upload progress');
+  const progressBar = page.locator('lib-video-upload lw-progress');
   await expect(progressBar).toBeVisible({ timeout: 15_000 });
 
   // After upload completes the badge should appear — the lesson-item swaps out
   // lib-video-upload for lib-video-state-badge when lesson().videoId is set.
-  const badge = page.locator('lib-video-state-badge .badge');
+  const badge = page.locator('lib-video-state-badge [data-testid="video-state-badge"]');
   await expect(badge).toBeVisible({ timeout: 30_000 });
 
   // Reload and verify persistence
   await page.reload();
   await expect(page.getByTestId('course-meta')).toBeVisible({ timeout: 10_000 });
-  const badgeAfterReload = page.locator('lib-video-state-badge .badge');
+  const badgeAfterReload = page.locator('lib-video-state-badge [data-testid="video-state-badge"]');
   await expect(badgeAfterReload).toBeVisible({ timeout: 10_000 });
 });
 
@@ -162,15 +162,15 @@ test('badge transitions from Processing to Ready after fake-completer', async ({
   const sessionBody = (await (await sessionResponse).json()) as { videoId: string };
   const videoId = sessionBody.videoId;
 
-  await expect(page.locator('lib-video-state-badge .badge')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('lib-video-state-badge .badge')).toContainText('Processing video', {
+  await expect(page.locator('lib-video-state-badge [data-testid="video-state-badge"]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('lib-video-state-badge [data-testid="video-state-badge"]')).toContainText('Processing video', {
     timeout: 15_000,
   });
 
   const res = await page.request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
   expect(res.status()).toBe(204);
 
-  await expect(page.locator('lib-video-state-badge .badge')).toContainText('Ready to publish', {
+  await expect(page.locator('lib-video-state-badge [data-testid="video-state-badge"]')).toContainText('Ready to publish', {
     timeout: 8_000,
   });
 });
@@ -185,11 +185,11 @@ test('badge transitions to Failed copy after fake-fail', async ({ page }) => {
   await page.locator('lib-video-upload input[type="file"]').setInputFiles(FIXTURE_MP4);
   const { videoId } = (await (await sessionResponse).json()) as { videoId: string };
 
-  await expect(page.locator('lib-video-state-badge .badge')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('lib-video-state-badge [data-testid="video-state-badge"]')).toBeVisible({ timeout: 30_000 });
   await page.request.post(`${API_BASE}/internal/fake-transcoder/fail/${videoId}`, {
     data: { reason: 'codec unsupported' },
   });
-  await expect(page.locator('lib-video-state-badge .badge')).toContainText('Transcoding failed', {
+  await expect(page.locator('lib-video-state-badge [data-testid="video-state-badge"]')).toContainText('Transcoding failed', {
     timeout: 8_000,
   });
 });
@@ -271,7 +271,7 @@ test('badge swaps to player when fake-completer flips state to READY', async ({ 
   const { videoId } = (await (await sessionResponse).json()) as { videoId: string };
 
   // Wait for the TRANSCODING badge first
-  await expect(page.locator('lib-video-state-badge .badge')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('lib-video-state-badge [data-testid="video-state-badge"]')).toBeVisible({ timeout: 30_000 });
 
   // Flip the video to READY via the fake completer
   const res = await page.request.post(
