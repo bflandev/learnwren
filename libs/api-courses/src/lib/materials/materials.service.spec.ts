@@ -285,6 +285,26 @@ describe('MaterialsService.buildDownloadUrl', () => {
     const svc = new MaterialsService(fakeRepo() as never, fakeStorage().port, cfg);
     await expect(svc.buildDownloadUrl('nope' as MaterialId)).rejects.toThrow(/not found/i);
   });
+
+  it('throws INVALID_MATERIAL_STATE for a PENDING_UPLOAD material (no signed URL minted)', async () => {
+    // A caller who knows a not-yet-uploaded matId — e.g. an enrolled student
+    // who races the instructor's upload — must NOT be able to harvest a
+    // signed URL for the empty storage object.
+    const repo = fakeRepo();
+    await repo.create(seedMaterial('m1', { state: 'PENDING_UPLOAD' }));
+    let signCalls = 0;
+    const storage = fakeStorage({
+      signDownloadUrl: async (i) => {
+        signCalls += 1;
+        return { downloadUrl: `down://${i.materialId}`, expiresAt: 'T' };
+      },
+    });
+    const svc = new MaterialsService(repo as never, storage.port, cfg);
+    await expect(svc.buildDownloadUrl('m1' as MaterialId)).rejects.toThrow(
+      /invalid|state/i,
+    );
+    expect(signCalls).toBe(0);
+  });
 });
 
 describe('MaterialsService.deleteForLesson', () => {

@@ -36,11 +36,17 @@ function makeTranscoder(cfg: VideoConfig): VideoTranscoder {
   });
 }
 
+// Gate the fake webhook controller by the transcoder *implementation*, not by
+// NODE_ENV. A staging/preview deploy with NODE_ENV unset but a real GCP
+// transcoder must not expose an unauthenticated endpoint that promotes any
+// video to READY with attacker-controlled output paths.
+const fakeTranscoderEnabled =
+  (process.env['LEARNWREN_VIDEO_TRANSCODER'] ?? '') === 'fake';
 const controllers = [
   VideoController,
   TranscoderEventsController,
   PlaybackController,
-  ...(process.env['NODE_ENV'] !== 'production' ? [FakeTranscoderController] : []),
+  ...(fakeTranscoderEnabled ? [FakeTranscoderController] : []),
 ];
 
 // CoursesModule ↔ VideoModule are mutually dependent (slice A pattern).

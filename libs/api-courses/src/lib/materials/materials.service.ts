@@ -154,6 +154,13 @@ export class MaterialsService {
   async buildDownloadUrl(matId: MaterialId): Promise<DownloadUrlResult> {
     const m = await this.repo.get(matId);
     if (!m) throw new MaterialNotFoundException();
+    // PENDING_UPLOAD materials have no object behind the storage path (or only
+    // a partial one). Issuing a signed URL for that state lets a caller
+    // exfiltrate a capability against an incomplete object — an enrolled
+    // student who happens to know a not-yet-uploaded matId would get a working
+    // signature for an empty path. Block the URL until the object has been
+    // HEAD-verified by `complete`.
+    if (m.state !== 'READY') throw new InvalidMaterialStateException(m.state);
     return this.storage.signDownloadUrl({
       bucket: m.storage.bucket,
       path: m.storage.path,
