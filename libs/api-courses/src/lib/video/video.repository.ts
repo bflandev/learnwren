@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import type { firestore as adminFirestore } from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
@@ -15,12 +16,32 @@ import type {
 export class VideoRepository {
   constructor(@Inject(FIRESTORE) private readonly db: FirestoreHandle) {}
 
+  // ────────────────────────── Ref helpers ──────────────────────────
+
+  private videoRef(vid: VideoId) {
+    return this.db.collection('videos').doc(vid);
+  }
+
+  private videoKeyRef(kid: VideoKeyId) {
+    return this.db.collection('videoKeys').doc(kid);
+  }
+
+  /**
+   * Query that resolves to the single Lesson document with the given id.
+   * Relies on the invariant Lesson.id === lesson document key, established at
+   * creation time in CoursesRepository.appendLesson. This collectionGroup query
+   * therefore always resolves to exactly one document when the lesson exists.
+   */
+  private lessonByIdQuery(lid: LessonId) {
+    return this.db.collectionGroup('lessons').where('id', '==', lid).limit(1);
+  }
+
   newId<T extends string>(): T {
     return this.db.collection('_ids').doc().id as T;
   }
 
   async getVideo(vid: VideoId): Promise<Video | null> {
-    const snap = await this.db.collection('videos').doc(vid).get();
+    const snap = await this.videoRef(vid).get();
     return snap.exists ? (snap.data() as Video) : null;
   }
 
@@ -34,16 +55,16 @@ export class VideoRepository {
   }
 
   async getVideoKey(kid: VideoKeyId): Promise<VideoKey | null> {
-    const snap = await this.db.collection('videoKeys').doc(kid).get();
+    const snap = await this.videoKeyRef(kid).get();
     return snap.exists ? (snap.data() as VideoKey) : null;
   }
 
   async createVideo(video: Video): Promise<void> {
-    await this.db.collection('videos').doc(video.id).set(video);
+    await this.videoRef(video.id).set(video);
   }
 
   async updateVideo(vid: VideoId, patch: Partial<Video>): Promise<void> {
-    await this.db.collection('videos').doc(vid).update(patch);
+    await this.videoRef(vid).update(patch);
   }
 
   async finalizeUploadWithJob(args: {
@@ -54,18 +75,16 @@ export class VideoRepository {
     transcoderJobName: string;
     nowIso: string;
   }): Promise<Video> {
-    const videoRef = this.db.collection('videos').doc(args.vid);
-    const keyRef = this.db.collection('videoKeys').doc(args.key.id);
-    const lessonQ = this.db.collectionGroup('lessons').where('id', '==', args.lid).limit(1);
+    const videoRef = this.videoRef(args.vid);
+    const keyRef = this.videoKeyRef(args.key.id);
+    const lessonQ = this.lessonByIdQuery(args.lid);
 
     return this.db.runTransaction(async (tx) => {
-      const videoSnap = await tx.get(videoRef);
-      if (!videoSnap.exists) throw new Error('Video disappeared in transaction.');
+      const current = await this.requireVideoInTxn(tx, videoRef);
       const lessonSnap = await tx.get(lessonQ);
       if (lessonSnap.empty) throw new Error('Lesson disappeared in transaction.');
       const lessonDocRef = lessonSnap.docs[0]!.ref;
 
-      const current = videoSnap.data() as Video;
       const updated: Video = {
         ...current,
         state: 'TRANSCODING',
@@ -94,11 +113,9 @@ export class VideoRepository {
     actualSizeBytes: number;
     nowIso: string;
   }): Promise<Video> {
-    const videoRef = this.db.collection('videos').doc(args.vid);
+    const videoRef = this.videoRef(args.vid);
     return this.db.runTransaction(async (tx) => {
-      const snap = await tx.get(videoRef);
-      if (!snap.exists) throw new Error('Video disappeared in transaction.');
-      const current = snap.data() as Video;
+      const current = await this.requireVideoInTxn(tx, videoRef);
       const updated: Video = {
         ...current,
         state: 'FAILED',
@@ -119,7 +136,7 @@ export class VideoRepository {
       | { kind: 'FAILED'; reason: string };
     nowIso: string;
   }): Promise<{ acted: boolean; reason?: 'VIDEO_NOT_FOUND' | 'JOB_NAME_MISMATCH' | 'ALREADY_APPLIED' | 'WRONG_STATE' }> {
-    const videoRef = this.db.collection('videos').doc(args.videoId);
+    const videoRef = this.videoRef(args.videoId);
     return this.db.runTransaction(async (tx) => {
       const snap = await tx.get(videoRef);
       if (!snap.exists) return { acted: false, reason: 'VIDEO_NOT_FOUND' as const };
@@ -164,12 +181,9 @@ export class VideoRepository {
    * Uses a transaction so the lesson ownership check and the update are atomic.
    */
   async deleteVideoAndDetach(vid: VideoId, lid: LessonId, nowIso: string): Promise<void> {
-    const videoRef = this.db.collection('videos').doc(vid);
+    const videoRef = this.videoRef(vid);
     const keyQ = this.db.collection('videoKeys').where('videoId', '==', vid).limit(1);
-    // Relies on the invariant that Lesson.id === lesson document key, established at
-    // creation time in CoursesRepository.appendLesson. This collectionGroup query
-    // therefore always resolves to exactly one document when the lesson exists.
-    const lessonQ = this.db.collectionGroup('lessons').where('id', '==', lid).limit(1);
+    const lessonQ = this.lessonByIdQuery(lid);
 
     await this.db.runTransaction(async (tx) => {
       const lessonSnap = await tx.get(lessonQ);
@@ -189,4 +203,17 @@ export class VideoRepository {
     });
   }
 
+  /**
+   * Read the Video doc inside a transaction and throw if it vanished between
+   * the service's pre-read and the txn — surfaces a consistent error message
+   * that the service's exception filter can map to a 500.
+   */
+  private async requireVideoInTxn(
+    tx: adminFirestore.Transaction,
+    ref: adminFirestore.DocumentReference,
+  ): Promise<Video> {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error('Video disappeared in transaction.');
+    return snap.data() as Video;
+  }
 }
