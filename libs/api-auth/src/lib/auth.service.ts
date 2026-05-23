@@ -90,6 +90,27 @@ export class AuthService {
   ) {}
 
   async register(input: RegisterInput): Promise<RegisterResult> {
+    const displayName = this.validateRegisterInput(input);
+    const uid = await this.createFirebaseAuthUser(input, displayName);
+
+    await this.writeUserDocumentOrRollback(uid, input.email, displayName);
+    await this.assignStudentClaimOrRollback(uid);
+    const emailVerificationSent = await this.sendVerificationEmailBestEffort(input.email, uid);
+    const session = await this.autoLoginOrRollback(input, uid);
+
+    this.logger.log(`[auth] register uid=${uid}`);
+    return {
+      uid,
+      email: input.email,
+      role: 'STUDENT',
+      cookie: session.cookie,
+      maxAgeSeconds: session.maxAgeSeconds,
+      emailVerificationSent,
+    };
+  }
+
+  /** Returns the trimmed displayName, or throws the appropriate validation exception. */
+  private validateRegisterInput(input: RegisterInput): string {
     const displayName = input.displayName.trim();
     if (displayName.length === 0 || displayName.length > DISPLAY_NAME_MAX) {
       throw new InvalidDisplayNameException();
@@ -97,12 +118,15 @@ export class AuthService {
     if (!EMAIL_REGEX.test(input.email)) {
       throw new InvalidEmailException();
     }
-
     const policy = this.passwordPolicy.validate(input.password);
     if (!policy.valid) {
       throw new WeakPasswordException(policy.unmet);
     }
+    return displayName;
+  }
 
+  /** Creates the Firebase Auth user, mapping `auth/email-already-exists` to the typed exception. */
+  private async createFirebaseAuthUser(input: RegisterInput, displayName: string): Promise<UserId> {
     let userRecord: adminAuth.UserRecord;
     try {
       userRecord = await this.auth.createUser({
@@ -119,14 +143,19 @@ export class AuthService {
       );
       throw new InternalAuthException();
     }
+    return userRecord.uid as UserId;
+  }
 
-    const uid = userRecord.uid as UserId;
+  private async writeUserDocumentOrRollback(
+    uid: UserId,
+    email: string,
+    displayName: string,
+  ): Promise<void> {
     const now = new Date().toISOString() as ISODateString;
-
     try {
       await this.firestore.collection('users').doc(uid).set({
         id: uid,
-        email: input.email,
+        email,
         displayName,
         role: 'STUDENT',
         createdAt: now,
@@ -137,7 +166,9 @@ export class AuthService {
       await this.bestEffortDeleteUser(uid);
       throw new InternalAuthException();
     }
+  }
 
+  private async assignStudentClaimOrRollback(uid: UserId): Promise<void> {
     try {
       await this.auth.setCustomUserClaims(uid, { role: 'STUDENT' });
     } catch (err) {
@@ -145,111 +176,133 @@ export class AuthService {
       await this.bestEffortDeleteUser(uid);
       throw new InternalAuthException();
     }
+  }
 
-    let emailVerificationSent = true;
+  /**
+   * Best-effort: never throws, never rolls back. Returns whether the email
+   * left the building so the controller can surface partial success.
+   */
+  private async sendVerificationEmailBestEffort(email: string, uid: UserId): Promise<boolean> {
     try {
-      const verificationUrl = await this.auth.generateEmailVerificationLink(input.email, {
+      const verificationUrl = await this.auth.generateEmailVerificationLink(email, {
         url: this.continueUrl('/login'),
       });
-      await this.emailTransport.sendVerificationEmail({
-        to: input.email,
-        verificationUrl,
-      });
+      await this.emailTransport.sendVerificationEmail({ to: email, verificationUrl });
+      return true;
     } catch (err) {
-      this.logger.warn(
-        `[auth] register verification email failed uid=${uid}: ${String(err)}`,
-      );
-      emailVerificationSent = false;
+      this.logger.warn(`[auth] register verification email failed uid=${uid}: ${String(err)}`);
+      return false;
     }
+  }
 
-    // Auto-login internally to mint the session cookie before returning.
-    let session: { cookie: string; maxAgeSeconds: number };
+  /**
+   * Auto-login after register: exchange password for an ID token, then mint
+   * a session cookie. On any failure, roll back the newly-created user and
+   * preserve the original Error instance for the caller.
+   */
+  private async autoLoginOrRollback(
+    input: RegisterInput,
+    uid: UserId,
+  ): Promise<{ cookie: string; maxAgeSeconds: number }> {
     try {
       const restResult = await this.restClient.signInWithPassword({
         email: input.email,
         password: input.password,
       });
-      session = await this.mintSessionCookie(restResult.idToken);
+      return await this.mintSessionCookie(restResult.idToken);
     } catch (err) {
       this.logger.error(`[auth] register auto-login failed uid=${uid}: ${String(err)}`);
       await this.bestEffortDeleteUser(uid);
       throw err instanceof Error ? err : new InternalAuthException();
     }
-
-    this.logger.log(`[auth] register uid=${uid}`);
-    return {
-      uid,
-      email: input.email,
-      role: 'STUDENT',
-      cookie: session.cookie,
-      maxAgeSeconds: session.maxAgeSeconds,
-      emailVerificationSent,
-    };
   }
 
   async login(input: LoginInput): Promise<LoginResult> {
     const emailHash = this.attempts.emailHash(input.email);
 
-    // (a) Lockout check before credential verification.
+    await this.throwIfAccountLocked(emailHash);
+    const idToken = await this.verifyPasswordOrCountFailure(input, emailHash);
+    const userRecord = await this.requireVerifiedUser(idToken);
+
+    const session = await this.mintSessionCookie(idToken);
+    await this.attempts.clear(emailHash);
+
+    const profile = await this.loadUserProfile(userRecord.uid);
+
+    this.logger.log(`[auth] login uid=${userRecord.uid}`);
+    return {
+      uid: userRecord.uid as UserId,
+      email: userRecord.email!,
+      role: profile.role,
+      displayName: profile.displayName,
+      emailVerified: true,
+      cookie: session.cookie,
+      maxAgeSeconds: session.maxAgeSeconds,
+    };
+  }
+
+  /** Reject early if a prior lockout window is still active. */
+  private async throwIfAccountLocked(emailHash: string): Promise<void> {
     const existing = await this.attempts.read(emailHash);
     if (existing?.lockedUntil) {
       throw new AccountLockedException(new Date(existing.lockedUntil));
     }
+  }
 
-    // (b) Server-side password verification via REST.
-    let idToken: string;
+  /**
+   * Exchange password for an ID token. On bad credentials, record the failure
+   * and — if it tripped the lockout threshold — dispatch the unlock email
+   * before throwing AccountLockedException. Non-credential errors are
+   * rethrown unchanged.
+   */
+  private async verifyPasswordOrCountFailure(
+    input: LoginInput,
+    emailHash: string,
+  ): Promise<string> {
     try {
       const result = await this.restClient.signInWithPassword({
         email: input.email,
         password: input.password,
       });
-      idToken = result.idToken;
+      return result.idToken;
     } catch (err) {
-      if (err instanceof InvalidCredentialsException) {
-        const failure = await this.attempts.recordFailure(emailHash);
-        if (failure.locked) {
-          this.logger.log(
-            `[auth] lockout fired emailHash=${emailHash} unlockToken=${failure.unlockToken!.slice(0, 6)}…`,
-          );
-          await this.dispatchUnlockEmail(input.email, failure.unlockToken!, failure.lockedUntil!);
-          throw new AccountLockedException(failure.lockedUntil!);
-        }
-        this.logger.log(`[auth] login failed code=INVALID_CREDENTIALS emailHash=${emailHash}`);
-        throw err;
+      if (!(err instanceof InvalidCredentialsException)) throw err;
+
+      const failure = await this.attempts.recordFailure(emailHash);
+      if (failure.locked) {
+        this.logger.log(
+          `[auth] lockout fired emailHash=${emailHash} unlockToken=${failure.unlockToken!.slice(0, 6)}…`,
+        );
+        await this.dispatchUnlockEmail(input.email, failure.unlockToken!, failure.lockedUntil!);
+        throw new AccountLockedException(failure.lockedUntil!);
       }
+      this.logger.log(`[auth] login failed code=INVALID_CREDENTIALS emailHash=${emailHash}`);
       throw err;
     }
+  }
 
-    // (c) Verification gate. Read fresh emailVerified from Admin SDK
-    //     since the REST response doesn't always include it consistently.
+  /**
+   * Verify the ID token and read fresh emailVerified from the Admin SDK
+   * (the REST response doesn't always include it consistently). Throws
+   * EmailNotVerifiedException if the user hasn't confirmed their email.
+   */
+  private async requireVerifiedUser(idToken: string): Promise<adminAuth.UserRecord> {
     const decoded = await this.auth.verifyIdToken(idToken, true);
     const userRecord = await this.auth.getUser(decoded.uid);
     if (!userRecord.emailVerified) {
       this.logger.log(`[auth] login blocked code=EMAIL_NOT_VERIFIED uid=${userRecord.uid}`);
       throw new EmailNotVerifiedException();
     }
+    return userRecord;
+  }
 
-    // (d) Mint cookie. (e) Clear lockout doc. (f) Look up user details.
-    const session = await this.mintSessionCookie(idToken);
-    await this.attempts.clear(emailHash);
-
-    const userDoc = await this.firestore.collection('users').doc(userRecord.uid).get();
+  private async loadUserProfile(uid: string): Promise<{ displayName: string; role: UserRole }> {
+    const userDoc = await this.firestore.collection('users').doc(uid).get();
     if (!userDoc.exists) {
-      this.logger.error(`[auth] login missing users/${userRecord.uid}`);
+      this.logger.error(`[auth] login missing users/${uid}`);
       throw new InternalAuthException();
     }
-    const data = userDoc.data() as { displayName: string; role: UserRole };
-
-    this.logger.log(`[auth] login uid=${userRecord.uid}`);
-    return {
-      uid: userRecord.uid as UserId,
-      email: userRecord.email!,
-      role: data.role,
-      displayName: data.displayName,
-      emailVerified: true,
-      cookie: session.cookie,
-      maxAgeSeconds: session.maxAgeSeconds,
-    };
+    return userDoc.data() as { displayName: string; role: UserRole };
   }
 
   /**
