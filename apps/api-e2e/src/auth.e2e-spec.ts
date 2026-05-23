@@ -14,10 +14,17 @@ async function markEmailVerified(uid: string): Promise<void> {
   await admin.auth().updateUser(uid, { emailVerified: true });
 }
 
-async function readAuthAttempts(emailHash: string): Promise<{ unlockToken: string } | null> {
-  const snap = await admin.firestore().collection('auth_attempts').doc(emailHash).get();
-  if (!snap.exists) return null;
-  return snap.data() as { unlockToken: string };
+async function readUnlockTokenFromOutbox(
+  request: { get: (url: string) => Promise<{ status: () => number; json: () => Promise<{ url: string }> }> },
+  email: string,
+): Promise<string | null> {
+  const res = await request.get(
+    `${API_BASE}/auth/_test/last-email?to=${encodeURIComponent(email)}&kind=unlock`,
+  );
+  if (res.status() !== 200) return null;
+  const body = await res.json();
+  const match = body.url.match(/[?&]token=([^&]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 const emailHash = (email: string) =>
@@ -126,11 +133,17 @@ test('lockout flow: 3 wrong passwords → 423 → unlock token works → login s
   });
   expect(attempt.status()).toBe(423);
 
-  const stored = await readAuthAttempts(emailHash(email));
-  expect(stored?.unlockToken).toBeTruthy();
+  const unlockToken = await readUnlockTokenFromOutbox(request, email);
+  expect(unlockToken).toBeTruthy();
+  // The plaintext token must NOT be persisted to Firestore — only its hash.
+  const snap = await admin.firestore().collection('auth_attempts').doc(emailHash(email)).get();
+  const stored = snap.data() as { unlockToken?: string; unlockTokenHash?: string };
+  expect(stored?.unlockToken).toBeUndefined();
+  expect(stored?.unlockTokenHash).toBeTruthy();
+  expect(stored?.unlockTokenHash).not.toBe(unlockToken);
 
   const unlock = await request.post(`${API_BASE}/auth/unlock`, {
-    data: { token: stored!.unlockToken },
+    data: { token: unlockToken },
   });
   expect(unlock.status()).toBe(204);
 

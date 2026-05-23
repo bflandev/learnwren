@@ -43,6 +43,9 @@ export default defineConfig({
       LEARNWREN_VIDEO_TRANSCODER: 'fake',
       LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE: 'true',
       LEARNWREN_EMAIL_TRANSPORT: 'console',
+      // Surface the in-process outbox via GET /api/auth/_test/last-email so
+      // the suite can recover unlock tokens, which are now hashed in Firestore.
+      LEARNWREN_TEST_OUTBOX_ENABLED: '1',
     },
   },
   projects: [

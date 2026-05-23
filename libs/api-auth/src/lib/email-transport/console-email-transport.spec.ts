@@ -27,3 +27,26 @@ describe('ConsoleEmailTransport.sendUnlockEmail', () => {
     expect(logged).toContain('2026-05-06T01:00:00.000Z');
   });
 });
+
+describe('ConsoleEmailTransport.sendVerificationEmail', () => {
+  let logSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    logSpy.mockRestore();
+  });
+
+  it('logs the recipient and verification URL', async () => {
+    const transport = new ConsoleEmailTransport();
+    await transport.sendVerificationEmail({
+      to: 'alice@example.com',
+      verificationUrl: 'https://learnwren.com/auth/verify?oobCode=xyz',
+    });
+    expect(logSpy).toHaveBeenCalled();
+    const logged = String(logSpy.mock.calls[0]?.[0]);
+    expect(logged).toContain('alice@example.com');
+    expect(logged).toContain('https://learnwren.com/auth/verify?oobCode=xyz');
+  });
+});

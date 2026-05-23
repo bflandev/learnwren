@@ -6,6 +6,12 @@ export interface UnlockEmailInput {
   unlockAvailableAt: Date;
 }
 
+export interface VerificationEmailInput {
+  to: string;
+  verificationUrl: string;
+}
+
 export interface EmailTransport {
   sendUnlockEmail(input: UnlockEmailInput): Promise<void>;
+  sendVerificationEmail(input: VerificationEmailInput): Promise<void>;
 }
