@@ -90,7 +90,7 @@ describe('slice D exceptions', () => {
   });
 });
 
-describe('slice B enrolment exceptions', () => {
+describe('slice B enrollment exceptions', () => {
   it('CourseNotAvailableException is 409 with code COURSE_NOT_AVAILABLE', () => {
     const e = new CourseNotAvailableException();
     expect(e.code).toBe('COURSE_NOT_AVAILABLE');
@@ -102,7 +102,7 @@ describe('slice B enrolment exceptions', () => {
     const e = new CannotEnrollOwnCourseException();
     expect(e.code).toBe('CANNOT_ENROLL_OWN_COURSE');
     expect(e.status).toBe(409);
-    expect(e.message).toBe('You cannot enrol in a course you own.');
+    expect(e.message).toBe('You cannot enroll in a course you own.');
   });
 
   it('NotEnrolledException is 404 with code NOT_ENROLLED', () => {

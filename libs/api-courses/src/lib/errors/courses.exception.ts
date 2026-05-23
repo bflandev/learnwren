@@ -83,7 +83,7 @@ export class CourseNotAvailableException extends CoursesException {
 
 export class CannotEnrollOwnCourseException extends CoursesException {
   constructor() {
-    super('CANNOT_ENROLL_OWN_COURSE', 'You cannot enrol in a course you own.', 409);
+    super('CANNOT_ENROLL_OWN_COURSE', 'You cannot enroll in a course you own.', 409);
   }
 }
 

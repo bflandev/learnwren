@@ -197,7 +197,7 @@ Extensions:
   2b. The instructor archives a course:
       1. The instructor clicks "Archive Course."
       2. The system changes the status to Archived.
-      3. The course is hidden from the catalogue and no new enrolments
+      3. The course is hidden from the catalogue and no new enrollments
          are accepted.
       4. Existing enrolled students retain access to the course content.
 ```

@@ -6,7 +6,7 @@ export interface LessonProgress {
   lastWatchedSeconds: number;
 }
 
-/** ACTIVE = enrolled; WITHDRAWN = soft-deleted, progress retained for re-enrol. */
+/** ACTIVE = enrolled; WITHDRAWN = soft-deleted, progress retained for re-enroll. */
 export const ENROLLMENT_STATUSES = ['ACTIVE', 'WITHDRAWN'] as const;
 export type EnrollmentStatus = (typeof ENROLLMENT_STATUSES)[number];
 
@@ -16,13 +16,13 @@ export interface Enrollment {
   courseId: CourseId;
   status: EnrollmentStatus;
   progress: LessonProgress[];
-  withdrawnAt: ISODateString | null; // set on unenrol, cleared on enrol/re-enrol
+  withdrawnAt: ISODateString | null; // set on unenroll, cleared on enroll/re-enroll
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
 
 /** Response of GET /api/enrollments/:courseId — the caller's state for one course. */
 export interface EnrollmentStatusView {
-  enrollment: Enrollment | null; // the caller's enrolment (any status), or null
+  enrollment: Enrollment | null; // the caller's enrollment (any status), or null
   isOwner: boolean; // true when the caller is the course's instructor
 }

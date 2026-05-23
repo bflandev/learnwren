@@ -24,9 +24,9 @@ import { EnrollCourseDto } from './dto/enroll-course.dto';
 import { EnrollmentService } from './enrollment.service';
 
 /**
- * Authenticated enrolment surface. The caller's uid always comes from the
+ * Authenticated enrollment surface. The caller's uid always comes from the
  * session — never from the body or path — so a caller can only ever act on
- * their own enrolment.
+ * their own enrollment.
  */
 @Controller('enrollments')
 @UseFilters(CoursesExceptionFilter)

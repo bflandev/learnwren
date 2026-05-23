@@ -6,7 +6,7 @@ This document contains the fully-dressed Cockburn use cases for browsing, search
 > **IMPLEMENTED — EP-05 complete.** UC-05-01 through UC-05-05 are wired end to end.
 >
 > - **Slice A (UC-05-01..03, merged 2026-05-22):** public catalogue with category/difficulty filters, Newest/Alphabetical sort, keyword search, and course-detail page.
-> - **Slice B (UC-05-04..05, merged 2026-05-22):** authenticated enrolment and unenrolment; guest auto-enrol after login; leave-course confirmation dialog; enrolment grants video/material access via `EnrollmentOrOwnerGuard` and `MaterialAccessGuard`.
+> - **Slice B (UC-05-04..05, merged 2026-05-22):** authenticated enrollment and unenrollment; guest auto-enroll after login; leave-course confirmation dialog; enrollment grants video/material access via `EnrollmentOrOwnerGuard` and `MaterialAccessGuard`.
 >
 > The `POPULAR` sort named in extension 2c of UC-05-01 is now live — the catalogue accepts `sort=POPULAR` and ranks courses by `enrollmentCount` descending.
 >
@@ -14,8 +14,8 @@ This document contains the fully-dressed Cockburn use cases for browsing, search
 >
 > **Deferred items (documented follow-ups, not spec drift):**
 > - The "Continue Learning" button and lesson player — EP-06.
-> - The 90-day hard-delete purge of `WITHDRAWN` enrolments — soft-delete and restore ship in Slice B; the scheduled purge does not.
-> - Access revocation when a course is unpublished after enrolment — guards check ownership/active-enrolment but not current `Course.status` at playback time.
+> - The 90-day hard-delete purge of `WITHDRAWN` enrollments — soft-delete and restore ship in Slice B; the scheduled purge does not.
+> - Access revocation when a course is unpublished after enrollment — guards check ownership/active-enrollment but not current `Course.status` at playback time.
 >
 > See the [Specification Drift Report](../quality/spec-drift-report.md#ep-05--course-discovery-and-enrollment) for the historical record.
 
@@ -55,7 +55,7 @@ Extensions:
       2. The system displays only courses matching the selected level.
 
   2c. The user changes the sort order:
-      1. The user selects a sort option: Newest, Most Popular (by enrolment
+      1. The user selects a sort option: Newest, Most Popular (by enrollment
          count), or Alphabetical.
       2. The system re-sorts the displayed courses.
 
@@ -107,7 +107,7 @@ Extensions:
 Use Case: UC-05-03 — View a Course Detail Page
 
 Goal in Context:  A guest or student views detailed information about a course
-                  to decide whether to enrol.
+                  to decide whether to enroll.
 Scope:            Learn Wren Platform
 Level:            Primary Task
 Primary Actor:    Guest or Student
@@ -125,16 +125,16 @@ Main Success Scenario:
      - Difficulty level
      - Total number of lessons
      - Course structure (module and lesson titles, but not video content)
-  3. The system displays a prominent "Enrol" button for unenrolled users.
+  3. The system displays a prominent "Enroll" button for unenrolled users.
 
 Extensions:
   3a. The user is already enrolled in the course:
-      1. The system displays "Continue Learning" instead of "Enrol,"
+      1. The system displays "Continue Learning" instead of "Enroll,"
          linking to the last accessed lesson (see UC-06-03).
 
   3b. The user is a Guest (not authenticated):
-      1. The system displays the "Enrol" button. Clicking it redirects
-         to the login page (see UC-01-02), with automatic enrolment
+      1. The system displays the "Enroll" button. Clicking it redirects
+         to the login page (see UC-01-02), with automatic enrollment
          after login (see UC-05-04, extension 1a).
 
   1a. The course has been unpublished or does not exist:
@@ -144,10 +144,10 @@ Extensions:
 
 ---
 
-## UC-05-04 — Enrol in a Course
+## UC-05-04 — Enroll in a Course
 
 ```
-Use Case: UC-05-04 — Enrol in a Course
+Use Case: UC-05-04 — Enroll in a Course
 
 Goal in Context:  A student gains access to a course's content by enrolling.
 Scope:            Learn Wren Platform
@@ -157,41 +157,41 @@ Preconditions:    - The student is authenticated and has the Student role.
                   - The course is in Published status.
                   - The student is not already enrolled in the course.
 Success End:      The student is enrolled. The course appears in the student's
-                  enrolled courses list. The instructor's enrolment count is
+                  enrolled courses list. The instructor's enrollment count is
                   incremented by one.
-Failed End:       The student is not enrolled. No enrolment record is created.
+Failed End:       The student is not enrolled. No enrollment record is created.
 
 Main Success Scenario:
   1. The student navigates to the course detail page (see UC-05-03).
-  2. The system displays a prominent "Enrol" button.
-  3. The student clicks "Enrol."
-  4. The system creates an enrolment record linking the student to the course.
-  5. The system increments the course's enrolment count.
+  2. The system displays a prominent "Enroll" button.
+  3. The student clicks "Enroll."
+  4. The system creates an enrollment record linking the student to the course.
+  5. The system increments the course's enrollment count.
   6. The system redirects the student to the first lesson of the course.
 
 Extensions:
   1a. The student is a Guest (not authenticated):
-      1. The system displays the "Enrol" button but redirects to the login
+      1. The system displays the "Enroll" button but redirects to the login
          page when clicked (see UC-01-02).
-      2. After successful login, the system automatically completes enrolment
+      2. After successful login, the system automatically completes enrollment
          and redirects to the first lesson.
 
   3a. The student is already enrolled:
-      1. The system displays "Continue Learning" instead of "Enrol."
+      1. The system displays "Continue Learning" instead of "Enroll."
       2. Clicking it redirects to the student's last accessed lesson
          (see UC-06-03).
 
-  4a. The course has been unpublished between page load and enrolment:
+  4a. The course has been unpublished between page load and enrollment:
       1. The system displays an error: "This course is no longer available."
       2. The system redirects the student to the course catalogue.
 ```
 
 ---
 
-## UC-05-05 — Unenrol from a Course
+## UC-05-05 — Unenroll from a Course
 
 ```
-Use Case: UC-05-05 — Unenrol from a Course
+Use Case: UC-05-05 — Unenroll from a Course
 
 Goal in Context:  A student removes a course they no longer wish to take from
                   their dashboard.
@@ -212,9 +212,9 @@ Main Success Scenario:
   4. The system displays a confirmation dialog: "Are you sure you want to
      leave this course? You will lose access to videos and materials
      immediately. Your progress will be saved for 90 days in case you
-     re-enrol."
+     re-enroll."
   5. The student confirms the action.
-  6. The system removes the enrolment record (soft-delete with 90-day
+  6. The system removes the enrollment record (soft-delete with 90-day
      retention).
   7. The system revokes the student's access to the course videos and
      materials.
@@ -222,9 +222,9 @@ Main Success Scenario:
 
 Extensions:
   5a. The student cancels the confirmation:
-      1. The system closes the dialog. The enrolment is unchanged.
+      1. The system closes the dialog. The enrollment is unchanged.
       2. The use case ends.
 
-  Note: If the student re-enrols within 90 days, their previous progress
+  Note: If the student re-enrolls within 90 days, their previous progress
   data is restored.
 ```

@@ -58,11 +58,11 @@ This epic covers the full lifecycle of course creation, from initial setup throu
 
 ## US-02-04: Publish and Unpublish a Course
 
-> **As an** Instructor, **I want to** publish my course when it is ready **so that** students can discover and enrol in it.
+> **As an** Instructor, **I want to** publish my course when it is ready **so that** students can discover and enroll in it.
 
 **Acceptance Criteria (Conditions of Satisfaction):**
 
 - A course can only be published if it has at least one module with at least one lesson, and every lesson has an associated video.
 - Upon publication, the course status changes from **Draft** to **Published** and becomes visible in the course catalogue.
-- An Instructor can revert a published course to **Draft** at any time, which hides it from the catalogue but does not unenrol existing students.
-- An Instructor can archive a course, which hides it from the catalogue and prevents new enrolments but allows existing students to continue accessing it.
+- An Instructor can revert a published course to **Draft** at any time, which hides it from the catalogue but does not unenroll existing students.
+- An Instructor can archive a course, which hides it from the catalogue and prevents new enrollments but allows existing students to continue accessing it.

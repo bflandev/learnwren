@@ -17,7 +17,7 @@ This epic covers how students find courses and register their interest in them. 
 - The course catalogue displays all **Published** courses as cards, showing the cover image, title, instructor name, and difficulty level.
 - The catalogue supports pagination or infinite scroll (at least 20 courses per page).
 - Courses can be filtered by category and difficulty level.
-- Courses can be sorted by newest, most popular (by enrolment count), and alphabetical order.
+- Courses can be sorted by newest, most popular (by enrollment count), and alphabetical order.
 
 ---
 
@@ -41,42 +41,42 @@ This epic covers how students find courses and register their interest in them. 
 
 ## US-05-03: View a Course Detail Page
 
-> **As a** Guest or Student, **I want to** view a detailed page for a course **so that** I can decide whether to enrol.
+> **As a** Guest or Student, **I want to** view a detailed page for a course **so that** I can decide whether to enroll.
 
 **Acceptance Criteria (Conditions of Satisfaction):**
 
 - The course detail page displays the title, cover image, full description, instructor name and bio, difficulty level, total number of lessons, and the course structure (module and lesson titles, but not the video content).
-- A prominent "Enrol" button is displayed for users who are not yet enrolled.
+- A prominent "Enroll" button is displayed for users who are not yet enrolled.
 - For enrolled students, the button changes to "Continue Learning" and links to the last accessed lesson.
 
 ---
 
-## US-05-04: Enrol in a Course
+## US-05-04: Enroll in a Course
 
-> **As a** Student, **I want to** enrol in a course **so that** I can access its video content and materials.
+> **As a** Student, **I want to** enroll in a course **so that** I can access its video content and materials.
 
 **Acceptance Criteria (Given / When / Then):**
 
 - **Given** I am a logged-in Student viewing a course detail page,
-- **When** I click the "Enrol" button,
+- **When** I click the "Enroll" button,
 - **Then** I am enrolled in the course immediately.
 - **And** I am redirected to the first lesson of the course.
-- **And** the Instructor's enrolment count for the course is incremented by one.
+- **And** the Instructor's enrollment count for the course is incremented by one.
 
-- **Given** I am a Guest (not logged in) and click "Enrol",
+- **Given** I am a Guest (not logged in) and click "Enroll",
 - **When** the action is triggered,
-- **Then** I am redirected to the login page with a message indicating that I need to sign in to enrol.
-- **And** after logging in, I am redirected back to the course and the enrolment is completed automatically.
+- **Then** I am redirected to the login page with a message indicating that I need to sign in to enroll.
+- **And** after logging in, I am redirected back to the course and the enrollment is completed automatically.
 
 ---
 
-## US-05-05: Unenrol from a Course
+## US-05-05: Unenroll from a Course
 
-> **As a** Student, **I want to** unenrol from a course I no longer wish to take **so that** it is removed from my dashboard.
+> **As a** Student, **I want to** unenroll from a course I no longer wish to take **so that** it is removed from my dashboard.
 
 **Acceptance Criteria (Conditions of Satisfaction):**
 
 - A "Leave Course" option is available from the course detail page for enrolled students.
 - The student must confirm the action before it is processed.
-- Upon unenrolment, the student's progress data is retained for 90 days in case they re-enrol.
-- The student loses access to the course videos and materials immediately upon unenrolment.
+- Upon unenrollment, the student's progress data is retained for 90 days in case they re-enroll.
+- The student loses access to the course videos and materials immediately upon unenrollment.

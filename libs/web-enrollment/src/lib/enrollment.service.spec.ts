@@ -17,7 +17,7 @@ describe('EnrollmentService', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  it('GET /api/enrollments/:courseId for enrolment status', async () => {
+  it('GET /api/enrollments/:courseId for enrollment status', async () => {
     const promise = service.getEnrollmentStatus('c-1');
     http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
     expect((await promise).isOwner).toBe(false);
@@ -32,7 +32,7 @@ describe('EnrollmentService', () => {
     await promise;
   });
 
-  it('DELETE /api/enrollments/:courseId to unenrol', async () => {
+  it('DELETE /api/enrollments/:courseId to unenroll', async () => {
     const promise = service.unenroll('c-1');
     const req = http.expectOne('/api/enrollments/c-1');
     expect(req.request.method).toBe('DELETE');

@@ -10,7 +10,7 @@ This epic covers all aspects of user authentication, authorisation, and profile 
 
 ## US-01-01: Guest Registration
 
-> **As a** Guest, **I want to** create an account on the platform **so that** I can enrol in courses and access learning content.
+> **As a** Guest, **I want to** create an account on the platform **so that** I can enroll in courses and access learning content.
 
 **Acceptance Criteria (Conditions of Satisfaction):**
 

@@ -51,7 +51,7 @@ Extensions:
 
   1a. The student is not enrolled in the course:
       1. The system redirects to the course detail page (see UC-05-03)
-         with the "Enrol" button displayed.
+         with the "Enroll" button displayed.
       2. The use case ends.
 
   1b. The lesson video is still being processed (transcoding or encryption):

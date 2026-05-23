@@ -69,7 +69,7 @@ describe('EnrollmentOrOwnerGuard', () => {
     const req: Record<string, unknown> = { params: { vid: 'v1' }, user: { uid: 'u1' } };
     await expect(guard.canActivate(ctxFor(req))).resolves.toBe(true);
     expect(req['video']).toEqual(readyVideo);
-    // The owner check short-circuits — no enrolment lookup needed.
+    // The owner check short-circuits — no enrollment lookup needed.
     expect(enrollment.isEnrolled).not.toHaveBeenCalled();
   });
 
