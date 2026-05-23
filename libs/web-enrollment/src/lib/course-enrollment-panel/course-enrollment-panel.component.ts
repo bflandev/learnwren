@@ -55,7 +55,7 @@ export class CourseEnrollmentPanelComponent implements OnInit {
         this.state.set('ENROLLED');
       } else {
         this.state.set('ENROLLABLE');
-        // Auto-enrol: fire the POST synchronously (before the current microtask
+        // Auto-enroll: fire the POST synchronously (before the current microtask
         // yields) so the HTTP request is in-flight before Angular's whenStable()
         // continuation runs in tests.  The .then() handles stripping the param.
         if (this.route.snapshot.queryParamMap.get('enroll') === '1') {
@@ -69,7 +69,7 @@ export class CourseEnrollmentPanelComponent implements OnInit {
     }
   }
 
-  /** Guest Enrol click — go to login, return to this course with enroll=1. */
+  /** Guest Enroll click — go to login, return to this course with enroll=1. */
   goToLogin(): void {
     void this.router.navigate(['/login'], {
       queryParams: { redirect: `/catalog/${this.courseId()}?enroll=1` },

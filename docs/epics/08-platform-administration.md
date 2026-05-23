@@ -15,7 +15,7 @@ This epic covers the tools available to Administrators for managing the platform
 **Acceptance Criteria (Conditions of Satisfaction):**
 
 - The admin panel displays a searchable, paginated list of all registered users.
-- An Administrator can view a user's profile, role, registration date, and enrolment history.
+- An Administrator can view a user's profile, role, registration date, and enrollment history.
 - An Administrator can promote a Student to Instructor, or demote an Instructor to Student.
 - An Administrator can suspend a user account, preventing login without deleting the account.
 - An Administrator can permanently delete a user account, which anonymises their data in accordance with data protection best practices.

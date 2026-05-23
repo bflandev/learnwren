@@ -58,7 +58,7 @@ describe('EnrollmentService.unenroll', () => {
 });
 
 describe('EnrollmentService.getEnrollmentStatus', () => {
-  it('reports isOwner true and the enrolment for the course owner', async () => {
+  it('reports isOwner true and the enrollment for the course owner', async () => {
     const enrollment = { id: 'e1', status: 'ACTIVE' } as Enrollment;
     const { service } = make({ enrollment });
     const view = await service.getEnrollmentStatus(OWNER, CID);

@@ -45,7 +45,7 @@ describe('enrollmentId', () => {
 });
 
 describe('EnrollmentRepository.enroll', () => {
-  it('creates an ACTIVE enrolment with empty progress and increments the counter', async () => {
+  it('creates an ACTIVE enrollment with empty progress and increments the counter', async () => {
     const { repo, db } = repoWith({ [`courses/${CID}`]: course() });
     const result = await repo.enroll(UID, CID);
     expect(result.status).toBe('ACTIVE');
@@ -55,7 +55,7 @@ describe('EnrollmentRepository.enroll', () => {
     expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(1);
   });
 
-  it('restores a WITHDRAWN enrolment, preserves progress, re-increments the counter', async () => {
+  it('restores a WITHDRAWN enrollment, preserves progress, re-increments the counter', async () => {
     const withdrawn: Enrollment = {
       id: ID,
       userId: UID,
@@ -106,12 +106,12 @@ describe('EnrollmentRepository.withdraw', () => {
     expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(0);
   });
 
-  it('throws NotEnrolledException when there is no enrolment', async () => {
+  it('throws NotEnrolledException when there is no enrollment', async () => {
     const { repo } = repoWith({ [`courses/${CID}`]: course() });
     await expect(repo.withdraw(UID, CID)).rejects.toBeInstanceOf(NotEnrolledException);
   });
 
-  it('throws NotEnrolledException when the enrolment is already WITHDRAWN', async () => {
+  it('throws NotEnrolledException when the enrollment is already WITHDRAWN', async () => {
     const { repo } = repoWith({ [`courses/${CID}`]: course() });
     await repo.enroll(UID, CID);
     await repo.withdraw(UID, CID);
@@ -138,7 +138,7 @@ describe('EnrollmentRepository.withdraw', () => {
 });
 
 describe('EnrollmentRepository.isEnrolled / getEnrollment', () => {
-  it('isEnrolled is true only for an ACTIVE enrolment', async () => {
+  it('isEnrolled is true only for an ACTIVE enrollment', async () => {
     const { repo } = repoWith({ [`courses/${CID}`]: course() });
     expect(await repo.isEnrolled(UID, CID)).toBe(false);
     await repo.enroll(UID, CID);

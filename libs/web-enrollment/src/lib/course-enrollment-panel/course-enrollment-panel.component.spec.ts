@@ -50,12 +50,12 @@ const text = (f: ComponentFixture<unknown>) =>
 describe('CourseEnrollmentPanelComponent — guest', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('shows Enrol and makes no HTTP call when there is no user', async () => {
+  it('shows Enroll and makes no HTTP call when there is no user', async () => {
     configure({ user: null });
     const { fixture, http } = create();
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(text(fixture)).toContain('Enrol');
+    expect(text(fixture)).toContain('Enroll');
     http.expectNone(() => true);
   });
 
@@ -82,7 +82,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     expect(text(fixture)).toContain('You own this course');
   });
 
-  it('shows the Enrolled state for an ACTIVE enrolment', async () => {
+  it('shows the Enrolled state for an ACTIVE enrollment', async () => {
     configure({ user: { uid: 'u1' } });
     const { fixture, http } = create();
     http
@@ -94,7 +94,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     expect(text(fixture)).toContain('Leave course');
   });
 
-  it('shows Enrol for a WITHDRAWN enrolment', async () => {
+  it('shows Enroll for a WITHDRAWN enrollment', async () => {
     configure({ user: { uid: 'u1' } });
     const { fixture, http } = create();
     http
@@ -102,11 +102,11 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
       .flush({ enrollment: { status: 'WITHDRAWN' }, isOwner: false });
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(text(fixture)).toContain('Enrol');
+    expect(text(fixture)).toContain('Enroll');
     expect(text(fixture)).not.toContain('Leave course');
   });
 
-  it('enrols on click and transitions to the Enrolled state', async () => {
+  it('enrolls on click and transitions to the Enrolled state', async () => {
     configure({ user: { uid: 'u1' } });
     const { fixture, http } = create();
     http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
@@ -122,7 +122,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     expect(text(fixture)).toContain('Leave course');
   });
 
-  it('redirects to /catalog when enrol fails with COURSE_NOT_AVAILABLE', async () => {
+  it('redirects to /catalog when enroll fails with COURSE_NOT_AVAILABLE', async () => {
     const { navigate } = configure({ user: { uid: 'u1' } });
     const { fixture, http } = create();
     http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
@@ -139,7 +139,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     expect(navigate).toHaveBeenCalledWith(['/catalog']);
   });
 
-  it('shows an inline error when enrol fails for another reason', async () => {
+  it('shows an inline error when enroll fails for another reason', async () => {
     configure({ user: { uid: 'u1' } });
     const { fixture, http } = create();
     http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
@@ -154,7 +154,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     expect(text(fixture)).toContain('Something went wrong');
   });
 
-  it('leaves the course after confirmation and returns to the Enrol state', async () => {
+  it('leaves the course after confirmation and returns to the Enroll state', async () => {
     configure({ user: { uid: 'u1' } });
     const { fixture, http } = create();
     http
@@ -171,7 +171,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     http.expectOne('/api/enrollments/c-1').flush(null);
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(text(fixture)).toContain('Enrol');
+    expect(text(fixture)).toContain('Enroll');
     expect(text(fixture)).not.toContain('Leave this course?');
   });
 
@@ -187,7 +187,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     expect(text(fixture)).toContain('Retry');
   });
 
-  it('auto-enrols when enroll=1 is present and the caller is enrollable', async () => {
+  it('auto-enrolls when enroll=1 is present and the caller is enrollable', async () => {
     const { navigate } = configure({ user: { uid: 'u1' }, enroll: '1' });
     const { fixture, http } = create();
     http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
@@ -199,14 +199,14 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect(text(fixture)).toContain('Leave course');
-    // enroll=1 is stripped from the URL after a successful auto-enrol.
+    // enroll=1 is stripped from the URL after a successful auto-enroll.
     expect(navigate).toHaveBeenCalledWith(
       [],
       expect.objectContaining({ queryParams: { enroll: null }, replaceUrl: true }),
     );
   });
 
-  it('does not auto-enrol an owner even when enroll=1 is present', async () => {
+  it('does not auto-enroll an owner even when enroll=1 is present', async () => {
     configure({ user: { uid: 'u1' }, enroll: '1' });
     const { fixture, http } = create();
     http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: true });

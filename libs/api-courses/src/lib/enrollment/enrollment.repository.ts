@@ -22,7 +22,7 @@ function nowIso(): ISODateString {
   return new Date().toISOString() as ISODateString;
 }
 
-/** Deterministic composite document id for an enrolment. */
+/** Deterministic composite document id for an enrollment. */
 export function enrollmentId(userId: UserId, courseId: CourseId): EnrollmentId {
   return `${userId}__${courseId}` as EnrollmentId;
 }
@@ -39,7 +39,7 @@ export class EnrollmentRepository {
     return snap.exists ? (snap.data() as Enrollment) : null;
   }
 
-  /** True only when an ACTIVE enrolment exists. Consumed by the access guards. */
+  /** True only when an ACTIVE enrollment exists. Consumed by the access guards. */
   async isEnrolled(userId: UserId, courseId: CourseId): Promise<boolean> {
     const enrollment = await this.getEnrollment(userId, courseId);
     return enrollment?.status === 'ACTIVE';

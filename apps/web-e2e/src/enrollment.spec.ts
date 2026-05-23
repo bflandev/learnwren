@@ -34,8 +34,8 @@ async function seedPublishedCourse(): Promise<string> {
     .doc(id)
     .set({
       id,
-      title: 'Enrolment Journey Course',
-      description: 'A course to enrol in.',
+      title: 'Enrollment Journey Course',
+      description: 'A course to enroll in.',
       instructorId: 'web-e2e-enr-instructor',
       status: 'PUBLISHED',
       enrollmentCount: 0,
@@ -46,7 +46,7 @@ async function seedPublishedCourse(): Promise<string> {
   return id;
 }
 
-test('a logged-in student can enrol and then leave a course', async ({ page }) => {
+test('a logged-in student can enroll and then leave a course', async ({ page }) => {
   const { email, password } = await registerVerifiedStudent();
   const courseId = await seedPublishedCourse();
 
@@ -57,27 +57,27 @@ test('a logged-in student can enrol and then leave a course', async ({ page }) =
   await page.getByRole('button', { name: /sign in/i }).click();
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
 
-  // Open the course and enrol.
+  // Open the course and enroll.
   await page.goto(`/catalog/${courseId}`);
-  await page.getByRole('button', { name: 'Enrol' }).click();
+  await page.getByRole('button', { name: 'Enroll' }).click();
   await expect(page.getByText('Enrolled', { exact: false })).toBeVisible({ timeout: 10_000 });
 
   // Leave the course via the confirmation dialog.
   await page.getByRole('button', { name: 'Leave course' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: 'Leave course' }).click();
-  await expect(page.getByRole('button', { name: 'Enrol' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('button', { name: 'Enroll' })).toBeVisible({ timeout: 10_000 });
 });
 
-test('a guest who clicks Enrol is sent to login and auto-enrolled on return', async ({
+test('a guest who clicks Enroll is sent to login and auto-enrolled on return', async ({
   page,
 }) => {
   const { email, password } = await registerVerifiedStudent();
   const courseId = await seedPublishedCourse();
 
-  // Visit the course as a guest and click Enrol.
+  // Visit the course as a guest and click Enroll.
   await page.goto(`/catalog/${courseId}`);
-  await page.getByRole('button', { name: 'Enrol' }).click();
+  await page.getByRole('button', { name: 'Enroll' }).click();
   await page.waitForURL(/\/login/, { timeout: 10_000 });
 
   // Client-side router navigation flips the URL before Angular finishes
@@ -88,7 +88,7 @@ test('a guest who clicks Enrol is sent to login and auto-enrolled on return', as
   const submit = page.getByRole('button', { name: /sign in/i });
   await expect(submit).toBeDisabled();
 
-  // Log in — the page should return to the course and auto-enrol.
+  // Log in — the page should return to the course and auto-enroll.
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await expect(submit).toBeEnabled();

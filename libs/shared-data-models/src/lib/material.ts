@@ -39,7 +39,7 @@ export interface MaterialStorageRef {
 export interface Material {
   id: MaterialId;
   ownerInstructorId: UserId; // denormalised — guard-time auth
-  courseId: CourseId;        // denormalised — cascade-delete + future enrolment check
+  courseId: CourseId;        // denormalised — cascade-delete + future enrollment check
   lessonId: LessonId;
   displayName: string;       // instructor-customisable; defaults to originalFilename
   originalFilename: string;  // used for the download Content-Disposition

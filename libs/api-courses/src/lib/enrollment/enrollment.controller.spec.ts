@@ -30,12 +30,12 @@ describe('EnrollmentController', () => {
     controller = new EnrollmentController(svc as unknown as EnrollmentService);
   });
 
-  it('POST /enrollments enrols the caller in the body-supplied course', async () => {
+  it('POST /enrollments enrolls the caller in the body-supplied course', async () => {
     await controller.enroll({ courseId: CID }, reqAs(UID));
     expect(svc.enroll).toHaveBeenCalledWith(UID, CID);
   });
 
-  it('DELETE /enrollments/:courseId unenrols the caller from the path course', async () => {
+  it('DELETE /enrollments/:courseId unenrolls the caller from the path course', async () => {
     await controller.unenroll(CID, reqAs(UID));
     expect(svc.unenroll).toHaveBeenCalledWith(UID, CID);
   });

@@ -14,8 +14,8 @@ This epic provides Instructors with the tools they need to manage their courses 
 
 **Acceptance Criteria (Conditions of Satisfaction):**
 
-- The course management page displays a table of enrolled students, showing their display name, email address, enrolment date, and overall course progress percentage.
-- The list can be sorted by enrolment date (newest/oldest) and progress.
+- The course management page displays a table of enrolled students, showing their display name, email address, enrollment date, and overall course progress percentage.
+- The list can be sorted by enrollment date (newest/oldest) and progress.
 - The list can be exported as a CSV file.
 - The Instructor cannot see any payment or personal information beyond what is listed above.
 
@@ -27,7 +27,7 @@ This epic provides Instructors with the tools they need to manage their courses 
 
 **Acceptance Criteria (Conditions of Satisfaction):**
 
-- The analytics dashboard displays the total number of enrolled students, the average course completion rate, and the number of new enrolments in the last 7, 30, and 90 days.
+- The analytics dashboard displays the total number of enrolled students, the average course completion rate, and the number of new enrollments in the last 7, 30, and 90 days.
 - A per-lesson breakdown shows the average watch time and completion rate for each lesson.
 - The analytics are updated at least once every 24 hours.
 

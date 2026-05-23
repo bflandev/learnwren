@@ -25,7 +25,7 @@ async function seedCourse(
     .doc(id)
     .set({
       id,
-      title: 'Enrolment e2e course',
+      title: 'Enrollment e2e course',
       description: 'course',
       instructorId,
       status,
@@ -63,7 +63,7 @@ async function seedMaterial(courseId: string, ownerInstructorId: string): Promis
   return id;
 }
 
-test('enrol then read status reflects ACTIVE and increments the course counter', async ({
+test('enroll then read status reflects ACTIVE and increments the course counter', async ({
   request,
 }) => {
   const student = await registerStudent(request);
@@ -88,7 +88,7 @@ test('enrol then read status reflects ACTIVE and increments the course counter',
   expect(courseSnap.data()?.['enrollmentCount']).toBe(5);
 });
 
-test('unenrol soft-deletes the enrolment and re-enrol restores it', async ({ request }) => {
+test('unenroll soft-deletes the enrollment and re-enroll restores it', async ({ request }) => {
   const student = await registerStudent(request);
   const courseId = await seedCourse('PUBLISHED', 'some-instructor');
 
@@ -107,15 +107,15 @@ test('unenrol soft-deletes the enrolment and re-enrol restores it', async ({ req
   });
   expect((await afterDelete.json()).enrollment.status).toBe('WITHDRAWN');
 
-  const reEnrol = await request.post(`${API_BASE}/enrollments`, {
+  const reEnroll = await request.post(`${API_BASE}/enrollments`, {
     headers: { cookie: student.cookieHeader },
     data: { courseId },
   });
-  expect(reEnrol.status()).toBe(201);
-  expect((await reEnrol.json()).status).toBe('ACTIVE');
+  expect(reEnroll.status()).toBe(201);
+  expect((await reEnroll.json()).status).toBe('ACTIVE');
 });
 
-test('enrol on an unpublished course is rejected with 409', async ({ request }) => {
+test('enroll on an unpublished course is rejected with 409', async ({ request }) => {
   const student = await registerStudent(request);
   const courseId = await seedCourse('DRAFT', 'some-instructor');
 
@@ -127,7 +127,7 @@ test('enrol on an unpublished course is rejected with 409', async ({ request }) 
   expect((await res.json()).error.code).toBe('COURSE_NOT_AVAILABLE');
 });
 
-test('the course owner cannot enrol in their own course', async ({ request }) => {
+test('the course owner cannot enroll in their own course', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const courseId = await seedCourse('PUBLISHED', instructor.uid);
 
@@ -139,7 +139,7 @@ test('the course owner cannot enrol in their own course', async ({ request }) =>
   expect((await res.json()).error.code).toBe('CANNOT_ENROLL_OWN_COURSE');
 });
 
-test('unenrol when not enrolled is rejected with 404', async ({ request }) => {
+test('unenroll when not enrolled is rejected with 404', async ({ request }) => {
   const student = await registerStudent(request);
   const courseId = await seedCourse('PUBLISHED', 'some-instructor');
 
@@ -150,7 +150,7 @@ test('unenrol when not enrolled is rejected with 404', async ({ request }) => {
   expect((await res.json()).error.code).toBe('NOT_ENROLLED');
 });
 
-test('all enrolment endpoints reject an unauthenticated caller with 401', async ({
+test('all enrollment endpoints reject an unauthenticated caller with 401', async ({
   request,
 }) => {
   const courseId = await seedCourse('PUBLISHED', 'some-instructor');
