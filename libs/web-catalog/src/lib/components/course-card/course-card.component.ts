@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { RouterLink } from '@angular/router';
 
 import type { CourseSummary } from '@learnwren/shared-data-models';
-import { LwCardComponent, LwCoverComponent, LwPillComponent, type LwCoverTone } from '@learnwren/web-ui';
+import { LwCardComponent, LwCoverComponent, LwPillComponent } from '@learnwren/web-ui';
 
-const COVER_TONES: readonly LwCoverTone[] = ['moss', 'clay', 'bark', 'paper', 'ochre'];
+import { coverToneForId } from '../../cover-tone';
 
 @Component({
   selector: 'lib-course-card',
@@ -15,13 +15,5 @@ const COVER_TONES: readonly LwCoverTone[] = ['moss', 'clay', 'bark', 'paper', 'o
 })
 export class CourseCardComponent {
   readonly course = input.required<CourseSummary>();
-  readonly coverTone = computed<LwCoverTone>(() => {
-    const id = this.course().id;
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-      hash = (hash * 31 + id.charCodeAt(i)) | 0;
-    }
-    const index = Math.abs(hash) % COVER_TONES.length;
-    return COVER_TONES[index] ?? 'moss';
-  });
+  readonly coverTone = computed(() => coverToneForId(this.course().id));
 }

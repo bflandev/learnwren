@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, type ParamMap } from '@angular/router';
@@ -9,6 +9,7 @@ import { CourseEnrollmentPanelComponent } from '@learnwren/web-enrollment';
 
 import { CatalogService } from '../catalog.service';
 import { ModuleOutlineComponent } from '../components/module-outline/module-outline.component';
+import { coverToneForId } from '../cover-tone';
 
 @Component({
   selector: 'lib-course-detail-page',
@@ -24,6 +25,10 @@ export class CourseDetailPageComponent {
   readonly course = signal<CourseCatalogDetail | null>(null);
   readonly notFound = signal(false);
   readonly error = signal(false);
+  readonly coverTone = computed(() => {
+    const c = this.course();
+    return c ? coverToneForId(c.id) : 'ink';
+  });
 
   constructor() {
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {

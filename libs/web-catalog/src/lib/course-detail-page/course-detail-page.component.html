@@ -12,7 +12,7 @@
     <p class="text-sm text-ink-3">Loading…</p>
   } @else {
     <article class="flex flex-col gap-6">
-      <lw-cover [glyph]="course()!.title.charAt(0)" [height]="160" />
+      <lw-cover [glyph]="course()!.title.charAt(0)" [tone]="coverTone()" [height]="160" />
 
       <header class="flex flex-col gap-3">
         <h1 class="text-3xl text-ink">{{ course()!.title }}</h1>
