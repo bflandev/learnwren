@@ -11,6 +11,7 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import {
+  CannotEnrollOwnCourseException,
   CourseNotAvailableException,
   NotEnrolledException,
 } from '../errors/courses.exception';
@@ -54,6 +55,13 @@ export class EnrollmentRepository {
       const course = courseSnap.exists ? (courseSnap.data() as Course) : null;
       if (!course || course.status !== 'PUBLISHED') {
         throw new CourseNotAvailableException();
+      }
+      // The owner-self-enroll check belongs INSIDE the transaction. The
+      // service-layer pre-check is advisory and can be raced (or skipped by
+      // any future caller that bypasses the service), allowing an instructor
+      // to inflate their own POPULAR rank by enrolling in their own course.
+      if (course.instructorId === userId) {
+        throw new CannotEnrollOwnCourseException();
       }
 
       const enrollSnap = await t.get(enrollmentRef);

@@ -10,6 +10,7 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import {
+  CannotEnrollOwnCourseException,
   CourseNotAvailableException,
   NotEnrolledException,
 } from '../errors/courses.exception';
@@ -92,6 +93,22 @@ describe('EnrollmentRepository.enroll', () => {
   it('throws CourseNotAvailableException when the course is not PUBLISHED', async () => {
     const { repo } = repoWith({ [`courses/${CID}`]: course({ status: 'DRAFT' }) });
     await expect(repo.enroll(UID, CID)).rejects.toBeInstanceOf(CourseNotAvailableException);
+  });
+
+  it('rejects an owner self-enroll inside the transaction (counter NOT incremented)', async () => {
+    // Defense-in-depth: the EnrollmentService.enroll advisory check can be
+    // bypassed if any future caller skips the service layer. The repository
+    // must reject owner self-enrollment atomically so the POPULAR sort can
+    // never be inflated by the course author themselves.
+    const owner = 'owner-1' as UserId;
+    const { repo, db } = repoWith({
+      [`courses/${CID}`]: course({ instructorId: owner, enrollmentCount: 0 }),
+    });
+    await expect(repo.enroll(owner, CID)).rejects.toBeInstanceOf(
+      CannotEnrollOwnCourseException,
+    );
+    expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(0);
+    expect(db.__store.get(`enrollments/${enrollmentId(owner, CID)}`)).toBeUndefined();
   });
 });
 

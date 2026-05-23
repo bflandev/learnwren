@@ -14,10 +14,14 @@ import { MaterialsService } from './materials.service';
 import { MaterialsStorageAdapter } from './materials-storage.adapter';
 import { FakeMaterialsController } from './webhook/fake-materials.controller';
 
-// The fake passthrough controller is dev/e2e-only — never registered in prod.
+// Gate the fake passthrough by the storage *implementation*, not by NODE_ENV.
+// A staging/preview deploy with NODE_ENV unset but real GCS must not expose an
+// unauthenticated endpoint that writes arbitrary bytes to material paths.
+const fakeMaterialsEnabled =
+  (process.env['LEARNWREN_MATERIALS_STORAGE_FAKE'] ?? '') === 'true';
 const controllers = [
   MaterialsController,
-  ...(process.env['NODE_ENV'] !== 'production' ? [FakeMaterialsController] : []),
+  ...(fakeMaterialsEnabled ? [FakeMaterialsController] : []),
 ];
 
 // CoursesModule ↔ MaterialsModule are mutually dependent (CoursesService
