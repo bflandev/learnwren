@@ -5,7 +5,7 @@
 > This document is a living specification and is subject to change. All content is considered provisional until formally approved by project stakeholders.
 
 **Status:** Draft (2026-05-23)
-**Scope:** Add a credential-free fake branch to `VideoStorageAdapter.probeSource` so the video upload pipeline completes without real GCP credentials in emulator/dev/test environments. Un-quarantines the 11 video-related api-e2e tests and unblocks the 8 video/publish-gate web-e2e tests that have been failing since ffprobe was added in `f22fd44`.
+**Scope:** Add a credential-free fake branch to `VideoStorageAdapter.probeSource` so the video upload pipeline reaches `TRANSCODING` without real GCP credentials in emulator/dev/test environments. Diagnoses and fixes the **root cause** behind the 2026-05-14 api-e2e video-test quarantine and the FAILED upload-complete state that has been blocking 8 web-e2e tests since ffprobe was added in `f22fd44`. The seam by itself un-quarantines **one** api-e2e test (the upload happy path) — the rest of the quarantined suite, and the still-failing web-e2e tests, have **additional** pre-existing bugs in adjacent code paths that are out of scope here (see Residual Issues at the end).
 
 ## Problem
 
@@ -56,10 +56,24 @@ Mirror the existing **`playbackStorageImpl: 'real' | 'fake'`** seam on `VideoSto
 ## Verification
 
 - `pnpm nx test api-courses` — adapter + config specs green.
-- `pnpm nx e2e web-e2e` — the 6 video + 2 publish-gate journeys pass without quarantine.
-- `pnpm nx e2e api-e2e` — the 11 previously-`fixme`'d tests run and pass.
+- A diagnostic web-e2e capture confirms `POST /api/videos/:vid/upload-complete` now returns `state: 'TRANSCODING'` (was `state: 'FAILED'` with `failureReason: 'SOURCE_PROBE_FAILED: Could not load the default credentials.'`).
+- `pnpm nx e2e api-e2e` — `videos.e2e-spec.ts > video upload happy path` is un-quarantined and passes; total goes from 94 → 95 passing.
 - Production build (`pnpm nx build api`) — unchanged.
+
+## Residual issues (NOT in this slice's scope)
+
+Adjacent bugs the seam exposed but does not fix. Each is a separate piece of work:
+
+- **`TRANSCODING → READY` doesn't transition in fake mode.** `POST /internal/fake-transcoder/complete/:vid` synthesises a SUCCEEDED Pub/Sub envelope and routes it through the production webhook handler. In this env the envelope path does not move the video to `READY`. Blocks 5 api-e2e playback tests and 2 api-e2e videos tests, plus several web-e2e badge-transition tests.
+- **The web `<lib-video-upload>` has no `@case ('complete')` template branch.** Once the upload service hits `complete` state the host renders as empty container comments until the parent re-fetches the lesson. Cosmetic, no functional impact in production where the round-trip is slower; visible in fast local emulator runs.
+- **Bookkeeping mismatches in the api-e2e tests** that were quarantined since 2026-05-14:
+  - Five `204` assertions on `fake-transcoder/complete` are stale since `058cddc` made the route return `200` (helper now updated).
+  - `videos.e2e-spec.ts > 401 unauthenticated …` reuses Playwright's `request` fixture across an authenticated step and an "unauthenticated" probe — the session cookie carries over, so the probe is actually authenticated. Needs a fresh request context.
+  - `videos.e2e-spec.ts > webhook auth …` expects `[401, 403]` from `/internal/transcoder-events` for an unsigned envelope; in dev (no IAM) the route currently returns `500`.
+- **Stale selectors in the 6 web-e2e videos tests** (`lib-video-upload progress` after `<progress>` → `<lw-progress>` restyle, `lib-video-state-badge .badge` after badge restyle to `<lw-pill>`) were fixed in commit `7499225`/`13b4e0b`, but the tests still rely on intermediate states (`lw-progress`, Cancel-button-in-`creating-session`) that the 2 268-byte fixture transitions through faster than Playwright can see, OR that the upload restyle dropped.
+
+The seam removes the **only** blocker that was unfixable without code changes. Everything in the list above is solvable with isolated test/component edits.
 
 ## Memory follow-ups
 
-- Update `project_api_e2e_video_quarantine.md` to record that the seam shipped and the 11 tests are no longer quarantined.
+- Update `project_api_e2e_video_quarantine.md` to record that the seam shipped, **one** test is un-quarantined, and the remaining 10 tests stay quarantined with named follow-ups (fake transcoder→READY chain; cookie-carryover test isolation; dev-mode webhook 500→401/403).

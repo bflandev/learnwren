@@ -44,7 +44,7 @@ async function createCourseModuleLesson(
 // ffprobe / Cloud Storage path, which needs GCP credentials and real buckets
 // and so cannot run in the credential-free CI. Restore them once a fake
 // source-storage seam exists — the playback path already has one.
-test.fixme('video upload happy path', async ({ request }) => {
+test('video upload happy path', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };
   const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
@@ -88,6 +88,12 @@ test.fixme('video upload happy path', async ({ request }) => {
   expect(del.status()).toBe(204);
 });
 
+// Quarantined: this test issues an "unauthenticated" POST after a previous
+// authenticated call in the same Playwright request fixture, but the fixture
+// keeps the prior session cookie, so the call is actually authenticated and
+// returns 201 instead of the expected 401. Needs a fresh request context for
+// each unauth probe (or storageState reset). Tracked separately from the
+// fake source-probe seam that un-quarantined this file.
 test.fixme('401 unauthenticated, 403 wrong-role, 403 wrong-instructor, 409 already-has-video', async ({
   request,
 }) => {
@@ -167,6 +173,11 @@ test('422 upload-object-missing when complete called before any bytes', async ({
   expect(((await r.json()) as { error: { code: string } }).error.code).toBe('UPLOAD_OBJECT_MISSING');
 });
 
+// Quarantined: the fake source-probe seam lets the upload reach TRANSCODING,
+// but the fake-transcoder/complete chain does NOT then transition
+// TRANSCODING -> READY in this env (the test expects state=READY, gets
+// TRANSCODING). Needs a separate look at how TranscoderEventsController
+// applies the synthesized SUCCEEDED envelope.
 test.fixme('upload → transcoding → READY via fake completer', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };
@@ -193,7 +204,7 @@ test.fixme('upload → transcoding → READY via fake completer', async ({ reque
   expect(afterComplete.transcoderJobName).toBeTruthy();
 
   const completeRes = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
-  expect(completeRes.status()).toBe(204);
+  expect(completeRes.status()).toBe(200);
 
   const get = await request.get(`${API_BASE}/videos/${videoId}`, { headers: hdr });
   const ready = (await get.json()) as { state: string; output?: { manifestPath: string; durationSec: number } };
@@ -202,6 +213,12 @@ test.fixme('upload → transcoding → READY via fake completer', async ({ reque
   expect(ready.output?.durationSec).toBeGreaterThan(0);
 });
 
+// Quarantined: the fake-transcoder /fail/:vid endpoint posts a synthesized
+// Pub/Sub envelope at the production-style webhook route, but the video
+// stays in TRANSCODING — the envelope path through the auth + dispatch chain
+// is not transitioning the video to FAILED in this local env. Needs a deeper
+// look at TranscoderEventsController in fake mode. Tracked separately from
+// the fake source-probe seam that un-quarantined this file.
 test.fixme('fake-transcoder fail path → FAILED with reason', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };
@@ -228,6 +245,9 @@ test.fixme('fake-transcoder fail path → FAILED with reason', async ({ request 
   expect(failed.failureReason).toMatch(/TRANSCODE_FAILED.*unsupported codec/);
 });
 
+// Quarantined: same fake-transcoder/complete chain problem as the
+// upload→transcoding→READY test above — the second call's idempotency code
+// (ALREADY_APPLIED) is gated on a state that the first call doesn't reach.
 test.fixme('fake-completer is idempotent — second call is a no-op', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };
@@ -245,7 +265,7 @@ test.fixme('fake-completer is idempotent — second call is a no-op', async ({ r
   await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
 
   const first = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
-  expect(first.status()).toBe(204);
+  expect(first.status()).toBe(200);
 
   const second = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
   expect(second.status()).toBe(200);
@@ -253,6 +273,12 @@ test.fixme('fake-completer is idempotent — second call is a no-op', async ({ r
   expect(body.reason).toBe('ALREADY_APPLIED');
 });
 
+// Quarantined: the production-style /internal/transcoder-events webhook
+// returns 500 in this local env (the unsigned-envelope guard is upstream of
+// a verification step that throws without real IAM config), where the test
+// expects 401/403. Needs the dev/no-IAM branch to short-circuit to 401/403.
+// Tracked separately from the fake source-probe seam that un-quarantined
+// this file.
 test.fixme('webhook auth — production-style route rejects unsigned envelopes', async ({ request }) => {
   const r = await request.post(`${API_BASE}/internal/transcoder-events`, {
     data: {
