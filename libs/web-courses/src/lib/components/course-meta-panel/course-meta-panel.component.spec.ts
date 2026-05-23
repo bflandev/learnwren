@@ -49,4 +49,39 @@ describe('CourseMetaPanelComponent', () => {
       .click();
     expect(spy).toHaveBeenCalled();
   });
+
+  it('emits update with new description on commitDescription', () => {
+    const fixture = build();
+    const spy = vi.spyOn(fixture.componentInstance.update, 'emit');
+    fixture.componentInstance.syncDrafts();
+    fixture.componentInstance.draftDescription.set('Updated body');
+    fixture.componentInstance.commitDescription();
+    expect(spy).toHaveBeenCalledWith({ description: 'Updated body' });
+  });
+
+  it('does NOT emit when description is unchanged from the source', () => {
+    const fixture = build();
+    const spy = vi.spyOn(fixture.componentInstance.update, 'emit');
+    fixture.componentInstance.syncDrafts();
+    fixture.componentInstance.commitDescription();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('does NOT emit when title is whitespace-only', () => {
+    const fixture = build();
+    const spy = vi.spyOn(fixture.componentInstance.update, 'emit');
+    fixture.componentInstance.syncDrafts();
+    fixture.componentInstance.draftTitle.set('   ');
+    fixture.componentInstance.commitTitle();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('does NOT emit when description is whitespace-only', () => {
+    const fixture = build();
+    const spy = vi.spyOn(fixture.componentInstance.update, 'emit');
+    fixture.componentInstance.syncDrafts();
+    fixture.componentInstance.draftDescription.set('  ');
+    fixture.componentInstance.commitDescription();
+    expect(spy).not.toHaveBeenCalled();
+  });
 });

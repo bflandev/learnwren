@@ -157,4 +157,172 @@ describe('AuthService.resendVerification / requestPasswordReset / unlock', () =>
       .flush({ error: { code: 'UNLOCK_TOKEN_EXPIRED' } }, { status: 410, statusText: 'Gone' });
     expect(await promise).toEqual({ ok: false, code: 'UNLOCK_TOKEN_EXPIRED' });
   });
+
+  it('unlock returns INTERNAL on a 500 with unknown error body', async () => {
+    const promise = svc.unlock('X');
+    httpMock
+      .expectOne('/api/auth/unlock')
+      .flush({ error: { code: 'WHATEVER' } }, { status: 500, statusText: 'ISE' });
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
+
+  it('unlock returns INTERNAL on a non-HttpErrorResponse failure', async () => {
+    const promise = svc.unlock('X');
+    httpMock.expectOne('/api/auth/unlock').error(new ProgressEvent('network'));
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
+});
+
+describe('AuthService.login error edge cases', () => {
+  let svc: AuthService;
+  let httpMock: HttpTestingController;
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    svc = TestBed.inject(AuthService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  it('maps WEAK_PASSWORD code through toLoginErr', async () => {
+    const promise = svc.login('a@b.c', 'pw');
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'WEAK_PASSWORD', details: { unmetRequirements: ['MIN_LENGTH'] } } },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    expect(await promise).toEqual({
+      ok: false,
+      code: 'WEAK_PASSWORD',
+      details: { unmetRequirements: ['MIN_LENGTH'] },
+    });
+  });
+
+  it('maps EMAIL_ALREADY_EXISTS code through toLoginErr', async () => {
+    const promise = svc.login('a@b.c', 'pw');
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'EMAIL_ALREADY_EXISTS' } },
+      { status: 409, statusText: 'Conflict' },
+    );
+    expect(await promise).toEqual({ ok: false, code: 'EMAIL_ALREADY_EXISTS' });
+  });
+
+  it('returns INTERNAL on an unknown server error code', async () => {
+    const promise = svc.login('a@b.c', 'pw');
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'UNKNOWN' } },
+      { status: 500, statusText: 'ISE' },
+    );
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
+
+  it('returns INTERNAL on a non-HttpErrorResponse failure (network error)', async () => {
+    const promise = svc.login('a@b.c', 'pw');
+    httpMock.expectOne('/api/auth/login').error(new ProgressEvent('network'));
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
+});
+
+describe('AuthService.register error path', () => {
+  let svc: AuthService;
+  let httpMock: HttpTestingController;
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    svc = TestBed.inject(AuthService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  it('maps a 409 EMAIL_ALREADY_EXISTS through toLoginErr', async () => {
+    const promise = svc.register({ email: 'a@b.c', password: 'pw', displayName: 'A' });
+    httpMock.expectOne('/api/auth/register').flush(
+      { error: { code: 'EMAIL_ALREADY_EXISTS' } },
+      { status: 409, statusText: 'Conflict' },
+    );
+    expect(await promise).toEqual({ ok: false, code: 'EMAIL_ALREADY_EXISTS' });
+  });
+
+  it('maps a 400 WEAK_PASSWORD with unmet requirements through toLoginErr', async () => {
+    const promise = svc.register({ email: 'a@b.c', password: 'pw', displayName: 'A' });
+    httpMock.expectOne('/api/auth/register').flush(
+      { error: { code: 'WEAK_PASSWORD', details: { unmetRequirements: ['DIGIT'] } } },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    expect(await promise).toEqual({
+      ok: false,
+      code: 'WEAK_PASSWORD',
+      details: { unmetRequirements: ['DIGIT'] },
+    });
+  });
+
+  it('returns INTERNAL on a 500 without a recognised code', async () => {
+    const promise = svc.register({ email: 'a@b.c', password: 'pw', displayName: 'A' });
+    httpMock.expectOne('/api/auth/register').flush(
+      {},
+      { status: 500, statusText: 'ISE' },
+    );
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
+});
+
+describe('AuthService.logout', () => {
+  let svc: AuthService;
+  let httpMock: HttpTestingController;
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    svc = TestBed.inject(AuthService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  it('clears the currentUser signal even when the server call succeeds', async () => {
+    const promise = svc.logout();
+    httpMock.expectOne('/api/auth/logout').flush(null, { status: 204, statusText: 'No Content' });
+    await promise;
+    expect(svc.currentUser()).toBeNull();
+    expect(svc.isAuthenticated()).toBe(false);
+  });
+
+  it('still clears the currentUser signal when the server call fails', async () => {
+    const promise = svc.logout();
+    httpMock.expectOne('/api/auth/logout').flush(null, { status: 500, statusText: 'ISE' });
+    await promise;
+    expect(svc.currentUser()).toBeNull();
+  });
+});
+
+describe('AuthService.refresh', () => {
+  let svc: AuthService;
+  let httpMock: HttpTestingController;
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    svc = TestBed.inject(AuthService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  it('populates currentUser on success', async () => {
+    const promise = svc.refresh();
+    httpMock.expectOne('/api/auth/me').flush(baseUser);
+    await promise;
+    expect(svc.currentUser()).toEqual(baseUser);
+    expect(svc.isAuthenticated()).toBe(true);
+  });
+
+  it('clears currentUser on 401', async () => {
+    const promise = svc.refresh();
+    httpMock
+      .expectOne('/api/auth/me')
+      .flush(null, { status: 401, statusText: 'Unauthorized' });
+    await promise;
+    expect(svc.currentUser()).toBeNull();
+  });
+
+  it('rethrows on non-401 errors', async () => {
+    const promise = svc.refresh();
+    httpMock.expectOne('/api/auth/me').flush(null, { status: 500, statusText: 'ISE' });
+    await expect(promise).rejects.toBeDefined();
+  });
 });

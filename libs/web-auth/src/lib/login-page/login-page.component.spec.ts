@@ -128,3 +128,72 @@ describe('LoginPageComponent post-login navigation', () => {
     expect(navSpy).toHaveBeenCalledWith('/dashboard');
   });
 });
+
+describe('LoginPageComponent submit early returns and helpers', () => {
+  it('does nothing when the form is invalid (no HTTP call)', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    // form is empty → required validator fails → submit short-circuits
+    expect(cmp.form.invalid).toBe(true);
+    await cmp.submit();
+    httpMock.verify(); // would throw if any request was made
+  });
+
+  it('renders the generic state on an unknown error code', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const submitPromise = cmp.submit();
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'WEIRD_CODE' } },
+      { status: 500, statusText: 'ISE' },
+    );
+    await submitPromise;
+    fixture.detectChanges();
+    expect(cmp.genericState()).toEqual({ kind: 'generic', message: 'Something went wrong. Please try again.' });
+  });
+
+  it('unlockAvailableAtLocal returns a localised time string', () => {
+    const { fixture } = setup();
+    const cmp = fixture.componentInstance;
+    const local = cmp.unlockAvailableAtLocal('2026-05-06T01:00:00.000Z');
+    expect(local).toEqual(new Date('2026-05-06T01:00:00.000Z').toLocaleTimeString());
+  });
+});
+
+describe('LoginPageComponent.resendVerification', () => {
+  it('no-ops when the email field is empty', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    // email is empty
+    await cmp.resendVerification();
+    httpMock.verify();
+  });
+
+  it('marks the unverified state as resendSent on success', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const p = cmp.resendVerification();
+    const req = httpMock.expectOne('/api/auth/resend-verification');
+    expect(req.request.body).toEqual({ email: 'a@b.c' });
+    req.flush(null, { status: 202, statusText: 'Accepted' });
+    await p;
+    expect(cmp.unverifiedState()).toEqual({ kind: 'unverified', resendSent: true });
+  });
+
+  it('falls back to a generic error message on failure', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const p = cmp.resendVerification();
+    httpMock
+      .expectOne('/api/auth/resend-verification')
+      .flush(null, { status: 500, statusText: 'ISE' });
+    await p;
+    expect(cmp.genericState()).toEqual({
+      kind: 'generic',
+      message: 'Could not send. Please try again.',
+    });
+  });
+});

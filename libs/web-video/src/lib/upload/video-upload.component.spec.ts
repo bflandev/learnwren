@@ -83,4 +83,31 @@ describe('VideoUploadComponent', () => {
       .click();
     expect(svc.cancel).toHaveBeenCalled();
   });
+
+  it('onFile is a no-op when called with null (drop-zone clears)', async () => {
+    const svc = buildFakeSvc();
+    const { fixture } = build(svc);
+    await fixture.componentInstance.onFile(null);
+    expect(svc.start).not.toHaveBeenCalled();
+  });
+
+  it('onFile does not emit when the state does not end in complete', async () => {
+    const svc = buildFakeSvc();
+    const { fixture } = build(svc);
+    const spy = vi.spyOn(fixture.componentInstance.uploaded, 'emit');
+    svc.start.mockImplementation(async () => {
+      svc._state.set({ kind: 'failed', reason: 'boom' });
+    });
+    await fixture.componentInstance.onFile(
+      new File(['x'], 'a.mp4', { type: 'video/mp4' }),
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('onRetry delegates to svc.retry', () => {
+    const svc = buildFakeSvc({ kind: 'failed', reason: 'x' });
+    const { fixture } = build(svc);
+    fixture.componentInstance.onRetry();
+    expect(svc.retry).toHaveBeenCalled();
+  });
 });

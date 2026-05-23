@@ -78,4 +78,83 @@ describe('PublishEligibilityPanelComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain("Couldn't check");
   });
+
+  it('renders the COURSE_HAS_NO_MODULES prose', () => {
+    publishSvc.setEligibility({
+      eligible: false,
+      reasons: [{ kind: 'COURSE_HAS_NO_MODULES' }],
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Add a module before publishing');
+  });
+
+  it('renders the "upload in progress" prose for LESSON_VIDEO_NOT_READY UPLOADING', () => {
+    publishSvc.setEligibility({
+      eligible: false,
+      reasons: [
+        {
+          kind: 'LESSON_VIDEO_NOT_READY',
+          moduleId: 'm1' as never, moduleTitle: 'M', moduleOrder: 0,
+          lessonId: 'l1' as never, lessonTitle: 'L', lessonOrder: 0,
+          currentState: 'UPLOADING',
+        },
+      ],
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('upload is in progress');
+  });
+
+  it('renders the "re-upload required" prose for LESSON_VIDEO_NOT_READY FAILED', () => {
+    publishSvc.setEligibility({
+      eligible: false,
+      reasons: [
+        {
+          kind: 'LESSON_VIDEO_NOT_READY',
+          moduleId: 'm1' as never, moduleTitle: 'M', moduleOrder: 0,
+          lessonId: 'l1' as never, lessonTitle: 'L', lessonOrder: 0,
+          currentState: 'FAILED',
+        },
+      ],
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('processing failed');
+  });
+
+  it('emits jumpToModule when a MODULE_HAS_NO_LESSONS link is clicked', () => {
+    publishSvc.setEligibility({
+      eligible: false,
+      reasons: [
+        { kind: 'MODULE_HAS_NO_LESSONS', moduleId: 'm-x' as never, moduleTitle: 'X', moduleOrder: 0 },
+      ],
+    });
+    fixture.detectChanges();
+    let emitted: string | undefined;
+    fixture.componentInstance.jumpToModule.subscribe((id: string) => { emitted = id; });
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="jump-module"]',
+    ) as HTMLButtonElement | null;
+    btn?.click();
+    expect(emitted).toBe('m-x');
+  });
+
+  it('emits jumpToLesson when a LESSON_HAS_NO_VIDEO link is clicked', () => {
+    publishSvc.setEligibility({
+      eligible: false,
+      reasons: [
+        {
+          kind: 'LESSON_HAS_NO_VIDEO',
+          moduleId: 'm1' as never, moduleTitle: 'M', moduleOrder: 0,
+          lessonId: 'l-y' as never, lessonTitle: 'L', lessonOrder: 0,
+        },
+      ],
+    });
+    fixture.detectChanges();
+    let emitted: string | undefined;
+    fixture.componentInstance.jumpToLesson.subscribe((id: string) => { emitted = id; });
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="jump-lesson"]',
+    ) as HTMLButtonElement | null;
+    btn?.click();
+    expect(emitted).toBe('l-y');
+  });
 });

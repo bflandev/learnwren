@@ -81,4 +81,56 @@ describe('RegisterPageComponent', () => {
     cmp.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa', displayName: '' });
     expect(cmp.form.valid).toBe(false);
   });
+
+  it('falls back to a generic message for WEAK_PASSWORD without unmet requirements', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa', displayName: 'A' });
+    const submitPromise = cmp.submit();
+    httpMock.expectOne('/api/auth/register').flush(
+      { error: { code: 'WEAK_PASSWORD' } },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await submitPromise;
+    expect(cmp.error()).toBe('Something went wrong. Please try again.');
+  });
+
+  it('falls back to a generic message for an unknown error code', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa', displayName: 'A' });
+    const submitPromise = cmp.submit();
+    httpMock.expectOne('/api/auth/register').flush(
+      {},
+      { status: 500, statusText: 'ISE' },
+    );
+    await submitPromise;
+    expect(cmp.error()).toBe('Something went wrong. Please try again.');
+  });
+
+  it('does nothing when the form is invalid (no HTTP call)', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    // form is empty / invalid by default
+    expect(cmp.form.invalid).toBe(true);
+    await cmp.submit();
+    httpMock.verify();
+  });
+
+  it('exposes prose hints for unmet password-policy requirements', () => {
+    const { fixture } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.controls.password.setValue('short');
+    fixture.detectChanges();
+    const hints = cmp.passwordHints();
+    expect(hints.some((h) => h.includes('at least 12 characters'))).toBe(true);
+  });
+
+  it('returns an empty hints array once the password meets policy', () => {
+    const { fixture } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.controls.password.setValue('Aa1!aaaaaaaa');
+    fixture.detectChanges();
+    expect(cmp.passwordHints()).toEqual([]);
+  });
 });

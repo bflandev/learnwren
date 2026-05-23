@@ -45,4 +45,13 @@ describe('ForgotPasswordPageComponent', () => {
       'If an account exists',
     );
   });
+
+  it('does nothing when the form is invalid (no HTTP call)', async () => {
+    const { fixture, httpMock } = setup();
+    // form is empty → required validator fails
+    expect(fixture.componentInstance.form.invalid).toBe(true);
+    await fixture.componentInstance.submit();
+    httpMock.verify();
+    expect(fixture.componentInstance.submitted()).toBe(false);
+  });
 });

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CreateUploadSessionResponse } from '../video.service';
@@ -259,6 +259,102 @@ describe('VideoUploadService', () => {
     expect(rangeFor(x0)).toBe(`bytes 0-${CHUNK - 1}/${totalSize}`);
     expect(rangeFor(x1)).toBe(`bytes ${CHUNK}-${totalSize - 1}/${totalSize}`);
     expect(svc.state()).toEqual(expect.objectContaining({ kind: 'complete', videoId: 'v3' }));
+  });
+
+  it('reports a failure with the underlying message when createUploadSession fails', async () => {
+    api.createUploadSession.mockReturnValue(throwError(() => new Error('quota exceeded')));
+
+    const file = new File([new Uint8Array(4)], 'demo.mp4', { type: 'video/mp4' });
+    await svc.start(
+      { courseId: 'c1' as never, moduleId: 'm1' as never, lessonId: 'l1' as never },
+      file,
+    );
+    expect(svc.state()).toEqual({
+      kind: 'failed',
+      reason: 'quota exceeded',
+    });
+  });
+
+  it('falls back to a generic message when the create-session error has no message field', async () => {
+    api.createUploadSession.mockReturnValue(throwError(() => 'opaque'));
+
+    const file = new File([new Uint8Array(4)], 'demo.mp4', { type: 'video/mp4' });
+    await svc.start(
+      { courseId: 'c1' as never, moduleId: 'm1' as never, lessonId: 'l1' as never },
+      file,
+    );
+    expect(svc.state()).toEqual({
+      kind: 'failed',
+      reason: 'Unknown error.',
+    });
+  });
+
+  it('reports a failure with the videoId when completeUpload fails', async () => {
+    api.createUploadSession.mockReturnValue(
+      of({ videoId: 'v9' as never, uploadSessionUri: 'u', expiresAt: 'e' }),
+    );
+    api.completeUpload.mockReturnValue(throwError(() => new Error('finalize boom')));
+
+    const file = new File([new Uint8Array(8)], 'demo.mp4', { type: 'video/mp4' });
+    const done = svc.start(
+      { courseId: 'c1' as never, moduleId: 'm1' as never, lessonId: 'l1' as never },
+      file,
+    );
+    await Promise.resolve(); // session resolves → uploading
+    const x = xhrs.at(-1)!;
+    x.status = 200;
+    x.onload!();
+    await done;
+    expect(svc.state()).toEqual({
+      kind: 'failed',
+      reason: 'finalize boom',
+      videoId: 'v9',
+    });
+  });
+
+  it('retry() clears the failed state to idle after deleting the failed video', async () => {
+    api.createUploadSession.mockReturnValue(
+      of({ videoId: 'v5' as never, uploadSessionUri: 'u', expiresAt: 'e' }),
+    );
+    api.markFailed.mockReturnValue(of({ id: 'v5', state: 'FAILED' }));
+    api.delete.mockReturnValue(of(undefined));
+    vi.useFakeTimers();
+    try {
+      const file = new File([new Uint8Array(4)], 'demo.mp4', { type: 'video/mp4' });
+      const p = svc.start(
+        { courseId: 'c1' as never, moduleId: 'm1' as never, lessonId: 'l1' as never },
+        file,
+      );
+      await Promise.resolve();
+      // Force a hard 4xx failure to push state to failed with videoId
+      for (let i = 0; i < 4; i++) {
+        const x = xhrs.at(-1)!;
+        x.status = 403;
+        x.onload!();
+        await vi.runAllTimersAsync();
+        await Promise.resolve();
+      }
+      await p;
+      expect(svc.state().kind).toBe('failed');
+    } finally {
+      vi.useRealTimers();
+    }
+
+    await svc.retry();
+    expect(api.delete).toHaveBeenCalledWith('v5');
+    expect(svc.state()).toEqual({ kind: 'idle' });
+  });
+
+  it('retry() is a no-op when the state is not failed', async () => {
+    await svc.retry();
+    expect(svc.state()).toEqual({ kind: 'idle' });
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('cancel from idle leaves state at idle and does not call DELETE', async () => {
+    await svc.cancel();
+    expect(svc.state()).toEqual({ kind: 'idle' });
+    expect(api.delete).not.toHaveBeenCalled();
   });
 
   it('cancel during creating-session sets idle and calls DELETE on minted session', async () => {

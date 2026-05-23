@@ -1,8 +1,10 @@
+import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { ConsoleEmailTransport } from './email-transport/console-email-transport';
 import { EMAIL_TRANSPORT } from './email-transport/email-transport';
 import { SessionCookieHelper } from './session-cookie.helper';
 import { FirebaseSessionGuard } from './firebase-session.guard';
@@ -25,7 +27,10 @@ function buildResMock() {
   };
 }
 
-async function buildController(authServiceMock: Partial<AuthService>) {
+async function buildController(
+  authServiceMock: Partial<AuthService>,
+  transportOverride?: unknown,
+) {
   const moduleRef = await Test.createTestingModule({
     controllers: [AuthController],
     providers: [
@@ -33,11 +38,12 @@ async function buildController(authServiceMock: Partial<AuthService>) {
       SessionCookieHelper,
       {
         provide: EMAIL_TRANSPORT,
-        useValue: {
-          sendUnlockEmail: vi.fn(async () => undefined),
-          sendVerificationEmail: vi.fn(async () => undefined),
-          sendPasswordResetEmail: vi.fn(async () => undefined),
-        },
+        useValue:
+          transportOverride ?? {
+            sendUnlockEmail: vi.fn(async () => undefined),
+            sendVerificationEmail: vi.fn(async () => undefined),
+            sendPasswordResetEmail: vi.fn(async () => undefined),
+          },
       },
     ],
   })
@@ -213,6 +219,69 @@ describe('AuthController.logout', () => {
       'Set-Cookie',
       '__session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0',
     );
+  });
+});
+
+describe('AuthController.lastTestEmail', () => {
+  const ORIG = process.env['LEARNWREN_TEST_OUTBOX_ENABLED'];
+  afterEach(() => {
+    if (ORIG === undefined) delete process.env['LEARNWREN_TEST_OUTBOX_ENABLED'];
+    else process.env['LEARNWREN_TEST_OUTBOX_ENABLED'] = ORIG;
+    vi.restoreAllMocks();
+  });
+
+  it('404s when the test-outbox feature flag is off', async () => {
+    delete process.env['LEARNWREN_TEST_OUTBOX_ENABLED'];
+    const ctrl = await buildController({} as never);
+    await expect(ctrl.lastTestEmail('a@b.c', 'unlock')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('404s when the configured transport is not the console transport', async () => {
+    process.env['LEARNWREN_TEST_OUTBOX_ENABLED'] = '1';
+    // Provide a plain object that is NOT a ConsoleEmailTransport
+    const ctrl = await buildController({} as never, {
+      sendUnlockEmail: vi.fn(),
+      sendVerificationEmail: vi.fn(),
+      sendPasswordResetEmail: vi.fn(),
+    });
+    await expect(ctrl.lastTestEmail('a@b.c', 'unlock')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('404s when no matching outbox entry exists', async () => {
+    process.env['LEARNWREN_TEST_OUTBOX_ENABLED'] = '1';
+    vi.spyOn(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      require('@nestjs/common').Logger.prototype as any,
+      'log',
+    ).mockImplementation(() => undefined);
+    const transport = new ConsoleEmailTransport();
+    const ctrl = await buildController({} as never, transport);
+    await expect(ctrl.lastTestEmail('nobody@x.com', 'unlock')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('returns the last sent url and ISO sentAt when the entry exists', async () => {
+    process.env['LEARNWREN_TEST_OUTBOX_ENABLED'] = '1';
+    vi.spyOn(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      require('@nestjs/common').Logger.prototype as any,
+      'log',
+    ).mockImplementation(() => undefined);
+    const transport = new ConsoleEmailTransport();
+    await transport.sendUnlockEmail({
+      to: 'a@x.com',
+      unlockUrl: 'https://learnwren.com/unlock?token=tok',
+      unlockAvailableAt: new Date('2026-05-06T01:00:00.000Z'),
+    });
+    const ctrl = await buildController({} as never, transport);
+    const out = await ctrl.lastTestEmail('a@x.com', 'unlock');
+    expect(out.url).toBe('https://learnwren.com/unlock?token=tok');
+    expect(out.sentAt).toMatch(/T/); // ISO format
   });
 });
 

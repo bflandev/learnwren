@@ -49,4 +49,9 @@ describe('resolveEmailTransport', () => {
     delete process.env['SMTP_HOST'];
     expect(() => resolveEmailTransport()).toThrow(/SMTP_HOST/);
   });
+
+  it('throws when LEARNWREN_EMAIL_TRANSPORT is an unrecognised value', () => {
+    process.env['LEARNWREN_EMAIL_TRANSPORT'] = 'mailgun';
+    expect(() => resolveEmailTransport()).toThrow(/Unknown LEARNWREN_EMAIL_TRANSPORT/);
+  });
 });
