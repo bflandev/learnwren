@@ -36,6 +36,7 @@ async function buildController(authServiceMock: Partial<AuthService>) {
         useValue: {
           sendUnlockEmail: vi.fn(async () => undefined),
           sendVerificationEmail: vi.fn(async () => undefined),
+          sendPasswordResetEmail: vi.fn(async () => undefined),
         },
       },
     ],

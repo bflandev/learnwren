@@ -182,6 +182,30 @@ describe('CoursesRepository — Module', () => {
     expect((fake.__store.get('courses/cid-1') as Course).updatedAt).toBe(NOW.toISOString());
   });
 
+  it('appendModule after a delete picks max(order)+1, not siblings.size', async () => {
+    // Regression: previously used siblings.size as the new order. After deleting
+    // a middle module, .size shrinks but max(order) does not — so .size collides
+    // with an existing module's order, corrupting list ordering.
+    const fake = createFakeFirestore({
+      'courses/cid-1': makeCourse(),
+      'courses/cid-1/modules/mid-a': makeModule({ id: 'mid-a' as ModuleId, order: 0 }),
+      'courses/cid-1/modules/mid-b': makeModule({ id: 'mid-b' as ModuleId, order: 1 }),
+      'courses/cid-1/modules/mid-c': makeModule({ id: 'mid-c' as ModuleId, order: 2 }),
+    });
+    const repo = await buildRepo(fake);
+
+    await repo.deleteModuleRecursive('cid-1' as CourseId, 'mid-b' as ModuleId);
+    const appended = await repo.appendModule('cid-1' as CourseId, {
+      id: 'mid-d' as ModuleId,
+      courseId: 'cid-1' as CourseId,
+      title: 'M-D',
+    });
+
+    expect(appended.order).toBe(3);
+    const orders = (await repo.listModulesByCourse('cid-1' as CourseId)).map((m) => m.order);
+    expect(new Set(orders).size).toBe(orders.length);
+  });
+
   it('getModule returns the stored module, or null when absent', async () => {
     const fake = createFakeFirestore({
       'courses/cid-1': makeCourse(),
@@ -280,6 +304,31 @@ describe('CoursesRepository — Lesson', () => {
     expect(first.order).toBe(0);
     expect(second.order).toBe(1);
     expect((fake.__store.get('courses/cid-1') as Course).updatedAt).toBe(NOW.toISOString());
+  });
+
+  it('appendLesson after a delete picks max(order)+1, not siblings.size', async () => {
+    // Regression — same defect as appendModule.
+    const fake = createFakeFirestore({
+      'courses/cid-1': makeCourse(),
+      'courses/cid-1/modules/mid-1': makeModule(),
+      'courses/cid-1/modules/mid-1/lessons/lid-a': makeLesson({ id: 'lid-a' as LessonId, order: 0 }),
+      'courses/cid-1/modules/mid-1/lessons/lid-b': makeLesson({ id: 'lid-b' as LessonId, order: 1 }),
+      'courses/cid-1/modules/mid-1/lessons/lid-c': makeLesson({ id: 'lid-c' as LessonId, order: 2 }),
+    });
+    const repo = await buildRepo(fake);
+
+    await repo.deleteLesson('cid-1' as CourseId, 'mid-1' as ModuleId, 'lid-b' as LessonId);
+    const appended = await repo.appendLesson('cid-1' as CourseId, 'mid-1' as ModuleId, {
+      id: 'lid-d' as LessonId,
+      moduleId: 'mid-1' as ModuleId,
+      title: 'L-D',
+    });
+
+    expect(appended.order).toBe(3);
+    const orders = (
+      await repo.listLessonsByModule('cid-1' as CourseId, 'mid-1' as ModuleId)
+    ).map((l) => l.order);
+    expect(new Set(orders).size).toBe(orders.length);
   });
 
   it('moduleExists reports presence of the module document', async () => {

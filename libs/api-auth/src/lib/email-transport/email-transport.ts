@@ -11,7 +11,13 @@ export interface VerificationEmailInput {
   verificationUrl: string;
 }
 
+export interface PasswordResetEmailInput {
+  to: string;
+  resetUrl: string;
+}
+
 export interface EmailTransport {
   sendUnlockEmail(input: UnlockEmailInput): Promise<void>;
   sendVerificationEmail(input: VerificationEmailInput): Promise<void>;
+  sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<void>;
 }

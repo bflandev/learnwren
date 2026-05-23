@@ -1,6 +1,7 @@
-import { Controller, Get, HttpCode, Inject, Param, Put, Req, Res, UseFilters } from '@nestjs/common';
+import { Controller, Get, HttpCode, Inject, Param, Put, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
+import { FirebaseSessionGuard } from '@learnwren/api-auth';
 import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-firebase';
 import type { MaterialId } from '@learnwren/shared-data-models';
 
@@ -28,8 +29,13 @@ function sanitizeFilename(name: string): string {
  * Dev/e2e-only passthrough. The Firebase Storage emulator cannot mint or verify
  * GCS v4 signed URLs, so in fake mode the signed URLs point here and this
  * controller proxies bytes via the Admin SDK. Not registered in production.
+ *
+ * Defense-in-depth: gate behind the standard session cookie so a misconfigured
+ * staging/preview deploy (fake flag set, real network) cannot have its material
+ * paths written or read by an unauthenticated attacker who knows a matId.
  */
 @Controller('internal/fake-materials')
+@UseGuards(FirebaseSessionGuard)
 @UseFilters(MaterialsExceptionFilter)
 export class FakeMaterialsController {
   constructor(

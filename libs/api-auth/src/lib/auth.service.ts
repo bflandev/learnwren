@@ -411,13 +411,17 @@ export class AuthService {
     }
 
     try {
-      await this.auth.generatePasswordResetLink(email, {
+      const resetUrl = await this.auth.generatePasswordResetLink(email, {
         url: this.continueUrl('/login?reset=ok'),
       });
-      this.logger.log(`[auth] password-reset requested emailHash=${emailHash}`);
+      await this.emailTransport.sendPasswordResetEmail({
+        to: email,
+        resetUrl,
+      });
+      this.logger.log(`[auth] password-reset sent emailHash=${emailHash}`);
     } catch (err) {
       this.logger.error(
-        `[auth] password-reset generateLink failed emailHash=${emailHash}: ${String(err)}`,
+        `[auth] password-reset send failed emailHash=${emailHash}: ${String(err)}`,
       );
       throw new InternalAuthException();
     }
