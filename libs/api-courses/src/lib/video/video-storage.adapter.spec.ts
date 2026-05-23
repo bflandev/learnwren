@@ -74,6 +74,69 @@ describe('VideoStorageAdapter.probeSource', () => {
   });
 });
 
+describe('VideoStorageAdapter.headObject', () => {
+  function makeAdapter(getMetadata: ReturnType<typeof vi.fn>): VideoStorageAdapter {
+    const file = { getMetadata };
+    const storage = { bucket: () => ({ file: () => file }) } as unknown as FirebaseStorageHandle;
+    return new VideoStorageAdapter(storage, realCfg);
+  }
+
+  it('parses a string size into a number', async () => {
+    const getMetadata = vi.fn().mockResolvedValue([{ size: '12345' }]);
+    const result = await makeAdapter(getMetadata).headObject({ bucket: 'b', path: 'p' });
+    expect(result).toEqual({ size: 12345 });
+  });
+
+  it('returns a numeric size unchanged', async () => {
+    const getMetadata = vi.fn().mockResolvedValue([{ size: 999 }]);
+    const result = await makeAdapter(getMetadata).headObject({ bucket: 'b', path: 'p' });
+    expect(result).toEqual({ size: 999 });
+  });
+
+  it('returns null on 404 ("not found") errors', async () => {
+    const notFound = Object.assign(new Error('No such object'), { code: 404 });
+    const getMetadata = vi.fn().mockRejectedValue(notFound);
+    const result = await makeAdapter(getMetadata).headObject({ bucket: 'b', path: 'p' });
+    expect(result).toBeNull();
+  });
+
+  it('rethrows non-404 storage errors', async () => {
+    const boom = Object.assign(new Error('rate-limited'), { code: 429 });
+    const getMetadata = vi.fn().mockRejectedValue(boom);
+    await expect(makeAdapter(getMetadata).headObject({ bucket: 'b', path: 'p' })).rejects.toThrow(
+      /rate-limited/,
+    );
+  });
+});
+
+describe('VideoStorageAdapter.deleteObject', () => {
+  function makeAdapter(del: ReturnType<typeof vi.fn>): VideoStorageAdapter {
+    const file = { delete: del };
+    const storage = { bucket: () => ({ file: () => file }) } as unknown as FirebaseStorageHandle;
+    return new VideoStorageAdapter(storage, realCfg);
+  }
+
+  it('resolves on a successful delete', async () => {
+    const del = vi.fn().mockResolvedValue(undefined);
+    await expect(makeAdapter(del).deleteObject({ bucket: 'b', path: 'p' })).resolves.toBeUndefined();
+    expect(del).toHaveBeenCalledOnce();
+  });
+
+  it('returns silently when the object is already gone (404)', async () => {
+    const notFound = Object.assign(new Error('No such object'), { code: 404 });
+    const del = vi.fn().mockRejectedValue(notFound);
+    await expect(makeAdapter(del).deleteObject({ bucket: 'b', path: 'p' })).resolves.toBeUndefined();
+  });
+
+  it('rethrows non-404 delete errors', async () => {
+    const boom = Object.assign(new Error('forbidden'), { code: 403 });
+    const del = vi.fn().mockRejectedValue(boom);
+    await expect(makeAdapter(del).deleteObject({ bucket: 'b', path: 'p' })).rejects.toThrow(
+      /forbidden/,
+    );
+  });
+});
+
 describe('VideoStorageAdapter.deletePrefix', () => {
   it('calls bucket.deleteFiles with the prefix', async () => {
     const deleteFiles = vi.fn(async () => [[]]);

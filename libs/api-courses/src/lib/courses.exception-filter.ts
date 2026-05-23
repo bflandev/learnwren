@@ -17,55 +17,65 @@ interface CoursesErrorBody {
   };
 }
 
+type CoursesShapedException = Error & {
+  code: string;
+  status: number;
+  details?: Record<string, unknown>;
+};
+
 @Catch()
 export class CoursesExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('CoursesExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
-
-    // Handle both CoursesException and AuthException, which share the same shape
-    if (
-      exception instanceof CoursesException ||
-      (exception instanceof Error &&
-        (exception.name === 'AuthException' || exception.constructor.name === 'AuthException'))
-    ) {
-      const err = exception as CoursesException & { code: string; status: number; details?: Record<string, unknown> };
-      const body: CoursesErrorBody = {
-        error: { code: err.code, message: err.message },
-      };
-      if (err.details) {
-        body.error.details = err.details;
-      }
-      response.status(err.status).json(body);
+    if (isCoursesShaped(exception)) {
+      respondShaped(response, exception);
       return;
     }
-
     if (exception instanceof BadRequestException) {
-      const payload = exception.getResponse() as { message?: string[] | string };
-      const messages = Array.isArray(payload.message)
-        ? payload.message
-        : payload.message
-          ? [payload.message]
-          : [];
-      const fieldErrors = parseFieldErrors(messages);
-      response.status(400).json({
-        error: {
-          code: 'VALIDATION_FAILED',
-          message: 'Request body failed validation.',
-          details: { fieldErrors },
-        },
-      } satisfies CoursesErrorBody);
+      respondValidation(response, exception);
       return;
     }
-
-    this.logger.error(
-      exception instanceof Error ? (exception.stack ?? exception.message) : String(exception),
-    );
+    this.logger.error(formatLogLine(exception));
     response.status(500).json({
       error: { code: 'INTERNAL', message: 'An internal error occurred.' },
     } satisfies CoursesErrorBody);
   }
+}
+
+function isCoursesShaped(exception: unknown): exception is CoursesShapedException {
+  if (exception instanceof CoursesException) return true;
+  if (!(exception instanceof Error)) return false;
+  return exception.name === 'AuthException' || exception.constructor.name === 'AuthException';
+}
+
+function respondShaped(response: Response, err: CoursesShapedException): void {
+  const body: CoursesErrorBody = { error: { code: err.code, message: err.message } };
+  if (err.details) body.error.details = err.details;
+  response.status(err.status).json(body);
+}
+
+function respondValidation(response: Response, exception: BadRequestException): void {
+  const payload = exception.getResponse() as { message?: string[] | string };
+  const messages = normalizeMessages(payload.message);
+  response.status(400).json({
+    error: {
+      code: 'VALIDATION_FAILED',
+      message: 'Request body failed validation.',
+      details: { fieldErrors: parseFieldErrors(messages) },
+    },
+  } satisfies CoursesErrorBody);
+}
+
+function normalizeMessages(message: string[] | string | undefined): string[] {
+  if (Array.isArray(message)) return message;
+  return message ? [message] : [];
+}
+
+function formatLogLine(exception: unknown): string {
+  if (exception instanceof Error) return exception.stack ?? exception.message;
+  return String(exception);
 }
 
 /**

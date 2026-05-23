@@ -20,6 +20,10 @@ export const ID_TOKEN_VERIFIER = Symbol.for('learnwren.api-video.idTokenVerifier
 
 const GOOGLE_ISSUER = 'https://accounts.google.com';
 
+type IdTokenPayload = NonNullable<
+  ReturnType<Awaited<ReturnType<IdTokenVerifier['verifyIdToken']>>['getPayload']>
+>;
+
 @Injectable()
 export class PubSubPushGuard implements CanActivate {
   constructor(
@@ -28,24 +32,21 @@ export class PubSubPushGuard implements CanActivate {
   ) {}
 
   async canActivate(execCtx: ExecutionContext): Promise<boolean> {
-    // Defense in depth: if `invokerSaEmail` was somehow missed during config
-    // wiring, the later `payload.email !== this.cfg.invokerSaEmail` check
-    // would silently compare `undefined !== undefined` and pass. Fail loudly
-    // here instead, before touching any other check.
-    if (!this.cfg.invokerSaEmail || !this.cfg.webhookAudience) {
-      throw new PubSubInvalidTokenException('webhook invoker config missing');
-    }
-    const req = execCtx
+    assertConfigComplete(this.cfg);
+    const headers = execCtx
       .switchToHttp()
-      .getRequest<{ headers: Record<string, string | string[] | undefined> }>();
-    const header = req.headers['authorization'];
-    if (!header || typeof header !== 'string' || !header.startsWith('Bearer ')) {
-      throw new PubSubInvalidTokenException('missing or malformed Authorization header');
-    }
-    const token = header.slice('Bearer '.length).trim();
-    if (!token) throw new PubSubInvalidTokenException('empty bearer token');
+      .getRequest<{ headers: Record<string, string | string[] | undefined> }>().headers;
+    const token = extractBearerToken(headers['authorization']);
+    const payload = await this.verifyToken(token);
+    assertGoogleIssuer(payload);
+    assertNotExpired(payload);
+    assertAudience(payload, this.cfg.webhookAudience);
+    assertInvoker(payload, this.cfg.invokerSaEmail);
+    return true;
+  }
 
-    let payload: ReturnType<Awaited<ReturnType<IdTokenVerifier['verifyIdToken']>>['getPayload']>;
+  private async verifyToken(token: string): Promise<IdTokenPayload> {
+    let payload: IdTokenPayload | undefined;
     try {
       const ticket = await this.verifier.verifyIdToken(token);
       payload = ticket.getPayload();
@@ -53,20 +54,50 @@ export class PubSubPushGuard implements CanActivate {
       throw new PubSubInvalidTokenException((err as Error).message);
     }
     if (!payload) throw new PubSubInvalidTokenException('empty payload');
+    return payload;
+  }
+}
 
-    if (payload.iss !== GOOGLE_ISSUER) {
-      throw new PubSubInvalidTokenException(`unexpected issuer ${payload.iss}`);
-    }
-    if (typeof payload.exp !== 'number' || payload.exp * 1000 < Date.now()) {
-      throw new PubSubInvalidTokenException('token expired');
-    }
-    const aud = Array.isArray(payload.aud) ? payload.aud[0] : payload.aud;
-    if (aud !== this.cfg.webhookAudience) {
-      throw new PubSubWrongAudienceException();
-    }
-    if (payload.email !== this.cfg.invokerSaEmail) {
-      throw new PubSubWrongInvokerException();
-    }
-    return true;
+// Defense in depth: if `invokerSaEmail` was somehow missed during config
+// wiring, the later `payload.email !== this.cfg.invokerSaEmail` check would
+// silently compare `undefined !== undefined` and pass. Fail loudly here
+// instead, before touching any other check.
+function assertConfigComplete(cfg: VideoConfig): void {
+  if (!cfg.invokerSaEmail || !cfg.webhookAudience) {
+    throw new PubSubInvalidTokenException('webhook invoker config missing');
+  }
+}
+
+function extractBearerToken(header: string | string[] | undefined): string {
+  if (typeof header !== 'string' || !header.startsWith('Bearer ')) {
+    throw new PubSubInvalidTokenException('missing or malformed Authorization header');
+  }
+  const token = header.slice('Bearer '.length).trim();
+  if (!token) throw new PubSubInvalidTokenException('empty bearer token');
+  return token;
+}
+
+function assertGoogleIssuer(payload: IdTokenPayload): void {
+  if (payload.iss !== GOOGLE_ISSUER) {
+    throw new PubSubInvalidTokenException(`unexpected issuer ${payload.iss}`);
+  }
+}
+
+function assertNotExpired(payload: IdTokenPayload): void {
+  if (typeof payload.exp !== 'number' || payload.exp * 1000 < Date.now()) {
+    throw new PubSubInvalidTokenException('token expired');
+  }
+}
+
+function assertAudience(payload: IdTokenPayload, expected: string | undefined): void {
+  const aud = Array.isArray(payload.aud) ? payload.aud[0] : payload.aud;
+  if (aud !== expected) {
+    throw new PubSubWrongAudienceException();
+  }
+}
+
+function assertInvoker(payload: IdTokenPayload, expected: string | undefined): void {
+  if (payload.email !== expected) {
+    throw new PubSubWrongInvokerException();
   }
 }

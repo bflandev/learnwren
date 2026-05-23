@@ -17,67 +17,65 @@ interface VideoErrorBody {
   };
 }
 
+type VideoShapedException = Error & {
+  code: string;
+  status: number;
+  details?: Record<string, unknown>;
+};
+
 @Catch()
 export class VideoExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('VideoExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
-
-    if (exception instanceof VideoException) {
-      const body: VideoErrorBody = {
-        error: { code: exception.code, message: exception.message },
-      };
-      if (exception.details) {
-        body.error.details = exception.details;
-      }
-      response.status(exception.status).json(body);
+    if (isVideoShaped(exception)) {
+      respondShaped(response, exception);
       return;
     }
-
-    // Auth exceptions share the same shape (code/status/message)
-    if (
-      exception instanceof Error &&
-      (exception.name === 'AuthException' || exception.constructor.name === 'AuthException')
-    ) {
-      const err = exception as Error & {
-        code: string;
-        status: number;
-        details?: Record<string, unknown>;
-      };
-      const body: VideoErrorBody = {
-        error: { code: err.code, message: err.message },
-      };
-      if (err.details) body.error.details = err.details;
-      response.status(err.status).json(body);
-      return;
-    }
-
     if (exception instanceof BadRequestException) {
-      const payload = exception.getResponse() as { message?: string[] | string };
-      const messages = Array.isArray(payload.message)
-        ? payload.message
-        : payload.message
-          ? [payload.message]
-          : [];
-      const fieldErrors = parseFieldErrors(messages);
-      response.status(400).json({
-        error: {
-          code: 'VALIDATION_FAILED',
-          message: 'Request body failed validation.',
-          details: { fieldErrors },
-        },
-      } satisfies VideoErrorBody);
+      respondValidation(response, exception);
       return;
     }
-
-    this.logger.error(
-      exception instanceof Error ? (exception.stack ?? exception.message) : String(exception),
-    );
+    this.logger.error(formatLogLine(exception));
     response.status(500).json({
       error: { code: 'INTERNAL', message: 'An internal error occurred.' },
     } satisfies VideoErrorBody);
   }
+}
+
+function isVideoShaped(exception: unknown): exception is VideoShapedException {
+  if (exception instanceof VideoException) return true;
+  if (!(exception instanceof Error)) return false;
+  return exception.name === 'AuthException' || exception.constructor.name === 'AuthException';
+}
+
+function respondShaped(response: Response, err: VideoShapedException): void {
+  const body: VideoErrorBody = { error: { code: err.code, message: err.message } };
+  if (err.details) body.error.details = err.details;
+  response.status(err.status).json(body);
+}
+
+function respondValidation(response: Response, exception: BadRequestException): void {
+  const payload = exception.getResponse() as { message?: string[] | string };
+  const messages = normalizeMessages(payload.message);
+  response.status(400).json({
+    error: {
+      code: 'VALIDATION_FAILED',
+      message: 'Request body failed validation.',
+      details: { fieldErrors: parseFieldErrors(messages) },
+    },
+  } satisfies VideoErrorBody);
+}
+
+function normalizeMessages(message: string[] | string | undefined): string[] {
+  if (Array.isArray(message)) return message;
+  return message ? [message] : [];
+}
+
+function formatLogLine(exception: unknown): string {
+  if (exception instanceof Error) return exception.stack ?? exception.message;
+  return String(exception);
 }
 
 /**

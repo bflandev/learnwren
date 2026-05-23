@@ -46,32 +46,38 @@ export class CourseCreatePageComponent {
     this.busy.set(true);
     this.fieldErrors.set({});
     this.genericError.set(null);
+    try {
+      const course = await this.service.createCourse(this.buildPayload());
+      await this.router.navigateByUrl(`/courses/${course.id}/edit`);
+    } catch (err) {
+      this.handleSubmitError(err);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  private buildPayload() {
     const v = this.form.getRawValue();
-    const payload = {
+    return {
       title: v.title.trim(),
       description: v.description.trim(),
       ...(v.longDescription ? { longDescription: v.longDescription.trim() } : {}),
       ...(v.category ? { category: v.category as CourseCategory } : {}),
       ...(v.difficulty ? { difficulty: v.difficulty as CourseDifficulty } : {}),
     };
-    try {
-      const course = await this.service.createCourse(payload);
-      await this.router.navigateByUrl(`/courses/${course.id}/edit`);
-    } catch (err) {
-      if (err instanceof HttpErrorResponse) {
-        const body = err.error as CoursesApiErrorBody;
-        if (body?.error?.code === 'VALIDATION_FAILED') {
-          this.fieldErrors.set(
-            (body.error.details?.['fieldErrors'] as Record<string, string[]>) ?? {},
-          );
-        } else {
-          this.genericError.set(body?.error?.message ?? 'Failed to create course.');
-        }
-      } else {
-        this.genericError.set('Failed to create course.');
-      }
-    } finally {
-      this.busy.set(false);
+  }
+
+  private handleSubmitError(err: unknown): void {
+    if (!(err instanceof HttpErrorResponse)) {
+      this.genericError.set('Failed to create course.');
+      return;
     }
+    const body = err.error as CoursesApiErrorBody;
+    if (body?.error?.code === 'VALIDATION_FAILED') {
+      const fieldErrors = (body.error.details?.['fieldErrors'] as Record<string, string[]>) ?? {};
+      this.fieldErrors.set(fieldErrors);
+      return;
+    }
+    this.genericError.set(body?.error?.message ?? 'Failed to create course.');
   }
 }
