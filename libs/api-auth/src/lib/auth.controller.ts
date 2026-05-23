@@ -141,7 +141,7 @@ export class AuthController {
   @Get('_test/last-email')
   async lastTestEmail(
     @Query('to') to: string,
-    @Query('kind') kind: 'unlock' | 'verification',
+    @Query('kind') kind: 'unlock' | 'verification' | 'password-reset',
   ): Promise<{ url: string; sentAt: string }> {
     if (process.env['LEARNWREN_TEST_OUTBOX_ENABLED'] !== '1') {
       throw new NotFoundException();

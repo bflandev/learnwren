@@ -180,6 +180,10 @@ describe('CoursesService — course operations', () => {
   });
 
   describe('updateCourse', () => {
+    beforeEach(() => {
+      repo.getCourse.mockResolvedValue(makeCourse());
+    });
+
     it('forwards the patch to the repository unchanged', async () => {
       await service.updateCourse('cid-1' as CourseId, { title: 'New' });
       expect(repo.updateCourse).toHaveBeenCalledWith('cid-1', { title: 'New' });
@@ -196,6 +200,17 @@ describe('CoursesService — course operations', () => {
         description: 'Y',
         category: 'DESIGN',
       });
+    });
+
+    it('throws CourseNotFoundException when the course is gone', async () => {
+      // Regression: previously delegated straight to repo.updateCourse, so a
+      // PATCH racing a concurrent delete surfaced a raw Firestore NOT_FOUND
+      // as 500 instead of a structured 404.
+      repo.getCourse.mockResolvedValue(null);
+      await expect(
+        service.updateCourse('gone' as CourseId, { title: 'X' }),
+      ).rejects.toBeInstanceOf(CourseNotFoundException);
+      expect(repo.updateCourse).not.toHaveBeenCalled();
     });
   });
 
