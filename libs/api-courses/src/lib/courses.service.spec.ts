@@ -405,6 +405,19 @@ describe('CoursesService — module operations', () => {
         service.reorderModules(CID, ['a', 'a'] as ModuleId[]),
       ).rejects.toBeInstanceOf(StaleReorderException);
     });
+
+    it('rejects same-length duplicate payload via the set-size check', async () => {
+      // Pins the case where the `length` check is satisfied (3 vs 3) but
+      // proposedIds collapses to a smaller Set than currentIds. Without the
+      // `current.size !== proposed.size` line, a payload like ["a","a","b"]
+      // against ["a","b","c"] would silently double-write "a" and drop "c".
+      repo.listModulesByCourse.mockResolvedValue([m('a', 0), m('b', 1), m('c', 2)]);
+      const { StaleReorderException } = await import('./errors/courses.exception');
+      await expect(
+        service.reorderModules(CID, ['a', 'a', 'b'] as ModuleId[]),
+      ).rejects.toBeInstanceOf(StaleReorderException);
+      expect(repo.writeModuleOrder).not.toHaveBeenCalled();
+    });
   });
 });
 
