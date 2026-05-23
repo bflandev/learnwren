@@ -3,7 +3,10 @@ import {
   Controller,
   Get,
   HttpCode,
+  Inject,
+  NotFoundException,
   Post,
+  Query,
   Req,
   Res,
   UseFilters,
@@ -18,6 +21,8 @@ import { RegisterDto } from './dto/register.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { UnlockDto } from './dto/unlock.dto';
+import { ConsoleEmailTransport } from './email-transport/console-email-transport';
+import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
 import { FirebaseSessionGuard } from './firebase-session.guard';
 import { SessionCookieHelper } from './session-cookie.helper';
 import type { AuthenticatedRequest } from './types/authenticated-request';
@@ -42,6 +47,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly sessionCookieHelper: SessionCookieHelper,
+    @Inject(EMAIL_TRANSPORT) private readonly emailTransport: EmailTransport,
   ) {}
 
   @Post('register')
@@ -126,5 +132,25 @@ export class AuthController {
       email: user.email,
       emailVerified: user.emailVerified,
     });
+  }
+
+  // Test-mode-only: surface the last in-process email URL (unlock or
+  // verification) so the api-e2e suite can drive the redemption flows now
+  // that unlock tokens are hashed before being persisted. Gated by
+  // LEARNWREN_TEST_OUTBOX_ENABLED so it cannot be reached in production.
+  @Get('_test/last-email')
+  async lastTestEmail(
+    @Query('to') to: string,
+    @Query('kind') kind: 'unlock' | 'verification',
+  ): Promise<{ url: string; sentAt: string }> {
+    if (process.env['LEARNWREN_TEST_OUTBOX_ENABLED'] !== '1') {
+      throw new NotFoundException();
+    }
+    if (!(this.emailTransport instanceof ConsoleEmailTransport)) {
+      throw new NotFoundException();
+    }
+    const entry = this.emailTransport.lastSentTo(to, kind);
+    if (!entry) throw new NotFoundException();
+    return { url: entry.url, sentAt: entry.sentAt.toISOString() };
   }
 }

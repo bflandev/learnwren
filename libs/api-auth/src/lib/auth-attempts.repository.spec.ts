@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -5,18 +7,22 @@ import { FIRESTORE } from '@learnwren/api-firebase';
 
 import { AuthAttemptsRepository } from './auth-attempts.repository';
 
+function sha256Hex(input: string): string {
+  return createHash('sha256').update(input).digest('hex');
+}
+
 interface FakeFirestore {
   collection: ReturnType<typeof vi.fn>;
   runTransaction: ReturnType<typeof vi.fn>;
   _docs: Map<string, Record<string, unknown>>;
-  _queryHits: Map<string, string>;  // unlockToken → emailHash
+  _queryHits: Map<string, string>;  // unlockTokenHash → emailHash
 }
 
 function buildFakeFirestore(initial: Record<string, Record<string, unknown>> = {}): FakeFirestore {
   const docs = new Map<string, Record<string, unknown>>(Object.entries(initial));
   const queryHits = new Map<string, string>();
   for (const [hash, data] of docs) {
-    if (data['unlockToken']) queryHits.set(data['unlockToken'] as string, hash);
+    if (data['unlockTokenHash']) queryHits.set(data['unlockTokenHash'] as string, hash);
   }
 
   const docRef = (hash: string) => ({
@@ -27,11 +33,11 @@ function buildFakeFirestore(initial: Record<string, Record<string, unknown>> = {
     })),
     set: vi.fn(async (data: Record<string, unknown>) => {
       docs.set(hash, { ...data });
-      if (data['unlockToken']) queryHits.set(data['unlockToken'] as string, hash);
+      if (data['unlockTokenHash']) queryHits.set(data['unlockTokenHash'] as string, hash);
     }),
     delete: vi.fn(async () => {
       const existing = docs.get(hash);
-      if (existing?.['unlockToken']) queryHits.delete(existing['unlockToken'] as string);
+      if (existing?.['unlockTokenHash']) queryHits.delete(existing['unlockTokenHash'] as string);
       docs.delete(hash);
     }),
     update: vi.fn(async (data: Record<string, unknown>) => {
@@ -44,7 +50,7 @@ function buildFakeFirestore(initial: Record<string, Record<string, unknown>> = {
     where: vi.fn((field: string, _op: string, value: string) => ({
       limit: vi.fn(() => ({
         get: vi.fn(async () => {
-          const hash = field === 'unlockToken' ? queryHits.get(value) : undefined;
+          const hash = field === 'unlockTokenHash' ? queryHits.get(value) : undefined;
           if (!hash || !docs.has(hash)) return { empty: true, docs: [] };
           return {
             empty: false,
@@ -116,7 +122,7 @@ describe('AuthAttemptsRepository.read', () => {
   it('returns doc as-is when lockedUntil > now', async () => {
     const future = new Date(Date.now() + 60_000).toISOString();
     const fs = buildFakeFirestore({
-      'hash-1': { failedCount: 3, lockedUntil: future, unlockToken: 'tok' },
+      'hash-1': { failedCount: 3, lockedUntil: future, unlockTokenHash: sha256Hex('tok') },
     });
     const repo = await buildRepo(fs);
     const doc = await repo.read('hash-1');
@@ -126,7 +132,7 @@ describe('AuthAttemptsRepository.read', () => {
   it('lazily deletes the doc and returns null when lockedUntil <= now', async () => {
     const past = new Date(Date.now() - 60_000).toISOString();
     const fs = buildFakeFirestore({
-      'hash-1': { failedCount: 3, lockedUntil: past, unlockToken: 'tok' },
+      'hash-1': { failedCount: 3, lockedUntil: past, unlockTokenHash: sha256Hex('tok') },
     });
     const repo = await buildRepo(fs);
     expect(await repo.read('hash-1')).toBeNull();
@@ -179,7 +185,11 @@ describe('AuthAttemptsRepository.recordFailure', () => {
       expect(result.lockedUntil!.getTime()).toBe(frozen.getTime() + 15 * 60 * 1000);
       const doc = fs._docs.get('hash-1')!;
       expect(doc['failedCount']).toBe(3);
-      expect(doc['unlockToken']).toBe(result.unlockToken);
+      // The stored value is the SHA-256 hash of the plaintext token returned
+      // to the caller — the plaintext itself MUST NOT be persisted.
+      expect(doc['unlockTokenHash']).toBe(sha256Hex(result.unlockToken!));
+      expect(doc['unlockTokenHash']).not.toBe(result.unlockToken);
+      expect(doc['unlockToken']).toBeUndefined();
     } finally {
       vi.useRealTimers();
     }
@@ -188,7 +198,7 @@ describe('AuthAttemptsRepository.recordFailure', () => {
   it('treats an auto-expired LOCKED doc as fresh on next failure', async () => {
     const past = new Date(Date.now() - 60_000).toISOString();
     const fs = buildFakeFirestore({
-      'hash-1': { failedCount: 3, lockedUntil: past, unlockToken: 'old' },
+      'hash-1': { failedCount: 3, lockedUntil: past, unlockTokenHash: sha256Hex('old') },
     });
     const repo = await buildRepo(fs);
     const result = await repo.recordFailure('hash-1');
@@ -222,9 +232,10 @@ describe('AuthAttemptsRepository.redeemUnlockToken', () => {
     expect(await repo.redeemUnlockToken('nope')).toEqual({ status: 'invalid' });
   });
 
-  it('queries the `unlockToken` field with `==` (not any other field/op)', async () => {
+  it('queries `unlockTokenHash` with the sha256 of the input, not the raw token', async () => {
     // A StringLiteral mutant on the field name or operator would keep the
-    // shape of the query but break semantics. Capture the where() args.
+    // shape of the query but break semantics. Capture the where() args and
+    // verify both the field name and that the *hash* (not plaintext) is sent.
     const whereSpy = vi.fn(() => ({
       limit: vi.fn(() => ({
         get: vi.fn(async () => ({ empty: true, docs: [] })),
@@ -243,13 +254,17 @@ describe('AuthAttemptsRepository.redeemUnlockToken', () => {
     const repo = await buildRepo(fakeFirestore);
 
     await repo.redeemUnlockToken('the-token');
-    expect(whereSpy).toHaveBeenCalledWith('unlockToken', '==', 'the-token');
+    expect(whereSpy).toHaveBeenCalledWith(
+      'unlockTokenHash',
+      '==',
+      sha256Hex('the-token'),
+    );
   });
 
   it('returns ok and deletes the doc on a valid, non-expired token', async () => {
     const future = new Date(Date.now() + 60_000).toISOString();
     const fs = buildFakeFirestore({
-      'hash-1': { failedCount: 3, lockedUntil: future, unlockToken: 'tok' },
+      'hash-1': { failedCount: 3, lockedUntil: future, unlockTokenHash: sha256Hex('tok') },
     });
     const repo = await buildRepo(fs);
     expect(await repo.redeemUnlockToken('tok')).toEqual({ status: 'ok' });
@@ -259,7 +274,7 @@ describe('AuthAttemptsRepository.redeemUnlockToken', () => {
   it('returns expired and deletes the doc on a token whose lock has elapsed', async () => {
     const past = new Date(Date.now() - 60_000).toISOString();
     const fs = buildFakeFirestore({
-      'hash-1': { failedCount: 3, lockedUntil: past, unlockToken: 'tok' },
+      'hash-1': { failedCount: 3, lockedUntil: past, unlockTokenHash: sha256Hex('tok') },
     });
     const repo = await buildRepo(fs);
     expect(await repo.redeemUnlockToken('tok')).toEqual({ status: 'expired' });
@@ -333,7 +348,7 @@ describe('AuthAttemptsRepository.read — lock expiry boundary', () => {
         'hash-1': {
           failedCount: 3,
           lockedUntil: now.toISOString(),
-          unlockToken: 'tok',
+          unlockTokenHash: sha256Hex('tok'),
         },
       });
       const repo = await buildRepo(fs);

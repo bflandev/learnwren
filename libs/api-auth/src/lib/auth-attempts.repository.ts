@@ -14,7 +14,7 @@ export interface AuthAttemptsDoc {
   failedCount: number;
   firstFailureAt: string | null;
   lockedUntil: string | null;
-  unlockToken: string | null;
+  unlockTokenHash: string | null;
   lastResendVerificationAt: string | null;
   lastPasswordResetAt: string | null;
   updatedAt: string;
@@ -78,7 +78,7 @@ export class AuthAttemptsRepository {
         const lockedUntil = new Date(now.getTime() + LOCKOUT_MS);
         const unlockToken = randomBytes(32).toString('base64url');
         data.lockedUntil = lockedUntil.toISOString();
-        data.unlockToken = unlockToken;
+        data.unlockTokenHash = this.hashToken(unlockToken);
         t.set(ref, data);
         return { locked: true, unlockToken, lockedUntil };
       }
@@ -93,9 +93,10 @@ export class AuthAttemptsRepository {
   }
 
   async redeemUnlockToken(token: string): Promise<RedeemUnlockTokenResult> {
+    const tokenHash = this.hashToken(token);
     const query = await this.firestore
       .collection(COLLECTION)
-      .where('unlockToken', '==', token)
+      .where('unlockTokenHash', '==', tokenHash)
       .limit(1)
       .get();
 
@@ -112,6 +113,10 @@ export class AuthAttemptsRepository {
 
     await docSnap.ref.delete();
     return { status: 'ok' };
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   async recordResendVerification(emailHash: string): Promise<ThrottleResult> {
@@ -158,7 +163,7 @@ export class AuthAttemptsRepository {
       failedCount: 0,
       firstFailureAt: null,
       lockedUntil: null,
-      unlockToken: null,
+      unlockTokenHash: null,
       lastResendVerificationAt: null,
       lastPasswordResetAt: null,
       updatedAt: nowIso,

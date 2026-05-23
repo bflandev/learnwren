@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createTransport, type Transporter } from 'nodemailer';
 
-import type { EmailTransport, UnlockEmailInput } from './email-transport';
+import type {
+  EmailTransport,
+  UnlockEmailInput,
+  VerificationEmailInput,
+} from './email-transport';
 
 export interface SmtpEmailTransportConfig {
   host: string;
@@ -42,6 +46,29 @@ export class SmtpEmailTransport implements EmailTransport {
       this.logger.log(`[unlock-email] sent to=${input.to}`);
     } catch (err) {
       this.logger.error(`[unlock-email] send failed to=${input.to}: ${String(err)}`);
+      throw err;
+    }
+  }
+
+  async sendVerificationEmail(input: VerificationEmailInput): Promise<void> {
+    const text =
+      `Welcome to Learn Wren!\n\n` +
+      `Please verify your email address by clicking the link below:\n\n` +
+      `${input.verificationUrl}\n\n` +
+      `You won't be able to sign in until your email is verified.`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.config.from,
+        to: input.to,
+        subject: 'Verify your Learn Wren email address',
+        text,
+      });
+      this.logger.log(`[verification-email] sent to=${input.to}`);
+    } catch (err) {
+      this.logger.error(
+        `[verification-email] send failed to=${input.to}: ${String(err)}`,
+      );
       throw err;
     }
   }

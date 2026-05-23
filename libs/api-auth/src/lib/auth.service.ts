@@ -148,12 +148,16 @@ export class AuthService {
 
     let emailVerificationSent = true;
     try {
-      await this.auth.generateEmailVerificationLink(input.email, {
+      const verificationUrl = await this.auth.generateEmailVerificationLink(input.email, {
         url: this.continueUrl('/login'),
+      });
+      await this.emailTransport.sendVerificationEmail({
+        to: input.email,
+        verificationUrl,
       });
     } catch (err) {
       this.logger.warn(
-        `[auth] register generateEmailVerificationLink failed uid=${uid}: ${String(err)}`,
+        `[auth] register verification email failed uid=${uid}: ${String(err)}`,
       );
       emailVerificationSent = false;
     }
@@ -373,13 +377,17 @@ export class AuthService {
     }
 
     try {
-      await this.auth.generateEmailVerificationLink(email, {
+      const verificationUrl = await this.auth.generateEmailVerificationLink(email, {
         url: this.continueUrl('/login'),
+      });
+      await this.emailTransport.sendVerificationEmail({
+        to: email,
+        verificationUrl,
       });
       this.logger.log(`[auth] resend-verification sent emailHash=${emailHash}`);
     } catch (err) {
       this.logger.error(
-        `[auth] resend-verification generateLink failed emailHash=${emailHash}: ${String(err)}`,
+        `[auth] resend-verification send failed emailHash=${emailHash}: ${String(err)}`,
       );
       throw new InternalAuthException();
     }

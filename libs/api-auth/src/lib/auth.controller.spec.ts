@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { EMAIL_TRANSPORT } from './email-transport/email-transport';
 import { SessionCookieHelper } from './session-cookie.helper';
 import { FirebaseSessionGuard } from './firebase-session.guard';
 import {
@@ -30,6 +31,13 @@ async function buildController(authServiceMock: Partial<AuthService>) {
     providers: [
       { provide: AuthService, useValue: authServiceMock },
       SessionCookieHelper,
+      {
+        provide: EMAIL_TRANSPORT,
+        useValue: {
+          sendUnlockEmail: vi.fn(async () => undefined),
+          sendVerificationEmail: vi.fn(async () => undefined),
+        },
+      },
     ],
   })
     .overrideGuard(FirebaseSessionGuard)

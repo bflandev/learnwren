@@ -114,7 +114,13 @@ async function buildModule(
       { provide: FIREBASE_AUTH, useValue: auth },
       { provide: FIRESTORE, useValue: firestore },
       { provide: FirebaseAuthRestClient, useValue: rest },
-      { provide: EMAIL_TRANSPORT, useValue: { sendUnlockEmail: vi.fn(async () => undefined) } },
+      {
+        provide: EMAIL_TRANSPORT,
+        useValue: {
+          sendUnlockEmail: vi.fn(async () => undefined),
+          sendVerificationEmail: vi.fn(async () => undefined),
+        },
+      },
     ],
   }).compile();
   return moduleRef.get(AuthService);
@@ -610,7 +616,13 @@ describe('AuthService.login', () => {
         { provide: FIRESTORE, useValue: firestore },
         { provide: FirebaseAuthRestClient, useValue: rest },
         { provide: AuthAttemptsRepository, useValue: attempts },
-        { provide: EMAIL_TRANSPORT, useValue: { sendUnlockEmail: vi.fn(async () => undefined) } },
+        {
+        provide: EMAIL_TRANSPORT,
+        useValue: {
+          sendUnlockEmail: vi.fn(async () => undefined),
+          sendVerificationEmail: vi.fn(async () => undefined),
+        },
+      },
       ],
     }).compile();
     return moduleRef.get(AuthService);
@@ -887,7 +899,13 @@ describe('AuthService.resendVerification', () => {
         { provide: FIRESTORE, useValue: firestore },
         { provide: FirebaseAuthRestClient, useValue: rest },
         { provide: AuthAttemptsRepository, useValue: attempts },
-        { provide: EMAIL_TRANSPORT, useValue: { sendUnlockEmail: vi.fn(async () => undefined) } },
+        {
+        provide: EMAIL_TRANSPORT,
+        useValue: {
+          sendUnlockEmail: vi.fn(async () => undefined),
+          sendVerificationEmail: vi.fn(async () => undefined),
+        },
+      },
       ],
     }).compile();
     return { service: moduleRef.get(AuthService), auth, spies };
@@ -993,7 +1011,13 @@ describe('AuthService.requestPasswordReset', () => {
         { provide: FIRESTORE, useValue: firestore },
         { provide: FirebaseAuthRestClient, useValue: rest },
         { provide: AuthAttemptsRepository, useValue: attempts },
-        { provide: EMAIL_TRANSPORT, useValue: { sendUnlockEmail: vi.fn(async () => undefined) } },
+        {
+        provide: EMAIL_TRANSPORT,
+        useValue: {
+          sendUnlockEmail: vi.fn(async () => undefined),
+          sendVerificationEmail: vi.fn(async () => undefined),
+        },
+      },
       ],
     }).compile();
     return { service: moduleRef.get(AuthService), auth, spies };
@@ -1078,7 +1102,13 @@ describe('AuthService.unlock', () => {
         { provide: FIRESTORE, useValue: firestore },
         { provide: FirebaseAuthRestClient, useValue: rest },
         { provide: AuthAttemptsRepository, useValue: attempts },
-        { provide: EMAIL_TRANSPORT, useValue: { sendUnlockEmail: vi.fn(async () => undefined) } },
+        {
+        provide: EMAIL_TRANSPORT,
+        useValue: {
+          sendUnlockEmail: vi.fn(async () => undefined),
+          sendVerificationEmail: vi.fn(async () => undefined),
+        },
+      },
       ],
     }).compile();
     return moduleRef.get(AuthService);
