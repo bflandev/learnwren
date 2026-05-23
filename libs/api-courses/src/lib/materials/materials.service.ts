@@ -106,25 +106,14 @@ export class MaterialsService {
   }
 
   async complete(matId: MaterialId): Promise<Material> {
-    const m = await this.repo.get(matId);
-    if (!m) throw new MaterialNotFoundException();
+    const m = await this.loadMaterialOrThrow(matId);
     if (m.state !== 'PENDING_UPLOAD') throw new InvalidMaterialStateException(m.state);
 
-    const head = await this.storage.headObject({
-      bucket: m.storage.bucket,
-      path: m.storage.path,
-    });
-    if (!head) throw new UploadObjectMissingException();
-    if (head.size > MATERIAL_MAX_SIZE_BYTES * SIZE_TOLERANCE) {
-      await this.storage
-        .deleteObject({ bucket: m.storage.bucket, path: m.storage.path })
-        .catch(() => undefined);
-      throw new UploadObjectSizeMismatchException();
-    }
+    const actualSize = await this.verifyUploadedObject(m);
 
     const updatedAt = nowIso();
-    await this.repo.update(matId, { state: 'READY', sizeBytes: head.size, updatedAt });
-    return { ...m, state: 'READY', sizeBytes: head.size, updatedAt };
+    await this.repo.update(matId, { state: 'READY', sizeBytes: actualSize, updatedAt });
+    return { ...m, state: 'READY', sizeBytes: actualSize, updatedAt };
   }
 
   async listForLesson(lessonId: LessonId): Promise<Material[]> {
@@ -135,25 +124,19 @@ export class MaterialsService {
   }
 
   async rename(matId: MaterialId, displayName: string): Promise<Material> {
-    const m = await this.repo.get(matId);
-    if (!m) throw new MaterialNotFoundException();
+    const m = await this.loadMaterialOrThrow(matId);
     const updatedAt = nowIso();
     await this.repo.update(matId, { displayName, updatedAt });
     return { ...m, displayName, updatedAt };
   }
 
   async remove(matId: MaterialId): Promise<void> {
-    const m = await this.repo.get(matId);
-    if (!m) throw new MaterialNotFoundException();
-    await this.storage
-      .deleteObject({ bucket: m.storage.bucket, path: m.storage.path })
-      .catch(() => undefined);
-    await this.repo.delete(m.id);
+    const m = await this.loadMaterialOrThrow(matId);
+    await this.purgeStoredMaterial(m);
   }
 
   async buildDownloadUrl(matId: MaterialId): Promise<DownloadUrlResult> {
-    const m = await this.repo.get(matId);
-    if (!m) throw new MaterialNotFoundException();
+    const m = await this.loadMaterialOrThrow(matId);
     // PENDING_UPLOAD materials have no object behind the storage path (or only
     // a partial one). Issuing a signed URL for that state lets a caller
     // exfiltrate a capability against an incomplete object — an enrolled
@@ -176,10 +159,47 @@ export class MaterialsService {
   async deleteForLesson(lessonId: LessonId): Promise<void> {
     const materials = await this.repo.listByLesson(lessonId);
     for (const m of materials) {
-      await this.storage
-        .deleteObject({ bucket: m.storage.bucket, path: m.storage.path })
-        .catch(() => undefined);
-      await this.repo.delete(m.id);
+      await this.purgeStoredMaterial(m);
     }
+  }
+
+  private async loadMaterialOrThrow(matId: MaterialId): Promise<Material> {
+    const m = await this.repo.get(matId);
+    if (!m) throw new MaterialNotFoundException();
+    return m;
+  }
+
+  /**
+   * HEAD the uploaded object and confirm its size is within tolerance of the
+   * max-per-material cap. If the object is grossly larger, best-effort delete
+   * it before throwing — otherwise a caller could pin a giant blob in storage
+   * by uploading then skipping `complete`. Returns the actual size for the
+   * caller to record on the Material doc.
+   */
+  private async verifyUploadedObject(m: Material): Promise<number> {
+    const head = await this.storage.headObject({
+      bucket: m.storage.bucket,
+      path: m.storage.path,
+    });
+    if (!head) throw new UploadObjectMissingException();
+    if (head.size > MATERIAL_MAX_SIZE_BYTES * SIZE_TOLERANCE) {
+      await this.bestEffortDeleteStoredObject(m);
+      throw new UploadObjectSizeMismatchException();
+    }
+    return head.size;
+  }
+
+  /** Delete the storage object, swallowing any error. Used both during upload
+   *  validation (oversize cleanup) and as the storage half of full purge. */
+  private async bestEffortDeleteStoredObject(m: Material): Promise<void> {
+    await this.storage
+      .deleteObject({ bucket: m.storage.bucket, path: m.storage.path })
+      .catch(() => undefined);
+  }
+
+  /** Remove a material end-to-end: storage object (best-effort), then Firestore doc. */
+  private async purgeStoredMaterial(m: Material): Promise<void> {
+    await this.bestEffortDeleteStoredObject(m);
+    await this.repo.delete(m.id);
   }
 }
