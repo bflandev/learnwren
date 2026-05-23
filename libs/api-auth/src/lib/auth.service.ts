@@ -409,76 +409,76 @@ export class AuthService {
     const emailHash = this.attempts.emailHash(email);
 
     const throttle = await this.attempts.recordResendVerification(emailHash);
-    if (throttle.throttled) {
-      throw new TooManyRequestsException();
-    }
+    if (throttle.throttled) throw new TooManyRequestsException();
 
-    let userRecord: adminAuth.UserRecord;
-    try {
-      userRecord = await this.auth.getUserByEmail(email);
-    } catch (err) {
-      if (this.isFirebaseError(err) && err.code === 'auth/user-not-found') {
-        // Enumeration resistance: silent success.
-        return;
-      }
-      throw err;
-    }
-
+    const userRecord = await this.findUserOrNullForEnumerationResistance(email);
+    if (!userRecord) return;
     if (userRecord.emailVerified) {
       // Already verified — silent success (don't leak verification status).
       return;
     }
 
-    try {
+    await this.dispatchOutboundEmail('resend-verification', emailHash, async () => {
       const verificationUrl = await this.auth.generateEmailVerificationLink(email, {
         url: this.continueUrl('/login'),
       });
-      await this.emailTransport.sendVerificationEmail({
-        to: email,
-        verificationUrl,
-      });
-      this.logger.log(`[auth] resend-verification sent emailHash=${emailHash}`);
-    } catch (err) {
-      this.logger.error(
-        `[auth] resend-verification send failed emailHash=${emailHash}: ${String(err)}`,
-      );
-      throw new InternalAuthException();
-    }
+      await this.emailTransport.sendVerificationEmail({ to: email, verificationUrl });
+    });
   }
 
   async requestPasswordReset(email: string): Promise<void> {
     const emailHash = this.attempts.emailHash(email);
 
     const throttle = await this.attempts.recordPasswordResetRequest(emailHash);
-    if (throttle.throttled) {
-      throw new TooManyRequestsException();
-    }
+    if (throttle.throttled) throw new TooManyRequestsException();
 
-    try {
-      await this.auth.getUserByEmail(email);
-    } catch (err) {
-      if (this.isFirebaseError(err) && err.code === 'auth/user-not-found') {
-        return;
-      }
-      throw err;
-    }
+    const userRecord = await this.findUserOrNullForEnumerationResistance(email);
+    if (!userRecord) return;
 
-    try {
+    await this.dispatchOutboundEmail('password-reset', emailHash, async () => {
       const resetUrl = await this.auth.generatePasswordResetLink(email, {
         url: this.continueUrl('/login?reset=ok'),
       });
-      await this.emailTransport.sendPasswordResetEmail({
-        to: email,
-        resetUrl,
-      });
-      this.logger.log(`[auth] password-reset sent emailHash=${emailHash}`);
+      await this.emailTransport.sendPasswordResetEmail({ to: email, resetUrl });
+    });
+    // Note: deliberate no-op on lockout state. See spec §1.5 / §E.2(ii).
+  }
+
+  /**
+   * getUserByEmail with the standard enumeration-resistant adapter: a missing
+   * user becomes `null` so the caller can early-return silent success without
+   * having to spell out the `auth/user-not-found` branch each time. Any other
+   * Firebase error is rethrown untouched.
+   */
+  private async findUserOrNullForEnumerationResistance(
+    email: string,
+  ): Promise<adminAuth.UserRecord | null> {
+    try {
+      return await this.auth.getUserByEmail(email);
     } catch (err) {
-      this.logger.error(
-        `[auth] password-reset send failed emailHash=${emailHash}: ${String(err)}`,
-      );
+      if (this.isFirebaseError(err) && err.code === 'auth/user-not-found') return null;
+      throw err;
+    }
+  }
+
+  /**
+   * Run an outbound-email send (`fn` should both generate the link and call
+   * the transport), logging success at info and mapping any failure to
+   * InternalAuthException after logging the underlying error. The `tag`
+   * appears in both log lines so operators can trace by flow type.
+   */
+  private async dispatchOutboundEmail(
+    tag: 'resend-verification' | 'password-reset',
+    emailHash: string,
+    fn: () => Promise<void>,
+  ): Promise<void> {
+    try {
+      await fn();
+      this.logger.log(`[auth] ${tag} sent emailHash=${emailHash}`);
+    } catch (err) {
+      this.logger.error(`[auth] ${tag} send failed emailHash=${emailHash}: ${String(err)}`);
       throw new InternalAuthException();
     }
-    // Note: deliberate no-op on lockout state. See spec §1.5 / §E.2(ii).
   }
 
   async unlock(token: string): Promise<void> {
