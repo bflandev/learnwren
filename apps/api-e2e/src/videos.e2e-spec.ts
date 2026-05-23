@@ -173,11 +173,11 @@ test('422 upload-object-missing when complete called before any bytes', async ({
   expect(((await r.json()) as { error: { code: string } }).error.code).toBe('UPLOAD_OBJECT_MISSING');
 });
 
-// Quarantined: the fake source-probe seam lets the upload reach TRANSCODING,
-// but the fake-transcoder/complete chain does NOT then transition
-// TRANSCODING -> READY in this env (the test expects state=READY, gets
-// TRANSCODING). Needs a separate look at how TranscoderEventsController
-// applies the synthesized SUCCEEDED envelope.
+// FOLLOWUP(fake-transcoder-ready-chain): the fake source-probe seam lets the
+// upload reach TRANSCODING, but the fake-transcoder/complete chain does NOT
+// then transition TRANSCODING -> READY in this env (the test expects
+// state=READY, gets TRANSCODING). Needs a separate look at how
+// TranscoderEventsController applies the synthesized SUCCEEDED envelope.
 test.fixme('upload → transcoding → READY via fake completer', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };
@@ -213,12 +213,11 @@ test.fixme('upload → transcoding → READY via fake completer', async ({ reque
   expect(ready.output?.durationSec).toBeGreaterThan(0);
 });
 
-// Quarantined: the fake-transcoder /fail/:vid endpoint posts a synthesized
-// Pub/Sub envelope at the production-style webhook route, but the video
-// stays in TRANSCODING — the envelope path through the auth + dispatch chain
-// is not transitioning the video to FAILED in this local env. Needs a deeper
-// look at TranscoderEventsController in fake mode. Tracked separately from
-// the fake source-probe seam that un-quarantined this file.
+// FOLLOWUP(fake-transcoder-ready-chain): the fake-transcoder /fail/:vid
+// endpoint posts a synthesized Pub/Sub envelope at the production-style
+// webhook route, but the video stays in TRANSCODING — the envelope path
+// through the auth + dispatch chain is not transitioning the video to FAILED
+// in this local env. Same TranscoderEventsController bug as the READY path.
 test.fixme('fake-transcoder fail path → FAILED with reason', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };
@@ -245,7 +244,7 @@ test.fixme('fake-transcoder fail path → FAILED with reason', async ({ request 
   expect(failed.failureReason).toMatch(/TRANSCODE_FAILED.*unsupported codec/);
 });
 
-// Quarantined: same fake-transcoder/complete chain problem as the
+// FOLLOWUP(fake-transcoder-ready-chain): same root cause as the
 // upload→transcoding→READY test above — the second call's idempotency code
 // (ALREADY_APPLIED) is gated on a state that the first call doesn't reach.
 test.fixme('fake-completer is idempotent — second call is a no-op', async ({ request }) => {
