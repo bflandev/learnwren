@@ -40,7 +40,12 @@ function nextOrder(existing: number[]): number {
 function assertReorderSetMatches(currentIds: string[], proposedIds: string[]): void {
   if (currentIds.length !== proposedIds.length) throw new StaleReorderException();
   const current = new Set(currentIds);
-  for (const id of proposedIds) {
+  const proposed = new Set(proposedIds);
+  // Duplicates collapse in the Set — catch them via a size mismatch so a
+  // payload like ["a","a","b"] cannot pass the per-id `current.has` loop
+  // and silently double-write one id while losing another.
+  if (proposed.size !== proposedIds.length) throw new StaleReorderException();
+  for (const id of proposed) {
     if (!current.has(id)) throw new StaleReorderException();
   }
 }

@@ -16,7 +16,7 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import { CoursesRepository } from './courses.repository';
-import { CourseNotFoundException } from './errors/courses.exception';
+import { CourseNotFoundException, StaleReorderException } from './errors/courses.exception';
 import { createFakeFirestore, type FakeFirestore } from './testing/fake-firestore';
 
 const INSTRUCTOR = 'uid-instructor-1' as UserId;
@@ -274,6 +274,25 @@ describe('CoursesRepository — Module', () => {
     expect((fake.__store.get('courses/cid-1/modules/mid-b') as Module).order).toBe(0);
     expect((fake.__store.get('courses/cid-1/modules/mid-a') as Module).order).toBe(1);
     expect((fake.__store.get('courses/cid-1') as Course).updatedAt).toBe(NOW.toISOString());
+  });
+
+  it('writeModuleOrder rejects payloads containing duplicate IDs', async () => {
+    // Regression: the in-txn assertReorderSetMatches collapses duplicates
+    // into a Set, so a payload like ["a","a","b"] against a 3-item collection
+    // ["a","b","c"] would silently double-write one id and drop another.
+    const fake = createFakeFirestore({
+      'courses/cid-1': makeCourse(),
+      'courses/cid-1/modules/mid-a': makeModule({ id: 'mid-a' as ModuleId, order: 0 }),
+      'courses/cid-1/modules/mid-b': makeModule({ id: 'mid-b' as ModuleId, order: 1 }),
+      'courses/cid-1/modules/mid-c': makeModule({ id: 'mid-c' as ModuleId, order: 2 }),
+    });
+    const repo = await buildRepo(fake);
+
+    await expect(
+      repo.writeModuleOrder('cid-1' as CourseId, ['mid-a', 'mid-a', 'mid-b'] as ModuleId[]),
+    ).rejects.toBeInstanceOf(StaleReorderException);
+    // No partial write — original orders survive.
+    expect((fake.__store.get('courses/cid-1/modules/mid-c') as Module).order).toBe(2);
   });
 });
 
