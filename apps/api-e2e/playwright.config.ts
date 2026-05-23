@@ -42,6 +42,11 @@ export default defineConfig({
       LEARNWREN_VIDEO_OUTPUT_BUCKET: 'learnwren-e2e-output',
       LEARNWREN_VIDEO_TRANSCODER: 'fake',
       LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE: 'true',
+      // FakeMaterialsController is now gated on the storage-impl flag (not
+      // NODE_ENV), so the dev-only passthrough must be enabled explicitly
+      // for the materials suite. The adapter already defaults to fake when
+      // NODE_ENV != 'production', but the controller registration is gated.
+      LEARNWREN_MATERIALS_STORAGE_FAKE: 'true',
       LEARNWREN_EMAIL_TRANSPORT: 'console',
       // Surface the in-process outbox via GET /api/auth/_test/last-email so
       // the suite can recover unlock tokens, which are now hashed in Firestore.
