@@ -24,7 +24,7 @@ async function readUnlockTokenFromOutbox(
   if (res.status() !== 200) return null;
   const body = await res.json();
   const match = body.url.match(/[?&]token=([^&]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
 const emailHash = (email: string) =>
