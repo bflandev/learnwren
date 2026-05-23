@@ -2,6 +2,7 @@
 .nx/
 .claude/worktrees
 .claude/settings.local.json
+.claude/*.local.md
 .worktrees/
 
 # macOS
