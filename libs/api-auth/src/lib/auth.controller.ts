@@ -60,12 +60,7 @@ export class AuthController {
       password: dto.password,
       displayName: dto.displayName,
     });
-    res.setHeader(
-      'Set-Cookie',
-      this.sessionCookieHelper.toSetCookie(result.cookie, {
-        maxAgeSeconds: result.maxAgeSeconds,
-      }),
-    );
+    this.attachSessionCookie(res, result);
     return {
       uid: result.uid,
       email: result.email,
@@ -81,18 +76,30 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseBody> {
     const result = await this.authService.login({ email: dto.email, password: dto.password });
-    res.setHeader(
-      'Set-Cookie',
-      this.sessionCookieHelper.toSetCookie(result.cookie, {
-        maxAgeSeconds: result.maxAgeSeconds,
-      }),
-    );
+    this.attachSessionCookie(res, result);
     return {
       uid: result.uid,
       role: result.role,
       displayName: result.displayName,
       emailVerified: result.emailVerified,
     };
+  }
+
+  /**
+   * Stamp the Set-Cookie header for a freshly-minted session. Shared by
+   * register and login so the cookie name, attributes, and TTL plumbing
+   * live in exactly one place.
+   */
+  private attachSessionCookie(
+    res: Response,
+    session: { cookie: string; maxAgeSeconds: number },
+  ): void {
+    res.setHeader(
+      'Set-Cookie',
+      this.sessionCookieHelper.toSetCookie(session.cookie, {
+        maxAgeSeconds: session.maxAgeSeconds,
+      }),
+    );
   }
 
   @Post('resend-verification')
