@@ -3,13 +3,16 @@
 Learn Wren is a self-hosted, open-source educational platform as a platform for creators. It enables any registered user to create and publish video-based courses organised into modules and lessons. Courses are consumed by enrolled students who can stream protected video content and download supplementary lesson materials. The platform is designed for small communities — such as a group of friends, a company, or a non-profit — and can be deployed on commodity hardware or a cloud server. All video content is protected by industry-standard Digital Rights Management (DRM) to prevent unauthorised redistribution.
 
 > [!NOTE]
-> **PROJECT STATUS: EARLY DEVELOPMENT**
-> The monorepo, both apps' "hello world" slices, the Firebase Emulator Suite, the real-project switch (`LEARNWREN_FIREBASE_TARGET=production`), the hardened auth slice (register / login / verification gate / brute-force lockout / password reset / session cookie / protected route), the course authoring slice (EP-02 US-02-01..03: instructor role promotion, REST course surface, drag-and-drop editor), and **EP-03 slices A + B + C (video upload through owner playback): instructor uploads MP4 / MOV / MKV ≤ 10 GB to a lesson via resumable upload, ffprobe + GCP Transcoder API + AES-128 HLS produce playable manifests on the output bucket, the lesson editor swaps the badge for an inline `<video>` element that streams via hls.js (or native HLS on Safari/iOS) once the video is READY** are wired up. Cover image upload is deferred. **EP-03 slice D (course publish gate) complete: instructors can publish / unpublish / archive / restore courses with structured eligibility feedback.**
-> **EP-04 (Lesson Materials) complete: instructors attach, rename, and remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP — up to 50 MB each) on a lesson, and download them via a short-lived signed URL. Enrolled-student download arrives with EP-06.**
-> **EP-05 Slice A (Course Discovery) complete:** a public, unauthenticated catalogue of PUBLISHED courses with category/difficulty filters, Newest/Alphabetical sort, and pagination; keyword search over course titles and descriptions; and a public course-detail page. `/` now opens the catalogue.
-> **EP-05 Slice B (Course Enrollment) complete:** logged-in students enroll in and leave published courses; enrollment grants video/material access and feeds a Most Popular catalogue sort; guests who click Enroll are sent to login and auto-enrolled on return. Enrolled-student playback UI (EP-06) remains deferred. Instructor dashboard and platform administration remain in post-MVP planning.
+> **PROJECT STATUS: ACTIVE DEVELOPMENT**
+> Built in vertical slices. What is wired up today, end to end:
 >
-> EP-05 Slice B deferred follow-ups: the 90-day purge of withdrawn enrollments (soft-delete + restore-on-re-enroll ship; the scheduled hard-delete does not), and access revocation when a course is unpublished after enrollment.
+> - **EP-01 Identity & access** — register, email-verification gate, login, logout, brute-force lockout + email unlock, logged-out password reset, session cookie, protected routes.
+> - **EP-02 Course authoring** — instructor role promotion (CLI), REST course CRUD, modules and lessons, drag-and-drop reorder.
+> - **EP-03 Video & DRM** — resumable upload (MP4 / MOV / MKV ≤ 10 GB), GCP Transcoder → AES-128 HLS, owner playback in the lesson editor (hls.js, native HLS on Safari/iOS), publish / unpublish / archive / restore gate with structured eligibility feedback.
+> - **EP-04 Lesson materials** — attach / rename / remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB each); owner downloads via short-lived signed URL.
+> - **EP-05 Course discovery & enrollment** — public catalogue with category/difficulty filters, Newest / Alphabetical / Most Popular sort, pagination, keyword search; public course-detail page; logged-in students enroll and leave; guests who click Enroll are auto-enrolled after login.
+>
+> Not built yet: cover image upload, enrolled-student playback / progress tracking (EP-06), instructor dashboard (EP-07), platform administration (EP-08). `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
 
 ---
 
@@ -20,23 +23,32 @@ This is an [Nx](https://nx.dev) workspace using pnpm. It contains an Angular SPA
 ```
 learnwren/
 ├── apps/
-│   ├── web/            # Angular SPA — renders the placeholder hero at /
+│   ├── web/            # Angular SPA — root `/` redirects to `/catalog`
 │   ├── web-e2e/        # Playwright E2E tests for web
-│   ├── api/            # NestJS API — exposes GET /api/health
+│   ├── api/            # NestJS API — exposes GET /api/health, GET /api/firestore-smoke
 │   └── api-e2e/        # Playwright E2E tests for api
 ├── libs/
 │   ├── shared-data-models/  # TS types shared between web and api
 │   ├── api-firebase/        # NestJS module wrapping firebase-admin (env-driven)
 │   ├── api-auth/            # NestJS auth module (register, login, lockout, verify, reset, unlock, guard)
+│   ├── api-courses/         # NestJS course/module/lesson, video pipeline, publish gate, materials, catalog, enrollment
 │   ├── web-auth/            # Angular auth lib (signal-based service, guard, pages)
+│   ├── web-courses/         # Angular instructor course editor (drag-and-drop modules/lessons, materials)
+│   ├── web-video/           # Angular video upload + hls.js owner playback
 │   ├── web-catalog/         # Angular standalone components for public course discovery (catalogue, search, course detail)
-│   └── web-enrollment/     # Angular enroll/leave panel for the course detail page
+│   ├── web-enrollment/      # Angular enroll/leave panel for the course detail page
+│   └── web-ui/              # Shared Angular UI primitives (cover tones, buttons, etc.)
 ├── tools/
-│   └── migrate-auth-2026-05-cleanup-unverified.ts  # Pre-deploy script: prune unverified accounts
+│   ├── promote-to-instructor.ts                    # CLI: promote a STUDENT to INSTRUCTOR via custom claim
+│   ├── firebase-admin-init.ts                      # Shared admin-SDK bootstrap for CLI tools
+│   ├── migrate-auth-2026-05-cleanup-unverified.ts  # Pre-deploy script: prune unverified accounts
+│   ├── crap/                                       # CRAP score reporter (consumes Vitest coverage)
+│   └── mutation/                                   # Stryker mutation-test report aggregator
 └── docs/
     ├── epics/          # Product specs (epics & user stories)
     ├── use-cases/      # Cockburn-style use cases for MVP scope (EP-01..06)
     ├── superpowers/    # Design specs, plans, and post-implementation summaries
+    ├── USER_GUIDE.md   # End-user / developer feature walkthrough
     ├── development.md  # Local development reference
     └── secrets.md      # 1Password vault contract and workflow
 ```
@@ -48,9 +60,13 @@ learnwren/
 | `shared-data-models` | Library | TypeScript types (consumed by `web` and `api`) |
 | `api-firebase` | Library | NestJS module providing the firebase-admin handle + Web API key (emulator/production mode-switching) |
 | `api-auth` | Library | `AuthModule`: controller, service, `FirebaseSessionGuard`, DTOs, error envelope, `AuthAttemptsRepository`, `FirebaseAuthRestClient`, `EmailTransport` |
+| `api-courses` | Library | `CoursesModule`: course/module/lesson CRUD, video upload + Transcoder pipeline + HLS playback, publish-eligibility gate, lesson materials, public catalog, enrollment |
 | `web-auth` | Library | Angular standalone components (`Login`, `Register`, `RegisterConfirm`, `ForgotPassword`, `Unlock`), signal-based `AuthService`, `authGuard`, interceptor |
+| `web-courses` | Library | Angular instructor course editor (course list/detail, drag-and-drop modules and lessons, materials panel, publish controls) |
+| `web-video` | Library | Angular resumable video upload + hls.js (or native HLS) owner playback widget |
 | `web-catalog` | Library | Angular standalone components for public course discovery (catalogue, search, course detail) |
 | `web-enrollment` | Library | Angular standalone `EnrollmentService` + `CourseEnrollmentPanelComponent` |
+| `web-ui` | Library | Shared Angular UI primitives (deterministic course-cover tones, etc.) consumed by `web-catalog` and `web-courses` |
 | `web-e2e`, `api-e2e` | E2E suite | Playwright (api-e2e covers `/auth/**` end-to-end including lockout + Firestore rules) |
 
 The planned production deployment targets are Firebase Hosting (web) and Firebase Cloud Functions (api), backed by Firestore, Cloud Storage, and Firebase Authentication. See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./docs/epics/TECHNICAL_ARCHITECTURE.md).
@@ -201,6 +217,9 @@ All scripts run from the repo root and delegate to Nx.
 | `pnpm typecheck` | Type-check all projects. |
 | `pnpm e2e` | Run the Playwright E2E suites (sequential). |
 | `pnpm affected` | Run lint + test + build + typecheck only for projects affected by the current branch. |
+| `pnpm crap` | Run coverage on the backend + selected libs and emit the CRAP-score report (`pnpm crap:coverage`, `pnpm crap:report` are split steps). |
+| `pnpm mutate` | Run Stryker mutation tests for `api-auth` and `api-courses` and aggregate the report (`pnpm mutate:api-auth`, `pnpm mutate:api-courses`, `pnpm mutate:report` are split steps). |
+| `pnpm tools:promote-to-instructor <email>` | Promote an email-verified STUDENT to INSTRUCTOR (custom claim + `users/{uid}` doc). Required to access the course editor; the user must sign out and back in after. |
 | `pnpm secrets:render` | Render `.env` from `.env.tpl` via 1Password. |
 | `pnpm secrets:run -- <cmd>` | Run a command with secrets injected in-memory (no `.env` written). |
 
