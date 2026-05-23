@@ -69,12 +69,17 @@ export class VideoStorageAdapter implements VideoStoragePort {
     videoId: string;
   }): Promise<ResumableSession> {
     const file = this.storage.bucket(input.bucket).file(input.path);
+    // CORS origin on the GCS resumable upload session: scope to the
+    // application's own origin so a leaked upload URI cannot be exercised
+    // from a third-party domain via a browser. Falls back to the SPA's local
+    // dev URL when the env var is unset (dev-only configuration).
+    const origin = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
     const [uri] = await file.createResumableUpload({
       metadata: {
         contentType: input.contentType,
         metadata: { videoId: input.videoId },
       },
-      origin: '*',
+      origin,
     });
     return {
       uri,
