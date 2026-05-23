@@ -55,7 +55,10 @@ async function uploadMaterial(
     uploadUrl: string;
   };
   const put = await request.put(absolute(uploadUrl), {
-    headers: { 'Content-Type': 'application/pdf' },
+    // FakeMaterialsController is session-guarded — forward the instructor's
+    // cookie so the dev passthrough mirrors the production GCS signed-URL
+    // PUT behaviour (which carries its own short-lived credential).
+    headers: { ...hdr, 'Content-Type': 'application/pdf' },
     data: PDF_BYTES,
   });
   expect(put.ok()).toBe(true);
@@ -93,7 +96,7 @@ test('materials happy path: upload, list, rename, download, remove', async ({ re
   const dl = await request.get(`${API_BASE}/materials/${matId}/download-url`, { headers: hdr });
   expect(dl.status()).toBe(200);
   const { downloadUrl } = (await dl.json()) as { downloadUrl: string };
-  const file = await request.get(absolute(downloadUrl));
+  const file = await request.get(absolute(downloadUrl), { headers: hdr });
   expect(file.status()).toBe(200);
   expect((await file.body()).length).toBe(PDF_BYTES.length);
 
