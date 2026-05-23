@@ -15,7 +15,8 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
-import { CourseNotFoundException, StaleReorderException } from './errors/courses.exception';
+import { CourseNotFoundException } from './errors/courses.exception';
+import { assertReorderSetMatches } from './reorder.util';
 
 const COURSES = 'courses';
 
@@ -31,23 +32,6 @@ function nowIso(): ISODateString {
 function nextOrder(existing: number[]): number {
   if (existing.length === 0) return 0;
   return Math.max(...existing) + 1;
-}
-
-/**
- * Verify the set of IDs being reordered still matches what's in the collection.
- * Called inside a transaction so the check and the writes commit atomically.
- */
-function assertReorderSetMatches(currentIds: string[], proposedIds: string[]): void {
-  if (currentIds.length !== proposedIds.length) throw new StaleReorderException();
-  const current = new Set(currentIds);
-  const proposed = new Set(proposedIds);
-  // Duplicates collapse in the Set — catch them via a size mismatch so a
-  // payload like ["a","a","b"] cannot pass the per-id `current.has` loop
-  // and silently double-write one id while losing another.
-  if (proposed.size !== proposedIds.length) throw new StaleReorderException();
-  for (const id of proposed) {
-    if (!current.has(id)) throw new StaleReorderException();
-  }
 }
 
 @Injectable()

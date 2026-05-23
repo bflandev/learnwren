@@ -18,8 +18,8 @@ import {
   CourseNotFoundException,
   LessonNotFoundException,
   ModuleNotFoundException,
-  StaleReorderException,
 } from './errors/courses.exception';
+import { assertReorderSetMatches } from './reorder.util';
 import type { CourseTree } from './types/loaded-course';
 import { MaterialsService } from './materials/materials.service';
 import { VideoService } from './video/video.service';
@@ -201,15 +201,5 @@ export class CoursesService {
       ...current.find((l) => l.id === id)!,
       order: index,
     }));
-  }
-}
-
-function assertReorderSetMatches(currentIds: string[], proposedIds: string[]): void {
-  if (currentIds.length !== proposedIds.length) throw new StaleReorderException();
-  const current = new Set(currentIds);
-  const proposed = new Set(proposedIds);
-  if (current.size !== proposed.size) throw new StaleReorderException();
-  for (const id of proposed) {
-    if (!current.has(id)) throw new StaleReorderException();
   }
 }
