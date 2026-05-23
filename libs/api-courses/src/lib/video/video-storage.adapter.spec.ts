@@ -5,7 +5,7 @@ import { type FirebaseStorageHandle } from '@learnwren/api-firebase';
 import { type VideoConfig } from './video.config';
 import { VideoStorageAdapter } from './video-storage.adapter';
 
-const realCfg = { playbackStorageImpl: 'real' } as VideoConfig;
+const realCfg = { playbackStorageImpl: 'real', sourceProbeImpl: 'real' } as VideoConfig;
 
 function makeAdapterWithRunner(runner: ReturnType<typeof vi.fn>, file: object): VideoStorageAdapter {
   const bucket = { file: () => file, deleteFiles: vi.fn(async () => [[]]) };
@@ -57,16 +57,18 @@ describe('VideoStorageAdapter.probeSource', () => {
     // touching ffprobe or the signed-URL machinery at all.
     const runner = vi.fn();
     const getSignedUrl = vi.fn();
-    const file = { getSignedUrl };
+    const fileSpy = vi.fn(() => ({ getSignedUrl }));
+    const bucketSpy = vi.fn(() => ({ file: fileSpy, deleteFiles: vi.fn(async () => [[]]) }));
+    const storage = { bucket: bucketSpy };
     const fakeCfg = { playbackStorageImpl: 'real', sourceProbeImpl: 'fake' } as VideoConfig;
-    const bucket = { file: () => file, deleteFiles: vi.fn(async () => [[]]) };
-    const storage = { bucket: () => bucket };
     const adapter = new VideoStorageAdapter(storage as never, fakeCfg);
     adapter.__setRunner(runner as never);
 
     const result = await adapter.probeSource({ bucket: 'b', path: 'videos/v/source.mp4' });
 
     expect(result).toEqual({ height: 240, durationSec: 1 });
+    expect(bucketSpy).not.toHaveBeenCalled();
+    expect(fileSpy).not.toHaveBeenCalled();
     expect(getSignedUrl).not.toHaveBeenCalled();
     expect(runner).not.toHaveBeenCalled();
   });

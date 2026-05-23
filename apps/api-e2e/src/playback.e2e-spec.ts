@@ -49,14 +49,13 @@ async function uploadAndTranscode(
   return { courseId: c.id, moduleId: m.id, lessonId: l.id, videoId: sess.videoId };
 }
 
-// Still quarantined after the 2026-05-23 fake source-probe seam:
-//   The seam fixed the upload-complete probe (videos can now reach
-//   TRANSCODING in emulator mode), but the fake-transcoder/complete chain
-//   does NOT then transition TRANSCODING -> READY in this env. The playback
-//   tests below all require a READY video, so they still fail (the access
-//   guards return 409 VIDEO_NOT_READY). Needs a separate look at
-//   TranscoderEventsController -> VideoService.applyTranscoderResult under
-//   the fake transcoder envelope.
+// FOLLOWUP(fake-transcoder-ready-chain): the 2026-05-23 fake source-probe
+// seam fixed the upload-complete probe (videos can now reach TRANSCODING in
+// emulator mode), but the fake-transcoder/complete chain does NOT then
+// transition TRANSCODING -> READY in this env. The playback tests below all
+// require a READY video, so they still fail (the access guards return 409
+// VIDEO_NOT_READY). Needs a separate look at TranscoderEventsController ->
+// VideoService.applyTranscoderResult under the fake transcoder envelope.
 test.fixme('owner can fetch master, rendition, and key', async ({ request }) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };
