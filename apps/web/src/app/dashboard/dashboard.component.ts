@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import type { Course } from '@learnwren/shared-data-models';
 import { AuthService } from '@learnwren/web-auth';
 import { CoursesService } from '@learnwren/web-courses';
-import { LwButtonDirective, LwCardComponent, LwCoverComponent, LwPillComponent } from '@learnwren/web-ui';
+import { LwButtonDirective, LwCardComponent, LwCoverComponent, LwPillComponent, coverToneForId } from '@learnwren/web-ui';
 
 @Component({
   selector: 'app-dashboard',
@@ -20,6 +20,7 @@ export class DashboardComponent {
   protected readonly role = () => this.auth.currentUser()?.role ?? '';
   protected readonly isInstructor = () => this.auth.currentUser()?.role === 'INSTRUCTOR';
   readonly courses = signal<Course[] | null>(null);
+  readonly coverToneForId = coverToneForId;
 
   constructor() {
     if (this.isInstructor()) {

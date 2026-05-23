@@ -4,12 +4,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, type ParamMap } from '@angular/router';
 
 import type { CourseCatalogDetail } from '@learnwren/shared-data-models';
-import { LwCoverComponent, LwPillComponent } from '@learnwren/web-ui';
+import { LwCoverComponent, LwPillComponent, coverToneForId } from '@learnwren/web-ui';
 import { CourseEnrollmentPanelComponent } from '@learnwren/web-enrollment';
 
 import { CatalogService } from '../catalog.service';
 import { ModuleOutlineComponent } from '../components/module-outline/module-outline.component';
-import { coverToneForId } from '../cover-tone';
 
 @Component({
   selector: 'lib-course-detail-page',

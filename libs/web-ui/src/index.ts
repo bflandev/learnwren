@@ -6,5 +6,6 @@ export * from './lib/card/lw-card.component';
 export * from './lib/pill/lw-pill.component';
 export * from './lib/progress/lw-progress.component';
 export * from './lib/cover/lw-cover.component';
+export * from './lib/cover/cover-tone';
 export * from './lib/theme-toggle/theme-toggle.component';
 export * from './lib/input/lw-input.directive';

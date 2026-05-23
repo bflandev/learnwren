@@ -1,4 +1,4 @@
-import type { LwCoverTone } from '@learnwren/web-ui';
+import type { LwCoverTone } from './lw-cover.component';
 
 const COVER_TONES: readonly LwCoverTone[] = ['moss', 'clay', 'bark', 'paper', 'ochre'];
 
