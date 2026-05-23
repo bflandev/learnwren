@@ -10,6 +10,7 @@ import { CoursesExceptionFilter } from '../courses.exception-filter';
 import { CatalogQueryDto } from './dto/catalog-query.dto';
 import { CatalogSearchDto } from './dto/catalog-search.dto';
 import { CatalogService } from './catalog.service';
+import { ParseCourseIdPipe } from './parse-course-id.pipe';
 
 /**
  * Public, unauthenticated course discovery. No `@UseGuards` — read-only and
@@ -32,7 +33,7 @@ export class CatalogController {
   }
 
   @Get(':cid')
-  detail(@Param('cid') cid: CourseId): Promise<CourseCatalogDetail> {
+  detail(@Param('cid', ParseCourseIdPipe) cid: CourseId): Promise<CourseCatalogDetail> {
     return this.svc.getCourseDetail(cid);
   }
 }

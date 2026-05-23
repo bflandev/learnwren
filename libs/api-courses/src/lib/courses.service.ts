@@ -94,6 +94,12 @@ export class CoursesService {
   }
 
   async updateCourse(cid: CourseId, patch: UpdateCourseInput): Promise<void> {
+    // Match the updateModule/updateLesson pattern: pre-check existence so a
+    // PATCH to a since-deleted course (the race between CourseOwnerGuard's
+    // read and this write) surfaces a structured 404 instead of a raw
+    // Firestore NOT_FOUND that the exception filter falls through as 500.
+    const existing = await this.repo.getCourse(cid);
+    if (!existing) throw new CourseNotFoundException();
     await this.repo.updateCourse(cid, patch);
   }
 
