@@ -62,12 +62,10 @@ export class CourseEditorPageComponent {
   }
 
   async onUpdateCourse(patch: UpdateCourseInput): Promise<void> {
-    try {
-      await this.service.updateCourse(this.cid(), patch);
-      await this.refresh();
-    } catch {
-      this.error.set('Failed to save changes — refresh to see current state.');
-    }
+    await this.runWithErrorMessage(
+      () => this.service.updateCourse(this.cid(), patch),
+      'Failed to save changes — refresh to see current state.',
+    );
   }
 
   requestDeleteCourse(): void {
@@ -97,12 +95,15 @@ export class CourseEditorPageComponent {
   }
 
   protected onJumpToModule(mid: ModuleId): void {
-    const el = document.querySelector(`[data-module-id="${mid}"]`);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    this.smoothScrollTo(`[data-module-id="${mid}"]`);
   }
 
   protected onJumpToLesson(lid: LessonId): void {
-    const el = document.querySelector(`[data-lesson-id="${lid}"]`);
+    this.smoothScrollTo(`[data-lesson-id="${lid}"]`);
+  }
+
+  private smoothScrollTo(selector: string): void {
+    const el = document.querySelector(selector);
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
@@ -134,54 +135,75 @@ export class CourseEditorPageComponent {
   async addModule(): Promise<void> {
     const title = window.prompt('Module title');
     if (!title) return;
-    try {
-      await this.service.createModule(this.cid(), { title });
-      await this.refresh();
-    } catch {
-      this.error.set('Failed to add module.');
-    }
+    await this.runWithErrorMessage(
+      () => this.service.createModule(this.cid(), { title }),
+      'Failed to add module.',
+    );
   }
 
   async onRenameModule(args: { moduleId: string; title: string }): Promise<void> {
-    try {
-      await this.service.updateModule(this.cid(), args.moduleId, { title: args.title });
-      await this.refresh();
-    } catch {
-      this.error.set('Failed to rename module.');
-    }
+    await this.runWithErrorMessage(
+      () => this.service.updateModule(this.cid(), args.moduleId, { title: args.title }),
+      'Failed to rename module.',
+    );
   }
 
   async onAddLesson(args: { moduleId: string; title: string }): Promise<void> {
-    try {
-      await this.service.createLesson(this.cid(), args.moduleId, { title: args.title });
-      await this.refresh();
-    } catch {
-      this.error.set('Failed to add lesson.');
-    }
+    await this.runWithErrorMessage(
+      () => this.service.createLesson(this.cid(), args.moduleId, { title: args.title }),
+      'Failed to add lesson.',
+    );
   }
 
   async onRenameLesson(args: { moduleId: string; lessonId: string; title: string }): Promise<void> {
-    try {
-      await this.service.updateLesson(this.cid(), args.moduleId, args.lessonId, {
-        title: args.title,
-      });
-      await this.refresh();
-    } catch {
-      this.error.set('Failed to rename lesson.');
-    }
+    await this.runWithErrorMessage(
+      () => this.service.updateLesson(this.cid(), args.moduleId, args.lessonId, { title: args.title }),
+      'Failed to rename lesson.',
+    );
   }
 
   async onReorderModules(ids: string[]): Promise<void> {
+    await this.runOptimisticReorder(
+      (snapshot) => ({
+        course: snapshot.course,
+        modules: ids
+          .map((id) => snapshot.modules.find((n) => n.module.id === id))
+          .filter((n): n is { module: Module; lessons: Lesson[] } => Boolean(n)),
+      }),
+      () => this.service.reorderModules(this.cid(), ids),
+    );
+  }
+
+  async onReorderLessons(args: { moduleId: string; lessonIds: string[] }): Promise<void> {
+    await this.runOptimisticReorder(
+      (snapshot) => ({
+        course: snapshot.course,
+        modules: snapshot.modules.map((n) => {
+          if (n.module.id !== args.moduleId) return n;
+          const newLessons = args.lessonIds
+            .map((id) => n.lessons.find((l) => l.id === id))
+            .filter((l): l is Lesson => Boolean(l));
+          return { module: n.module, lessons: newLessons };
+        }),
+      }),
+      () => this.service.reorderLessons(this.cid(), args.moduleId, args.lessonIds),
+    );
+  }
+
+  /**
+   * Apply an optimistic local tree mutation, then commit it via `commit`. On
+   * failure, restore the snapshot, pin a "Reorder failed — reverted." error,
+   * and refresh from the server so the UI lines up with the canonical state.
+   */
+  private async runOptimisticReorder(
+    project: (snapshot: CourseTree) => CourseTree,
+    commit: () => Promise<unknown>,
+  ): Promise<void> {
     const snapshot = this.tree();
     if (!snapshot) return;
-    this.tree.set({
-      course: snapshot.course,
-      modules: ids
-        .map((id) => snapshot.modules.find((n) => n.module.id === id))
-        .filter((n): n is { module: Module; lessons: Lesson[] } => Boolean(n)),
-    });
+    this.tree.set(project(snapshot));
     try {
-      await this.service.reorderModules(this.cid(), ids);
+      await commit();
     } catch {
       this.tree.set(snapshot);
       this.error.set('Reorder failed — reverted.');
@@ -189,25 +211,17 @@ export class CourseEditorPageComponent {
     }
   }
 
-  async onReorderLessons(args: { moduleId: string; lessonIds: string[] }): Promise<void> {
-    const snapshot = this.tree();
-    if (!snapshot) return;
-    this.tree.set({
-      course: snapshot.course,
-      modules: snapshot.modules.map((n) => {
-        if (n.module.id !== args.moduleId) return n;
-        const newLessons = args.lessonIds
-          .map((id) => n.lessons.find((l) => l.id === id))
-          .filter((l): l is Lesson => Boolean(l));
-        return { module: n.module, lessons: newLessons };
-      }),
-    });
+  /**
+   * Run a service call, refresh on success, and pin the given error message
+   * on failure. The mutating-success path always re-fetches the tree so the
+   * UI matches the server's view rather than relying on a local projection.
+   */
+  private async runWithErrorMessage(op: () => Promise<unknown>, errorMessage: string): Promise<void> {
     try {
-      await this.service.reorderLessons(this.cid(), args.moduleId, args.lessonIds);
-    } catch {
-      this.tree.set(snapshot);
-      this.error.set('Reorder failed — reverted.');
+      await op();
       await this.refresh();
+    } catch {
+      this.error.set(errorMessage);
     }
   }
 
