@@ -3,6 +3,7 @@ import { createTransport, type Transporter } from 'nodemailer';
 
 import type {
   EmailTransport,
+  PasswordResetEmailInput,
   UnlockEmailInput,
   VerificationEmailInput,
 } from './email-transport';
@@ -68,6 +69,29 @@ export class SmtpEmailTransport implements EmailTransport {
     } catch (err) {
       this.logger.error(
         `[verification-email] send failed to=${input.to}: ${String(err)}`,
+      );
+      throw err;
+    }
+  }
+
+  async sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<void> {
+    const text =
+      `Someone — hopefully you — asked to reset the password on your Learn Wren account.\n\n` +
+      `Click the link below to choose a new password:\n\n` +
+      `${input.resetUrl}\n\n` +
+      `If you didn't request this, you can safely ignore this email.`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.config.from,
+        to: input.to,
+        subject: 'Reset your Learn Wren password',
+        text,
+      });
+      this.logger.log(`[password-reset-email] sent to=${input.to}`);
+    } catch (err) {
+      this.logger.error(
+        `[password-reset-email] send failed to=${input.to}: ${String(err)}`,
       );
       throw err;
     }

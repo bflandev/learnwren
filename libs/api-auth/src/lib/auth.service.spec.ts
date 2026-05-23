@@ -119,6 +119,7 @@ async function buildModule(
         useValue: {
           sendUnlockEmail: vi.fn(async () => undefined),
           sendVerificationEmail: vi.fn(async () => undefined),
+          sendPasswordResetEmail: vi.fn(async () => undefined),
         },
       },
     ],
@@ -621,6 +622,7 @@ describe('AuthService.login', () => {
         useValue: {
           sendUnlockEmail: vi.fn(async () => undefined),
           sendVerificationEmail: vi.fn(async () => undefined),
+          sendPasswordResetEmail: vi.fn(async () => undefined),
         },
       },
       ],
@@ -904,6 +906,7 @@ describe('AuthService.resendVerification', () => {
         useValue: {
           sendUnlockEmail: vi.fn(async () => undefined),
           sendVerificationEmail: vi.fn(async () => undefined),
+          sendPasswordResetEmail: vi.fn(async () => undefined),
         },
       },
       ],
@@ -1003,6 +1006,11 @@ describe('AuthService.requestPasswordReset', () => {
     (auth as unknown as { generatePasswordResetLink: ReturnType<typeof vi.fn> }).generatePasswordResetLink =
       vi.fn(async () => 'https://reset/abc');
 
+    const emailTransport = {
+      sendUnlockEmail: vi.fn(async () => undefined),
+      sendVerificationEmail: vi.fn(async () => undefined),
+      sendPasswordResetEmail: vi.fn(async () => undefined),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -1011,16 +1019,10 @@ describe('AuthService.requestPasswordReset', () => {
         { provide: FIRESTORE, useValue: firestore },
         { provide: FirebaseAuthRestClient, useValue: rest },
         { provide: AuthAttemptsRepository, useValue: attempts },
-        {
-        provide: EMAIL_TRANSPORT,
-        useValue: {
-          sendUnlockEmail: vi.fn(async () => undefined),
-          sendVerificationEmail: vi.fn(async () => undefined),
-        },
-      },
+        { provide: EMAIL_TRANSPORT, useValue: emailTransport },
       ],
     }).compile();
-    return { service: moduleRef.get(AuthService), auth, spies };
+    return { service: moduleRef.get(AuthService), auth, spies, emailTransport };
   }
 
   it('throws TOO_MANY_REQUESTS when within throttle window', async () => {
@@ -1050,6 +1052,18 @@ describe('AuthService.requestPasswordReset', () => {
       'alice@example.com',
       { url: 'http://localhost:4200/login?reset=ok' },
     );
+  });
+
+  it('dispatches the reset link via emailTransport.sendPasswordResetEmail', async () => {
+    // generatePasswordResetLink on the Admin SDK only returns a URL — it does
+    // not send any email. We must explicitly hand the link to the transport,
+    // or "Forgot password?" is silently dead in production.
+    const { service, emailTransport } = await build({});
+    await service.requestPasswordReset('alice@example.com');
+    expect(emailTransport.sendPasswordResetEmail).toHaveBeenCalledWith({
+      to: 'alice@example.com',
+      resetUrl: 'https://reset/abc',
+    });
   });
 
   it('propagates a non-user-not-found Firebase error from getUserByEmail (does not silently succeed)', async () => {
@@ -1107,6 +1121,7 @@ describe('AuthService.unlock', () => {
         useValue: {
           sendUnlockEmail: vi.fn(async () => undefined),
           sendVerificationEmail: vi.fn(async () => undefined),
+          sendPasswordResetEmail: vi.fn(async () => undefined),
         },
       },
       ],

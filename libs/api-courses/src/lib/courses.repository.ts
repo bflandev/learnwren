@@ -15,12 +15,34 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
-import { CourseNotFoundException } from './errors/courses.exception';
+import { CourseNotFoundException, StaleReorderException } from './errors/courses.exception';
 
 const COURSES = 'courses';
 
 function nowIso(): ISODateString {
   return new Date().toISOString() as ISODateString;
+}
+
+/**
+ * Next free `order` value for an append: `max(existing) + 1`, or 0 when empty.
+ * Using `siblings.size` is unsafe — after any deletion the count shrinks
+ * but the highest surviving order does not, producing a duplicate.
+ */
+function nextOrder(existing: number[]): number {
+  if (existing.length === 0) return 0;
+  return Math.max(...existing) + 1;
+}
+
+/**
+ * Verify the set of IDs being reordered still matches what's in the collection.
+ * Called inside a transaction so the check and the writes commit atomically.
+ */
+function assertReorderSetMatches(currentIds: string[], proposedIds: string[]): void {
+  if (currentIds.length !== proposedIds.length) throw new StaleReorderException();
+  const current = new Set(currentIds);
+  for (const id of proposedIds) {
+    if (!current.has(id)) throw new StaleReorderException();
+  }
 }
 
 @Injectable()
@@ -88,7 +110,10 @@ export class CoursesRepository {
 
     return this.firestore.runTransaction(async (t) => {
       const siblings = await t.get(siblingsRef);
-      const order = siblings.size;
+      // Use max(order)+1 rather than siblings.size: after a deletion, .size
+      // shrinks but the highest surviving order does not, so siblings.size
+      // would collide with an existing module's order.
+      const order = nextOrder(siblings.docs.map((d) => (d.data() as { order: number }).order));
       const now = nowIso();
       const created: Module = { ...seed, order, createdAt: now, updatedAt: now };
       t.set(moduleRef, created);
@@ -136,22 +161,27 @@ export class CoursesRepository {
   }
 
   /**
-   * Write each module's new `order` (the array index in `orderedIds`) in one batch,
-   * along with a single course `updatedAt` touch.
+   * Write each module's new `order` (its index in `orderedIds`) atomically.
+   * Re-reads the modules inside the transaction and throws StaleReorderException
+   * if the set has changed (e.g. another tab deleted a module between the
+   * service's stale-check read and this write), so the operation either
+   * commits cleanly or fails with a 409 — never a partial 500.
    */
   async writeModuleOrder(cid: CourseId, orderedIds: ModuleId[]): Promise<void> {
-    const batch = this.firestore.batch();
-    const now = nowIso();
-    orderedIds.forEach((mid, index) => {
-      const ref = this.firestore
-        .collection(COURSES)
-        .doc(cid)
-        .collection('modules')
-        .doc(mid);
-      batch.update(ref, { order: index, updatedAt: now });
+    const modulesRef = this.firestore.collection(COURSES).doc(cid).collection('modules');
+    const courseRef = this.firestore.collection(COURSES).doc(cid);
+    await this.firestore.runTransaction(async (t) => {
+      const snap = await t.get(modulesRef);
+      assertReorderSetMatches(
+        snap.docs.map((d) => d.id),
+        orderedIds,
+      );
+      const now = nowIso();
+      orderedIds.forEach((mid, index) => {
+        t.update(modulesRef.doc(mid), { order: index, updatedAt: now });
+      });
+      t.update(courseRef, { updatedAt: now });
     });
-    batch.update(this.firestore.collection(COURSES).doc(cid), { updatedAt: now });
-    await batch.commit();
   }
 
   // ────────────────────────── Lesson ──────────────────────────
@@ -178,7 +208,8 @@ export class CoursesRepository {
 
     return this.firestore.runTransaction(async (t) => {
       const siblings = await t.get(siblingsRef);
-      const order = siblings.size;
+      // Use max(order)+1 — see appendModule for why .size is unsafe after deletion.
+      const order = nextOrder(siblings.docs.map((d) => (d.data() as { order: number }).order));
       const now = nowIso();
       const created: Lesson = { ...seed, order, createdAt: now, updatedAt: now };
       t.set(lessonRef, created);
@@ -253,20 +284,25 @@ export class CoursesRepository {
     mid: ModuleId,
     orderedIds: LessonId[],
   ): Promise<void> {
-    const batch = this.firestore.batch();
-    const now = nowIso();
-    orderedIds.forEach((lid, index) => {
-      const ref = this.firestore
-        .collection(COURSES)
-        .doc(cid)
-        .collection('modules')
-        .doc(mid)
-        .collection('lessons')
-        .doc(lid);
-      batch.update(ref, { order: index, updatedAt: now });
+    const lessonsRef = this.firestore
+      .collection(COURSES)
+      .doc(cid)
+      .collection('modules')
+      .doc(mid)
+      .collection('lessons');
+    const courseRef = this.firestore.collection(COURSES).doc(cid);
+    await this.firestore.runTransaction(async (t) => {
+      const snap = await t.get(lessonsRef);
+      assertReorderSetMatches(
+        snap.docs.map((d) => d.id),
+        orderedIds,
+      );
+      const now = nowIso();
+      orderedIds.forEach((lid, index) => {
+        t.update(lessonsRef.doc(lid), { order: index, updatedAt: now });
+      });
+      t.update(courseRef, { updatedAt: now });
     });
-    batch.update(this.firestore.collection(COURSES).doc(cid), { updatedAt: now });
-    await batch.commit();
   }
 
   /**

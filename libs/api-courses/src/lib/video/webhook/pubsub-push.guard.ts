@@ -28,6 +28,13 @@ export class PubSubPushGuard implements CanActivate {
   ) {}
 
   async canActivate(execCtx: ExecutionContext): Promise<boolean> {
+    // Defense in depth: if `invokerSaEmail` was somehow missed during config
+    // wiring, the later `payload.email !== this.cfg.invokerSaEmail` check
+    // would silently compare `undefined !== undefined` and pass. Fail loudly
+    // here instead, before touching any other check.
+    if (!this.cfg.invokerSaEmail || !this.cfg.webhookAudience) {
+      throw new PubSubInvalidTokenException('webhook invoker config missing');
+    }
     const req = execCtx
       .switchToHttp()
       .getRequest<{ headers: Record<string, string | string[] | undefined> }>();
