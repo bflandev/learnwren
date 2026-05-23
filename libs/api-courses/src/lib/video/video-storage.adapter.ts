@@ -33,6 +33,11 @@ export interface SourceProbe {
 
 export type FfprobeRunner = (binary: string, args: string[]) => Promise<{ stdout: string }>;
 
+/** GCS errors expose a numeric `code`; 404 is the canonical "object missing" signal. */
+function isNotFound(err: unknown): boolean {
+  return (err as { code?: number }).code === 404;
+}
+
 export interface VideoStoragePort {
   createResumableSession(input: {
     bucket: string;
@@ -68,13 +73,12 @@ export class VideoStorageAdapter implements VideoStoragePort {
     contentType: string;
     videoId: string;
   }): Promise<ResumableSession> {
-    const file = this.storage.bucket(input.bucket).file(input.path);
     // CORS origin on the GCS resumable upload session: scope to the
     // application's own origin so a leaked upload URI cannot be exercised
     // from a third-party domain via a browser. Falls back to the SPA's local
     // dev URL when the env var is unset (dev-only configuration).
     const origin = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
-    const [uri] = await file.createResumableUpload({
+    const [uri] = await this.fileRef(input).createResumableUpload({
       metadata: {
         contentType: input.contentType,
         metadata: { videoId: input.videoId },
@@ -88,25 +92,21 @@ export class VideoStorageAdapter implements VideoStoragePort {
   }
 
   async headObject(input: { bucket: string; path: string }): Promise<ObjectMetadata | null> {
-    const file = this.storage.bucket(input.bucket).file(input.path);
     try {
-      const [meta] = await file.getMetadata();
+      const [meta] = await this.fileRef(input).getMetadata();
       const size = typeof meta.size === 'string' ? Number(meta.size) : (meta.size as number);
       return { size };
     } catch (err) {
-      const code = (err as { code?: number }).code;
-      if (code === 404) return null;
+      if (isNotFound(err)) return null;
       throw err;
     }
   }
 
   async deleteObject(input: { bucket: string; path: string }): Promise<void> {
-    const file = this.storage.bucket(input.bucket).file(input.path);
     try {
-      await file.delete();
+      await this.fileRef(input).delete();
     } catch (err) {
-      const code = (err as { code?: number }).code;
-      if (code === 404) return;
+      if (isNotFound(err)) return;
       throw err;
     }
   }
@@ -127,12 +127,16 @@ export class VideoStorageAdapter implements VideoStoragePort {
     if (this.cfg.sourceProbeImpl === 'fake') {
       return { height: 240, durationSec: 1 };
     }
-    const file = this.storage.bucket(input.bucket).file(input.path);
-    const [signedUrl] = await file.getSignedUrl({
+    const [signedUrl] = await this.fileRef(input).getSignedUrl({
       action: 'read',
       expires: Date.now() + 60_000,
       version: 'v4',
     });
+    return this.runFfprobe(signedUrl);
+  }
+
+  /** Run ffprobe against a signed URL and parse the height + duration. */
+  private async runFfprobe(signedUrl: string): Promise<SourceProbe> {
     const { stdout } = await this.runner(ffprobeBinaryPath, [
       '-v', 'error',
       '-print_format', 'json',
@@ -158,8 +162,7 @@ export class VideoStorageAdapter implements VideoStoragePort {
     if (this.cfg.playbackStorageImpl === 'fake') {
       return this.fakeReadManifest(input.path);
     }
-    const file = this.storage.bucket(input.bucket).file(input.path);
-    const [buf] = await file.download();
+    const [buf] = await this.fileRef(input).download();
     return buf.toString('utf-8');
   }
 
@@ -167,13 +170,16 @@ export class VideoStorageAdapter implements VideoStoragePort {
     if (this.cfg.playbackStorageImpl === 'fake') {
       return `gs-stub://${input.bucket}/${input.path}?ttl=${input.ttlSec}`;
     }
-    const file = this.storage.bucket(input.bucket).file(input.path);
-    const [url] = await file.getSignedUrl({
+    const [url] = await this.fileRef(input).getSignedUrl({
       version: 'v4',
       action: 'read',
       expires: Date.now() + input.ttlSec * 1000,
     });
     return url;
+  }
+
+  private fileRef(input: { bucket: string; path: string }) {
+    return this.storage.bucket(input.bucket).file(input.path);
   }
 
   private fakeReadManifest(p: string): string {
