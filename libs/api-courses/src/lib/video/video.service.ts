@@ -129,10 +129,45 @@ export class VideoService {
   }
 
   async completeUpload(vid: VideoId): Promise<Video> {
+    const v = await this.getPendingUploadOrThrow(vid);
+    const actualSize = await this.verifyUploadObjectOrThrow(v);
+
+    const probe = await this.tryProbeSource(v);
+    if (!probe.ok) {
+      return this.recordPipelineFailure(vid, 'SOURCE_PROBE_FAILED', probe.error, actualSize);
+    }
+
+    const key = this.generateContentKey();
+    const submit = await this.submitWithRetry(this.buildTranscoderInput(v, probe.value.height, key));
+    if (!submit.ok) {
+      return this.recordPipelineFailure(vid, 'TRANSCODER_SUBMIT_FAILED', submit.lastError, actualSize);
+    }
+
+    return this.repo.finalizeUploadWithJob({
+      vid,
+      lid: v.lessonId,
+      actualSizeBytes: actualSize,
+      key,
+      transcoderJobName: submit.jobName,
+      nowIso: nowIso(),
+    });
+  }
+
+  /** Load the video and ensure it is still in PENDING_UPLOAD; throws otherwise. */
+  private async getPendingUploadOrThrow(vid: VideoId): Promise<Video> {
     const v = await this.repo.getVideo(vid);
     if (!v) throw new VideoNotFoundException();
     if (v.state !== 'PENDING_UPLOAD') throw new InvalidVideoStateException(v.state);
+    return v;
+  }
 
+  /**
+   * HEAD the uploaded object and confirm its size is within tolerance of the
+   * declared size. If the object is grossly larger, best-effort delete it
+   * before throwing — otherwise an attacker could pin a giant blob in storage
+   * by skipping completeUpload entirely.
+   */
+  private async verifyUploadObjectOrThrow(v: Video): Promise<number> {
     const head = await this.storage.headObject({ bucket: v.source.bucket, path: v.source.path });
     if (!head) throw new UploadObjectMissingException();
     const declared = v.source.sizeBytes ?? 0;
@@ -142,47 +177,59 @@ export class VideoService {
         .catch(() => undefined);
       throw new UploadObjectSizeMismatchException();
     }
+    return head.size;
+  }
 
-    let probe;
+  private async tryProbeSource(
+    v: Video,
+  ): Promise<{ ok: true; value: { height: number } } | { ok: false; error: string }> {
     try {
-      probe = await this.storage.probeSource({ bucket: v.source.bucket, path: v.source.path });
+      const probe = await this.storage.probeSource({ bucket: v.source.bucket, path: v.source.path });
+      return { ok: true, value: probe };
     } catch (err) {
-      this.logger.warn(`ffprobe failed for ${vid}: ${(err as Error).message}`);
-      return this.repo.markFailedFromSubmission({
-        vid,
-        failureReason: `SOURCE_PROBE_FAILED: ${(err as Error).message}`.slice(0, 500),
-        actualSizeBytes: head.size,
-        nowIso: nowIso(),
-      });
+      const message = (err as Error).message;
+      this.logger.warn(`ffprobe failed for ${v.id}: ${message}`);
+      return { ok: false, error: message };
     }
+  }
 
-    const keyBytes = new Uint8Array(randomBytes(16));
-    const keyId = this.repo.newId<VideoKeyId>();
-    const sourceUri = `gs://${v.source.bucket}/${v.source.path}`;
-    const outputUriPrefix = `gs://${this.cfg.outputBucket}/videos/${vid}/hls/`;
-    const submit = await this.submitWithRetry({
-      videoId: vid,
-      sourceUri,
-      outputUriPrefix,
-      encryptionKey: { id: keyId, bytes: keyBytes },
-      sourceHeight: probe.height,
+  private generateContentKey(): { id: VideoKeyId; bytes: Uint8Array } {
+    return {
+      id: this.repo.newId<VideoKeyId>(),
+      bytes: new Uint8Array(randomBytes(16)),
+    };
+  }
+
+  private buildTranscoderInput(
+    v: Video,
+    sourceHeight: number,
+    key: { id: VideoKeyId; bytes: Uint8Array },
+  ): Parameters<VideoTranscoder['submitJob']>[0] {
+    return {
+      videoId: v.id,
+      sourceUri: `gs://${v.source.bucket}/${v.source.path}`,
+      outputUriPrefix: `gs://${this.cfg.outputBucket}/videos/${v.id}/hls/`,
+      encryptionKey: key,
+      sourceHeight,
       topic: this.cfg.transcoderTopic ?? '',
-    });
-    if (!submit.ok) {
-      return this.repo.markFailedFromSubmission({
-        vid,
-        failureReason: `TRANSCODER_SUBMIT_FAILED: ${submit.lastError}`.slice(0, 500),
-        actualSizeBytes: head.size,
-        nowIso: nowIso(),
-      });
-    }
+    };
+  }
 
-    return this.repo.finalizeUploadWithJob({
+  /**
+   * Persist a transcode-pipeline failure (probe or submit) via the repo
+   * helper, formatting the failureReason as `${code}: ${detail}` capped at
+   * 500 chars to match the existing on-disk shape.
+   */
+  private recordPipelineFailure(
+    vid: VideoId,
+    code: 'SOURCE_PROBE_FAILED' | 'TRANSCODER_SUBMIT_FAILED',
+    detail: string,
+    actualSizeBytes: number,
+  ): Promise<Video> {
+    return this.repo.markFailedFromSubmission({
       vid,
-      lid: v.lessonId,
-      actualSizeBytes: head.size,
-      key: { id: keyId, bytes: keyBytes },
-      transcoderJobName: submit.jobName,
+      failureReason: `${code}: ${detail}`.slice(0, 500),
+      actualSizeBytes,
       nowIso: nowIso(),
     });
   }
@@ -231,29 +278,38 @@ export class VideoService {
     const v = await this.repo.getVideo(vid);
     if (!v) throw new VideoNotFoundException();
     if (!DELETABLE_STATES.has(v.state)) throw new InvalidVideoStateException(v.state);
-
-    if (v.state === 'TRANSCODING' && v.transcoderJobName) {
-      await this.transcoder.cancelJob(v.transcoderJobName).catch((err) =>
-        this.logger.warn(`cancelJob failed for ${v.transcoderJobName}: ${(err as Error).message}`),
-      );
-    }
-    if (v.state === 'READY' && v.output?.bucket) {
-      await this.storage.deletePrefix({
-        bucket: v.output.bucket,
-        prefix: `videos/${vid}/`,
-      });
-    }
-    await this.storage
-      .deleteObject({ bucket: v.source.bucket, path: v.source.path })
-      .catch(() => undefined);
+    await this.tearDownVideoSideEffects(v, { logCancelFailures: true });
     await this.repo.deleteVideoAndDetach(v.id, v.lessonId, nowIso());
   }
 
   async deleteForLesson(lid: LessonId): Promise<void> {
     const v = await this.repo.getVideoByLesson(lid);
     if (!v) return;
+    await this.tearDownVideoSideEffects(v, { logCancelFailures: false });
+    await this.repo.deleteVideoAndDetach(v.id, v.lessonId, nowIso());
+  }
+
+  /**
+   * Tear down out-of-Firestore artefacts: cancel an in-flight transcode job,
+   * delete any HLS output prefix, then best-effort delete the source object.
+   * Caller is responsible for the Firestore detach.
+   *
+   * `logCancelFailures` controls whether a cancelJob failure is logged. The
+   * lesson-cascade path swallows it silently (the lesson is being deleted
+   * outright, so transcoder noise isn't actionable); the direct-delete path
+   * logs because the operator initiated it.
+   */
+  private async tearDownVideoSideEffects(
+    v: Video,
+    opts: { logCancelFailures: boolean },
+  ): Promise<void> {
     if (v.state === 'TRANSCODING' && v.transcoderJobName) {
-      await this.transcoder.cancelJob(v.transcoderJobName).catch(() => undefined);
+      const jobName = v.transcoderJobName;
+      await this.transcoder.cancelJob(jobName).catch((err) => {
+        if (opts.logCancelFailures) {
+          this.logger.warn(`cancelJob failed for ${jobName}: ${(err as Error).message}`);
+        }
+      });
     }
     if (v.state === 'READY' && v.output?.bucket) {
       await this.storage.deletePrefix({
@@ -264,6 +320,5 @@ export class VideoService {
     await this.storage
       .deleteObject({ bucket: v.source.bucket, path: v.source.path })
       .catch(() => undefined);
-    await this.repo.deleteVideoAndDetach(v.id, v.lessonId, nowIso());
   }
 }
