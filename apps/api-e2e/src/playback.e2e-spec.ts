@@ -44,15 +44,19 @@ async function uploadAndTranscode(
   const fake = await request.post(
     `${API_BASE}/internal/fake-transcoder/complete/${sess.videoId}`,
   );
-  expect(fake.status()).toBe(204);
+  expect(fake.status()).toBe(200);
 
   return { courseId: c.id, moduleId: m.id, lessonId: l.id, videoId: sess.videoId };
 }
 
-// Quarantined (test.fixme): the tests below drive a video to READY, which
-// needs the real video upload / transcoder / Cloud Storage path with GCP
-// credentials and so cannot run in the credential-free CI. Restore them once
-// a fake source-storage seam exists — the playback path already has one.
+// Still quarantined after the 2026-05-23 fake source-probe seam:
+//   The seam fixed the upload-complete probe (videos can now reach
+//   TRANSCODING in emulator mode), but the fake-transcoder/complete chain
+//   does NOT then transition TRANSCODING -> READY in this env. The playback
+//   tests below all require a READY video, so they still fail (the access
+//   guards return 409 VIDEO_NOT_READY). Needs a separate look at
+//   TranscoderEventsController -> VideoService.applyTranscoderResult under
+//   the fake transcoder envelope.
 test.fixme('owner can fetch master, rendition, and key', async ({ request }) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };

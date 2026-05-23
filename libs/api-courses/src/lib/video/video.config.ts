@@ -10,6 +10,7 @@ export interface VideoConfig {
   playbackSignedUrlTtlSec: number;
   transcoderImpl: TranscoderImpl;
   playbackStorageImpl: 'real' | 'fake';
+  sourceProbeImpl: 'real' | 'fake';
   // Present only when transcoderImpl === 'gcp':
   gcpProjectId?: string;
   transcoderLocation?: string;
@@ -76,6 +77,21 @@ export function readVideoConfigFromEnv(env: NodeJS.ProcessEnv): VideoConfig {
     );
   }
 
+  const sourceProbeFakeRaw = env['LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE'];
+  let sourceProbeImpl: 'real' | 'fake';
+  if (sourceProbeFakeRaw === 'true') {
+    sourceProbeImpl = 'fake';
+  } else if (sourceProbeFakeRaw === undefined) {
+    sourceProbeImpl = isProduction ? 'real' : 'fake';
+  } else {
+    sourceProbeImpl = 'real';
+  }
+  if (sourceProbeImpl === 'fake' && isProduction) {
+    throw new Error(
+      'LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE=true is rejected when NODE_ENV=production.',
+    );
+  }
+
   const implRaw = env['LEARNWREN_VIDEO_TRANSCODER'] ?? (isProduction ? 'gcp' : 'fake');
   if (implRaw !== 'gcp' && implRaw !== 'fake') {
     throw new Error(
@@ -96,6 +112,7 @@ export function readVideoConfigFromEnv(env: NodeJS.ProcessEnv): VideoConfig {
     playbackSignedUrlTtlSec,
     transcoderImpl: implRaw,
     playbackStorageImpl,
+    sourceProbeImpl,
   };
 
   if (implRaw === 'fake') return base;

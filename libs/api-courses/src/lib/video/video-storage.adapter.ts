@@ -115,6 +115,13 @@ export class VideoStorageAdapter implements VideoStoragePort {
   }
 
   async probeSource(input: { bucket: string; path: string }): Promise<SourceProbe> {
+    // Credential-free seam: v4 signed URLs require Application Default
+    // Credentials, which don't exist in the emulator. Return a static probe
+    // (the fake transcoder also doesn't care about real dimensions). Match
+    // the playback-storage fake pattern in signObjectUrl / readManifestObject.
+    if (this.cfg.sourceProbeImpl === 'fake') {
+      return { height: 240, durationSec: 1 };
+    }
     const file = this.storage.bucket(input.bucket).file(input.path);
     const [signedUrl] = await file.getSignedUrl({
       action: 'read',

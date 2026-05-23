@@ -220,4 +220,51 @@ describe('readVideoConfigFromEnv — playback storage flag', () => {
     };
     expect(() => readVideoConfigFromEnv(env)).toThrow(/LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE/);
   });
+
+  it('defaults sourceProbeImpl to "fake" outside production', () => {
+    expect(readVideoConfigFromEnv(baseEnv()).sourceProbeImpl).toBe('fake');
+  });
+
+  it('defaults sourceProbeImpl to "real" in production', () => {
+    const env: NodeJS.ProcessEnv = {
+      NODE_ENV: 'production',
+      LEARNWREN_VIDEO_SOURCE_BUCKET: 'src',
+      LEARNWREN_VIDEO_OUTPUT_BUCKET: 'out',
+      LEARNWREN_VIDEO_TRANSCODER: 'gcp',
+      LEARNWREN_GCP_PROJECT_ID: 'p1',
+      LEARNWREN_TRANSCODER_LOCATION: 'us-central1',
+      LEARNWREN_TRANSCODER_TOPIC: 'projects/p1/topics/t',
+      LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE: 'https://x/api/internal/transcoder-events',
+      LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL: 'inv@p1.iam.gserviceaccount.com',
+    };
+    expect(readVideoConfigFromEnv(env).sourceProbeImpl).toBe('real');
+  });
+
+  it('honors LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE=true', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE = 'true';
+    expect(readVideoConfigFromEnv(env).sourceProbeImpl).toBe('fake');
+  });
+
+  it('treats any non-"true" value as "real" for the source-probe flag', () => {
+    const env = baseEnv();
+    env.LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE = 'yes';
+    expect(readVideoConfigFromEnv(env).sourceProbeImpl).toBe('real');
+  });
+
+  it('rejects fake source-probe in production', () => {
+    const env: NodeJS.ProcessEnv = {
+      NODE_ENV: 'production',
+      LEARNWREN_VIDEO_SOURCE_BUCKET: 'src',
+      LEARNWREN_VIDEO_OUTPUT_BUCKET: 'out',
+      LEARNWREN_VIDEO_TRANSCODER: 'gcp',
+      LEARNWREN_GCP_PROJECT_ID: 'p1',
+      LEARNWREN_TRANSCODER_LOCATION: 'us-central1',
+      LEARNWREN_TRANSCODER_TOPIC: 'projects/p1/topics/t',
+      LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE: 'https://x/api/internal/transcoder-events',
+      LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL: 'inv@p1.iam.gserviceaccount.com',
+      LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE: 'true',
+    };
+    expect(() => readVideoConfigFromEnv(env)).toThrow(/LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE/);
+  });
 });

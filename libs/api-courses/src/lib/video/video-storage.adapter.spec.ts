@@ -49,6 +49,27 @@ describe('VideoStorageAdapter.probeSource', () => {
     const adapter = makeAdapterWithRunner(runner, file);
     await expect(adapter.probeSource({ bucket: 'b', path: 'p' })).rejects.toThrow(/ffprobe/);
   });
+
+  it('returns the static fake probe without signing or running ffprobe when sourceProbeImpl is "fake"', async () => {
+    // The credential-free seam: in emulator/dev mode v4 signing throws because
+    // there are no Application Default Credentials. Returning a static probe
+    // (height: 240, durationSec: 1) lets the upload pipeline complete without
+    // touching ffprobe or the signed-URL machinery at all.
+    const runner = vi.fn();
+    const getSignedUrl = vi.fn();
+    const file = { getSignedUrl };
+    const fakeCfg = { playbackStorageImpl: 'real', sourceProbeImpl: 'fake' } as VideoConfig;
+    const bucket = { file: () => file, deleteFiles: vi.fn(async () => [[]]) };
+    const storage = { bucket: () => bucket };
+    const adapter = new VideoStorageAdapter(storage as never, fakeCfg);
+    adapter.__setRunner(runner as never);
+
+    const result = await adapter.probeSource({ bucket: 'b', path: 'videos/v/source.mp4' });
+
+    expect(result).toEqual({ height: 240, durationSec: 1 });
+    expect(getSignedUrl).not.toHaveBeenCalled();
+    expect(runner).not.toHaveBeenCalled();
+  });
 });
 
 describe('VideoStorageAdapter.deletePrefix', () => {
