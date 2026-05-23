@@ -1,8 +1,13 @@
 #!/usr/bin/env node
-// Mutation report generator. Consumes Stryker's mutation.json and emits a
-// triage-oriented markdown report that clusters survivors by file + line
-// proximity and translates mutator names into plain-English guidance about
-// the missing assertion.
+// Mutation report generator. Auto-discovers every reports/mutation/<lib>/mutation.json,
+// clusters survivors by file + line proximity, and translates mutator names
+// into plain-English guidance about the missing assertion.
+//
+// Headline score: each lib has two numbers
+//   - raw: Stryker's own (killed) / (killed + survived + no-cov)
+//   - adjusted: same with equivalent-mutant candidates excluded from the denominator
+// The adjusted score is what the team operates against; the raw score is
+// preserved so regressions stay visible.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,14 +15,39 @@ import url from 'node:url';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
-const STRYKER_JSON = path.join(REPO_ROOT, 'reports/mutation/api-auth/mutation.json');
-const REPORT_PATH = path.join(REPO_ROOT, 'docs/quality/mutation-report.md');
+const REPORTS_ROOT = path.join(REPO_ROOT, 'reports', 'mutation');
+const REPORT_PATH = path.join(REPO_ROOT, 'docs', 'quality', 'mutation-report.md');
 
 const CLUSTER_GAP = 5; // lines
 
 const SKIP_STATUSES = new Set(['Ignored']);
 const KILLED_STATUSES = new Set(['Killed', 'Timeout', 'RuntimeError']);
 const SURVIVOR_STATUSES = new Set(['Survived', 'NoCoverage']);
+
+// Library-specific guidance for thresholds. Lifted from the mutation-testing skill:
+// auth code → 90%+; core domain → 75–85%; glue/orchestration → 50–70%.
+const LIB_GUIDANCE = {
+  'api-auth': {
+    band: 'auth / billing / auth-adjacent — 90%+ target',
+    target: 90,
+  },
+  'api-courses': {
+    band: 'core domain logic — 75–85% target',
+    target: 80,
+  },
+  'web-catalog': {
+    band: 'web glue/orchestration — 50–70% target',
+    target: 60,
+  },
+  'web-enrollment': {
+    band: 'web glue/orchestration — 50–70% target',
+    target: 60,
+  },
+  'web-ui': {
+    band: 'web glue/orchestration — 50–70% target',
+    target: 60,
+  },
+};
 
 function readSourceLine(source, line) {
   return source.split('\n')[line - 1] ?? '';
@@ -225,10 +255,27 @@ function isLikelyEquivalent(mutant, source) {
   return false;
 }
 
-function buildReport(report) {
+function equivalenceReason(mutant, source) {
+  const line = readSourceLine(source, mutant.location.start.line);
+  if (/new\s+Logger\(/.test(line)) {
+    return 'Logger name passed to `new Logger(...)` — observability, not behavior.';
+  }
+  if (mutant.mutatorName === 'BlockStatement') {
+    return 'Catch block contains only logging — emptying it preserves the silent-swallow behavior.';
+  }
+  if (mutant.mutatorName === 'LogicalOperator' || mutant.mutatorName === 'MethodExpression') {
+    return 'Operator/expression inside a logger call — affects log content only, not behavior.';
+  }
+  return 'String literal inside a logger call — log content is observability, not behavior.';
+}
+
+// ---------------------------------------------------------------------------
+// Per-lib processing
+
+function processLib(libName, strykerReport) {
   const allMutants = [];
   const fileSummaries = [];
-  for (const [filePath, fileData] of Object.entries(report.files)) {
+  for (const [filePath, fileData] of Object.entries(strykerReport.files)) {
     const fileMutants = (fileData.mutants || []).map((m) => ({ ...m, file: filePath, source: fileData.source }));
     allMutants.push(...fileMutants);
     let killed = 0;
@@ -246,7 +293,6 @@ function buildReport(report) {
     fileSummaries.push({ file: filePath, killed, survived, noCov, ignored, score });
   }
 
-  // Headline
   let totalKilled = 0,
     totalSurvived = 0,
     totalNoCov = 0,
@@ -257,59 +303,112 @@ function buildReport(report) {
     else if (m.status === 'NoCoverage') totalNoCov += 1;
     else if (SKIP_STATUSES.has(m.status)) totalIgnored += 1;
   }
-  const totalDenom = totalKilled + totalSurvived + totalNoCov;
-  const totalScore = totalDenom === 0 ? 100 : (totalKilled / totalDenom) * 100;
+  const denom = totalKilled + totalSurvived + totalNoCov;
+  const rawScore = denom === 0 ? 100 : (totalKilled / denom) * 100;
   const coveredScore = totalKilled + totalSurvived === 0 ? 100 : (totalKilled / (totalKilled + totalSurvived)) * 100;
 
-  // Identify equivalent candidates (logger strings, etc.)
   const survivors = allMutants.filter((m) => SURVIVOR_STATUSES.has(m.status));
   const equivalentCandidates = survivors.filter((m) => isLikelyEquivalent(m, m.source));
   const realSurvivors = survivors.filter((m) => !isLikelyEquivalent(m, m.source));
 
-  // Cluster real survivors per file
-  const survivorsByFile = new Map();
-  for (const m of realSurvivors) {
-    if (!survivorsByFile.has(m.file)) survivorsByFile.set(m.file, []);
-    survivorsByFile.get(m.file).push(m);
-  }
+  // Adjusted score subtracts equivalent candidates from the denominator. The
+  // numerator stays the same (real kills) — equivalents drop out entirely
+  // rather than being counted as kills, which is the honest accounting per the
+  // mutation-testing skill: a mutation that is observably indistinguishable
+  // from the original cannot be "killed" by any test.
+  const adjDenom = Math.max(1, denom - equivalentCandidates.length);
+  const adjustedScore = (totalKilled / adjDenom) * 100;
 
+  return {
+    libName,
+    fileSummaries,
+    totalKilled,
+    totalSurvived,
+    totalNoCov,
+    totalIgnored,
+    rawScore,
+    coveredScore,
+    adjustedScore,
+    equivalentCandidates,
+    realSurvivors,
+    allMutants,
+  };
+}
+
+function verdictFor(libName, adjustedScore) {
+  const g = LIB_GUIDANCE[libName];
+  if (!g) return { band: 'unclassified', emoji: '⚪', target: null };
+  const emoji = adjustedScore >= g.target ? '✅' : adjustedScore >= g.target - 5 ? '⚠️' : '❌';
+  return { ...g, emoji };
+}
+
+// ---------------------------------------------------------------------------
+// Report rendering
+
+function renderHeadline(libResults) {
   const out = [];
-  out.push('# Mutation Test Report — `libs/api-auth`');
+  out.push('## Headline');
   out.push('');
-  out.push(`> Generated ${new Date().toISOString()}`);
+  out.push('| Lib | Raw score | Adjusted¹ | Band | Verdict |');
+  out.push('|-----|-----------|-----------|------|---------|');
+  for (const r of libResults) {
+    const v = verdictFor(r.libName, r.adjustedScore);
+    out.push(
+      `| \`${r.libName}\` | ${r.rawScore.toFixed(2)}% | **${r.adjustedScore.toFixed(2)}%** | ${v.band} | ${v.emoji} |`,
+    );
+  }
   out.push('');
   out.push(
-    `**Headline mutation score: ${totalScore.toFixed(2)}%** (killed=${totalKilled}, survived=${totalSurvived}, no-cov=${totalNoCov}, ignored=${totalIgnored}). ` +
-      `Score on covered mutants only: ${coveredScore.toFixed(2)}%.`,
+    '¹ *Adjusted score* excludes equivalent-mutant candidates (logger strings, Logger names, catch blocks with only logging) flagged by the report\'s heuristic. The raw score is preserved so regressions stay visible.',
   );
+  out.push('');
+  return out.join('\n');
+}
+
+function renderLibSection(r) {
+  const v = verdictFor(r.libName, r.adjustedScore);
+  const out = [];
+  out.push(`# \`libs/${r.libName}\``);
   out.push('');
   out.push(
-    `Auth code targets **90%+** per the mutation-testing skill. We are below target — survivors below are gaps to close.`,
+    `**Raw score: ${r.rawScore.toFixed(2)}%** · **Adjusted score: ${r.adjustedScore.toFixed(2)}%** ${v.emoji} ` +
+      `(killed=${r.totalKilled}, survived=${r.totalSurvived}, no-cov=${r.totalNoCov}, ignored=${r.totalIgnored}, ` +
+      `equivalents=${r.equivalentCandidates.length}). Covered-only: ${r.coveredScore.toFixed(2)}%.`,
   );
   out.push('');
+  out.push(`Target band: ${v.band}.`);
+  out.push('');
+
   out.push('## Per-file scores');
   out.push('');
   out.push('| File | Score | Killed | Survived | No-Coverage |');
   out.push('|------|-------|--------|----------|-------------|');
-  fileSummaries.sort((a, b) => a.score - b.score);
-  for (const fs of fileSummaries) {
-    out.push(
-      `| \`${fs.file.replace(/^libs\/api-auth\//, '')}\` | ${fs.score.toFixed(1)}% | ${fs.killed} | ${fs.survived} | ${fs.noCov} |`,
-    );
+  const sorted = [...r.fileSummaries].sort((a, b) => a.score - b.score);
+  for (const fs of sorted) {
+    const rel = fs.file.replace(new RegExp(`^libs/${r.libName}/`), '');
+    out.push(`| \`${rel}\` | ${fs.score.toFixed(1)}% | ${fs.killed} | ${fs.survived} | ${fs.noCov} |`);
   }
   out.push('');
+
+  // Survivor clusters
+  const survivorsByFile = new Map();
+  for (const m of r.realSurvivors) {
+    if (!survivorsByFile.has(m.file)) survivorsByFile.set(m.file, []);
+    survivorsByFile.get(m.file).push(m);
+  }
 
   out.push('## Survivor clusters — gaps to close');
   out.push('');
   if (survivorsByFile.size === 0) {
     out.push('_No actionable survivors after filtering equivalent candidates._');
+    out.push('');
   } else {
     let clusterNum = 0;
     const sortedFiles = [...survivorsByFile.entries()].sort((a, b) => b[1].length - a[1].length);
     for (const [filePath, mutants] of sortedFiles) {
       const source = mutants[0].source;
       const clusters = clusterMutants(mutants, source, filePath);
-      const rel = filePath.replace(/^libs\/api-auth\//, '');
+      const rel = filePath.replace(new RegExp(`^libs/${r.libName}/`), '');
       out.push(`### \`${rel}\` — ${mutants.length} surviving mutant${mutants.length === 1 ? '' : 's'}`);
       out.push('');
       for (const c of clusters) {
@@ -327,9 +426,7 @@ function buildReport(report) {
         out.push(`+ <replaced with: ${sample.replacement.trim().slice(0, 120)}>`);
         out.push('```');
         out.push('');
-        out.push(
-          `_Diagnosis._ ${diagnosisFor(c.dominantMutator, sample.replacement, sampleLine)}`,
-        );
+        out.push(`_Diagnosis._ ${diagnosisFor(c.dominantMutator, sample.replacement, sampleLine)}`);
         out.push('');
         out.push(`_Recommended test._ ${recommendTest(c)}`);
         out.push('');
@@ -337,54 +434,106 @@ function buildReport(report) {
     }
   }
 
-  out.push('## Equivalent-mutant candidates (proposed for exclusion)');
+  // Equivalent candidates
+  out.push('## Equivalent-mutant candidates (excluded from adjusted score)');
   out.push('');
-  if (equivalentCandidates.length === 0) {
-    out.push('_None proposed._');
+  if (r.equivalentCandidates.length === 0) {
+    out.push('_None._');
+    out.push('');
   } else {
     out.push(
-      'These survivors are flagged as likely equivalent (mostly logger observability). Review and confirm before excluding from the score:',
+      `${r.equivalentCandidates.length} mutants flagged as likely equivalent — these are excluded from the **adjusted** score above. Reviewer should confirm each before treating the adjusted score as authoritative:`,
     );
     out.push('');
     out.push('| File:line | Mutator | Reason |');
     out.push('|-----------|---------|--------|');
-    for (const m of equivalentCandidates) {
-      const rel = m.file.replace(/^libs\/api-auth\//, '');
-      const line = readSourceLine(m.source, m.location.start.line);
-      let reason;
-      if (/new\s+Logger\(/.test(line)) {
-        reason = 'Logger name passed to `new Logger(...)` — observability, not behavior.';
-      } else if (m.mutatorName === 'BlockStatement') {
-        reason = 'Catch block contains only logging — emptying it preserves the silent-swallow behavior.';
-      } else if (m.mutatorName === 'LogicalOperator' || m.mutatorName === 'MethodExpression') {
-        reason = 'Operator/expression inside a logger call — affects log content only, not behavior.';
-      } else {
-        reason = 'String literal inside a logger call — log content is observability, not behavior.';
-      }
-      out.push(`| \`${rel}:${m.location.start.line}\` | ${m.mutatorName} | ${reason} |`);
+    for (const m of r.equivalentCandidates) {
+      const rel = m.file.replace(new RegExp(`^libs/${r.libName}/`), '');
+      out.push(`| \`${rel}:${m.location.start.line}\` | ${m.mutatorName} | ${equivalenceReason(m, m.source)} |`);
     }
     out.push('');
-    out.push(
-      `Total: ${equivalentCandidates.length}. Excluding these would raise the score from **${totalScore.toFixed(2)}%** to **${(((totalKilled) / Math.max(1, totalDenom - equivalentCandidates.length)) * 100).toFixed(2)}%**. Confirm before adding to Stryker config.`,
-    );
   }
-  out.push('');
 
+  return out.join('\n');
+}
+
+function buildConsolidatedReport(libResults) {
+  const out = [];
+  out.push('# Mutation Test Report');
+  out.push('');
+  out.push(`> Generated ${new Date().toISOString()}`);
+  out.push('');
+  out.push(
+    'Each lib reports two scores. The **adjusted** score (bold) is what the team operates against — it excludes equivalent-mutant candidates the heuristic identifies (logger strings, Logger names, catch-only-logging blocks). The **raw** score is what Stryker emits directly, kept so regressions in real survivors stay visible.',
+  );
+  out.push('');
+  out.push(renderHeadline(libResults));
+  for (const r of libResults) {
+    out.push('---');
+    out.push('');
+    out.push(renderLibSection(r));
+  }
+  out.push('---');
+  out.push('');
   out.push('## Caveats');
   out.push('');
-  out.push('- **Scope.** Only `libs/api-auth/src/lib/**/*.ts` was mutated, excluding `email-transport/**` (its spec fails to import nodemailer in vitest), `auth.module.ts`, `dto/**`, `types/**`, `errors/**`, and `index.ts`. Other libraries (`web-auth`, `api-firebase`) are not analyzed yet.');
-  out.push('- **Coverage analysis.** `coverageAnalysis: perTest` — Stryker only runs tests whose coverage hit the mutated line. If a test exercises uncovered code paths through dynamic dispatch, that may be missed.');
-  out.push('- **No-coverage mutants** count against the score. They reflect lines that no test executes; CRAP\'s coverage data agrees these are gaps.');
-  out.push('- **Equivalent classification is heuristic.** The "candidates" list flags strings inside logger calls — review each before adding to Stryker\'s `mutator.excludedMutations` or per-line ignore comments.');
+  out.push('- **Scope is per-lib Stryker config.** Each `stryker.<lib>.config.mjs` controls what gets mutated. Excluded paths (DTOs, modules, barrel exports, type-only files) are listed there.');
+  out.push('- **Coverage analysis is `perTest`.** Stryker only runs tests whose coverage hit the mutated line. Tests that exercise the line via dynamic dispatch may be missed.');
+  out.push('- **No-coverage mutants count against the raw score.** They reflect lines no test executes — CRAP\'s coverage data should agree these are gaps.');
+  out.push('- **Equivalent classification is heuristic.** The "candidates" lists per lib flag strings inside logger calls, Logger names, and catch-only-logging blocks. Review each before treating the adjusted score as authoritative. To make a candidate permanent, either add a `// Stryker disable next-line all` comment above the line in source, or accept the heuristic and move on.');
   out.push('- **Test quality is real but bounded.** A surviving mutant means an assertion is missing for the *code as written*. If the code is wrong and tests pin the wrong behavior, mutation testing won\'t catch it.');
   out.push('');
   return out.join('\n');
 }
 
-const stryker = JSON.parse(fs.readFileSync(STRYKER_JSON, 'utf8'));
-const md = buildReport(stryker);
+// ---------------------------------------------------------------------------
+// Main
+
+function discoverLibs() {
+  if (!fs.existsSync(REPORTS_ROOT)) return [];
+  const entries = fs.readdirSync(REPORTS_ROOT, { withFileTypes: true });
+  const libs = [];
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    const jsonPath = path.join(REPORTS_ROOT, e.name, 'mutation.json');
+    if (!fs.existsSync(jsonPath)) continue;
+    libs.push({ libName: e.name, jsonPath });
+  }
+  // Stable, deterministic order: known libs first in their declared order, then the rest alphabetically.
+  const known = ['api-auth', 'api-courses', 'web-catalog', 'web-enrollment', 'web-ui'];
+  libs.sort((a, b) => {
+    const ai = known.indexOf(a.libName);
+    const bi = known.indexOf(b.libName);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.libName.localeCompare(b.libName);
+  });
+  return libs;
+}
+
+const discovered = discoverLibs();
+if (discovered.length === 0) {
+  // eslint-disable-next-line no-console
+  console.error(`No mutation.json files found under ${REPORTS_ROOT}. Run a mutation suite first.`);
+  process.exit(1);
+}
+
+const libResults = [];
+for (const { libName, jsonPath } of discovered) {
+  const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  libResults.push(processLib(libName, data));
+}
+
+const md = buildConsolidatedReport(libResults);
 fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
 fs.writeFileSync(REPORT_PATH, md);
 
 // eslint-disable-next-line no-console
 console.log(`Wrote ${path.relative(REPO_ROOT, REPORT_PATH)}`);
+for (const r of libResults) {
+  // eslint-disable-next-line no-console
+  console.log(
+    `  ${r.libName}: raw=${r.rawScore.toFixed(2)}% adjusted=${r.adjustedScore.toFixed(2)}% (survivors=${r.totalSurvived}, equiv=${r.equivalentCandidates.length})`,
+  );
+}
