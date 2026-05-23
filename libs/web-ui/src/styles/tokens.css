@@ -217,6 +217,7 @@
   color: oklch(100% 0 0 / 0.16);
   user-select: none;
 }
+.lw-cover[data-tone="paper"] .lw-cover-glyph { color: oklch(20% 0.02 60 / 0.45); }
 
 /* Progress bar */
 .lw-progress {
