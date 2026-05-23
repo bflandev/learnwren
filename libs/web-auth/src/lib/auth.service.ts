@@ -37,30 +37,34 @@ export class AuthService {
   readonly isAuthenticated = computed(() => Boolean(this.currentUserSignal()));
 
   async register(input: RegisterInput): Promise<LoginResult> {
-    try {
-      await firstValueFrom(
-        this.http.post('/api/auth/register', input).pipe(
-          switchMap(() => this.http.get<AuthenticatedUser>('/api/auth/me')),
-          tap(me => this.currentUserSignal.set(me)),
-        ),
-      );
-      return { ok: true };
-    } catch (err) {
-      return this.toLoginErr(err);
-    }
+    return this.authenticateThen('/api/auth/register', input, { resetUserOnError: false });
   }
 
   async login(email: string, password: string): Promise<LoginResult> {
+    return this.authenticateThen('/api/auth/login', { email, password }, { resetUserOnError: true });
+  }
+
+  /**
+   * POST to a cookie-minting endpoint, follow up with GET /auth/me, and
+   * stash the resulting user in the signal. On failure, optionally reset
+   * currentUser to null — login does this (the previous identity is gone),
+   * register does not (no prior identity to clobber).
+   */
+  private async authenticateThen(
+    endpoint: '/api/auth/register' | '/api/auth/login',
+    body: unknown,
+    opts: { resetUserOnError: boolean },
+  ): Promise<LoginResult> {
     try {
       await firstValueFrom(
-        this.http.post('/api/auth/login', { email, password }).pipe(
+        this.http.post(endpoint, body).pipe(
           switchMap(() => this.http.get<AuthenticatedUser>('/api/auth/me')),
-          tap(me => this.currentUserSignal.set(me)),
+          tap((me) => this.currentUserSignal.set(me)),
         ),
       );
       return { ok: true };
     } catch (err) {
-      this.currentUserSignal.set(null);
+      if (opts.resetUserOnError) this.currentUserSignal.set(null);
       return this.toLoginErr(err);
     }
   }
