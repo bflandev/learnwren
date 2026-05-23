@@ -54,6 +54,28 @@ function assertReorderSetMatches(currentIds: string[], proposedIds: string[]): v
 export class CoursesRepository {
   constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
 
+  // ────────────────────────── Path helpers ──────────────────────────
+  // The Firestore SDK has no concept of "a path string"; you build refs by
+  // chaining .collection().doc() calls. These tiny helpers centralise the
+  // chain so the rest of the file reads as intent (modules/lessons/etc.)
+  // rather than five-call ref construction.
+
+  private courseRef(cid: CourseId) {
+    return this.firestore.collection(COURSES).doc(cid);
+  }
+  private modulesCol(cid: CourseId) {
+    return this.courseRef(cid).collection('modules');
+  }
+  private moduleRef(cid: CourseId, mid: ModuleId) {
+    return this.modulesCol(cid).doc(mid);
+  }
+  private lessonsCol(cid: CourseId, mid: ModuleId) {
+    return this.moduleRef(cid, mid).collection('lessons');
+  }
+  private lessonRef(cid: CourseId, mid: ModuleId, lid: LessonId) {
+    return this.lessonsCol(cid, mid).doc(lid);
+  }
+
   // ────────────────────────── Course ──────────────────────────
 
   async createCourse(course: Course): Promise<void> {
@@ -61,7 +83,7 @@ export class CoursesRepository {
   }
 
   async getCourse(cid: CourseId): Promise<Course | null> {
-    const snap = await this.firestore.collection(COURSES).doc(cid).get();
+    const snap = await this.courseRef(cid).get();
     return snap.exists ? (snap.data() as Course) : null;
   }
 
@@ -84,15 +106,11 @@ export class CoursesRepository {
   }
 
   async updateCourse(cid: CourseId, patch: Partial<Course>): Promise<void> {
-    await this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .update({ ...patch, updatedAt: nowIso() });
+    await this.courseRef(cid).update({ ...patch, updatedAt: nowIso() });
   }
 
   async deleteCourseRecursive(cid: CourseId): Promise<void> {
-    const ref = this.firestore.collection(COURSES).doc(cid);
-    await this.firestore.recursiveDelete(ref);
+    await this.firestore.recursiveDelete(this.courseRef(cid));
   }
 
   // ────────────────────────── Module ──────────────────────────
@@ -105,64 +123,36 @@ export class CoursesRepository {
     cid: CourseId,
     seed: Omit<Module, 'order' | 'createdAt' | 'updatedAt'>,
   ): Promise<Module> {
-    const moduleRef = this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(seed.id);
-    const siblingsRef = this.firestore.collection(COURSES).doc(cid).collection('modules');
-    const courseRef = this.firestore.collection(COURSES).doc(cid);
-
     return this.firestore.runTransaction(async (t) => {
-      const siblings = await t.get(siblingsRef);
+      const siblings = await t.get(this.modulesCol(cid));
       // Use max(order)+1 rather than siblings.size: after a deletion, .size
       // shrinks but the highest surviving order does not, so siblings.size
       // would collide with an existing module's order.
       const order = nextOrder(siblings.docs.map((d) => (d.data() as { order: number }).order));
       const now = nowIso();
       const created: Module = { ...seed, order, createdAt: now, updatedAt: now };
-      t.set(moduleRef, created);
-      t.update(courseRef, { updatedAt: now });
+      t.set(this.moduleRef(cid, seed.id), created);
+      t.update(this.courseRef(cid), { updatedAt: now });
       return created;
     });
   }
 
   async getModule(cid: CourseId, mid: ModuleId): Promise<Module | null> {
-    const snap = await this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .get();
+    const snap = await this.moduleRef(cid, mid).get();
     return snap.exists ? (snap.data() as Module) : null;
   }
 
   async listModulesByCourse(cid: CourseId): Promise<Module[]> {
-    const snap = await this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .orderBy('order', 'asc')
-      .get();
+    const snap = await this.modulesCol(cid).orderBy('order', 'asc').get();
     return snap.docs.map((d) => d.data() as Module);
   }
 
   async updateModule(cid: CourseId, mid: ModuleId, patch: Partial<Module>): Promise<void> {
-    await this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .update({ ...patch, updatedAt: nowIso() });
+    await this.moduleRef(cid, mid).update({ ...patch, updatedAt: nowIso() });
   }
 
   async deleteModuleRecursive(cid: CourseId, mid: ModuleId): Promise<void> {
-    const ref = this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid);
-    await this.firestore.recursiveDelete(ref);
+    await this.firestore.recursiveDelete(this.moduleRef(cid, mid));
   }
 
   /**
@@ -173,8 +163,7 @@ export class CoursesRepository {
    * commits cleanly or fails with a 409 — never a partial 500.
    */
   async writeModuleOrder(cid: CourseId, orderedIds: ModuleId[]): Promise<void> {
-    const modulesRef = this.firestore.collection(COURSES).doc(cid).collection('modules');
-    const courseRef = this.firestore.collection(COURSES).doc(cid);
+    const modulesRef = this.modulesCol(cid);
     await this.firestore.runTransaction(async (t) => {
       const snap = await t.get(modulesRef);
       assertReorderSetMatches(
@@ -185,7 +174,7 @@ export class CoursesRepository {
       orderedIds.forEach((mid, index) => {
         t.update(modulesRef.doc(mid), { order: index, updatedAt: now });
       });
-      t.update(courseRef, { updatedAt: now });
+      t.update(this.courseRef(cid), { updatedAt: now });
     });
   }
 
@@ -196,64 +185,30 @@ export class CoursesRepository {
     mid: ModuleId,
     seed: Omit<Lesson, 'order' | 'createdAt' | 'updatedAt'>,
   ): Promise<Lesson> {
-    const lessonRef = this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .collection('lessons')
-      .doc(seed.id);
-    const siblingsRef = this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .collection('lessons');
-    const courseRef = this.firestore.collection(COURSES).doc(cid);
-
     return this.firestore.runTransaction(async (t) => {
-      const siblings = await t.get(siblingsRef);
+      const siblings = await t.get(this.lessonsCol(cid, mid));
       // Use max(order)+1 — see appendModule for why .size is unsafe after deletion.
       const order = nextOrder(siblings.docs.map((d) => (d.data() as { order: number }).order));
       const now = nowIso();
       const created: Lesson = { ...seed, order, createdAt: now, updatedAt: now };
-      t.set(lessonRef, created);
-      t.update(courseRef, { updatedAt: now });
+      t.set(this.lessonRef(cid, mid, seed.id), created);
+      t.update(this.courseRef(cid), { updatedAt: now });
       return created;
     });
   }
 
   async moduleExists(cid: CourseId, mid: ModuleId): Promise<boolean> {
-    const snap = await this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .get();
+    const snap = await this.moduleRef(cid, mid).get();
     return snap.exists;
   }
 
   async getLesson(cid: CourseId, mid: ModuleId, lid: LessonId): Promise<Lesson | null> {
-    const snap = await this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .collection('lessons')
-      .doc(lid)
-      .get();
+    const snap = await this.lessonRef(cid, mid, lid).get();
     return snap.exists ? (snap.data() as Lesson) : null;
   }
 
   async listLessonsByModule(cid: CourseId, mid: ModuleId): Promise<Lesson[]> {
-    const snap = await this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .collection('lessons')
-      .orderBy('order', 'asc')
-      .get();
+    const snap = await this.lessonsCol(cid, mid).orderBy('order', 'asc').get();
     return snap.docs.map((d) => d.data() as Lesson);
   }
 
@@ -263,25 +218,11 @@ export class CoursesRepository {
     lid: LessonId,
     patch: Partial<Lesson>,
   ): Promise<void> {
-    await this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .collection('lessons')
-      .doc(lid)
-      .update({ ...patch, updatedAt: nowIso() });
+    await this.lessonRef(cid, mid, lid).update({ ...patch, updatedAt: nowIso() });
   }
 
   async deleteLesson(cid: CourseId, mid: ModuleId, lid: LessonId): Promise<void> {
-    await this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .collection('lessons')
-      .doc(lid)
-      .delete();
+    await this.lessonRef(cid, mid, lid).delete();
   }
 
   async writeLessonOrder(
@@ -289,13 +230,7 @@ export class CoursesRepository {
     mid: ModuleId,
     orderedIds: LessonId[],
   ): Promise<void> {
-    const lessonsRef = this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .collection('lessons');
-    const courseRef = this.firestore.collection(COURSES).doc(cid);
+    const lessonsRef = this.lessonsCol(cid, mid);
     await this.firestore.runTransaction(async (t) => {
       const snap = await t.get(lessonsRef);
       assertReorderSetMatches(
@@ -306,7 +241,7 @@ export class CoursesRepository {
       orderedIds.forEach((lid, index) => {
         t.update(lessonsRef.doc(lid), { order: index, updatedAt: now });
       });
-      t.update(courseRef, { updatedAt: now });
+      t.update(this.courseRef(cid), { updatedAt: now });
     });
   }
 
@@ -329,8 +264,7 @@ export class CoursesRepository {
     t: adminFirestore.Transaction,
     cid: CourseId,
   ): Promise<Course> {
-    const ref = this.firestore.collection(COURSES).doc(cid);
-    const snap = await t.get(ref);
+    const snap = await t.get(this.courseRef(cid));
     if (!snap.exists) {
       throw new CourseNotFoundException();
     }
@@ -341,12 +275,7 @@ export class CoursesRepository {
     t: adminFirestore.Transaction,
     cid: CourseId,
   ): Promise<Module[]> {
-    const query = this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .orderBy('order', 'asc');
-    const snap = await t.get(query);
+    const snap = await t.get(this.modulesCol(cid).orderBy('order', 'asc'));
     return snap.docs.map((d) => d.data() as Module);
   }
 
@@ -355,14 +284,7 @@ export class CoursesRepository {
     cid: CourseId,
     mid: ModuleId,
   ): Promise<Lesson[]> {
-    const query = this.firestore
-      .collection(COURSES)
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .collection('lessons')
-      .orderBy('order', 'asc');
-    const snap = await t.get(query);
+    const snap = await t.get(this.lessonsCol(cid, mid).orderBy('order', 'asc'));
     return snap.docs.map((d) => d.data() as Lesson);
   }
 
@@ -379,8 +301,19 @@ export class CoursesRepository {
   ): Promise<Course> {
     // READ FIRST — Firestore txns require reads before writes
     const before = await this.getCourseInTxn(t, cid);
-    const ref = this.firestore.collection(COURSES).doc(cid);
     const now = nowIso();
+    const update = this.buildStatusUpdate(status, now, patch);
+    // THEN WRITE
+    t.update(this.courseRef(cid), update);
+    return this.composeUpdatedCourse(before, status, now, patch);
+  }
+
+  /** Build the Firestore update payload, translating `archivedAt: null` to FieldValue.delete(). */
+  private buildStatusUpdate(
+    status: CourseStatus,
+    now: ISODateString,
+    patch: { publishedAt?: ISODateString; archivedAt?: ISODateString | null },
+  ): Record<string, unknown> {
     const update: Record<string, unknown> = { status, updatedAt: now };
     if (patch.publishedAt !== undefined) update['publishedAt'] = patch.publishedAt;
     if (patch.archivedAt === null) {
@@ -388,19 +321,23 @@ export class CoursesRepository {
     } else if (patch.archivedAt !== undefined) {
       update['archivedAt'] = patch.archivedAt;
     }
-    // THEN WRITE
-    t.update(ref, update);
-    // Compose post-write doc from pre-read + applied patches
-    return {
-      ...before,
-      status,
-      updatedAt: now,
-      ...(patch.publishedAt !== undefined ? { publishedAt: patch.publishedAt } : {}),
-      ...(patch.archivedAt === null
-        ? { archivedAt: undefined }
-        : patch.archivedAt !== undefined
-          ? { archivedAt: patch.archivedAt }
-          : {}),
-    } as Course;
+    return update;
+  }
+
+  /** Compose the post-write Course from the pre-read snapshot plus the applied patch. */
+  private composeUpdatedCourse(
+    before: Course,
+    status: CourseStatus,
+    now: ISODateString,
+    patch: { publishedAt?: ISODateString; archivedAt?: ISODateString | null },
+  ): Course {
+    const composed: Course = { ...before, status, updatedAt: now };
+    if (patch.publishedAt !== undefined) composed.publishedAt = patch.publishedAt;
+    if (patch.archivedAt === null) {
+      composed.archivedAt = undefined;
+    } else if (patch.archivedAt !== undefined) {
+      composed.archivedAt = patch.archivedAt;
+    }
+    return composed;
   }
 }
