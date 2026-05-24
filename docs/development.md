@@ -126,10 +126,11 @@ pnpm nx e2e api-e2e
 pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e api-e2e'
 ```
 
-15 video upload/playback/publish tests are marked `test.fixme`: they exercise
-the real Cloud Storage upload / `ffprobe` path, which needs GCP credentials.
-The remaining 64 run credential-free. CI runs this suite on every push and PR
-(`.github/workflows/ci.yml`, the `e2e` job — which uses the one-shot form above).
+14 video upload / playback / publish tests are marked `test.fixme`: they
+exercise the real Cloud Storage upload / `ffprobe` path, which needs GCP
+credentials. The rest of the suite runs credential-free. CI runs this suite on
+every push and PR (`.github/workflows/ci.yml`, the `e2e` job — which uses the
+one-shot form above).
 
 ## Real-project mode
 
@@ -169,10 +170,6 @@ Secrets live in the 1Password vault `learnwren`. The committed `.env.tpl`
 references `op://...` paths; `.env` is gitignored and rendered locally via
 `pnpm secrets:render`. See `secrets.md` for the vault contract and how to add
 new secrets.
-
-## Known constraints
-
-- `@angular/fire` is pinned at `21.0.0-rc.0` because no stable Angular 21–compatible release exists yet. Bump to a non-RC `@angular/fire@^21.x` when GA ships.
 
 ## Auth dev workflow
 
