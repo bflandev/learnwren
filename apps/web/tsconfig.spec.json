@@ -19,6 +19,9 @@
     },
     {
       "path": "../../libs/web-auth/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/web-learn/tsconfig.lib.json"
     }
   ]
 }

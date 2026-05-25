@@ -27,6 +27,17 @@
           <lw-pill tone="default">{{ course()!.lessonCount }} lessons</lw-pill>
         </div>
         <lib-course-enrollment-panel [courseId]="course()!.id" />
+        @if (canStartLearning()) {
+          <a data-testid="start-learning"
+             class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-white"
+             [routerLink]="firstLessonHref()">
+            Start Learning
+          </a>
+        } @else if (showNoLessons()) {
+          <span data-testid="no-lessons" class="inline-block text-sm text-gray-500" aria-disabled="true">
+            No lessons yet
+          </span>
+        }
       </header>
 
       <p class="text-ink">{{ course()!.description }}</p>

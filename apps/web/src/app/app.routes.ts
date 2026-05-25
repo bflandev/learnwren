@@ -10,6 +10,7 @@ import {
 } from '@learnwren/web-auth';
 import { catalogRoutes } from '@learnwren/web-catalog';
 import { coursesRoutes } from '@learnwren/web-courses';
+import { learnRoutes } from '@learnwren/web-learn';
 
 export const appRoutes: Route[] = [
   {
@@ -40,5 +41,6 @@ export const appRoutes: Route[] = [
   },
   ...catalogRoutes,
   ...coursesRoutes,
+  ...learnRoutes,
   { path: '', pathMatch: 'full', redirectTo: '/catalog' },
 ];

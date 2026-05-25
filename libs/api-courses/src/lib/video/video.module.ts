@@ -92,6 +92,6 @@ const controllers = [
     // handler. Nest does not expose controllers through the DI container.
     TranscoderEventsController,
   ],
-  exports: [VideoService],
+  exports: [VideoRepository, VideoService],
 })
 export class VideoModule {}

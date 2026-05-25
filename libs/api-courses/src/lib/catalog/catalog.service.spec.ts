@@ -201,7 +201,37 @@ describe('CatalogService.getCourseDetail', () => {
     expect(detail.instructorDisplayName).toBe('Ada Lovelace');
     expect(detail.lessonCount).toBe(2);
     expect(detail.modules).toEqual([
-      { title: 'Module 1', lessons: [{ title: 'Lesson 1' }, { title: 'Lesson 2' }] },
+      { title: 'Module 1', lessons: [{ id: 'l-1', title: 'Lesson 1' }, { id: 'l-2', title: 'Lesson 2' }] },
+    ]);
+  });
+
+  it('exposes lesson IDs on the outline so /learn can link to them', async () => {
+    const firestore = createFakeFirestore({
+      'courses/c-1': {
+        id: 'c-1',
+        title: 'Course One',
+        description: 'short',
+        instructorId: 'u-1',
+        status: 'PUBLISHED',
+        publishedAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      'courses/c-1/modules/m-1': { id: 'm-1', title: 'M', order: 0 },
+      'courses/c-1/modules/m-1/lessons/l-1': { id: 'l-1', title: 'L1', order: 0 },
+      'courses/c-1/modules/m-1/lessons/l-2': { id: 'l-2', title: 'L2', order: 1 },
+      'users/u-1': { id: 'u-1', displayName: 'Instructor' },
+    });
+    const svc = new CatalogService(
+      new CoursesRepository(firestore as never),
+      new InstructorDirectory(firestore as never),
+    );
+
+    const detail = await svc.getCourseDetail('c-1' as CourseId);
+
+    expect(detail.modules[0].lessons).toEqual([
+      { id: 'l-1', title: 'L1' },
+      { id: 'l-2', title: 'L2' },
     ]);
   });
 

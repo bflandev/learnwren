@@ -1,0 +1,43 @@
+@if (state() === 'LOADING') {
+  <div data-testid="lesson-skeleton" class="animate-pulse">
+    <div class="h-8 w-1/2 bg-gray-200 rounded mb-4"></div>
+    <div class="aspect-video w-full bg-gray-200 rounded"></div>
+  </div>
+} @else if (state() === 'NOT_ENROLLED') {
+  <div class="rounded border p-6">
+    <h1 class="text-xl font-semibold">You're not enrolled in this course</h1>
+    <p class="mt-2 text-sm text-gray-600">Enroll to start watching lessons.</p>
+    <a data-testid="back-to-course" class="mt-4 inline-block underline"
+       [routerLink]="['/catalog', courseId()]">← Back to course</a>
+  </div>
+} @else if (state() === 'NOT_FOUND') {
+  <div class="rounded border p-6">
+    <h1 class="text-xl font-semibold">Lesson not available</h1>
+    <p class="mt-2 text-sm text-gray-600">This lesson could not be found.</p>
+    <a data-testid="back-to-course" class="mt-4 inline-block underline"
+       [routerLink]="['/catalog', courseId()]">← Back to course</a>
+  </div>
+} @else if (state() === 'LOAD_ERROR') {
+  <div class="rounded border p-6">
+    <h1 class="text-xl font-semibold">Something went wrong</h1>
+    <button class="mt-4 underline" type="button" (click)="retry()">Retry</button>
+  </div>
+} @else if (view(); as v) {
+  <article class="space-y-4">
+    <h1 class="text-2xl font-semibold">{{ v.lesson.title }}</h1>
+    @if (v.lesson.description) {
+      <p class="text-sm text-gray-700">{{ v.lesson.description }}</p>
+    }
+
+    @if (state() === 'READY' && v.lesson.videoId; as vid) {
+      <lib-video-player [videoId]="vid" />
+    } @else {
+      <div class="rounded border p-6 bg-amber-50" data-testid="video-processing">
+        This lesson's video is still being processed. Please check back later.
+      </div>
+    }
+
+    <a data-testid="back-to-course" class="inline-block underline"
+       [routerLink]="['/catalog', courseId()]">← Back to course</a>
+  </article>
+}
