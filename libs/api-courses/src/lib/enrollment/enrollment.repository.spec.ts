@@ -144,6 +144,8 @@ describe('EnrollmentRepository.withdraw', () => {
       status: 'ACTIVE',
       progress: [],
       withdrawnAt: null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -432,5 +434,38 @@ describe('EnrollmentRepository.setLastWatchedSeconds', () => {
   it('throws NotEnrolledException when no enrolment exists', async () => {
     const { repo } = repoWith({});
     await expect(repo.setLastWatchedSeconds(UID, CID, LID, 10)).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+});
+
+describe('EnrollmentRepository.enroll (Slice C fields)', () => {
+  it('seeds lastAccessedLessonId=null and lastAccessedAt=null on first enrol', async () => {
+    const { repo } = repoWith({ [`courses/${CID}`]: course() });
+    const result = await repo.enroll(UID, CID);
+    expect(result.lastAccessedLessonId).toBeNull();
+    expect(result.lastAccessedAt).toBeNull();
+  });
+
+  it('preserves lastAccessedLessonId and lastAccessedAt across WITHDRAWN -> ACTIVE re-enrol', async () => {
+    const withdrawn: Enrollment = {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'WITHDRAWN',
+      progress: [{ lessonId: 'l1' as LessonId, completedAt: null, lastWatchedSeconds: 42 }],
+      withdrawnAt: '2026-02-01T00:00:00.000Z' as ISODateString,
+      lastAccessedLessonId: 'l1' as LessonId,
+      lastAccessedAt: '2026-02-01T00:00:00.000Z' as ISODateString,
+      createdAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-02-01T00:00:00.000Z' as ISODateString,
+    };
+    const { repo } = repoWith({
+      [`courses/${CID}`]: course({ enrollmentCount: 0 }),
+      [`enrollments/${ID}`]: withdrawn,
+    });
+    const result = await repo.enroll(UID, CID);
+    expect(result.status).toBe('ACTIVE');
+    expect(result.lastAccessedLessonId).toBe('l1');
+    expect(result.lastAccessedAt).toBe('2026-02-01T00:00:00.000Z');
+    expect(result.progress[0].lastWatchedSeconds).toBe(42);
   });
 });

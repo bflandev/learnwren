@@ -111,6 +111,8 @@ export class EnrollmentRepository {
         status: 'ACTIVE',
         progress: [],
         withdrawnAt: null,
+        lastAccessedLessonId: null,
+        lastAccessedAt: null,
         createdAt: now,
         updatedAt: now,
       };
