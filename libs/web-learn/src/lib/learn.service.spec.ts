@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -53,6 +53,30 @@ describe('LearnService', () => {
       const req = http.expectOne('/api/learn/courses/c1/lessons/l1/complete');
       req.flush({ error: { code: 'NOT_ENROLLED_LESSON' } }, { status: 403, statusText: 'Forbidden' });
       await expect(promise).rejects.toMatchObject({ status: 403 });
+    });
+  });
+
+  describe('savePosition', () => {
+    it('POSTs to /api/learn/courses/:cid/lessons/:lid/position with body {seconds} and returns the parsed payload', async () => {
+      const promise = service.savePosition('c1', 'l1', 42);
+      const req = http.expectOne('/api/learn/courses/c1/lessons/l1/position');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ seconds: 42 });
+      expect(req.request.withCredentials).toBe(true);
+      req.flush({ lastWatchedSeconds: 42 });
+
+      await expect(promise).resolves.toEqual({ lastWatchedSeconds: 42 });
+    });
+
+    it('rethrows HttpErrorResponse on 403 so callers can branch on status', async () => {
+      const promise = service.savePosition('c1', 'l1', 1);
+      const req = http.expectOne('/api/learn/courses/c1/lessons/l1/position');
+      req.flush(
+        { error: { code: 'NOT_ENROLLED_LESSON', message: 'no' } },
+        { status: 403, statusText: 'Forbidden' },
+      );
+
+      await expect(promise).rejects.toBeInstanceOf(HttpErrorResponse);
     });
   });
 });
