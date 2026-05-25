@@ -197,5 +197,6 @@ describe('getLessonView progress', () => {
       makeLesson({ id: 'l1' as LessonId }),
     );
     expect(view.progress).toBeNull();
+    expect(enrollment.getEnrollment).toHaveBeenCalledOnce();
   });
 });
