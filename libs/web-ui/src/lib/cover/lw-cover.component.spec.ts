@@ -31,4 +31,23 @@ describe('LwCoverComponent', () => {
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.lw-cover-label')).toBeNull();
   });
+
+  it('defaults the tone to "ink" when no tone input is provided', () => {
+    // Pins the StringLiteral default at lw-cover.component.ts:23. A mutation
+    // changing the default to '' would make this attribute empty.
+    const fixture = TestBed.createComponent(LwCoverComponent);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).getAttribute('data-tone')).toBe('ink');
+  });
+
+  it('defaults the glyph and label to the empty string', () => {
+    // Pins the StringLiteral defaults for glyph and label inputs. If either
+    // default changes, the rendered glyph element would change content and
+    // the label conditional would render unexpectedly.
+    const fixture = TestBed.createComponent(LwCoverComponent);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.lw-cover-glyph')!.textContent).toBe('');
+    expect(host.querySelector('.lw-cover-label')).toBeNull();
+  });
 });
