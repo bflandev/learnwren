@@ -39,4 +39,35 @@ describe('ThemeService', () => {
     expect(document.documentElement.classList.contains('lw-theme-light')).toBe(true);
     expect(document.documentElement.classList.contains('lw-theme-dark')).toBe(false);
   });
+
+  it('toggle() from light back to dark also flips the document class', () => {
+    localStorage.setItem('lw-theme', 'light');
+    const service = TestBed.inject(ThemeService);
+    expect(service.theme()).toBe('light');
+    service.toggle();
+    // Drives the "currently light → 'dark'" branch of the toggle ternary.
+    expect(service.theme()).toBe('dark');
+    expect(document.documentElement.classList.contains('lw-theme-dark')).toBe(true);
+    expect(document.documentElement.classList.contains('lw-theme-light')).toBe(false);
+  });
+
+  it('falls back to dark when localStorage holds a garbage value', () => {
+    // Drives the false side of the `stored === 'light' || stored === 'dark'`
+    // guard in readInitial().
+    localStorage.setItem('lw-theme', 'banana');
+    const service = TestBed.inject(ThemeService);
+    expect(service.theme()).toBe('dark');
+    expect(document.documentElement.classList.contains('lw-theme-dark')).toBe(true);
+  });
+
+  it('removes the lw-theme-light class when applying the dark theme', () => {
+    // Pins the conditional in apply(): `classList.toggle('lw-theme-light',
+    // theme === 'light')`. If the second arg were hardcoded to true the
+    // light class would persist when switching to dark.
+    localStorage.setItem('lw-theme', 'light');
+    const service = TestBed.inject(ThemeService);
+    expect(document.documentElement.classList.contains('lw-theme-light')).toBe(true);
+    service.set('dark');
+    expect(document.documentElement.classList.contains('lw-theme-light')).toBe(false);
+  });
 });

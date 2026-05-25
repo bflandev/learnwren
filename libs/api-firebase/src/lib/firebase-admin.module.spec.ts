@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import * as admin from 'firebase-admin';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { FIREBASE_AUTH, FIREBASE_STORAGE, FIRESTORE } from './firebase.tokens';
+import { FIREBASE_AUTH, FIREBASE_STORAGE, FIREBASE_WEB_API_KEY, FIRESTORE } from './firebase.tokens';
 import { FirebaseAdminModule } from './firebase-admin.module';
 
 const EMULATOR_ENV_KEYS = [
@@ -68,6 +68,45 @@ describe('FirebaseAdminModule', () => {
       expect(admin.apps.length).toBe(1);
     });
 
+    it('initializes the emulator app with project ID "demo-learnwren"', async () => {
+      await Test.createTestingModule({ imports: [FirebaseAdminModule.forRoot()] }).compile();
+      expect(admin.apps[0]?.options.projectId).toBe('demo-learnwren');
+    });
+
+    it('reuses the same admin app instance on the second forRoot() call', async () => {
+      const first = await Test.createTestingModule({ imports: [FirebaseAdminModule.forRoot()] }).compile();
+      const second = await Test.createTestingModule({ imports: [FirebaseAdminModule.forRoot()] }).compile();
+      // Same underlying Firestore handle (the cache returns the existing app's firestore)
+      expect(first.get(FIRESTORE)).toBe(second.get(FIRESTORE));
+    });
+
+    it('resolves FIREBASE_WEB_API_KEY to "fake-api-key" when the env var is unset', async () => {
+      const moduleRef = await Test.createTestingModule({
+        imports: [FirebaseAdminModule.forRoot()],
+      }).compile();
+      expect(moduleRef.get(FIREBASE_WEB_API_KEY)).toBe('fake-api-key');
+    });
+
+    it('resolves FIREBASE_WEB_API_KEY to the env var value when it is set', async () => {
+      process.env['FIREBASE_WEB_API_KEY'] = 'caller-provided-key';
+      const moduleRef = await Test.createTestingModule({
+        imports: [FirebaseAdminModule.forRoot()],
+      }).compile();
+      expect(moduleRef.get(FIREBASE_WEB_API_KEY)).toBe('caller-provided-key');
+    });
+
+    it('exposes FIRESTORE, FIREBASE_AUTH, FIREBASE_STORAGE and FIREBASE_WEB_API_KEY from the module', async () => {
+      const moduleRef = await Test.createTestingModule({
+        imports: [FirebaseAdminModule.forRoot()],
+      }).compile();
+      // Exporting all four tokens is part of the public contract — a regression
+      // here would silently break downstream injection.
+      expect(moduleRef.get(FIRESTORE)).toBeDefined();
+      expect(moduleRef.get(FIREBASE_AUTH)).toBeDefined();
+      expect(moduleRef.get(FIREBASE_STORAGE)).toBeDefined();
+      expect(moduleRef.get(FIREBASE_WEB_API_KEY)).toBeDefined();
+    });
+
     it('treats LEARNWREN_FIREBASE_TARGET=emulator the same as unset', async () => {
       process.env['LEARNWREN_FIREBASE_TARGET'] = 'emulator';
       await Test.createTestingModule({ imports: [FirebaseAdminModule.forRoot()] }).compile();
@@ -93,6 +132,41 @@ describe('FirebaseAdminModule', () => {
           imports: [FirebaseAdminModule.forRoot()],
         }),
       ).toThrow(/LEARNWREN_API_FIREBASE_PROJECT_ID/);
+    });
+
+    it('throws when FIREBASE_WEB_API_KEY is unset in production mode', async () => {
+      process.env['LEARNWREN_FIREBASE_TARGET'] = 'production';
+      process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] = 'test-prod-id';
+      // Intentionally omit FIREBASE_WEB_API_KEY.
+
+      // The throw happens inside the useFactory, so it surfaces when the
+      // testing module resolves the provider.
+      await expect(
+        Test.createTestingModule({
+          imports: [FirebaseAdminModule.forRoot()],
+        }).compile(),
+      ).rejects.toThrow(/FIREBASE_WEB_API_KEY/);
+    });
+
+    it('does NOT throw on missing FIREBASE_WEB_API_KEY in emulator mode (key is optional)', async () => {
+      // Sanity check on the production guard's mode condition: if it ignored
+      // mode, emulator mode without the key would also throw.
+      const moduleRef = await Test.createTestingModule({
+        imports: [FirebaseAdminModule.forRoot()],
+      }).compile();
+      expect(moduleRef.get(FIREBASE_WEB_API_KEY)).toBe('fake-api-key');
+    });
+
+    it('resolves FIREBASE_WEB_API_KEY to the env value verbatim in production', async () => {
+      process.env['LEARNWREN_FIREBASE_TARGET'] = 'production';
+      process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] = 'test-prod-id';
+      process.env['FIREBASE_WEB_API_KEY'] = 'prod-web-api-key-123';
+
+      const moduleRef = await Test.createTestingModule({
+        imports: [FirebaseAdminModule.forRoot()],
+      }).compile();
+      // Verbatim — not 'fake-api-key', not the empty string.
+      expect(moduleRef.get(FIREBASE_WEB_API_KEY)).toBe('prod-web-api-key-123');
     });
 
     it('initializes against the real project ID and does NOT set emulator env vars', async () => {

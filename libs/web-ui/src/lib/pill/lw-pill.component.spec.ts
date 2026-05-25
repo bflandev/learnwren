@@ -45,4 +45,25 @@ describe('LwPillComponent', () => {
 
     expect((fixture.nativeElement as HTMLElement).style.color).toBe('var(--lw-ochre)');
   });
+
+  it.each([
+    ['good', 'var(--lw-good)'],
+    ['warn', 'var(--lw-warn)'],
+    ['bad', 'var(--lw-bad)'],
+  ] as const)('applies the %s tone colour via var(--lw-%s)', (tone, expected) => {
+    const fixture = TestBed.createComponent(LwPillComponent);
+    fixture.componentRef.setInput('tone', tone);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).style.color).toBe(expected);
+  });
+
+  it('treats the explicit "default" tone the same as omitting the input', () => {
+    // Pins the StringLiteral default value: a mutation flipping the
+    // declaration to input<LwPillTone>('') would mean the default-resolved
+    // case in toneColor() switches on '' rather than 'default'.
+    const fixture = TestBed.createComponent(LwPillComponent);
+    fixture.componentRef.setInput('tone', 'default');
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).style.color).toBe('');
+  });
 });
