@@ -204,6 +204,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
     expect(after?.['progress']).toEqual([
       { lessonId: 'l1', completedAt: '2026-05-25T12:00:00.000Z', lastWatchedSeconds: 42 },
     ]);
+    expect(after?.['updatedAt']).toBe('2026-05-25T12:00:00.000Z');
   });
 
   it('is idempotent: a second call returns the original completedAt and does not bump updatedAt', async () => {

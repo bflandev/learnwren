@@ -108,7 +108,7 @@ export class EnrollmentRepository {
     userId: UserId,
     courseId: CourseId,
     lessonId: LessonId,
-    nowIso: ISODateString,
+    completedAtIso: ISODateString,
   ): Promise<{ completedAt: ISODateString }> {
     const enrollmentRef = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
 
@@ -128,13 +128,13 @@ export class EnrollmentRepository {
       }
 
       if (idx >= 0) {
-        progress[idx] = { ...progress[idx], completedAt: nowIso };
+        progress[idx] = { ...progress[idx], completedAt: completedAtIso };
       } else {
-        progress.push({ lessonId, completedAt: nowIso, lastWatchedSeconds: 0 });
+        progress.push({ lessonId, completedAt: completedAtIso, lastWatchedSeconds: 0 });
       }
 
-      t.update(enrollmentRef, { progress, updatedAt: nowIso });
-      return { completedAt: nowIso };
+      t.update(enrollmentRef, { progress, updatedAt: completedAtIso });
+      return { completedAt: completedAtIso };
     });
   }
 
