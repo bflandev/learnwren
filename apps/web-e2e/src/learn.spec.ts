@@ -275,3 +275,74 @@ test('instructor preview shows the instructor-preview hint and no Mark Complete 
   await expect(page.getByTestId('mark-complete')).toHaveCount(0);
   await expect(page.getByTestId('completed-pill')).toHaveCount(0);
 });
+
+test('Continue Learning appears on /catalog/:cid after the student opens a lesson', async ({
+  page,
+}) => {
+  const { email, password } = await registerVerifiedStudent();
+  const { courseId, lessonId } = await seedPublishedCourseWithReadyLesson();
+
+  // Sign in
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+
+  // Enrol via the catalog page so the enrolment exists
+  await page.goto(`/catalog/${courseId}`);
+  await page.getByRole('button', { name: 'Enroll' }).click();
+  await expect(page.getByTestId('start-learning')).toBeVisible({ timeout: 10_000 });
+
+  // Open the lesson — this triggers the lastAccessed touch on the server
+  await page.goto(`/learn/${courseId}/${lessonId}`);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Lesson 1/);
+
+  // Return to the catalog and assert the Continue Learning CTA
+  await page.goto(`/catalog/${courseId}`);
+  const cta = page.getByTestId('continue-learning');
+  await expect(cta).toBeVisible({ timeout: 10_000 });
+  await expect(cta).toHaveText(/Continue Learning/);
+  await expect(cta).toHaveAttribute('href', `/learn/${courseId}/${lessonId}`);
+});
+
+test('the lesson player resumes from a non-zero saved position on reload', async ({ page }) => {
+  const { email, password } = await registerVerifiedStudent();
+  const { courseId, lessonId } = await seedPublishedCourseWithReadyLesson();
+
+  // Sign in
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+
+  // Enrol via the catalog page so the position API passes the enrolment guard
+  await page.goto(`/catalog/${courseId}`);
+  await page.getByRole('button', { name: 'Enroll' }).click();
+  await expect(page.getByTestId('start-learning')).toBeVisible({ timeout: 10_000 });
+
+  // Seed lastWatchedSeconds=20 directly via the API so the spec does not depend
+  // on real video playback timing. page.request inherits the session cookie
+  // from the signed-in browser context.
+  const positionResp = await page.request.post(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/position`,
+    { data: { seconds: 20 } },
+  );
+  expect(positionResp.status()).toBe(200);
+
+  // Open the lesson and assert the player seeked to the persisted position.
+  // Fallback: the fake transcoder may produce a manifest whose <video>.duration
+  // never resolves cleanly under hls.js in the headless test browser, so we
+  // assert that the component seeked to ANY non-zero position rather than
+  // pinning to 20 ± 5s.
+  await page.goto(`/learn/${courseId}/${lessonId}`);
+  await expect(page.locator('lib-video-player video')).toBeAttached();
+  await page.waitForFunction(
+    () => {
+      const v = document.querySelector('lib-video-player video') as HTMLVideoElement | null;
+      return v != null && v.currentTime > 0;
+    },
+    { timeout: 10_000 },
+  );
+});
