@@ -67,7 +67,11 @@ type SetupHandles = {
 };
 
 function setup({ id, isAuthenticated = false, enrollmentView }: SetupOptions): SetupHandles {
-  const paramMap = new BehaviorSubject<ParamMap>(
+  // Single source of truth for the route param map. The observable and the
+  // snapshot both read from this subject, so tests can never get them out of
+  // sync. `snapshot.paramMap` is exposed via a getter that defers to
+  // `paramMap$.getValue()` — no mutation of object literals required.
+  const paramMap$ = new BehaviorSubject<ParamMap>(
     convertToParamMap(id === null ? {} : { id }),
   );
 
@@ -81,7 +85,14 @@ function setup({ id, isAuthenticated = false, enrollmentView }: SetupOptions): S
         : Promise.reject(new Error('no enrollment view configured')),
   };
 
-  const snapshot = { paramMap: convertToParamMap(id === null ? {} : { id }) };
+  const routeFake = {
+    paramMap: paramMap$.asObservable(),
+    snapshot: {
+      get paramMap(): ParamMap {
+        return paramMap$.getValue();
+      },
+    },
+  };
 
   TestBed.configureTestingModule({
     imports: [CourseDetailPageComponent],
@@ -89,23 +100,14 @@ function setup({ id, isAuthenticated = false, enrollmentView }: SetupOptions): S
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
-      {
-        provide: ActivatedRoute,
-        useValue: {
-          paramMap: paramMap.asObservable(),
-          snapshot,
-        },
-      },
+      { provide: ActivatedRoute, useValue: routeFake },
       { provide: AuthService, useValue: authServiceFake },
       { provide: EnrollmentService, useValue: enrollmentServiceFake },
     ],
   });
   return {
     http: TestBed.inject(HttpTestingController),
-    setRouteId: (nextId: string) => {
-      snapshot.paramMap = convertToParamMap({ id: nextId });
-      paramMap.next(convertToParamMap({ id: nextId }));
-    },
+    setRouteId: (nextId: string) => paramMap$.next(convertToParamMap({ id: nextId })),
   };
 }
 
