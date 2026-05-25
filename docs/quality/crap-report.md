@@ -1,6 +1,6 @@
 # CRAP Score Report
 
-> Generated 2026-05-25T16:12:24.246Z
+> Generated 2026-05-25T16:14:56.423Z
 
 Threshold: **30** (canonical Savoia/Evans cutoff for "crappy").
 
@@ -35,17 +35,17 @@ Formula: `CRAP(m) = comp(m)² × (1 − cov(m)/100)³ + comp(m)`. Complexity cou
 | # | Function | File:line | Comp | Cov % | Basis | CRAP | Verdict |
 |---|----------|-----------|------|-------|-------|------|---------|
 | 1 | `catch` | `libs/api-courses/src/lib/materials/materials.exception-filter.ts:28` | 11 | 94.7 | branch | 11.02 | acceptable |
-| 2 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/fake-transcoder.adapter.ts:41` | 8 | 64.3 | branch | 10.92 | acceptable |
-| 3 | `composeReasons` | `libs/api-courses/src/lib/publish/publish-eligibility.ts:10` | 10 | 100.0 | branch | 10.00 | acceptable |
-| 4 | `reasonText` | `libs/web-courses/src/lib/publish/publish-eligibility-panel.component.ts:40` | 9 | 90.9 | file-branch-fallback | 9.06 | acceptable |
-| 5 | `<anonymous>` | `libs/api-courses/src/lib/enrollment/enrollment.repository.ts:53` | 9 | 100.0 | branch | 9.00 | acceptable |
-| 6 | `canActivate` | `libs/api-courses/src/lib/learn/guards/lesson-enrollment-or-owner.guard.ts:17` | 9 | 100.0 | branch | 9.00 | acceptable |
-| 7 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:58` | 9 | 100.0 | branch | 9.00 | acceptable |
-| 8 | `userMessageFor` | `libs/web-video/src/lib/player/video-player.service.ts:12` | 9 | 100.0 | file-branch-fallback | 9.00 | acceptable |
-| 9 | `onConfirmClosed` | `libs/web-courses/src/lib/course-editor-page/course-editor-page.component.ts:111` | 8 | 86.8 | file-branch-fallback | 8.15 | acceptable |
-| 10 | `<anonymous>` | `libs/web-video/src/lib/video-state-badge.component.ts:28` | 8 | 93.8 | file-branch-fallback | 8.02 | acceptable |
-| 11 | `<anonymous>` | `libs/web-video/src/lib/video-state-badge.component.ts:47` | 8 | 93.8 | file-branch-fallback | 8.02 | acceptable |
-| 12 | `canActivate` | `libs/api-courses/src/lib/video/playback/enrollment-or-owner.guard.ts:23` | 8 | 100.0 | branch | 8.00 | acceptable |
+| 2 | `composeReasons` | `libs/api-courses/src/lib/publish/publish-eligibility.ts:10` | 10 | 100.0 | branch | 10.00 | acceptable |
+| 3 | `reasonText` | `libs/web-courses/src/lib/publish/publish-eligibility-panel.component.ts:40` | 9 | 90.9 | file-branch-fallback | 9.06 | acceptable |
+| 4 | `<anonymous>` | `libs/api-courses/src/lib/enrollment/enrollment.repository.ts:53` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 5 | `canActivate` | `libs/api-courses/src/lib/learn/guards/lesson-enrollment-or-owner.guard.ts:17` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 6 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:58` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 7 | `userMessageFor` | `libs/web-video/src/lib/player/video-player.service.ts:12` | 9 | 100.0 | file-branch-fallback | 9.00 | acceptable |
+| 8 | `onConfirmClosed` | `libs/web-courses/src/lib/course-editor-page/course-editor-page.component.ts:111` | 8 | 86.8 | file-branch-fallback | 8.15 | acceptable |
+| 9 | `<anonymous>` | `libs/web-video/src/lib/video-state-badge.component.ts:28` | 8 | 93.8 | file-branch-fallback | 8.02 | acceptable |
+| 10 | `<anonymous>` | `libs/web-video/src/lib/video-state-badge.component.ts:47` | 8 | 93.8 | file-branch-fallback | 8.02 | acceptable |
+| 11 | `canActivate` | `libs/api-courses/src/lib/video/playback/enrollment-or-owner.guard.ts:23` | 8 | 100.0 | branch | 8.00 | acceptable |
+| 12 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/fake-transcoder.adapter.ts:41` | 8 | 100.0 | branch | 8.00 | acceptable |
 | 13 | `<anonymous>` | `libs/web-auth/src/lib/password-policy.validator.ts:21` | 8 | 100.0 | file-branch-fallback | 8.00 | acceptable |
 | 14 | `load` | `libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:39` | 7 | 90.0 | file-branch-fallback | 7.05 | acceptable |
 | 15 | `toLoginErr` | `libs/web-auth/src/lib/auth.service.ts:119` | 7 | 90.5 | file-branch-fallback | 7.04 | acceptable |
@@ -58,17 +58,17 @@ Formula: `CRAP(m) = comp(m)² × (1 − cov(m)/100)³ + comp(m)`. Complexity cou
 ## Recommendation per offender
 
 1. `catch` (libs/api-courses/src/lib/materials/materials.exception-filter.ts:28) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
-2. `parseEvent` (libs/api-courses/src/lib/video/transcoder/fake-transcoder.adapter.ts:41) — **refactor — coverage is fine; the branching is the problem**
-3. `composeReasons` (libs/api-courses/src/lib/publish/publish-eligibility.ts:10) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
-4. `reasonText` (libs/web-courses/src/lib/publish/publish-eligibility-panel.component.ts:40) — **refactor — coverage is fine; the branching is the problem**
-5. `<anonymous>` (libs/api-courses/src/lib/enrollment/enrollment.repository.ts:53) — **refactor — coverage is fine; the branching is the problem**
-6. `canActivate` (libs/api-courses/src/lib/learn/guards/lesson-enrollment-or-owner.guard.ts:17) — **refactor — coverage is fine; the branching is the problem**
-7. `parseEvent` (libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:58) — **refactor — coverage is fine; the branching is the problem**
-8. `userMessageFor` (libs/web-video/src/lib/player/video-player.service.ts:12) — **refactor — coverage is fine; the branching is the problem**
-9. `onConfirmClosed` (libs/web-courses/src/lib/course-editor-page/course-editor-page.component.ts:111) — **refactor — coverage is fine; the branching is the problem**
-10. `<anonymous>` (libs/web-video/src/lib/video-state-badge.component.ts:28) — **refactor — coverage is fine; the branching is the problem**
-11. `<anonymous>` (libs/web-video/src/lib/video-state-badge.component.ts:47) — **refactor — coverage is fine; the branching is the problem**
-12. `canActivate` (libs/api-courses/src/lib/video/playback/enrollment-or-owner.guard.ts:23) — **refactor — coverage is fine; the branching is the problem**
+2. `composeReasons` (libs/api-courses/src/lib/publish/publish-eligibility.ts:10) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+3. `reasonText` (libs/web-courses/src/lib/publish/publish-eligibility-panel.component.ts:40) — **refactor — coverage is fine; the branching is the problem**
+4. `<anonymous>` (libs/api-courses/src/lib/enrollment/enrollment.repository.ts:53) — **refactor — coverage is fine; the branching is the problem**
+5. `canActivate` (libs/api-courses/src/lib/learn/guards/lesson-enrollment-or-owner.guard.ts:17) — **refactor — coverage is fine; the branching is the problem**
+6. `parseEvent` (libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:58) — **refactor — coverage is fine; the branching is the problem**
+7. `userMessageFor` (libs/web-video/src/lib/player/video-player.service.ts:12) — **refactor — coverage is fine; the branching is the problem**
+8. `onConfirmClosed` (libs/web-courses/src/lib/course-editor-page/course-editor-page.component.ts:111) — **refactor — coverage is fine; the branching is the problem**
+9. `<anonymous>` (libs/web-video/src/lib/video-state-badge.component.ts:28) — **refactor — coverage is fine; the branching is the problem**
+10. `<anonymous>` (libs/web-video/src/lib/video-state-badge.component.ts:47) — **refactor — coverage is fine; the branching is the problem**
+11. `canActivate` (libs/api-courses/src/lib/video/playback/enrollment-or-owner.guard.ts:23) — **refactor — coverage is fine; the branching is the problem**
+12. `parseEvent` (libs/api-courses/src/lib/video/transcoder/fake-transcoder.adapter.ts:41) — **refactor — coverage is fine; the branching is the problem**
 13. `<anonymous>` (libs/web-auth/src/lib/password-policy.validator.ts:21) — **refactor — coverage is fine; the branching is the problem**
 14. `load` (libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:39) — **refactor — coverage is fine; the branching is the problem**
 15. `toLoginErr` (libs/web-auth/src/lib/auth.service.ts:119) — **refactor — coverage is fine; the branching is the problem**

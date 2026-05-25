@@ -99,6 +99,47 @@ describe('FakeTranscoderAdapter.parseEvent', () => {
     if (ev.type !== 'JOB_FAILED') throw new Error('expected FAILED');
     expect(ev.reason.length).toBe(500);
   });
+
+  it('throws on missing message.data', async () => {
+    const adapter = new FakeTranscoderAdapter();
+    await expect(adapter.parseEvent({ message: {} })).rejects.toThrow(/data/);
+  });
+
+  it('throws on payload missing the job field', async () => {
+    const adapter = new FakeTranscoderAdapter();
+    await expect(adapter.parseEvent(pubsubEnvelope({}))).rejects.toThrow(/missing job/);
+  });
+
+  it('throws on an unexpected job.state (neither SUCCEEDED nor FAILED)', async () => {
+    const adapter = new FakeTranscoderAdapter();
+    const env = pubsubEnvelope({
+      job: { name: 'n', state: 'RUNNING', labels: { videoid: 'v1' } },
+    });
+    await expect(adapter.parseEvent(env)).rejects.toThrow(/Unexpected job\.state: RUNNING/);
+  });
+});
+
+describe('FakeTranscoderAdapter.parseEvent — optional-field fallbacks', () => {
+  // Pin the right side of each `?? ` operator. Without these tests, a mutant
+  // that drops the fallback can pass every other test in this file.
+  it('defaults jobName to "" when job.name is absent', async () => {
+    const adapter = new FakeTranscoderAdapter();
+    const env = pubsubEnvelope({
+      job: { state: 'SUCCEEDED', labels: { videoid: 'v1' } },
+    });
+    const ev = await adapter.parseEvent(env);
+    expect(ev.jobName).toBe('');
+  });
+
+  it('defaults reason to "unknown" on FAILED when error.message is absent', async () => {
+    const adapter = new FakeTranscoderAdapter();
+    const env = pubsubEnvelope({
+      job: { name: 'n', state: 'FAILED', labels: { videoid: 'v1' } },
+    });
+    const ev = await adapter.parseEvent(env);
+    if (ev.type !== 'JOB_FAILED') throw new Error('expected FAILED');
+    expect(ev.reason).toBe('unknown');
+  });
 });
 
 describe('FakeTranscoderAdapter.cancelJob', () => {
