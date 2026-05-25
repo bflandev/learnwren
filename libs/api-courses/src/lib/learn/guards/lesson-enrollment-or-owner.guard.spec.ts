@@ -154,12 +154,16 @@ describe('LessonEnrollmentOrOwnerGuard', () => {
     ).rejects.toBeInstanceOf(LessonNotFoundException);
   });
 
-  it('throws LessonNotFoundException when the lesson is missing from all the course modules', async () => {
+  it('returns 404 for an unenrolled student probing a lesson that does not exist in any module (locks the oracle)', async () => {
+    // Student with no enrollment record probes a lesson id that is not in any
+    // module of the course. The guard must return 404 — not 403 — so an
+    // attacker cannot distinguish "lesson does not exist" from
+    // "lesson exists but I'm not enrolled".
     const courses = makeCourses(publishedCourse, [testModule], null);
     const guard = new LessonEnrollmentOrOwnerGuard(courses, makeEnrollment(null));
     await expect(
       guard.canActivate(
-        ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID }, user: { uid: INSTRUCTOR_ID } }),
+        ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID }, user: { uid: STUDENT_ID } }),
       ),
     ).rejects.toBeInstanceOf(LessonNotFoundException);
   });
