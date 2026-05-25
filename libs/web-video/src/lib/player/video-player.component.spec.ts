@@ -152,10 +152,10 @@ describe('VideoPlayerComponent — Slice C event surface', () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  it('emits (ended) on ended', () => {
+  it('emits (videoEnded) on ended', () => {
     const { fixture, el } = harness();
     const spy = vi.fn();
-    fixture.componentInstance.ended.subscribe(spy);
+    fixture.componentInstance.videoEnded.subscribe(spy);
     el.dispatchEvent(new Event('ended'));
     expect(spy).toHaveBeenCalledTimes(1);
   });

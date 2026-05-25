@@ -32,7 +32,7 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
   @Output() readonly metadata = new EventEmitter<void>();
   @Output() readonly played = new EventEmitter<void>();
   @Output() readonly paused = new EventEmitter<void>();
-  @Output() readonly ended = new EventEmitter<void>();
+  @Output() readonly videoEnded = new EventEmitter<void>();
 
   readonly error = signal<string | null>(null);
   private handle: PlayerHandle | null = null;
@@ -41,7 +41,7 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
   private readonly onMetadata = (): void => this.metadata.emit();
   private readonly onPlay = (): void => this.played.emit();
   private readonly onPause = (): void => this.paused.emit();
-  private readonly onEnded = (): void => this.ended.emit();
+  private readonly onEnded = (): void => this.videoEnded.emit();
 
   ngAfterViewInit(): void {
     this.attachListeners();
