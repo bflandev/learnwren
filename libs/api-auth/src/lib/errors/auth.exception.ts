@@ -1,10 +1,12 @@
+import type { ISODateString } from '@learnwren/shared-data-models';
+
 import { AuthErrorCode } from './auth-error.codes';
 import type { PolicyRequirement } from '../password-policy.service';
 
 export interface AuthErrorDetails {
   unmetRequirements?: PolicyRequirement[];
   resendAvailable?: boolean;
-  unlockAvailableAt?: string;
+  unlockAvailableAt?: ISODateString;
   canRequestPasswordReset?: boolean;
 }
 
@@ -87,7 +89,7 @@ export class EmailNotVerifiedException extends AuthException {
 export class AccountLockedException extends AuthException {
   constructor(unlockAvailableAt: Date) {
     super('ACCOUNT_LOCKED', 'Account is temporarily locked.', 423, {
-      unlockAvailableAt: unlockAvailableAt.toISOString(),
+      unlockAvailableAt: unlockAvailableAt.toISOString() as ISODateString,
     });
   }
 }

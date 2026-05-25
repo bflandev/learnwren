@@ -55,16 +55,15 @@ export interface CreateUploadUrlInput {
   sizeBytes: number;
 }
 
-export interface CreateUploadUrlResult {
-  materialId: MaterialId;
-  uploadUrl: string;
-  expiresAt: string;
-}
-
-export interface DownloadUrlResult {
-  downloadUrl: string;
-  expiresAt: string;
-}
+// CreateUploadUrlResult and DownloadUrlResult use the shared wire contracts so
+// the api emits exactly the shape the web client expects, with ISO-branded
+// timestamps. The aliases keep the historical names callable inside this lib.
+import type {
+  CreateMaterialUploadResponse,
+  MaterialDownloadUrlResponse,
+} from '@learnwren/shared-data-models';
+export type CreateUploadUrlResult = CreateMaterialUploadResponse;
+export type DownloadUrlResult = MaterialDownloadUrlResponse;
 
 @Injectable()
 export class MaterialsService {

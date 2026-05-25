@@ -8,3 +8,5 @@ export * from './lib/video';
 export * from './lib/material';
 export * from './lib/publish';
 export * from './lib/catalog';
+export * from './lib/auth';
+export * from './lib/wire';

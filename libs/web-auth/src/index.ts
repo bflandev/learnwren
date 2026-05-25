@@ -7,5 +7,5 @@ export { RegisterConfirmPageComponent } from './lib/register-confirm-page/regist
 export { ForgotPasswordPageComponent } from './lib/forgot-password-page/forgot-password-page.component';
 export { UnlockPageComponent } from './lib/unlock-page/unlock-page.component';
 export { passwordPolicyValidator } from './lib/password-policy.validator';
-export type { AuthenticatedUser, WebUserRole } from './lib/types/authenticated-user';
+export type { AuthenticatedUser } from './lib/types/authenticated-user';
 export type { ApiAuthErrorBody, ApiAuthErrorCode } from './lib/types/api-error';

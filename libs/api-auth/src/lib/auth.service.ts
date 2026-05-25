@@ -7,7 +7,12 @@ import {
   FIRESTORE,
   type FirestoreHandle,
 } from '@learnwren/api-firebase';
-import type { ISODateString, UserId, UserRole } from '@learnwren/shared-data-models';
+import type {
+  ISODateString,
+  MeResponse,
+  UserId,
+  UserRole,
+} from '@learnwren/shared-data-models';
 
 import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
@@ -57,13 +62,10 @@ export interface LoginResult {
   maxAgeSeconds: number;
 }
 
-export interface MeResponse {
-  uid: UserId;
-  email: string;
-  displayName: string;
-  role: UserRole;
-  emailVerified: boolean;
-}
+// MeResponse lives in shared-data-models so the web client imports the same
+// type the server emits — keeps the `uid: UserId` branding and `role: UserRole`
+// union in lockstep across the wire.
+export type { MeResponse } from '@learnwren/shared-data-models';
 
 const DISPLAY_NAME_MAX = 80;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

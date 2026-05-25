@@ -6,10 +6,13 @@ import type {
   Course,
   CourseCategory,
   CourseDifficulty,
+  CourseTree,
   Lesson,
   Module,
   PublishEligibility,
 } from '@learnwren/shared-data-models';
+
+export type { CourseTree } from '@learnwren/shared-data-models';
 
 const BASE = '/api/courses';
 const OPTS = { withCredentials: true } as const;
@@ -28,11 +31,6 @@ export interface UpdateCourseInput {
   longDescription?: string;
   category?: CourseCategory;
   difficulty?: CourseDifficulty;
-}
-
-export interface CourseTree {
-  course: Course;
-  modules: Array<{ module: Module; lessons: Lesson[] }>;
 }
 
 @Injectable({ providedIn: 'root' })
