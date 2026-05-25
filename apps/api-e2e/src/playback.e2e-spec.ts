@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import * as admin from 'firebase-admin';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -10,6 +11,95 @@ import {
 } from './_helpers/auth';
 
 initAdmin();
+
+// ──────────────────────── Firestore seed helpers ────────────────────────
+// These helpers write directly to Firestore (via the Admin SDK) so the tests
+// do not depend on the upload/transcode pipeline that is still broken in the
+// local emulator environment (TRANSCODING → READY transition not wired up for
+// the fake transcoder). They mirror the pattern used in learn.e2e-spec.ts.
+
+/** Seed a course document straight into Firestore. */
+async function seedCourse(args: {
+  status: 'DRAFT' | 'PUBLISHED';
+  instructorId: string;
+}): Promise<string> {
+  const id = `pb-e2e-${args.status}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  const now = new Date().toISOString();
+  await admin
+    .firestore()
+    .collection('courses')
+    .doc(id)
+    .set({
+      id,
+      title: 'Playback e2e course',
+      description: 'course',
+      instructorId: args.instructorId,
+      status: args.status,
+      enrollmentCount: 0,
+      publishedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+  return id;
+}
+
+/**
+ * Seed a module + lesson + READY video document straight into Firestore.
+ * The video's ownerInstructorId is set to the course's instructorId so the
+ * guard correctly routes students via the enrollment branch.
+ */
+async function seedLessonWithReadyVideo(args: {
+  courseId: string;
+  instructorId: string;
+}): Promise<{ lessonId: string; videoId: string }> {
+  const now = new Date().toISOString();
+
+  const mid = `pb-e2e-mod-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  await admin
+    .firestore()
+    .collection('courses')
+    .doc(args.courseId)
+    .collection('modules')
+    .doc(mid)
+    .set({ id: mid, courseId: args.courseId, title: 'M1', order: 0, createdAt: now, updatedAt: now });
+
+  const vid = `pb-e2e-vid-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  await admin
+    .firestore()
+    .collection('videos')
+    .doc(vid)
+    .set({
+      id: vid,
+      ownerInstructorId: args.instructorId,
+      courseId: args.courseId,
+      state: 'READY',
+      source: { bucket: 'demo-learnwren.appspot.com', path: `videos/${vid}/source.mp4` },
+      createdAt: now,
+      updatedAt: now,
+    });
+
+  const lid = `pb-e2e-les-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  await admin
+    .firestore()
+    .collection('courses')
+    .doc(args.courseId)
+    .collection('modules')
+    .doc(mid)
+    .collection('lessons')
+    .doc(lid)
+    .set({
+      id: lid,
+      moduleId: mid,
+      videoId: vid,
+      title: 'L1',
+      order: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+  return { lessonId: lid, videoId: vid };
+}
+// ──────────────────────────────────────────────────────────────────────────
 
 const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'small-video.mp4');
 const FIXTURE_BYTES = fs.readFileSync(FIXTURE_PATH);
@@ -125,17 +215,66 @@ test.fixme('403 NOT_VIDEO_OWNER for a different instructor', async ({ request })
   }
 });
 
-test.fixme('403 NOT_VIDEO_OWNER for a student (EP-06 widens this branch)', async ({ request }) => {
-  const owner = await registerAndPromoteInstructor(request);
-  const ownerHdr = { Cookie: owner.cookieHeader };
-  const { videoId } = await uploadAndTranscode(request, ownerHdr);
-
+test('200 OK for an enrolled student on a PUBLISHED course', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const { videoId } = await seedLessonWithReadyVideo({ courseId, instructorId: instructor.uid });
   const student = await registerStudent(request);
-  const studentHdr = { Cookie: student.cookieHeader };
 
-  const r = await request.get(`${API_BASE}/playback/manifest/${videoId}`, { headers: studentHdr });
-  expect(r.status()).toBe(403);
-  expect(((await r.json()) as { error: { code: string } }).error.code).toBe('NOT_VIDEO_OWNER');
+  const enrol = await request.post(`${API_BASE}/enrollments`, {
+    headers: { Cookie: student.cookieHeader },
+    data: { courseId },
+  });
+  expect(enrol.status()).toBe(201);
+
+  const res = await request.get(`${API_BASE}/playback/manifest/${videoId}`, {
+    headers: { Cookie: student.cookieHeader },
+  });
+  expect(res.status()).toBe(200);
+});
+
+test('403 NOT_VIDEO_OWNER for an enrolled student after the course is unpublished', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const { videoId } = await seedLessonWithReadyVideo({ courseId, instructorId: instructor.uid });
+  const student = await registerStudent(request);
+
+  await request.post(`${API_BASE}/enrollments`, {
+    headers: { Cookie: student.cookieHeader },
+    data: { courseId },
+  });
+
+  const unpublish = await request.post(`${API_BASE}/courses/${courseId}/unpublish`, {
+    headers: { Cookie: instructor.cookieHeader },
+  });
+  expect(unpublish.status()).toBe(200);
+
+  const res = await request.get(`${API_BASE}/playback/manifest/${videoId}`, {
+    headers: { Cookie: student.cookieHeader },
+  });
+  expect(res.status()).toBe(403);
+});
+
+test('403 NOT_VIDEO_OWNER for a student after they unenrol', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const { videoId } = await seedLessonWithReadyVideo({ courseId, instructorId: instructor.uid });
+  const student = await registerStudent(request);
+
+  await request.post(`${API_BASE}/enrollments`, {
+    headers: { Cookie: student.cookieHeader },
+    data: { courseId },
+  });
+
+  const unenrol = await request.delete(`${API_BASE}/enrollments/${courseId}`, {
+    headers: { Cookie: student.cookieHeader },
+  });
+  expect(unenrol.status()).toBe(204);
+
+  const res = await request.get(`${API_BASE}/playback/manifest/${videoId}`, {
+    headers: { Cookie: student.cookieHeader },
+  });
+  expect(res.status()).toBe(403);
 });
 
 test('404 VIDEO_NOT_FOUND for a missing :vid', async ({ request }) => {
