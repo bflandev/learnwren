@@ -22,8 +22,8 @@ const baseCourse: Course = {
   id: CID,
   instructorId: 'instructor-1' as Course['instructorId'],
   title: 'Test Course',
+  description: 'Test Course Description',
   status: 'PUBLISHED',
-  modules: [],
   createdAt: '2026-01-01T00:00:00Z' as Course['createdAt'],
   updatedAt: '2026-01-01T00:00:00Z' as Course['updatedAt'],
 };
@@ -34,6 +34,7 @@ const baseLesson: Lesson = {
   title: 'Test Lesson',
   description: 'A description',
   videoId: VID,
+  order: 1,
   createdAt: '2026-01-01T00:00:00Z' as Lesson['createdAt'],
   updatedAt: '2026-01-01T00:00:00Z' as Lesson['updatedAt'],
 };
