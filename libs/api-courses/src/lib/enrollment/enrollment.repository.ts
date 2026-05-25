@@ -203,4 +203,40 @@ export class EnrollmentRepository {
       });
     });
   }
+
+  async setLastWatchedSeconds(
+    userId: UserId,
+    courseId: CourseId,
+    lessonId: LessonId,
+    seconds: number,
+  ): Promise<{ lastWatchedSeconds: number }> {
+    const enrollmentRef = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
+
+    return this.db.runTransaction(async (t) => {
+      const snap = await t.get(enrollmentRef);
+      const existing = snap.exists ? (snap.data() as Enrollment) : null;
+      if (!existing || existing.status !== 'ACTIVE') {
+        throw new NotEnrolledException();
+      }
+
+      const progress = [...(existing.progress ?? [])];
+      const idx = progress.findIndex((p) => p.lessonId === lessonId);
+      const existingRow = idx >= 0 ? progress[idx] : undefined;
+
+      if (existingRow && existingRow.lastWatchedSeconds >= seconds) {
+        // Equal value (idempotent) or monotonic regression — drop the write.
+        return { lastWatchedSeconds: existingRow.lastWatchedSeconds };
+      }
+
+      if (existingRow) {
+        progress[idx] = { ...existingRow, lastWatchedSeconds: seconds };
+      } else {
+        progress.push({ lessonId, completedAt: null, lastWatchedSeconds: seconds });
+      }
+
+      const now = nowIso();
+      t.update(enrollmentRef, { progress, updatedAt: now });
+      return { lastWatchedSeconds: seconds };
+    });
+  }
 }
