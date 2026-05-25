@@ -44,6 +44,7 @@ const COURSE_ID = 'c1' as CourseId;
 const MODULE_ID = 'm1' as ModuleId;
 const LESSON_ID = 'l1' as LessonId;
 const INSTRUCTOR_ID = 'u1';
+const STUDENT_ID = 'u2';
 
 const publishedCourse: Course = {
   id: COURSE_ID,
@@ -56,6 +57,7 @@ const publishedCourse: Course = {
 };
 
 const draftCourse: Course = { ...publishedCourse, status: 'DRAFT' };
+const archivedCourse: Course = { ...publishedCourse, status: 'ARCHIVED' };
 
 const testModule: Module = {
   id: MODULE_ID,
@@ -138,5 +140,62 @@ describe('LessonEnrollmentOrOwnerGuard', () => {
         ctxFor({ params: { cid: COURSE_ID }, user: { uid: INSTRUCTOR_ID } }),
       ),
     ).rejects.toBeInstanceOf(LessonNotFoundException);
+  });
+
+  // ── T6: Enrolled-student branch ──────────────────────────────────────────
+
+  it('allows an enrolled student on a PUBLISHED course', async () => {
+    const courses = makeCourses(publishedCourse, [testModule], testLesson);
+    const enrollment = makeEnrollment(true);
+    const guard = new LessonEnrollmentOrOwnerGuard(courses, enrollment);
+    const req: Record<string, unknown> = {
+      params: { cid: COURSE_ID, lid: LESSON_ID },
+      user: { uid: STUDENT_ID },
+    };
+    await expect(guard.canActivate(ctxFor(req))).resolves.toBe(true);
+    expect(req['course']).toEqual(publishedCourse);
+    expect(req['lesson']).toEqual(testLesson);
+    expect(enrollment.isEnrolled).toHaveBeenCalledWith(STUDENT_ID, COURSE_ID);
+  });
+
+  it('denies an enrolled student on a DRAFT course (throws NotLessonOwnerException)', async () => {
+    const courses = makeCourses(draftCourse, [testModule], testLesson);
+    const guard = new LessonEnrollmentOrOwnerGuard(courses, makeEnrollment(true));
+    await expect(
+      guard.canActivate(
+        ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID }, user: { uid: STUDENT_ID } }),
+      ),
+    ).rejects.toBeInstanceOf(NotLessonOwnerException);
+  });
+
+  it('denies an enrolled student on an ARCHIVED course (throws NotLessonOwnerException)', async () => {
+    const courses = makeCourses(archivedCourse, [testModule], testLesson);
+    const guard = new LessonEnrollmentOrOwnerGuard(courses, makeEnrollment(true));
+    await expect(
+      guard.canActivate(
+        ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID }, user: { uid: STUDENT_ID } }),
+      ),
+    ).rejects.toBeInstanceOf(NotLessonOwnerException);
+  });
+
+  it('denies a non-enrolled non-owner', async () => {
+    const courses = makeCourses(publishedCourse, [testModule], testLesson);
+    const guard = new LessonEnrollmentOrOwnerGuard(courses, makeEnrollment(false));
+    await expect(
+      guard.canActivate(
+        ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID }, user: { uid: STUDENT_ID } }),
+      ),
+    ).rejects.toBeInstanceOf(NotLessonOwnerException);
+  });
+
+  it('denies a withdrawn enrollment (isEnrolled returns false for WITHDRAWN)', async () => {
+    // EnrollmentRepository.isEnrolled returns false when status === 'WITHDRAWN'
+    const courses = makeCourses(publishedCourse, [testModule], testLesson);
+    const guard = new LessonEnrollmentOrOwnerGuard(courses, makeEnrollment(false));
+    await expect(
+      guard.canActivate(
+        ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID }, user: { uid: STUDENT_ID } }),
+      ),
+    ).rejects.toBeInstanceOf(NotLessonOwnerException);
   });
 });

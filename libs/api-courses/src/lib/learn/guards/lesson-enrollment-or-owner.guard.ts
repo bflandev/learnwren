@@ -33,7 +33,17 @@ export class LessonEnrollmentOrOwnerGuard implements CanActivate {
       return true;
     }
 
-    // T6 enrolled-student branch goes here (committed separately).
+    // Enrolled students need the course to still be PUBLISHED. Once the
+    // instructor unpublishes or archives, enrolment-based access is revoked
+    // at the API boundary. Mirrors EnrollmentOrOwnerGuard.
+    if (req.user && (await this.enrollment.isEnrolled(req.user.uid, cid))) {
+      if (course.status === 'PUBLISHED') {
+        req.course = course;
+        req.lesson = lesson;
+        return true;
+      }
+    }
+
     throw new NotLessonOwnerException();
   }
 
