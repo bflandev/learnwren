@@ -37,4 +37,22 @@ describe('LearnService', () => {
     expect(result.lesson.title).toBe('Intro');
     expect(result.course.id).toBe('c-1');
   });
+
+  describe('markLessonComplete', () => {
+    it('POSTs to /api/learn/courses/:cid/lessons/:lid/complete and resolves with the body', async () => {
+      const promise = service.markLessonComplete('c1', 'l1');
+      const req = http.expectOne('/api/learn/courses/c1/lessons/l1/complete');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.withCredentials).toBe(true);
+      req.flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+      await expect(promise).resolves.toEqual({ completedAt: '2026-05-25T12:00:00.000Z' });
+    });
+
+    it('rejects with HttpErrorResponse on 403', async () => {
+      const promise = service.markLessonComplete('c1', 'l1');
+      const req = http.expectOne('/api/learn/courses/c1/lessons/l1/complete');
+      req.flush({ error: { code: 'NOT_ENROLLED_LESSON' } }, { status: 403, statusText: 'Forbidden' });
+      await expect(promise).rejects.toMatchObject({ status: 403 });
+    });
+  });
 });

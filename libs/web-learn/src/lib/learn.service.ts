@@ -10,15 +10,21 @@ export class LearnService {
 
   getLessonView(courseId: string, lessonId: string): Promise<LessonView> {
     return firstValueFrom(
-      this.http.get<LessonView>(`/api/learn/courses/${courseId}/lessons/${lessonId}`),
+      this.http.get<LessonView>(`/api/learn/courses/${courseId}/lessons/${lessonId}`, {
+        withCredentials: true,
+      }),
     );
   }
 
-  markLessonComplete(courseId: string, lessonId: string): Promise<{ completedAt: ISODateString }> {
+  markLessonComplete(
+    courseId: string,
+    lessonId: string,
+  ): Promise<{ completedAt: ISODateString }> {
     return firstValueFrom(
       this.http.post<{ completedAt: ISODateString }>(
         `/api/learn/courses/${courseId}/lessons/${lessonId}/complete`,
         {},
+        { withCredentials: true },
       ),
     );
   }
