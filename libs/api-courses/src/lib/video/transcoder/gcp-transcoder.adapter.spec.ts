@@ -129,6 +129,53 @@ describe('GcpTranscoderAdapter.parseEvent — malformed input', () => {
     const adapter = makeAdapter(makeClient());
     await expect(adapter.parseEvent({ message: {} })).rejects.toThrow(/data/);
   });
+  it('throws on payload missing the job field', async () => {
+    const adapter = makeAdapter(makeClient());
+    await expect(adapter.parseEvent(envelope({}))).rejects.toThrow(/missing job/);
+  });
+  it('throws on an unexpected job.state (neither SUCCEEDED nor FAILED)', async () => {
+    const adapter = makeAdapter(makeClient());
+    await expect(
+      adapter.parseEvent(
+        envelope({ job: { name: 'j', state: 'RUNNING', labels: { videoid: 'v1' } } }),
+      ),
+    ).rejects.toThrow(/Unexpected job\.state: RUNNING/);
+  });
+});
+
+describe('GcpTranscoderAdapter.parseEvent — optional-field fallbacks', () => {
+  // Pin the right side of each `?? ` operator in parseEvent. Without these,
+  // a mutant that removes the fallback can pass every other test.
+  it('defaults jobName to "" when job.name is absent', async () => {
+    const client = makeClient();
+    client.getJob.mockResolvedValue([{ outputDurationSec: 10 }]);
+    const adapter = makeAdapter(client);
+    const ev = await adapter.parseEvent(
+      envelope({ job: { state: 'SUCCEEDED', labels: { videoid: 'v1' } } }),
+    );
+    expect(ev.jobName).toBe('');
+    // getJob is invoked with the same fallback name — the contract is
+    // tested but the wire call is what matters operationally.
+    expect(client.getJob).toHaveBeenCalledWith({ name: '' });
+  });
+  it('defaults durationSec to 0 when outputDurationSec is missing on SUCCEEDED', async () => {
+    const client = makeClient();
+    client.getJob.mockResolvedValue([{ name: 'j' }]); // no outputDurationSec
+    const adapter = makeAdapter(client);
+    const ev = await adapter.parseEvent(
+      envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'v1' } } }),
+    );
+    if (ev.type !== 'JOB_SUCCEEDED') throw new Error('expected SUCCEEDED');
+    expect(ev.durationSec).toBe(0);
+  });
+  it('defaults reason to "unknown" on FAILED when error.message is absent', async () => {
+    const adapter = makeAdapter(makeClient());
+    const ev = await adapter.parseEvent(
+      envelope({ job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1' } } }),
+    );
+    if (ev.type !== 'JOB_FAILED') throw new Error('expected FAILED');
+    expect(ev.reason).toBe('unknown');
+  });
 });
 
 describe('GcpTranscoderAdapter.cancelJob', () => {

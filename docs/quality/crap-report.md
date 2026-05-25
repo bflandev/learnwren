@@ -1,6 +1,6 @@
 # CRAP Score Report
 
-> Generated 2026-05-25T15:35:51.409Z
+> Generated 2026-05-25T16:12:24.246Z
 
 Threshold: **30** (canonical Savoia/Evans cutoff for "crappy").
 
@@ -34,13 +34,13 @@ Formula: `CRAP(m) = comp(m)² × (1 − cov(m)/100)³ + comp(m)`. Complexity cou
 
 | # | Function | File:line | Comp | Cov % | Basis | CRAP | Verdict |
 |---|----------|-----------|------|-------|-------|------|---------|
-| 1 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:58` | 9 | 68.8 | branch | 11.47 | acceptable |
-| 2 | `catch` | `libs/api-courses/src/lib/materials/materials.exception-filter.ts:28` | 11 | 94.7 | branch | 11.02 | acceptable |
-| 3 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/fake-transcoder.adapter.ts:41` | 8 | 64.3 | branch | 10.92 | acceptable |
-| 4 | `composeReasons` | `libs/api-courses/src/lib/publish/publish-eligibility.ts:10` | 10 | 100.0 | branch | 10.00 | acceptable |
-| 5 | `reasonText` | `libs/web-courses/src/lib/publish/publish-eligibility-panel.component.ts:40` | 9 | 90.9 | file-branch-fallback | 9.06 | acceptable |
-| 6 | `<anonymous>` | `libs/api-courses/src/lib/enrollment/enrollment.repository.ts:53` | 9 | 100.0 | branch | 9.00 | acceptable |
-| 7 | `canActivate` | `libs/api-courses/src/lib/learn/guards/lesson-enrollment-or-owner.guard.ts:17` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 1 | `catch` | `libs/api-courses/src/lib/materials/materials.exception-filter.ts:28` | 11 | 94.7 | branch | 11.02 | acceptable |
+| 2 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/fake-transcoder.adapter.ts:41` | 8 | 64.3 | branch | 10.92 | acceptable |
+| 3 | `composeReasons` | `libs/api-courses/src/lib/publish/publish-eligibility.ts:10` | 10 | 100.0 | branch | 10.00 | acceptable |
+| 4 | `reasonText` | `libs/web-courses/src/lib/publish/publish-eligibility-panel.component.ts:40` | 9 | 90.9 | file-branch-fallback | 9.06 | acceptable |
+| 5 | `<anonymous>` | `libs/api-courses/src/lib/enrollment/enrollment.repository.ts:53` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 6 | `canActivate` | `libs/api-courses/src/lib/learn/guards/lesson-enrollment-or-owner.guard.ts:17` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 7 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:58` | 9 | 100.0 | branch | 9.00 | acceptable |
 | 8 | `userMessageFor` | `libs/web-video/src/lib/player/video-player.service.ts:12` | 9 | 100.0 | file-branch-fallback | 9.00 | acceptable |
 | 9 | `onConfirmClosed` | `libs/web-courses/src/lib/course-editor-page/course-editor-page.component.ts:111` | 8 | 86.8 | file-branch-fallback | 8.15 | acceptable |
 | 10 | `<anonymous>` | `libs/web-video/src/lib/video-state-badge.component.ts:28` | 8 | 93.8 | file-branch-fallback | 8.02 | acceptable |
@@ -57,13 +57,13 @@ Formula: `CRAP(m) = comp(m)² × (1 − cov(m)/100)³ + comp(m)`. Complexity cou
 
 ## Recommendation per offender
 
-1. `parseEvent` (libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:58) — **refactor — coverage is fine; the branching is the problem**
-2. `catch` (libs/api-courses/src/lib/materials/materials.exception-filter.ts:28) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
-3. `parseEvent` (libs/api-courses/src/lib/video/transcoder/fake-transcoder.adapter.ts:41) — **refactor — coverage is fine; the branching is the problem**
-4. `composeReasons` (libs/api-courses/src/lib/publish/publish-eligibility.ts:10) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
-5. `reasonText` (libs/web-courses/src/lib/publish/publish-eligibility-panel.component.ts:40) — **refactor — coverage is fine; the branching is the problem**
-6. `<anonymous>` (libs/api-courses/src/lib/enrollment/enrollment.repository.ts:53) — **refactor — coverage is fine; the branching is the problem**
-7. `canActivate` (libs/api-courses/src/lib/learn/guards/lesson-enrollment-or-owner.guard.ts:17) — **refactor — coverage is fine; the branching is the problem**
+1. `catch` (libs/api-courses/src/lib/materials/materials.exception-filter.ts:28) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+2. `parseEvent` (libs/api-courses/src/lib/video/transcoder/fake-transcoder.adapter.ts:41) — **refactor — coverage is fine; the branching is the problem**
+3. `composeReasons` (libs/api-courses/src/lib/publish/publish-eligibility.ts:10) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+4. `reasonText` (libs/web-courses/src/lib/publish/publish-eligibility-panel.component.ts:40) — **refactor — coverage is fine; the branching is the problem**
+5. `<anonymous>` (libs/api-courses/src/lib/enrollment/enrollment.repository.ts:53) — **refactor — coverage is fine; the branching is the problem**
+6. `canActivate` (libs/api-courses/src/lib/learn/guards/lesson-enrollment-or-owner.guard.ts:17) — **refactor — coverage is fine; the branching is the problem**
+7. `parseEvent` (libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:58) — **refactor — coverage is fine; the branching is the problem**
 8. `userMessageFor` (libs/web-video/src/lib/player/video-player.service.ts:12) — **refactor — coverage is fine; the branching is the problem**
 9. `onConfirmClosed` (libs/web-courses/src/lib/course-editor-page/course-editor-page.component.ts:111) — **refactor — coverage is fine; the branching is the problem**
 10. `<anonymous>` (libs/web-video/src/lib/video-state-badge.component.ts:28) — **refactor — coverage is fine; the branching is the problem**
