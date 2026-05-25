@@ -72,7 +72,16 @@ export class FakeTranscoderController {
 
   private async resolveJobName(vid: VideoId): Promise<string> {
     const v = await this.videos.getVideo(vid);
-    if (!v?.transcoderJobName) throw new NotFoundException();
+    // Pass missing videos through to the real handler so its VIDEO_NOT_FOUND
+    // branch returns 200 + structured reason — a 404 here would short-circuit
+    // that contract. The placeholder name is irrelevant because the repo
+    // checks snap.exists first, before reading transcoderJobName.
+    if (!v) return 'fake-job-unknown';
+    // Video exists but has no transcoderJobName yet (e.g. still PENDING_UPLOAD
+    // because upload-complete hasn't run). Calling the dev completer in that
+    // state is a caller error; surface it loudly instead of silently no-op'ing
+    // via JOB_NAME_MISMATCH.
+    if (!v.transcoderJobName) throw new NotFoundException();
     return v.transcoderJobName;
   }
 }

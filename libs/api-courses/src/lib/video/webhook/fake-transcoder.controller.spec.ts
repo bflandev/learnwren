@@ -74,9 +74,12 @@ describe('FakeTranscoderController', () => {
     expect(decoded.job.error.message).toBe('fake-transcoder synthetic failure');
   });
 
-  it('complete: 404s when the video does not exist', async () => {
-    const { c } = build(null);
-    await expect(c.complete('v1' as VideoId, res() as never)).rejects.toBeInstanceOf(NotFoundException);
+  it('complete: forwards a placeholder name when the video does not exist (real handler returns VIDEO_NOT_FOUND)', async () => {
+    const { c, eventsController } = build(null);
+    await c.complete('v1' as VideoId, res() as never);
+    expect(eventsController.handle).toHaveBeenCalledTimes(1);
+    const decoded = decodeEnvelope(eventsController);
+    expect(decoded.job.name).toBe('fake-job-unknown');
   });
 
   it('complete: 404s when the video has no transcoderJobName yet', async () => {
