@@ -26,13 +26,21 @@ export class LessonPlayerPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly learn = inject(LearnService);
 
-  readonly courseId = this.route.snapshot.paramMap.get('courseId') ?? '';
-  readonly lessonId = this.route.snapshot.paramMap.get('lessonId') ?? '';
+  courseId = '';
+  lessonId = '';
 
   readonly state = signal<PageState>('LOADING');
   readonly view = signal<LessonView | null>(null);
 
   async ngOnInit(): Promise<void> {
+    const courseId = this.route.snapshot.paramMap.get('courseId');
+    const lessonId = this.route.snapshot.paramMap.get('lessonId');
+    if (!courseId || !lessonId) {
+      this.state.set('NOT_FOUND');
+      return;
+    }
+    this.courseId = courseId;
+    this.lessonId = lessonId;
     await this.load();
   }
 

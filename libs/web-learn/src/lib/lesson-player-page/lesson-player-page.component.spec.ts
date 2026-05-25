@@ -2,9 +2,11 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { By } from '@angular/platform-browser';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { LessonView } from '@learnwren/shared-data-models';
+import { VideoPlayerComponent } from '@learnwren/web-video';
 
 import { LessonPlayerPageComponent } from './lesson-player-page.component';
 
@@ -23,10 +25,16 @@ function makeView(overrides: Partial<LessonView['lesson']> = {}): LessonView {
   };
 }
 
-function configure(courseId = 'c-1', lessonId = 'l-1') {
+function configure(
+  params: { courseId?: string | null; lessonId?: string | null } = {},
+) {
+  const { courseId = 'c-1', lessonId = 'l-1' } = params;
+  const raw: Record<string, string> = {};
+  if (courseId !== null) raw['courseId'] = courseId;
+  if (lessonId !== null) raw['lessonId'] = lessonId;
   const activatedRouteFake = {
     snapshot: {
-      paramMap: convertToParamMap({ courseId, lessonId }),
+      paramMap: convertToParamMap(raw),
     },
   };
 
@@ -74,8 +82,28 @@ describe('LessonPlayerPageComponent', () => {
     http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
     await fixture.whenStable();
     fixture.detectChanges();
-    const player = query(fixture, 'lib-video-player');
-    expect(player).not.toBeNull();
+    const playerDe = fixture.debugElement.query(By.css('lib-video-player'));
+    expect(playerDe).not.toBeNull();
+    const player = playerDe.componentInstance as VideoPlayerComponent;
+    expect(player.videoId()).toBe('vid-1');
+  });
+
+  it('sets state to NOT_FOUND and fires no request when courseId param is missing', async () => {
+    configure({ courseId: null });
+    const { fixture, http } = create();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    http.expectNone('/api/learn/courses//lessons/l-1');
+    expect(text(fixture)).toContain('Lesson not available');
+  });
+
+  it('sets state to NOT_FOUND and fires no request when lessonId param is missing', async () => {
+    configure({ lessonId: null });
+    const { fixture, http } = create();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    http.expectNone('/api/learn/courses/c-1/lessons/');
+    expect(text(fixture)).toContain('Lesson not available');
   });
 
   it('renders the processing panel when videoState is not READY', async () => {
