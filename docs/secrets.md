@@ -28,21 +28,25 @@ pnpm secrets:run -- <command>
 
 ## Vault contract
 
-Vault: `learnwren`
+Vault: `learnwren`. The table below mirrors `.env.tpl` — when you add a new
+`op://...` reference there, add the matching row here.
 
-| Item | Field | Purpose | Required by |
-|---|---|---|---|
-| `Workspace` | `name` | Canary; value `learnwren-dev`; proves the pipeline works | wiring spec |
-| `Web SDK Config` | `apiKey` | Firebase Web SDK | `LEARNWREN_FIREBASE_TARGET=production` |
-| `Web SDK Config` | `authDomain` | Firebase Web SDK | `LEARNWREN_FIREBASE_TARGET=production` |
-| `Web SDK Config` | `projectId` | Firebase Web SDK | `LEARNWREN_FIREBASE_TARGET=production` |
-| `Web SDK Config` | `appId` | Firebase Web SDK | `LEARNWREN_FIREBASE_TARGET=production` |
-| `Web SDK Config` | `storageBucket` | Firebase Web SDK | `LEARNWREN_FIREBASE_TARGET=production` |
-| `Web SDK Config` | `messagingSenderId` | Firebase Web SDK | `LEARNWREN_FIREBASE_TARGET=production` |
-| `Admin SDK Config` | `projectId` | Real Firebase project ID for the Admin SDK | `LEARNWREN_FIREBASE_TARGET=production` |
-| `Admin SDK Config` | `firestoreRegion` | Documentation only — region recorded for future ops | reference |
+| Item | Field | Env var rendered | Purpose | Required when |
+|---|---|---|---|---|
+| `Workspace` | `name` | `WORKSPACE_NAME` | Canary; non-secret value `learnwren-dev` proves the pipeline works | render-time sanity check |
+| `Admin SDK Config` | `projectId` | `LEARNWREN_API_FIREBASE_PROJECT_ID` | Real Firebase project ID for the Admin SDK | `LEARNWREN_FIREBASE_TARGET=production` |
+| `Web SDK Config` | `apiKey` | `FIREBASE_WEB_API_KEY` | Firebase Web API key used server-side by `FirebaseAuthRestClient` to verify passwords via the Identity Toolkit REST API (the web bundle has no Firebase client SDK) | `LEARNWREN_FIREBASE_TARGET=production` |
+| `dev` | `LEARNWREN_VIDEO_SOURCE_BUCKET` | same | Cloud Storage bucket for raw instructor uploads | `NODE_ENV=production` |
+| `dev` | `LEARNWREN_VIDEO_OUTPUT_BUCKET` | same | Cloud Storage bucket for transcoded HLS output | `NODE_ENV=production` |
+| `dev` | `LEARNWREN_MATERIALS_BUCKET` | same | Cloud Storage bucket for lesson materials | `NODE_ENV=production` |
+| `dev` | `LEARNWREN_GCP_PROJECT_ID` | same | GCP project hosting the Transcoder API and Pub/Sub topic | `LEARNWREN_VIDEO_TRANSCODER=gcp` |
+| `dev` | `LEARNWREN_TRANSCODER_TOPIC` | same | Pub/Sub topic for Transcoder job events | `LEARNWREN_VIDEO_TRANSCODER=gcp` |
+| `dev` | `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` | same | Expected audience on the Pub/Sub push token | `LEARNWREN_VIDEO_TRANSCODER=gcp` |
+| `dev` | `LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL` | same | Service account allowed to push transcoder events | `LEARNWREN_VIDEO_TRANSCODER=gcp` |
 
-The `Workspace.name` field is referenced from `.env.tpl` as `op://learnwren/Workspace/name`. Future entries land here as later specs introduce them.
+Outside production the video and materials stacks default to their
+credential-free `fake` modes — none of the `dev/*` items are required for
+`pnpm start` against the emulators.
 
 ## Adding a secret
 
