@@ -16,7 +16,7 @@
     "e2e": "nx run web-e2e:e2e && nx run api-e2e:e2e",
     "typecheck": "nx run-many -t typecheck",
     "affected": "nx affected -t lint test build typecheck",
-    "crap:coverage": "nx run-many -t test --coverage --coverage.reportOnFailure=true --projects=api-auth,api-courses,api-firebase,web-auth,web-courses,web-video,shared-data-models,api --skip-nx-cache --parallel=1 || true",
+    "crap:coverage": "nx run-many -t test --coverage --coverage.reportOnFailure=true --projects=api-auth,api-courses,api-firebase,web-auth,web-catalog,web-courses,web-enrollment,web-learn,web-ui,web-video,shared-data-models,api --skip-nx-cache --parallel=1 || true",
     "crap:report": "node tools/crap/crap.mjs",
     "crap": "pnpm crap:coverage && pnpm crap:report",
     "mutate:api-auth": "stryker run stryker.api-auth.config.mjs",

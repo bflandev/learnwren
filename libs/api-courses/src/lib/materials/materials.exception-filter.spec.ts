@@ -1,4 +1,4 @@
-import { ArgumentsHost, BadRequestException } from '@nestjs/common';
+import { ArgumentsHost, BadRequestException, HttpException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthException } from '@learnwren/api-auth';
@@ -163,5 +163,27 @@ describe('MaterialsExceptionFilter', () => {
     const keys = Object.keys(body.error.details?.fieldErrors ?? {});
     expect(keys).not.toContain('');
     expect(keys).toContain('email');
+  });
+});
+
+describe('MaterialsExceptionFilter — HttpException status → code mapping', () => {
+  // Pins every branch of the private codeForStatus() helper. BadRequestException
+  // is intercepted upstream into VALIDATION_FAILED, so the 400 branch here is
+  // reached only by a plain HttpException base instance. 418 pins the default.
+  it.each<[number, string]>([
+    [400, 'BAD_REQUEST'],
+    [401, 'UNAUTHORIZED'],
+    [403, 'FORBIDDEN'],
+    [404, 'NOT_FOUND'],
+    [409, 'CONFLICT'],
+    [422, 'VALIDATION_ERROR'],
+    [418, 'HTTP_ERROR'],
+  ])('maps a plain HttpException(%i) to %s', (statusCode, code) => {
+    const cap = hostCapturing();
+    new MaterialsExceptionFilter().catch(new HttpException('http err', statusCode), cap.host);
+    expect(cap.status()).toBe(statusCode);
+    const body = cap.body() as { error: { code: string; message: string } };
+    expect(body.error.code).toBe(code);
+    expect(body.error.message).toBe('http err');
   });
 });

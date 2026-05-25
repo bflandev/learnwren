@@ -1,4 +1,4 @@
-import { ArgumentsHost } from '@nestjs/common';
+import { ArgumentsHost, HttpException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthExceptionFilter } from './auth.exception-filter';
@@ -137,6 +137,29 @@ describe('AuthExceptionFilter — hardening exceptions', () => {
     expect(captured.status).toBe(status);
     expect(captured.body).toMatchObject({
       error: details ? { code, details } : { code },
+    });
+  });
+});
+
+describe('AuthExceptionFilter — HttpException status → code mapping', () => {
+  // Pins every branch of the private codeForStatus() helper. The path is only
+  // reached by a plain HttpException (not an AuthException, which carries its
+  // own code). 418 covers the fallback HTTP_ERROR branch.
+  it.each<[number, string]>([
+    [400, 'BAD_REQUEST'],
+    [401, 'UNAUTHORIZED'],
+    [403, 'FORBIDDEN'],
+    [404, 'NOT_FOUND'],
+    [409, 'CONFLICT'],
+    [422, 'VALIDATION_ERROR'],
+    [418, 'HTTP_ERROR'],
+  ])('maps a plain HttpException(%i) to %s', (statusCode, code) => {
+    const filter = new AuthExceptionFilter();
+    const { host, status, json } = buildHost();
+    filter.catch(new HttpException('http err', statusCode), host);
+    expect(status).toHaveBeenCalledWith(statusCode);
+    expect(json).toHaveBeenCalledWith({
+      error: { code, message: 'http err' },
     });
   });
 });
