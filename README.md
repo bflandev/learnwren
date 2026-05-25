@@ -261,6 +261,56 @@ Detailed Cockburn-style use cases for the MVP epics live in [`docs/use-cases/`](
 
 ---
 
+## Implementation Summaries
+
+Each shipped slice has a post-implementation summary in [`docs/superpowers/summaries/`](./docs/superpowers/summaries/) recording what was built, where it diverged from the plan, how it was verified, and what was deferred. Summaries are paired with their corresponding spec in [`docs/superpowers/specs/`](./docs/superpowers/specs/) and plan in [`docs/superpowers/plans/`](./docs/superpowers/plans/).
+
+### Foundation
+
+- [Initial Nx Monorepo](./docs/superpowers/summaries/2026-04-29-initial-nx-monorepo-summary.md) — 2026-04-29
+- [Firebase Wiring and Secrets](./docs/superpowers/summaries/2026-04-29-firebase-wiring-and-secrets-summary.md) — 2026-04-29
+- [Firebase Project Connection](./docs/superpowers/summaries/2026-04-30-firebase-project-connection-summary.md) — 2026-04-30
+
+### EP-01 — User Identity and Access
+
+- [Auth: Registration and Login](./docs/superpowers/summaries/2026-05-04-auth-registration-and-login-summary.md) — 2026-05-04
+- [Auth Hardening](./docs/superpowers/summaries/2026-05-06-auth-hardening-summary.md) — 2026-05-06
+
+### EP-02 — Course Authoring
+
+- [Course Authoring](./docs/superpowers/summaries/2026-05-12-course-authoring-summary.md) — 2026-05-12
+
+### EP-03 — Video Management and DRM
+
+- [Video: Upload (Slice A)](./docs/superpowers/summaries/2026-05-13-video-upload-slice-a-summary.md) — 2026-05-13
+- [Video: Transcoding (Slice B)](./docs/superpowers/summaries/2026-05-13-video-transcoding-slice-b-summary.md) — 2026-05-13
+- [Video: Playback (Slice C)](./docs/superpowers/summaries/2026-05-14-video-playback-slice-c-summary.md) — 2026-05-14
+- [Merge api-video into api-courses](./docs/superpowers/summaries/2026-05-20-merge-api-video-into-api-courses-summary.md) — 2026-05-20 (refactor)
+- [Publish Gate (Slice D)](./docs/superpowers/summaries/2026-05-20-publish-gate-slice-d-summary.md) — 2026-05-20
+
+### EP-04 — Lesson Materials
+
+- [Lesson Materials](./docs/superpowers/summaries/2026-05-21-lesson-materials-summary.md) — 2026-05-21
+
+### EP-05 — Course Discovery and Enrollment
+
+- [Course Discovery (Slice A)](./docs/superpowers/summaries/2026-05-22-course-discovery-slice-a-summary.md) — 2026-05-22
+- [Slice B: Course Enrolment](./docs/superpowers/summaries/2026-05-22-ep05-slice-b-enrolment-summary.md) — 2026-05-22
+
+### EP-06 — Learning Experience
+
+- [Slice A: Student Lesson Playback](./docs/superpowers/summaries/2026-05-25-ep06-slice-a-student-playback-summary.md) — 2026-05-25
+- [Slice B: Mark Lesson Complete](./docs/superpowers/summaries/2026-05-25-ep06-slice-b-mark-complete-summary.md) — 2026-05-25
+
+### Design system & Instructor UI
+
+- [Design System Foundation](./docs/superpowers/summaries/2026-05-22-design-system-foundation-summary.md) — 2026-05-22
+- [Auth Pages Restyle](./docs/superpowers/summaries/2026-05-22-auth-pages-restyle-summary.md) — 2026-05-22
+- [Instructor UI Plan A: web-courses](./docs/superpowers/summaries/2026-05-22-instructor-ui-plan-a-web-courses-summary.md) — 2026-05-22
+- [Instructor UI Plan B: web-video + Dashboard](./docs/superpowers/summaries/2026-05-22-instructor-ui-plan-b-web-video-dashboard-summary.md) — 2026-05-22
+
+---
+
 ## Technical Architecture
 
 A detailed breakdown of the recommended technical architecture, including the technology stack, data models, and system diagrams, can be found in the [**Technical Architecture**](./docs/epics/TECHNICAL_ARCHITECTURE.md) document.
