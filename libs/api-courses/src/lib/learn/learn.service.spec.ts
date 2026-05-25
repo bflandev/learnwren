@@ -22,8 +22,8 @@ const baseCourse: Course = {
   id: CID,
   instructorId: 'instructor-1' as Course['instructorId'],
   title: 'Test Course',
+  description: 'Test Course Description',
   status: 'PUBLISHED',
-  modules: [],
   createdAt: '2026-01-01T00:00:00Z' as Course['createdAt'],
   updatedAt: '2026-01-01T00:00:00Z' as Course['updatedAt'],
 };
@@ -34,6 +34,7 @@ const baseLesson: Lesson = {
   title: 'Test Lesson',
   description: 'A description',
   videoId: VID,
+  order: 1,
   createdAt: '2026-01-01T00:00:00Z' as Lesson['createdAt'],
   updatedAt: '2026-01-01T00:00:00Z' as Lesson['updatedAt'],
 };
@@ -100,12 +101,32 @@ describe('LearnService', () => {
     expect(view.lesson.videoState).toBe('TRANSCODING');
   });
 
-  it('falls back to empty string when lesson.description is undefined', async () => {
+  it('passes through a non-empty description as-is', async () => {
+    const repo = makeRepo({ getVideo: null });
+    const svc = new LearnService(repo);
+    const lessonWithDesc: Lesson = { ...baseLesson, description: 'Hello world' };
+
+    const view = await svc.getLessonView(baseCourse, lessonWithDesc);
+
+    expect(view.lesson.description).toBe('Hello world');
+  });
+
+  it('leaves description undefined when the lesson has no description authored', async () => {
     const repo = makeRepo({ getVideo: null });
     const svc = new LearnService(repo);
     const lessonNoDesc: Lesson = { ...baseLesson, description: undefined };
 
     const view = await svc.getLessonView(baseCourse, lessonNoDesc);
+
+    expect(view.lesson.description).toBeUndefined();
+  });
+
+  it('preserves an explicit empty-string description distinct from undefined', async () => {
+    const repo = makeRepo({ getVideo: null });
+    const svc = new LearnService(repo);
+    const lessonEmptyDesc: Lesson = { ...baseLesson, description: '' };
+
+    const view = await svc.getLessonView(baseCourse, lessonEmptyDesc);
 
     expect(view.lesson.description).toBe('');
   });

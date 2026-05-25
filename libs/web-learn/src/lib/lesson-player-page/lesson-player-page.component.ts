@@ -4,10 +4,9 @@ import {
   Component,
   OnInit,
   inject,
-  input,
   signal,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import type { LessonView } from '@learnwren/shared-data-models';
 import { VideoPlayerComponent } from '@learnwren/web-video';
@@ -24,22 +23,31 @@ type PageState = 'LOADING' | 'READY' | 'PROCESSING' | 'NOT_ENROLLED' | 'NOT_FOUN
   templateUrl: './lesson-player-page.component.html',
 })
 export class LessonPlayerPageComponent implements OnInit {
+  private readonly route = inject(ActivatedRoute);
   private readonly learn = inject(LearnService);
 
-  readonly courseId = input.required<string>();
-  readonly lessonId = input.required<string>();
+  courseId = '';
+  lessonId = '';
 
   readonly state = signal<PageState>('LOADING');
   readonly view = signal<LessonView | null>(null);
 
   async ngOnInit(): Promise<void> {
+    const courseId = this.route.snapshot.paramMap.get('courseId');
+    const lessonId = this.route.snapshot.paramMap.get('lessonId');
+    if (!courseId || !lessonId) {
+      this.state.set('NOT_FOUND');
+      return;
+    }
+    this.courseId = courseId;
+    this.lessonId = lessonId;
     await this.load();
   }
 
   private async load(): Promise<void> {
     this.state.set('LOADING');
     try {
-      const view = await this.learn.getLessonView(this.courseId(), this.lessonId());
+      const view = await this.learn.getLessonView(this.courseId, this.lessonId);
       this.view.set(view);
       const v = view.lesson;
       if (v.videoId && v.videoState === 'READY') {

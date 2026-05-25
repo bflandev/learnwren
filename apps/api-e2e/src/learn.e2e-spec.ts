@@ -160,7 +160,7 @@ test('200 for an enrolled student on a PUBLISHED course with a READY video', asy
   expect(body.lesson.videoState).toBe('READY');
 });
 
-test('403 NOT_LESSON_OWNER for an authenticated but unenrolled student', async ({ request }) => {
+test('404 LESSON_NOT_FOUND for an authenticated but unenrolled student (kills the cross-course membership oracle)', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const student = await registerStudent(request);
   const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
@@ -168,11 +168,16 @@ test('403 NOT_LESSON_OWNER for an authenticated but unenrolled student', async (
   const { lessonId } = await seedLesson({ courseId, moduleId });
   // Intentionally NOT seeding an enrollment.
 
+  // Probe-style access (no prior relationship) returns 404 so an attacker
+  // cannot distinguish "lesson exists, I'm not enrolled" from "lesson does
+  // not exist". A 403 is reserved for users with an existing relationship
+  // (WITHDRAWN, or ACTIVE on a now-unpublished course) — see the
+  // revocation tests below.
   const res = await request.get(`${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}`, {
     headers: { cookie: student.cookieHeader },
   });
-  expect(res.status()).toBe(403);
-  expect(((await res.json()) as { error: { code: string } }).error.code).toBe('NOT_LESSON_OWNER');
+  expect(res.status()).toBe(404);
+  expect(((await res.json()) as { error: { code: string } }).error.code).toBe('LESSON_NOT_FOUND');
 });
 
 test('200 for the course owner (instructor) on a DRAFT course', async ({ request }) => {
@@ -260,4 +265,70 @@ test('404 LESSON_NOT_FOUND for a missing course id', async ({ request }) => {
   );
   expect(res.status()).toBe(404);
   expect(((await res.json()) as { error: { code: string } }).error.code).toBe('LESSON_NOT_FOUND');
+});
+
+// ─────────────────────── Revocation regression tests ────────────────────────
+// Mirror the playback-side siblings in playback.e2e-spec.ts. These confirm
+// that an ACTIVE enrolment on a now-unpublished course, and a WITHDRAWN
+// enrolment on a still-PUBLISHED course, both surface 403 NOT_LESSON_OWNER
+// on the NEW /learn endpoint — i.e. revocation actually reaches the
+// student-playback path, not just /playback/manifest.
+
+test('403 NOT_LESSON_OWNER for an enrolled student after the instructor unpublishes the course', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const student = await registerStudent(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const moduleId = await seedModule(courseId);
+  const { lessonId } = await seedLesson({ courseId, moduleId });
+  await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+  // Sanity: student has access while the course is PUBLISHED.
+  const ok = await request.get(`${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  expect(ok.status()).toBe(200);
+
+  // Instructor unpublishes (PUBLISHED → DRAFT).
+  const unpublish = await request.post(`${API_BASE}/courses/${courseId}/unpublish`, {
+    headers: { cookie: instructor.cookieHeader },
+  });
+  expect(unpublish.status()).toBe(200);
+
+  // The student's enrolment record still exists (ACTIVE), so they get the
+  // honest 403 "you lost access" signal rather than the 404 we'd hand to a
+  // probe-style attacker.
+  const res = await request.get(`${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  expect(res.status()).toBe(403);
+  expect(((await res.json()) as { error: { code: string } }).error.code).toBe('NOT_LESSON_OWNER');
+});
+
+test('403 NOT_LESSON_OWNER for a student after they withdraw from the course', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const student = await registerStudent(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const moduleId = await seedModule(courseId);
+  const { lessonId } = await seedLesson({ courseId, moduleId });
+  await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+  // Sanity: access works while enrolment is ACTIVE.
+  const ok = await request.get(`${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  expect(ok.status()).toBe(200);
+
+  // Student withdraws (ACTIVE → WITHDRAWN; the record is soft-deleted, not removed).
+  const unenrol = await request.delete(`${API_BASE}/enrollments/${courseId}`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  expect(unenrol.status()).toBe(204);
+
+  // Their WITHDRAWN record is still there, so they get 403 — not the 404
+  // an unenrolled probe-style attacker would see.
+  const res = await request.get(`${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  expect(res.status()).toBe(403);
+  expect(((await res.json()) as { error: { code: string } }).error.code).toBe('NOT_LESSON_OWNER');
 });

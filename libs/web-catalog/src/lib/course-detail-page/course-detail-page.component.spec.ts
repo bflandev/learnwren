@@ -60,8 +60,18 @@ type SetupOptions = {
  * EnrollmentService.getEnrollmentStatus(). We provide lightweight fakes for
  * both rather than hitting the real HTTP endpoints in isolation.
  */
-function setup({ id, isAuthenticated = false, enrollmentView }: SetupOptions): HttpTestingController {
-  const paramMap = new BehaviorSubject<ParamMap>(
+type SetupHandles = {
+  http: HttpTestingController;
+  /** Push a new route param map to simulate SPA navigation between courses. */
+  setRouteId: (nextId: string) => void;
+};
+
+function setup({ id, isAuthenticated = false, enrollmentView }: SetupOptions): SetupHandles {
+  // Single source of truth for the route param map. The observable and the
+  // snapshot both read from this subject, so tests can never get them out of
+  // sync. `snapshot.paramMap` is exposed via a getter that defers to
+  // `paramMap$.getValue()` — no mutation of object literals required.
+  const paramMap$ = new BehaviorSubject<ParamMap>(
     convertToParamMap(id === null ? {} : { id }),
   );
 
@@ -75,24 +85,30 @@ function setup({ id, isAuthenticated = false, enrollmentView }: SetupOptions): H
         : Promise.reject(new Error('no enrollment view configured')),
   };
 
+  const routeFake = {
+    paramMap: paramMap$.asObservable(),
+    snapshot: {
+      get paramMap(): ParamMap {
+        return paramMap$.getValue();
+      },
+    },
+  };
+
   TestBed.configureTestingModule({
     imports: [CourseDetailPageComponent],
     providers: [
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
-      {
-        provide: ActivatedRoute,
-        useValue: {
-          paramMap: paramMap.asObservable(),
-          snapshot: { paramMap: convertToParamMap(id === null ? {} : { id }) },
-        },
-      },
+      { provide: ActivatedRoute, useValue: routeFake },
       { provide: AuthService, useValue: authServiceFake },
       { provide: EnrollmentService, useValue: enrollmentServiceFake },
     ],
   });
-  return TestBed.inject(HttpTestingController);
+  return {
+    http: TestBed.inject(HttpTestingController),
+    setRouteId: (nextId: string) => paramMap$.next(convertToParamMap({ id: nextId })),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +117,7 @@ function setup({ id, isAuthenticated = false, enrollmentView }: SetupOptions): H
 
 describe('CourseDetailPageComponent', () => {
   it('renders the course detail with the module outline', async () => {
-    const http = setup({ id: 'c-1' });
+    const { http } = setup({ id: 'c-1' });
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush({
@@ -129,7 +145,7 @@ describe('CourseDetailPageComponent', () => {
   });
 
   it('renders the not-found state on a 404', async () => {
-    const http = setup({ id: 'c-missing' });
+    const { http } = setup({ id: 'c-missing' });
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http
@@ -152,7 +168,7 @@ describe('CourseDetailPageComponent', () => {
   });
 
   it('renders a distinct error state on a non-404 failure', async () => {
-    const http = setup({ id: 'c-1' });
+    const { http } = setup({ id: 'c-1' });
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http
@@ -183,7 +199,7 @@ describe('CourseDetailPageComponent', () => {
       },
       isOwner: false,
     };
-    const http = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
@@ -202,7 +218,7 @@ describe('CourseDetailPageComponent', () => {
 
   it('shows Start Learning for the course owner', async () => {
     const enrollmentView: EnrollmentStatusView = { enrollment: null, isOwner: true };
-    const http = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
@@ -214,7 +230,7 @@ describe('CourseDetailPageComponent', () => {
   });
 
   it('hides Start Learning for a guest (unauthenticated) user', async () => {
-    const http = setup({ id: 'c-1', isAuthenticated: false });
+    const { http } = setup({ id: 'c-1', isAuthenticated: false });
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
@@ -227,7 +243,7 @@ describe('CourseDetailPageComponent', () => {
 
   it('hides Start Learning for an authenticated but unenrolled student', async () => {
     const enrollmentView: EnrollmentStatusView = { enrollment: null, isOwner: false };
-    const http = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
@@ -252,7 +268,7 @@ describe('CourseDetailPageComponent', () => {
       },
       isOwner: false,
     };
-    const http = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_NO_LESSONS);
@@ -266,7 +282,7 @@ describe('CourseDetailPageComponent', () => {
 
   it('resolves the href to the FIRST lesson id (not the second)', async () => {
     const enrollmentView: EnrollmentStatusView = { enrollment: null, isOwner: true };
-    const http = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
@@ -279,5 +295,48 @@ describe('CourseDetailPageComponent', () => {
     const href = btn?.getAttribute('href') ?? '';
     expect(href).toContain('L_FIRST');
     expect(href).not.toContain('L_SECOND');
+  });
+
+  // -------------------------------------------------------------------------
+  // enrollmentStatus reset on route change
+  // -------------------------------------------------------------------------
+
+  it('resets enrollmentStatus to null when the course route changes (before new HTTP resolves)', async () => {
+    // Start on course A — the enrolled student case so enrollmentStatus
+    // resolves to a non-null value.
+    const enrollmentView: EnrollmentStatusView = {
+      enrollment: {
+        id: 'u-1__c-1' as never,
+        userId: 'u-1' as never,
+        courseId: 'c-1' as never,
+        status: 'ACTIVE',
+        progress: [],
+        withdrawnAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z' as never,
+        updatedAt: '2026-01-01T00:00:00.000Z' as never,
+      },
+      isOwner: false,
+    };
+    const { http, setRouteId } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Sanity: enrollmentStatus is populated from course A.
+    expect(component.enrollmentStatus()).not.toBeNull();
+
+    // SPA navigate to course B. The route param change triggers load(), which
+    // must reset enrollmentStatus synchronously BEFORE the new enrollment
+    // status request resolves — otherwise the Start Learning CTA would
+    // briefly reflect course A's state on course B's page.
+    setRouteId('c-2');
+    expect(component.enrollmentStatus()).toBeNull();
+
+    // Drain pending HTTP so HttpTestingController.verify() in teardown is happy.
+    http.expectOne('/api/catalog/c-2').flush({ ...COURSE_WITH_LESSONS, id: 'c-2' });
+    await fixture.whenStable();
   });
 });

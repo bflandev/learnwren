@@ -127,6 +127,45 @@ describe('LoginPageComponent post-login navigation', () => {
     const navSpy = await loginOk(new Map([['redirect', 'http://evil.example.com']]));
     expect(navSpy).toHaveBeenCalledWith('/dashboard');
   });
+
+  it('accepts a bare / as a root redirect', async () => {
+    const navSpy = await loginOk(new Map([['redirect', '/']]));
+    expect(navSpy).toHaveBeenCalledWith('/');
+  });
+
+  it('rejects a protocol-relative redirect (//evil.com/path)', async () => {
+    const navSpy = await loginOk(new Map([['redirect', '//evil.com/path']]));
+    expect(navSpy).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('rejects a URL-encoded protocol-relative redirect (%2F%2Fevil.com)', async () => {
+    // Regression note: Angular's queryParamMap.get() decodes %2F%2F to // before
+    // the predicate runs, so the component always sees the decoded value.
+    // Providing '//evil.com' here mirrors what Angular hands the component.
+    const navSpy = await loginOk(new Map([['redirect', '//evil.com']]));
+    expect(navSpy).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('rejects a backslash-after-slash redirect (/\\evil.com)', async () => {
+    // String literal contains: '/', '\', 'e', 'v', ...
+    const navSpy = await loginOk(new Map([['redirect', '/\\evil.com']]));
+    expect(navSpy).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('rejects a fully-qualified https redirect', async () => {
+    const navSpy = await loginOk(new Map([['redirect', 'https://evil.com']]));
+    expect(navSpy).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('rejects a host-like value without a leading slash', async () => {
+    const navSpy = await loginOk(new Map([['redirect', 'evil.com']]));
+    expect(navSpy).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('rejects an empty redirect value', async () => {
+    const navSpy = await loginOk(new Map([['redirect', '']]));
+    expect(navSpy).toHaveBeenCalledWith('/dashboard');
+  });
 });
 
 describe('LoginPageComponent submit early returns and helpers', () => {

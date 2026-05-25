@@ -18,6 +18,22 @@ type LoginErrorState =
   | { kind: 'locked'; unlockAvailableAt: string }
   | { kind: 'generic'; message: string };
 
+/**
+ * Accept only same-origin path redirects. Rejects:
+ *   - Empty strings
+ *   - Anything not starting with `/`
+ *   - Protocol-relative URLs (`//evil.com/...`)
+ *   - Backslash-after-slash variants browsers may also treat as protocol-relative (`/\evil.com`)
+ * A bare `/` is accepted (root) because the second char is `undefined`.
+ *
+ * Note: Unicode lookalike slashes (U+2215 DIVISION SLASH, U+FF0F FULLWIDTH SOLIDUS)
+ * are intentionally not handled — the router treats them as literal path characters,
+ * so they are not a browser-redirect threat.
+ */
+function isSafeRedirect(r: string): boolean {
+  return r.length > 0 && r.startsWith('/') && r[1] !== '/' && r[1] !== '\\';
+}
+
 @Component({
   selector: 'app-login-page',
   standalone: true,
@@ -68,7 +84,7 @@ export class LoginPageComponent {
       );
       if (result.ok) {
         const redirect = this.queryParams()?.get('redirect');
-        const target = redirect && redirect.startsWith('/') ? redirect : '/dashboard';
+        const target = redirect && isSafeRedirect(redirect) ? redirect : '/dashboard';
         await this.router.navigateByUrl(target);
         return;
       }

@@ -82,6 +82,7 @@ export class CourseDetailPageComponent implements OnInit {
     this.course.set(null);
     this.notFound.set(false);
     this.error.set(false);
+    this.enrollmentStatus.set(null);
     if (!id) {
       this.notFound.set(true);
       return;

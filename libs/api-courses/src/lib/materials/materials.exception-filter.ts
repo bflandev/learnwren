@@ -21,50 +21,28 @@ interface MaterialErrorBody {
   };
 }
 
+// MaterialException, CoursesException, and AuthException share the same
+// { code, status, message, details? } shape.
+type MaterialsShapedException = Error & {
+  code: string;
+  status: number;
+  details?: Record<string, unknown>;
+};
+
 @Catch(MaterialException, CoursesException, AuthException, HttpException)
 export class MaterialsExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('MaterialsExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
-
-    // MaterialException, CoursesException, and AuthException share the same
-    // { code, status, message, details? } shape.
-    if (
-      exception instanceof MaterialException ||
-      exception instanceof CoursesException ||
-      exception instanceof AuthException
-    ) {
-      const err = exception as Error & {
-        code: string;
-        status: number;
-        details?: Record<string, unknown>;
-      };
-      const body: MaterialErrorBody = {
-        error: { code: err.code, message: err.message },
-      };
-      if (err.details) body.error.details = err.details;
-      response.status(err.status).json(body);
+    if (isMaterialsShaped(exception)) {
+      respondShaped(response, exception);
       return;
     }
-
     if (exception instanceof BadRequestException) {
-      const payload = exception.getResponse() as { message?: string[] | string };
-      const messages = Array.isArray(payload.message)
-        ? payload.message
-        : payload.message
-          ? [payload.message]
-          : [];
-      response.status(400).json({
-        error: {
-          code: 'VALIDATION_FAILED',
-          message: 'Request body failed validation.',
-          details: { fieldErrors: parseFieldErrors(messages) },
-        },
-      } satisfies MaterialErrorBody);
+      respondValidation(response, exception);
       return;
     }
-
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       response.status(status).json({
@@ -72,14 +50,19 @@ export class MaterialsExceptionFilter implements ExceptionFilter {
       } satisfies MaterialErrorBody);
       return;
     }
-
-    this.logger.error(
-      exception instanceof Error ? (exception.stack ?? exception.message) : String(exception),
-    );
+    this.logger.error(formatLogLine(exception));
     response.status(500).json({
       error: { code: 'INTERNAL', message: 'An internal error occurred.' },
     } satisfies MaterialErrorBody);
   }
+}
+
+function isMaterialsShaped(exception: unknown): exception is MaterialsShapedException {
+  return (
+    exception instanceof MaterialException ||
+    exception instanceof CoursesException ||
+    exception instanceof AuthException
+  );
 }
 
 function codeForStatus(status: number): string {
@@ -90,6 +73,34 @@ function codeForStatus(status: number): string {
   if (status === 409) return 'CONFLICT';
   if (status === 422) return 'VALIDATION_ERROR';
   return 'HTTP_ERROR';
+}
+
+function respondShaped(response: Response, err: MaterialsShapedException): void {
+  const body: MaterialErrorBody = { error: { code: err.code, message: err.message } };
+  if (err.details) body.error.details = err.details;
+  response.status(err.status).json(body);
+}
+
+function respondValidation(response: Response, exception: BadRequestException): void {
+  const payload = exception.getResponse() as { message?: string[] | string };
+  const messages = normalizeMessages(payload.message);
+  response.status(400).json({
+    error: {
+      code: 'VALIDATION_FAILED',
+      message: 'Request body failed validation.',
+      details: { fieldErrors: parseFieldErrors(messages) },
+    },
+  } satisfies MaterialErrorBody);
+}
+
+function normalizeMessages(message: string[] | string | undefined): string[] {
+  if (Array.isArray(message)) return message;
+  return message ? [message] : [];
+}
+
+function formatLogLine(exception: unknown): string {
+  if (exception instanceof Error) return exception.stack ?? exception.message;
+  return String(exception);
 }
 
 /** class-validator emits "filename should not be empty" — key on the first word. */

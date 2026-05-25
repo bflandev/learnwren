@@ -6,16 +6,23 @@
 } @else if (state() === 'NOT_ENROLLED') {
   <div class="rounded border p-6">
     <h1 class="text-xl font-semibold">You're not enrolled in this course</h1>
-    <p class="mt-2 text-sm text-gray-600">Enroll to start watching lessons.</p>
-    <a data-testid="back-to-course" class="mt-4 inline-block underline"
-       [routerLink]="['/catalog', courseId()]">← Back to course</a>
+    <p class="mt-2 text-sm text-gray-600">
+      You don't have access to this course's lessons. Visit the course page to enrol.
+    </p>
+    <div class="mt-4 flex flex-wrap items-center gap-4">
+      <a data-testid="view-course-to-enrol"
+         class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-white"
+         [routerLink]="['/catalog', courseId]">
+        View course to enrol
+      </a>
+    </div>
   </div>
 } @else if (state() === 'NOT_FOUND') {
   <div class="rounded border p-6">
     <h1 class="text-xl font-semibold">Lesson not available</h1>
     <p class="mt-2 text-sm text-gray-600">This lesson could not be found.</p>
     <a data-testid="back-to-course" class="mt-4 inline-block underline"
-       [routerLink]="['/catalog', courseId()]">← Back to course</a>
+       [routerLink]="['/catalog', courseId]">← Back to course</a>
   </div>
 } @else if (state() === 'LOAD_ERROR') {
   <div class="rounded border p-6">
@@ -38,6 +45,6 @@
     }
 
     <a data-testid="back-to-course" class="inline-block underline"
-       [routerLink]="['/catalog', courseId()]">← Back to course</a>
+       [routerLink]="['/catalog', courseId]">← Back to course</a>
   </article>
 }
