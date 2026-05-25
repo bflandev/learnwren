@@ -100,12 +100,32 @@ describe('LearnService', () => {
     expect(view.lesson.videoState).toBe('TRANSCODING');
   });
 
-  it('falls back to empty string when lesson.description is undefined', async () => {
+  it('passes through a non-empty description as-is', async () => {
+    const repo = makeRepo({ getVideo: null });
+    const svc = new LearnService(repo);
+    const lessonWithDesc: Lesson = { ...baseLesson, description: 'Hello world' };
+
+    const view = await svc.getLessonView(baseCourse, lessonWithDesc);
+
+    expect(view.lesson.description).toBe('Hello world');
+  });
+
+  it('leaves description undefined when the lesson has no description authored', async () => {
     const repo = makeRepo({ getVideo: null });
     const svc = new LearnService(repo);
     const lessonNoDesc: Lesson = { ...baseLesson, description: undefined };
 
     const view = await svc.getLessonView(baseCourse, lessonNoDesc);
+
+    expect(view.lesson.description).toBeUndefined();
+  });
+
+  it('preserves an explicit empty-string description distinct from undefined', async () => {
+    const repo = makeRepo({ getVideo: null });
+    const svc = new LearnService(repo);
+    const lessonEmptyDesc: Lesson = { ...baseLesson, description: '' };
+
+    const view = await svc.getLessonView(baseCourse, lessonEmptyDesc);
 
     expect(view.lesson.description).toBe('');
   });

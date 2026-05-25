@@ -21,7 +21,7 @@ export class LearnService {
         id: lesson.id,
         moduleId: lesson.moduleId,
         title: lesson.title,
-        description: lesson.description ?? '',
+        description: lesson.description,
         videoId: lesson.videoId ?? null,
         videoState,
       },
