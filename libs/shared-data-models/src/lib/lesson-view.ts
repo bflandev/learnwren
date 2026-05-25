@@ -8,11 +8,13 @@ import type { VideoState } from './video';
  * null when the lesson has no video uploaded yet.
  *
  * `progress` is the caller's per-lesson progress (populated by UC-06-02
- * Mark Complete; optional for backwards compatibility with pre-Slice-B clients):
+ * Mark Complete and UC-06-03 Resume Learning; optional for backwards compatibility
+ * with pre-Slice-B clients):
  *   - null when the caller is the course's owner (no enrolment doc),
- *   - { completedAt: null } when the caller is an enrolled student who has not
- *     yet completed this lesson,
- *   - { completedAt: <ISO> } when the caller has previously marked it complete.
+ *   - { completedAt: null, lastWatchedSeconds: 0 } when the caller is an
+ *     enrolled student with no progress row yet,
+ *   - { completedAt: <ISO|null>, lastWatchedSeconds: <number> } when a row
+ *     exists.
  */
 export interface LessonView {
   course: {
@@ -28,5 +30,8 @@ export interface LessonView {
     videoId: VideoId | null;
     videoState: VideoState | null;
   };
-  progress?: { completedAt: ISODateString | null } | null;
+  progress?: {
+    completedAt: ISODateString | null;
+    lastWatchedSeconds: number;
+  } | null;
 }
