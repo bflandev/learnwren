@@ -4,6 +4,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  computed,
   inject,
   input,
   signal,
@@ -33,8 +34,10 @@ export class LessonPlayerPageComponent implements OnInit {
   readonly state = signal<PageState>('LOADING');
   readonly view = signal<LessonView | null>(null);
 
-  readonly completedAt = signal<ISODateString | null>(null);
-  readonly isOwnerPreview = signal<boolean>(false);
+  readonly completedAt = computed<ISODateString | null>(
+    () => this.view()?.progress?.completedAt ?? null,
+  );
+  readonly isOwnerPreview = computed<boolean>(() => this.view()?.progress === null);
   readonly markBusy = signal<boolean>(false);
   readonly markError = signal<null | 'revoked' | 'other'>(null);
 
@@ -47,8 +50,6 @@ export class LessonPlayerPageComponent implements OnInit {
     try {
       const view = await this.learn.getLessonView(this.courseId(), this.lessonId());
       this.view.set(view);
-      this.completedAt.set(view.progress?.completedAt ?? null);
-      this.isOwnerPreview.set(view.progress === null);
       const v = view.lesson;
       if (v.videoId && v.videoState === 'READY') {
         this.state.set('READY');
@@ -79,7 +80,7 @@ export class LessonPlayerPageComponent implements OnInit {
     this.markError.set(null);
     try {
       const { completedAt } = await this.learn.markLessonComplete(this.courseId(), this.lessonId());
-      this.completedAt.set(completedAt);
+      this.view.update((v) => (v ? { ...v, progress: { completedAt } } : v));
     } catch (err) {
       const status = err instanceof HttpErrorResponse ? err.status : 0;
       this.markError.set(status === 403 ? 'revoked' : 'other');
