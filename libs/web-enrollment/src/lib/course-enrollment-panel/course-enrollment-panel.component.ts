@@ -5,6 +5,7 @@ import {
   inject,
   input,
   OnInit,
+  output,
   signal,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -30,6 +31,13 @@ export class CourseEnrollmentPanelComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
 
   readonly courseId = input.required<string>();
+
+  // Fired after a successful enroll or unenroll, so a parent that derives
+  // its own state from the enrollment status (course-detail-page renders
+  // the "Start Learning" CTA off enrollmentStatus.enrollment.status) can
+  // refresh in lockstep — otherwise it stays on whatever was returned at
+  // page-load time and the CTA never appears post-enrol.
+  readonly statusChanged = output<void>();
 
   readonly state = signal<PanelState>('LOADING');
   readonly busy = signal(false);
@@ -82,6 +90,7 @@ export class CourseEnrollmentPanelComponent implements OnInit {
     try {
       await this.enrollments.enroll(this.courseId());
       this.state.set('ENROLLED');
+      this.statusChanged.emit();
     } catch (err) {
       if (
         err instanceof HttpErrorResponse &&
@@ -112,6 +121,7 @@ export class CourseEnrollmentPanelComponent implements OnInit {
       await this.enrollments.unenroll(this.courseId());
       this.showConfirm.set(false);
       this.state.set('ENROLLABLE');
+      this.statusChanged.emit();
     } catch {
       this.actionError.set('Could not leave the course. Please try again.');
     } finally {

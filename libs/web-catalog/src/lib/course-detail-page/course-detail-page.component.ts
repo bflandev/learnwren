@@ -68,6 +68,11 @@ export class CourseDetailPageComponent {
     }
   }
 
+  protected async onEnrollmentStatusChanged(): Promise<void> {
+    const id = this.course()?.id;
+    if (id) await this.resolveEnrollmentStatus(id);
+  }
+
   private async load(params: ParamMap): Promise<void> {
     const id = params.get('id');
     this.course.set(null);

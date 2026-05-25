@@ -26,7 +26,9 @@
           }
           <lw-pill tone="default">{{ course()!.lessonCount }} lessons</lw-pill>
         </div>
-        <lib-course-enrollment-panel [courseId]="course()!.id" />
+        <lib-course-enrollment-panel
+          [courseId]="course()!.id"
+          (statusChanged)="onEnrollmentStatusChanged()" />
         @if (canStartLearning()) {
           <a data-testid="start-learning"
              class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-white"
