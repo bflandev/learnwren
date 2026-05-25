@@ -8,7 +8,7 @@
   "// targets": "to see all targets run: nx show project web-e2e --web",
   "targets": {
     "e2e": {
-      "dependsOn": ["api:build", { "projects": ["web"], "target": "serve" }]
+      "dependsOn": ["api:build"]
     }
   }
 }
