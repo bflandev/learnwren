@@ -44,6 +44,12 @@ export class CourseEnrollmentPanelComponent implements OnInit {
   readonly actionError = signal<string | null>(null);
   readonly showConfirm = signal(false);
 
+  // Guards against firing the auto-enroll POST twice when resolveStatus() runs
+  // a second time before the `?enroll=1` param has been stripped (e.g. user
+  // clicks Retry after a transient load error, or two resolveStatus calls
+  // overlap). Plain field — not template-bound.
+  private autoEnrollFired = false;
+
   async ngOnInit(): Promise<void> {
     // undefined (auth not yet resolved, e.g. in a unit test) or null (guest)
     // are both treated as guest — the app resolves auth before routes render.
@@ -66,7 +72,14 @@ export class CourseEnrollmentPanelComponent implements OnInit {
         // Auto-enroll: fire the POST synchronously (before the current microtask
         // yields) so the HTTP request is in-flight before Angular's whenStable()
         // continuation runs in tests.  The .then() handles stripping the param.
-        if (this.route.snapshot.queryParamMap.get('enroll') === '1') {
+        // Flip autoEnrollFired synchronously to prevent a second resolveStatus()
+        // pass (e.g. via retry()) from firing a duplicate POST while the param
+        // is still in the URL.
+        if (
+          !this.autoEnrollFired &&
+          this.route.snapshot.queryParamMap.get('enroll') === '1'
+        ) {
+          this.autoEnrollFired = true;
           void this.enroll().then(() => {
             if (this.state() === 'ENROLLED') this.clearEnrollParam();
           });

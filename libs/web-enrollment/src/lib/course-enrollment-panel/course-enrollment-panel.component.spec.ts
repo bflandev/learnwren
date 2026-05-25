@@ -213,4 +213,31 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     await fixture.whenStable();
     http.expectNone('/api/enrollments');
   });
+
+  it('does not fire a duplicate auto-enroll POST when resolveStatus runs a second time', async () => {
+    // Models a transient load error followed by Retry while `?enroll=1` is
+    // still in the URL: the first resolveStatus fires auto-enroll, then the
+    // retry sees ENROLLABLE + enroll=1 again. Without the autoEnrollFired
+    // guard, the second pass would POST /api/enrollments a second time and
+    // the backend would either reject as duplicate or double-create.
+    configure({ user: { uid: 'u1' }, enroll: '1' });
+    const { fixture, http } = create();
+    http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
+    await fixture.whenStable();
+
+    // First (and only) auto-enroll POST — leave it pending so retry() runs
+    // while the auto-enroll is still in flight.
+    const post = http.expectOne('/api/enrollments');
+
+    // Force a second resolveStatus pass via retry(). It must NOT fire a
+    // second POST even though `?enroll=1` is still present.
+    fixture.componentInstance.retry();
+    http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
+    await fixture.whenStable();
+    http.expectNone('/api/enrollments');
+
+    // Resolve the original POST so the test cleanup doesn't leak a pending req.
+    post.flush({ id: 'c-1__u1', status: 'ACTIVE' });
+    await fixture.whenStable();
+  });
 });
