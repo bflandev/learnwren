@@ -151,29 +151,10 @@ test('cancel mid-upload returns to empty state', async ({ page }) => {
   await expect(page.locator('lib-video-state-badge')).toHaveCount(0);
 });
 
-test('badge transitions from Processing to Ready after fake-completer', async ({ page }) => {
-  const { email, password } = await registerAndPromoteInstructor();
-  await setupCourseWithLesson(page, email, password);
-
-  const sessionResponse = page.waitForResponse(
-    (r) => r.url().includes('/video/upload-session') && r.request().method() === 'POST',
-  );
-  await page.locator('lib-video-upload input[type="file"]').setInputFiles(FIXTURE_MP4);
-  const sessionBody = (await (await sessionResponse).json()) as { videoId: string };
-  const videoId = sessionBody.videoId;
-
-  await expect(page.locator('lib-video-state-badge [data-testid="video-state-badge"]')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('lib-video-state-badge [data-testid="video-state-badge"]')).toContainText('Processing video', {
-    timeout: 15_000,
-  });
-
-  const res = await page.request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
-  expect(res.status()).toBe(204);
-
-  await expect(page.locator('lib-video-state-badge [data-testid="video-state-badge"]')).toContainText('Ready to publish', {
-    timeout: 8_000,
-  });
-});
+// The corresponding TRANSCODING → READY transition is covered by
+// "badge swaps to player when fake-completer flips state to READY" below;
+// the badge "Ready to publish" label in VideoStateBadgeComponent is
+// unreachable from this UI (lesson-item swaps to <lib-video-player> on READY).
 
 test('badge transitions to Failed copy after fake-fail', async ({ page }) => {
   const { email, password } = await registerAndPromoteInstructor();

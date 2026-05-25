@@ -85,4 +85,21 @@ export class LessonItemComponent {
   onVideoUploaded(): void {
     this.videoChanged.emit();
   }
+
+  // The badge runs its own polling and only updates its local liveVideo signal,
+  // so a TRANSCODING → READY transition would otherwise leave this component's
+  // `video` signal stale and the @if (v.state === 'READY') branch in the
+  // template would never flip to the player. Refetch here on every state
+  // change so the conditional sees the new state.
+  onVideoStateChanged(state: VideoState): void {
+    this.videoStateChanged.emit(state);
+    const vid = this.lesson().videoId;
+    if (!vid) return;
+    this.api.getVideo(vid)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (v) => this.video.set(v),
+        error: () => undefined,
+      });
+  }
 }
