@@ -20,6 +20,14 @@ import { assertReorderSetMatches } from './reorder.util';
 
 const COURSES = 'courses';
 
+/**
+ * Hard cap on the unauthenticated catalogue scan. Bounds DoS amplification
+ * of `/api/catalog*` until cursor pagination + server-side filters are wired
+ * in. 500 is generous for current scale and well below Firestore's per-query
+ * read budget.
+ */
+const MAX_CATALOG_SCAN = 500;
+
 function nowIso(): ISODateString {
   return new Date().toISOString() as ISODateString;
 }
@@ -80,11 +88,18 @@ export class CoursesRepository {
     return snap.docs.map((d) => d.data() as Course);
   }
 
-  /** Every course with status PUBLISHED. The catalogue's only Firestore query. */
+  /**
+   * Every course with status PUBLISHED, capped at MAX_CATALOG_SCAN. The cap
+   * bounds the cost of catalogue/search endpoints (both currently filter in
+   * memory). When the catalogue grows past the cap, replace this with a
+   * cursor-paginated query that pushes filters into Firestore.
+   */
   async listPublished(): Promise<Course[]> {
     const snap = await this.firestore
       .collection(COURSES)
       .where('status', '==', 'PUBLISHED')
+      .orderBy('publishedAt', 'desc')
+      .limit(MAX_CATALOG_SCAN)
       .get();
     return snap.docs.map((d) => d.data() as Course);
   }

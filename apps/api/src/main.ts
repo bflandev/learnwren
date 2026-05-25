@@ -2,6 +2,8 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import express from 'express';
+import helmet from 'helmet';
 
 import { AppModule } from './app/app.module';
 
@@ -14,10 +16,33 @@ function assertProdSafeEnv(): void {
   }
 }
 
+/**
+ * CORS origin allowlist. Comma-separated list in `LEARNWREN_CORS_ORIGINS`.
+ * Defaults to localhost dev origins in non-prod; in prod refuses to start
+ * if the env var is unset so a misconfigured deploy doesn't silently fall
+ * back to a permissive policy.
+ */
+function readAllowedOrigins(): string[] {
+  const raw = process.env['LEARNWREN_CORS_ORIGINS'];
+  if (raw && raw.trim().length > 0) {
+    return raw.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error('Refusing to start: LEARNWREN_CORS_ORIGINS must be set in production');
+  }
+  return ['http://localhost:4200', 'http://127.0.0.1:4200'];
+}
+
 async function bootstrap() {
   assertProdSafeEnv();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.use(helmet());
+  app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
+  app.enableCors({
+    origin: readAllowedOrigins(),
+    credentials: true,
+  });
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
   const port = process.env['PORT'] || 3333;
