@@ -88,6 +88,19 @@ test('instructor uploads a video and sees the badge', async ({ page }) => {
   const uploadLabel = page.locator('lib-video-upload label.upload-zone');
   await expect(uploadLabel).toBeVisible({ timeout: 5_000 });
 
+  // Hold the chunk PUT to the storage emulator open just long enough that
+  // the `uploading` state (which renders `lw-progress`) is observable.
+  // Without this the 2 KB fixture finishes the PUT in ~10 ms and the test
+  // races Playwright's 100 ms toBeVisible poll.
+  let releaseUpload: (() => void) | undefined;
+  const uploadPause = new Promise<void>((resolve) => {
+    releaseUpload = resolve;
+  });
+  await page.route('**/upload/storage/v1/**', async (route) => {
+    await uploadPause;
+    await route.continue();
+  });
+
   // Set the file via the hidden file input inside the upload zone
   const fileInput = page.locator('lib-video-upload input[type="file"]');
   await fileInput.setInputFiles(FIXTURE_MP4);
@@ -95,6 +108,8 @@ test('instructor uploads a video and sees the badge', async ({ page }) => {
   // Progress bar should appear while uploading
   const progressBar = page.locator('lib-video-upload lw-progress');
   await expect(progressBar).toBeVisible({ timeout: 15_000 });
+
+  releaseUpload?.();
 
   // After upload completes the badge should appear — the lesson-item swaps out
   // lib-video-upload for lib-video-state-badge when lesson().videoId is set.
@@ -115,32 +130,34 @@ test('cancel mid-upload returns to empty state', async ({ page }) => {
   const uploadLabel = page.locator('lib-video-upload label.upload-zone');
   await expect(uploadLabel).toBeVisible({ timeout: 5_000 });
 
-  // Delay the upload-session response so there is a guaranteed mid-flight
-  // window in which the Cancel button is clickable, even with a tiny fixture.
-  let releaseUploadSession: (() => void) | undefined;
-  const uploadSessionPause = new Promise<void>((resolve) => {
-    releaseUploadSession = resolve;
+  // Hold the chunk PUT to the storage emulator open so the component sits in
+  // the `uploading` state (the only state that renders a Cancel button —
+  // `creating-session` shows "Preparing upload…" with no controls). Routing
+  // upload-session itself would leave the component in `creating-session`,
+  // where no Cancel button exists, and the test would time out clicking it.
+  let releaseUpload: (() => void) | undefined;
+  const uploadPause = new Promise<void>((resolve) => {
+    releaseUpload = resolve;
   });
-  await page.route('**/upload-session', async (route) => {
-    // Hold the request open until the test releases it.
-    await uploadSessionPause;
+  await page.route('**/upload/storage/v1/**', async (route) => {
+    await uploadPause;
     await route.continue();
   });
 
   const fileInput = page.locator('lib-video-upload input[type="file"]');
   await fileInput.setInputFiles(FIXTURE_MP4);
 
-  // Wait for the component to enter its in-progress state.
-  await expect(page.locator('lib-video-upload')).toContainText(/Preparing|Uploading/, {
-    timeout: 10_000,
-  });
+  // Wait for the Cancel button — its presence is the definitive signal that
+  // we're in the `uploading` state.
+  const cancelBtn = page.getByRole('button', { name: /cancel/i });
+  await expect(cancelBtn).toBeVisible({ timeout: 10_000 });
 
-  // Click Cancel while the upload-session call is still held open.
-  await page.getByRole('button', { name: /cancel/i }).click();
+  // Click Cancel while the PUT is still held open.
+  await cancelBtn.click();
 
-  // Release the paused route (the request will be discarded anyway, but
+  // Release the paused route (the request will be aborted anyway, but
   // resolving here lets Playwright's route machinery clean up cleanly).
-  releaseUploadSession?.();
+  releaseUpload?.();
 
   // Component must return to idle (upload zone visible again).
   await expect(page.locator('lib-video-upload label.upload-zone')).toBeVisible({
@@ -240,9 +257,17 @@ test('badge swaps to player when fake-completer flips state to READY', async ({ 
   await setupCourseWithLesson(page, email, password);
 
   // Capture console errors so we can assert there are none during the swap.
+  // The fake playback storage seam returns `gs-stub://…` URIs for segments —
+  // hls.js inside the player tries to fetch those and the browser logs the
+  // expected CORS/scheme errors. Filter them out; they are not regressions
+  // and we only care about Angular/binding errors here.
+  const STUB_SEGMENT = /gs-stub:\/\/|Failed to load resource/;
   const consoleErrors: string[] = [];
   page.on('console', (m) => {
-    if (m.type() === 'error') consoleErrors.push(m.text());
+    if (m.type() !== 'error') return;
+    const text = m.text();
+    if (STUB_SEGMENT.test(text)) return;
+    consoleErrors.push(text);
   });
 
   const sessionResponse = page.waitForResponse(
@@ -276,8 +301,15 @@ test('second instructor cannot access another instructor’s manifest', async ({
   const sessionResponse = page.waitForResponse(
     (r) => r.url().includes('/video/upload-session') && r.request().method() === 'POST',
   );
+  // upload-complete is what writes transcoderJobName onto the video doc; the
+  // fake-transcoder dev endpoint reads that to address the Pub/Sub envelope,
+  // so it must run *after* upload-complete returns or it 404s.
+  const completeResponse = page.waitForResponse(
+    (r) => /\/api\/videos\/[^/]+\/upload-complete$/.test(r.url()) && r.request().method() === 'POST',
+  );
   await page.locator('lib-video-upload input[type="file"]').setInputFiles(FIXTURE_MP4);
   const { videoId } = (await (await sessionResponse).json()) as { videoId: string };
+  await completeResponse;
   await page.request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
   await expect(page.getByTestId('video-player')).toBeVisible({ timeout: 10_000 });
 
