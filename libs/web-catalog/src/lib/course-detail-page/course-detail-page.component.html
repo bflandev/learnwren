@@ -30,10 +30,11 @@
           [courseId]="course()!.id"
           (statusChanged)="onEnrollmentStatusChanged()" />
         @if (canStartLearning()) {
-          <a data-testid="start-learning"
-             class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-white"
-             [routerLink]="firstLessonHref()">
-            Start Learning
+          <a
+            [attr.data-testid]="resumeLabel() === 'Continue Learning' ? 'continue-learning' : 'start-learning'"
+            class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-white"
+            [routerLink]="resumeHref()">
+            {{ resumeLabel() }}
           </a>
         } @else if (showNoLessons()) {
           <span data-testid="no-lessons" class="inline-block text-sm text-gray-500" aria-disabled="true">

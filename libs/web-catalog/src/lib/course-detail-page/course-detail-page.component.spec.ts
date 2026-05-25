@@ -368,6 +368,128 @@ describe('CourseDetailPageComponent', () => {
     await fixture.whenStable();
   });
 
+  // -------------------------------------------------------------------------
+  // Continue Learning CTA tests (Slice C)
+  // -------------------------------------------------------------------------
+
+  it('shows Continue Learning when enrollment.lastAccessedLessonId resolves to a live lesson', async () => {
+    const enrollmentView: EnrollmentStatusView = {
+      enrollment: {
+        id: 'u-1__c-1' as never,
+        userId: 'u-1' as never,
+        courseId: 'c-1' as never,
+        status: 'ACTIVE',
+        progress: [],
+        withdrawnAt: null,
+        lastAccessedLessonId: 'L_SECOND' as never,
+        lastAccessedAt: '2026-05-25T12:00:00.000Z' as never,
+        createdAt: '2026-01-01T00:00:00.000Z' as never,
+        updatedAt: '2026-01-01T00:00:00.000Z' as never,
+      },
+      isOwner: false,
+    };
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const cta = el.querySelector('[data-testid="continue-learning"]') as HTMLAnchorElement | null;
+    expect(cta).not.toBeNull();
+    expect(cta!.textContent).toContain('Continue Learning');
+    const href = cta!.getAttribute('href') ?? '';
+    expect(href).toContain('learn');
+    expect(href).toContain('c-1');
+    expect(href).toContain('L_SECOND');
+    expect(el.querySelector('[data-testid="start-learning"]')).toBeNull();
+  });
+
+  it('shows Start Learning when lastAccessedLessonId is null', async () => {
+    const enrollmentView: EnrollmentStatusView = {
+      enrollment: {
+        id: 'u-1__c-1' as never,
+        userId: 'u-1' as never,
+        courseId: 'c-1' as never,
+        status: 'ACTIVE',
+        progress: [],
+        withdrawnAt: null,
+        lastAccessedLessonId: null,
+        lastAccessedAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z' as never,
+        updatedAt: '2026-01-01T00:00:00.000Z' as never,
+      },
+      isOwner: false,
+    };
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const cta = el.querySelector('[data-testid="start-learning"]') as HTMLAnchorElement | null;
+    expect(cta).not.toBeNull();
+    expect(cta!.textContent).toContain('Start Learning');
+    const href = cta!.getAttribute('href') ?? '';
+    expect(href).toContain('L_FIRST');
+    expect(el.querySelector('[data-testid="continue-learning"]')).toBeNull();
+  });
+
+  it('falls back to Start Learning + first lesson when lastAccessedLessonId no longer resolves', async () => {
+    const enrollmentView: EnrollmentStatusView = {
+      enrollment: {
+        id: 'u-1__c-1' as never,
+        userId: 'u-1' as never,
+        courseId: 'c-1' as never,
+        status: 'ACTIVE',
+        progress: [],
+        withdrawnAt: null,
+        lastAccessedLessonId: 'deleted-lesson-id' as never,
+        lastAccessedAt: '2026-05-25T12:00:00.000Z' as never,
+        createdAt: '2026-01-01T00:00:00.000Z' as never,
+        updatedAt: '2026-01-01T00:00:00.000Z' as never,
+      },
+      isOwner: false,
+    };
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const cta = el.querySelector('[data-testid="start-learning"]') as HTMLAnchorElement | null;
+    expect(cta).not.toBeNull();
+    expect(cta!.textContent).toContain('Start Learning');
+    const href = cta!.getAttribute('href') ?? '';
+    expect(href).toContain('L_FIRST');
+    expect(el.querySelector('[data-testid="continue-learning"]')).toBeNull();
+  });
+
+  it('owner sees Start Learning regardless of lastAccessedLessonId (owners have no enrolment)', async () => {
+    const enrollmentView: EnrollmentStatusView = { enrollment: null, isOwner: true };
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const cta = el.querySelector('[data-testid="start-learning"]') as HTMLAnchorElement | null;
+    expect(cta).not.toBeNull();
+    expect(cta!.textContent).toContain('Start Learning');
+    expect(el.querySelector('[data-testid="continue-learning"]')).toBeNull();
+  });
+
   it('refetches enrollment status on SPA navigation between two enrolled courses', async () => {
     // Both c-1 and c-2 are ACTIVE-enrolled for this user; the fake
     // EnrollmentService returns the same view regardless of which course is
