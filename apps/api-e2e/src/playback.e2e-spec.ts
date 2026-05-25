@@ -74,6 +74,16 @@ async function seedLessonWithReadyVideo(args: {
       courseId: args.courseId,
       state: 'READY',
       source: { bucket: 'demo-learnwren.appspot.com', path: `videos/${vid}/source.mp4` },
+      // ManifestService reads video.output.{bucket,manifestPath} when serving the
+      // master playlist; without it the controller 500s before the auth guard
+      // gets a chance to deny non-owners. The path must end in `/manifest.m3u8`
+      // so the fake-storage seam recognises it (see VideoStorageAdapter
+      // .fakeReadManifest); the bucket is unused in fake mode.
+      output: {
+        bucket: 'demo-learnwren.appspot.com',
+        manifestPath: `videos/${vid}/manifest.m3u8`,
+        durationSec: 1,
+      },
       createdAt: now,
       updatedAt: now,
     });
