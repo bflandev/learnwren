@@ -1,9 +1,9 @@
 {
   "threshold": 75,
   "maxIterations": 20,
-  "iteration": 0,
+  "iteration": 1,
   "modules": [
-    { "name": "shared-data-models", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "shared-data-models", "status": "done", "score": 100.00, "iterations": 1, "notes": "100% on first run — only material.ts has runtime logic; 9/9 killed" },
     { "name": "api-firebase", "status": "pending", "score": null, "iterations": 0, "notes": "" },
     { "name": "api-auth", "status": "pending", "score": null, "iterations": 0, "notes": "" },
     { "name": "api-courses", "status": "pending", "score": null, "iterations": 0, "notes": "" },
