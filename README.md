@@ -13,8 +13,9 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > - **EP-05 Course discovery & enrollment** — public catalogue with category/difficulty filters, Newest / Alphabetical / Most Popular sort, pagination, keyword search; public course-detail page; logged-in students enroll and leave; guests who click Enroll are auto-enrolled after login.
 > - **EP-06 Slice A: Student lesson playback** — enrolled students (and the course owner) navigate from the course detail page via **Start Learning** to `/learn/:cid/:lid` and watch the lesson video in the existing hls.js player.
 > - **EP-06 Slice B: Mark a lesson complete** — enrolled students click **Mark as Complete** on the lesson page; the API persists `completedAt` on their per-lesson progress; the button swaps to a "✓ Completed" pill that persists across reload and across a `WITHDRAWN → ACTIVE` re-enrolment. Per-lesson only; module / course rollups and the course-outline panel are deferred.
+> - **EP-06 Slice C: Resume Learning** — opening a lesson is tracked per-enrolment; the course-detail page surfaces **Continue Learning** (falling back to **Start Learning** for new enrolments and owners); the lesson player auto-saves position every ~15 s, flushes on pause / `pagehide` / tab hidden via `navigator.sendBeacon`, and resumes within 5 s on revisit. Position writes are idempotent and monotonic (out-of-order beacons cannot rewind progress).
 >
-> Not built yet: cover image upload, resume / last-watched timestamp, course-outline panel (rest of EP-06), instructor dashboard (EP-07), platform administration (EP-08). `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
+> Not built yet: cover image upload, course-outline panel (rest of EP-06), instructor dashboard (EP-07), platform administration (EP-08). `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
 
 ---
 
