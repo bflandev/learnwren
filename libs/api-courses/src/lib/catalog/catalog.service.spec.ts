@@ -201,7 +201,7 @@ describe('CatalogService.getCourseDetail', () => {
     expect(detail.instructorDisplayName).toBe('Ada Lovelace');
     expect(detail.lessonCount).toBe(2);
     expect(detail.modules).toEqual([
-      { title: 'Module 1', lessons: [{ title: 'Lesson 1' }, { title: 'Lesson 2' }] },
+      { title: 'Module 1', lessons: [{ id: 'l-1', title: 'Lesson 1' }, { id: 'l-2', title: 'Lesson 2' }] },
     ]);
   });
 
