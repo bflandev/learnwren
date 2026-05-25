@@ -17,6 +17,10 @@ export interface Enrollment {
   status: EnrollmentStatus;
   progress: LessonProgress[];
   withdrawnAt: ISODateString | null; // set on unenroll, cleared on enroll/re-enroll
+  /** Lesson the caller most recently opened via GET /api/learn/.../lessons/:lid. Null until first visit. Preserved across WITHDRAWN→ACTIVE. */
+  lastAccessedLessonId: LessonId | null;
+  /** Companion timestamp for lastAccessedLessonId. Debug/observability only; not read by UI. */
+  lastAccessedAt: ISODateString | null;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
