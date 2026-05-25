@@ -33,3 +33,13 @@ export class NotEnrolledLessonException extends LearnException {
     );
   }
 }
+
+export class InvalidPositionException extends LearnException {
+  constructor() {
+    super(
+      'INVALID_POSITION',
+      'Playback position must be a finite non-negative number.',
+      400,
+    );
+  }
+}

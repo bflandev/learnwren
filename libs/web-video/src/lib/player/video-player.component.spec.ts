@@ -1,3 +1,4 @@
+import { provideHttpClient } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -104,5 +105,82 @@ describe('VideoPlayerComponent', () => {
     stub.capturedHooks.onFatalError('Test error message');
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Test error message');
+  });
+});
+
+function harness(): {
+  fixture: ComponentFixture<VideoPlayerComponent>;
+  el: HTMLVideoElement;
+} {
+  const playerSvcStub = { attach: vi.fn(() => ({ dispose: vi.fn() })) };
+  TestBed.configureTestingModule({
+    imports: [VideoPlayerComponent],
+    providers: [
+      provideHttpClient(),
+      { provide: VideoPlayerService, useValue: playerSvcStub },
+    ],
+  });
+  const fixture = TestBed.createComponent(VideoPlayerComponent);
+  fixture.componentRef.setInput('videoId', 'vid-1' as VideoId);
+  fixture.detectChanges();
+  const el = fixture.componentInstance.playerEl.nativeElement;
+  return { fixture, el };
+}
+
+describe('VideoPlayerComponent — Slice C event surface', () => {
+  it('emits (metadata) on loadedmetadata', () => {
+    const { fixture, el } = harness();
+    const spy = vi.fn();
+    fixture.componentInstance.metadata.subscribe(spy);
+    el.dispatchEvent(new Event('loadedmetadata'));
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits (played) on play', () => {
+    const { fixture, el } = harness();
+    const spy = vi.fn();
+    fixture.componentInstance.played.subscribe(spy);
+    el.dispatchEvent(new Event('play'));
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits (paused) on pause', () => {
+    const { fixture, el } = harness();
+    const spy = vi.fn();
+    fixture.componentInstance.paused.subscribe(spy);
+    el.dispatchEvent(new Event('pause'));
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits (videoEnded) on ended', () => {
+    const { fixture, el } = harness();
+    const spy = vi.fn();
+    fixture.componentInstance.videoEnded.subscribe(spy);
+    el.dispatchEvent(new Event('ended'));
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('currentTime() proxies the underlying element', () => {
+    const { fixture, el } = harness();
+    Object.defineProperty(el, 'currentTime', {
+      value: 17,
+      configurable: true,
+      writable: true,
+    });
+    expect(fixture.componentInstance.currentTime()).toBe(17);
+  });
+
+  it('seekTo(s) sets the underlying element currentTime', () => {
+    const { fixture, el } = harness();
+    let stored = 0;
+    Object.defineProperty(el, 'currentTime', {
+      get: () => stored,
+      set: (v) => {
+        stored = v;
+      },
+      configurable: true,
+    });
+    fixture.componentInstance.seekTo(33);
+    expect(stored).toBe(33);
   });
 });

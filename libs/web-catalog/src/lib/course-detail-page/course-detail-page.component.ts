@@ -47,6 +47,24 @@ export class CourseDetailPageComponent {
     return status?.isOwner === true || status?.enrollment?.status === 'ACTIVE';
   });
 
+  /** True only when there is an ACTIVE enrolment whose lastAccessedLessonId resolves to a live lesson. */
+  private readonly resumeTarget = computed<readonly [string, string, string] | null>(() => {
+    const c = this.course();
+    const e = this.enrollmentStatus()?.enrollment ?? null;
+    if (!c || !e || e.status !== 'ACTIVE' || !e.lastAccessedLessonId) return null;
+    const lastId = e.lastAccessedLessonId;
+    const found = c.modules?.some((m) => m.lessons?.some((l) => l.id === lastId));
+    return found ? (['/learn', c.id, lastId] as const) : null;
+  });
+
+  readonly resumeHref = computed<readonly [string, string, string] | null>(
+    () => this.resumeTarget() ?? this.firstLessonHref(),
+  );
+
+  readonly resumeLabel = computed<'Start Learning' | 'Continue Learning'>(
+    () => (this.resumeTarget() ? 'Continue Learning' : 'Start Learning'),
+  );
+
   readonly showNoLessons = computed<boolean>(() => {
     if (this.firstLessonHref()) return false;
     const status = this.enrollmentStatus();

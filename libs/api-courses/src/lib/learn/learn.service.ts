@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import type {
   Course,
@@ -13,6 +13,8 @@ import { VideoRepository } from '../video/video.repository';
 
 @Injectable()
 export class LearnService {
+  private readonly logger = new Logger('LearnService');
+
   constructor(
     private readonly videos: VideoRepository,
     private readonly enrollment: EnrollmentRepository,
@@ -26,6 +28,22 @@ export class LearnService {
     }
 
     const progress = await this.resolveProgress(userId, course, lesson);
+
+    if (progress !== null) {
+      // Enrolled student path only — best-effort touch. Owners (progress === null) skip.
+      try {
+        await this.enrollment.touchLastAccessed(
+          userId,
+          course.id,
+          lesson.id,
+          new Date().toISOString() as ISODateString,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `touchLastAccessed failed for user=${userId} course=${course.id} lesson=${lesson.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
 
     return {
       course: { id: course.id, title: course.title, status: course.status },
@@ -54,6 +72,15 @@ export class LearnService {
     );
   }
 
+  async savePosition(
+    userId: UserId,
+    course: Course,
+    lesson: Lesson,
+    seconds: number,
+  ): Promise<{ lastWatchedSeconds: number }> {
+    return this.enrollment.setLastWatchedSeconds(userId, course.id, lesson.id, seconds);
+  }
+
   private async resolveProgress(
     userId: UserId,
     course: Course,
@@ -63,6 +90,9 @@ export class LearnService {
     const enrolment = await this.enrollment.getEnrollment(userId, course.id);
     if (!enrolment) return null;
     const row = enrolment.progress.find((p) => p.lessonId === lesson.id);
-    return { completedAt: row?.completedAt ?? null };
+    return {
+      completedAt: row?.completedAt ?? null,
+      lastWatchedSeconds: row?.lastWatchedSeconds ?? 0,
+    };
   }
 }

@@ -144,6 +144,8 @@ describe('EnrollmentRepository.withdraw', () => {
       status: 'ACTIVE',
       progress: [],
       withdrawnAt: null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -307,5 +309,163 @@ describe('EnrollmentRepository.isEnrolled / getEnrollment', () => {
     const result = await repo.getEnrollment(UID, CID);
     expect(result).not.toBeNull();
     expect(result?.status).toBe('WITHDRAWN');
+  });
+});
+
+describe('EnrollmentRepository.touchLastAccessed', () => {
+  const NOW = '2026-05-25T12:00:00.000Z' as ISODateString;
+  const LID = 'lesson-x' as LessonId;
+
+  function active(over: Partial<Enrollment> = {}): Enrollment {
+    return {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'ACTIVE',
+      progress: [],
+      withdrawnAt: null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
+      createdAt: '2026-05-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-05-01T00:00:00.000Z' as ISODateString,
+      ...over,
+    };
+  }
+
+  it('sets lastAccessedLessonId and lastAccessedAt on an ACTIVE enrolment', async () => {
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: active() });
+    await repo.touchLastAccessed(UID, CID, LID, NOW);
+    const stored = db.__store.get(`enrollments/${ID}`) as Enrollment;
+    expect(stored.lastAccessedLessonId).toBe(LID);
+    expect(stored.lastAccessedAt).toBe(NOW);
+    expect(stored.updatedAt).toBe(NOW);
+  });
+
+  it('overwrites a prior lastAccessedLessonId on each call', async () => {
+    const seeded = active({ lastAccessedLessonId: 'old' as LessonId, lastAccessedAt: '2026-05-20T00:00:00.000Z' as ISODateString });
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: seeded });
+    await repo.touchLastAccessed(UID, CID, LID, NOW);
+    const stored = db.__store.get(`enrollments/${ID}`) as Enrollment;
+    expect(stored.lastAccessedLessonId).toBe(LID);
+  });
+
+  it('throws NotEnrolledException when the enrolment is WITHDRAWN', async () => {
+    const { repo } = repoWith({ [`enrollments/${ID}`]: active({ status: 'WITHDRAWN', withdrawnAt: NOW }) });
+    await expect(repo.touchLastAccessed(UID, CID, LID, NOW)).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+
+  it('throws NotEnrolledException when no enrolment exists', async () => {
+    const { repo } = repoWith({});
+    await expect(repo.touchLastAccessed(UID, CID, LID, NOW)).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+});
+
+describe('EnrollmentRepository.setLastWatchedSeconds', () => {
+  const LID = 'lesson-x' as LessonId;
+
+  function activeWith(progress: Enrollment['progress'] = []): Enrollment {
+    return {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'ACTIVE',
+      progress,
+      withdrawnAt: null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
+      createdAt: '2026-05-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-05-01T00:00:00.000Z' as ISODateString,
+    };
+  }
+
+  it('inserts a new LessonProgress row when none exists for the lesson', async () => {
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: activeWith() });
+    const out = await repo.setLastWatchedSeconds(UID, CID, LID, 42);
+    expect(out).toEqual({ lastWatchedSeconds: 42 });
+    const stored = db.__store.get(`enrollments/${ID}`) as Enrollment;
+    expect(stored.progress).toEqual([{ lessonId: LID, completedAt: null, lastWatchedSeconds: 42 }]);
+  });
+
+  it('updates an existing row when the inbound value is larger', async () => {
+    const seed = activeWith([{ lessonId: LID, completedAt: null, lastWatchedSeconds: 10 }]);
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: seed });
+    const out = await repo.setLastWatchedSeconds(UID, CID, LID, 25);
+    expect(out).toEqual({ lastWatchedSeconds: 25 });
+    const stored = db.__store.get(`enrollments/${ID}`) as Enrollment;
+    expect(stored.progress[0].lastWatchedSeconds).toBe(25);
+  });
+
+  it('preserves completedAt when bumping lastWatchedSeconds', async () => {
+    const seed = activeWith([{ lessonId: LID, completedAt: '2026-05-20T00:00:00.000Z' as ISODateString, lastWatchedSeconds: 0 }]);
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: seed });
+    await repo.setLastWatchedSeconds(UID, CID, LID, 60);
+    const stored = db.__store.get(`enrollments/${ID}`) as Enrollment;
+    const row = stored.progress[0];
+    expect(row.completedAt).toBe('2026-05-20T00:00:00.000Z');
+    expect(row.lastWatchedSeconds).toBe(60);
+  });
+
+  it('is a no-op (returns stored value) when inbound equals stored', async () => {
+    const seed = activeWith([{ lessonId: LID, completedAt: null, lastWatchedSeconds: 30 }]);
+    const stamp = seed.updatedAt;
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: seed });
+    const out = await repo.setLastWatchedSeconds(UID, CID, LID, 30);
+    expect(out).toEqual({ lastWatchedSeconds: 30 });
+    expect((db.__store.get(`enrollments/${ID}`) as Enrollment).updatedAt).toBe(stamp);
+  });
+
+  it('is a no-op (returns stored value) when inbound is smaller (monotonic regression)', async () => {
+    const seed = activeWith([{ lessonId: LID, completedAt: null, lastWatchedSeconds: 100 }]);
+    const stamp = seed.updatedAt;
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: seed });
+    const out = await repo.setLastWatchedSeconds(UID, CID, LID, 50);
+    expect(out).toEqual({ lastWatchedSeconds: 100 });
+    expect((db.__store.get(`enrollments/${ID}`) as Enrollment).updatedAt).toBe(stamp);
+  });
+
+  it('throws NotEnrolledException when WITHDRAWN', async () => {
+    const seed = activeWith();
+    seed.status = 'WITHDRAWN';
+    seed.withdrawnAt = '2026-05-20T00:00:00.000Z' as ISODateString;
+    const { repo } = repoWith({ [`enrollments/${ID}`]: seed });
+    await expect(repo.setLastWatchedSeconds(UID, CID, LID, 10)).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+
+  it('throws NotEnrolledException when no enrolment exists', async () => {
+    const { repo } = repoWith({});
+    await expect(repo.setLastWatchedSeconds(UID, CID, LID, 10)).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+});
+
+describe('EnrollmentRepository.enroll (Slice C fields)', () => {
+  it('seeds lastAccessedLessonId=null and lastAccessedAt=null on first enrol', async () => {
+    const { repo } = repoWith({ [`courses/${CID}`]: course() });
+    const result = await repo.enroll(UID, CID);
+    expect(result.lastAccessedLessonId).toBeNull();
+    expect(result.lastAccessedAt).toBeNull();
+  });
+
+  it('preserves lastAccessedLessonId and lastAccessedAt across WITHDRAWN -> ACTIVE re-enrol', async () => {
+    const withdrawn: Enrollment = {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'WITHDRAWN',
+      progress: [{ lessonId: 'l1' as LessonId, completedAt: null, lastWatchedSeconds: 42 }],
+      withdrawnAt: '2026-02-01T00:00:00.000Z' as ISODateString,
+      lastAccessedLessonId: 'l1' as LessonId,
+      lastAccessedAt: '2026-02-01T00:00:00.000Z' as ISODateString,
+      createdAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-02-01T00:00:00.000Z' as ISODateString,
+    };
+    const { repo } = repoWith({
+      [`courses/${CID}`]: course({ enrollmentCount: 0 }),
+      [`enrollments/${ID}`]: withdrawn,
+    });
+    const result = await repo.enroll(UID, CID);
+    expect(result.status).toBe('ACTIVE');
+    expect(result.lastAccessedLessonId).toBe('l1');
+    expect(result.lastAccessedAt).toBe('2026-02-01T00:00:00.000Z');
+    expect(result.progress[0].lastWatchedSeconds).toBe(42);
   });
 });

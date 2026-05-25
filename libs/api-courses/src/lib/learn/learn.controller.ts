@@ -13,6 +13,7 @@ import type { ISODateString, LessonView, UserId } from '@learnwren/shared-data-m
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
 
+import { InvalidPositionException } from './errors/learn.exception';
 import { LessonEnrollmentGuard } from './guards/lesson-enrollment.guard';
 import { LessonEnrollmentOrOwnerGuard } from './guards/lesson-enrollment-or-owner.guard';
 import { LearnExceptionFilter } from './learn.exception-filter';
@@ -45,5 +46,22 @@ export class LearnController {
       throw new Error('LearnController: guard did not attach course/lesson/user');
     }
     return this.service.markLessonComplete(req.user.uid as UserId, req.course, req.lesson);
+  }
+
+  @Post('courses/:cid/lessons/:lid/position')
+  @HttpCode(200)
+  @UseGuards(LessonEnrollmentGuard)
+  async savePosition(
+    @Req() req: LessonScopedRequest,
+    @Body() body: { seconds?: unknown },
+  ): Promise<{ lastWatchedSeconds: number }> {
+    if (!req.course || !req.lesson || !req.user) {
+      throw new Error('LearnController: guard did not attach course/lesson/user');
+    }
+    const seconds = body?.seconds;
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) {
+      throw new InvalidPositionException();
+    }
+    return this.service.savePosition(req.user.uid as UserId, req.course, req.lesson, seconds);
   }
 }

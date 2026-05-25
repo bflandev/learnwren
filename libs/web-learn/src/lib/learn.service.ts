@@ -28,4 +28,18 @@ export class LearnService {
       ),
     );
   }
+
+  savePosition(
+    courseId: string,
+    lessonId: string,
+    seconds: number,
+  ): Promise<{ lastWatchedSeconds: number }> {
+    return firstValueFrom(
+      this.http.post<{ lastWatchedSeconds: number }>(
+        `/api/learn/courses/${courseId}/lessons/${lessonId}/position`,
+        { seconds },
+        { withCredentials: true },
+      ),
+    );
+  }
 }
