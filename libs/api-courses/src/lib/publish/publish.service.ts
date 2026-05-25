@@ -23,6 +23,7 @@ import {
   PublishNotEligibleException,
 } from '../errors/courses.exception';
 import { composeReasons } from './publish-eligibility';
+import { VideoNotFoundException } from '../video/errors/video.exception';
 import { VideoService } from '../video/video.service';
 
 function nowIso(): ISODateString {
@@ -30,10 +31,9 @@ function nowIso(): ISODateString {
 }
 
 function isVideoNotFound(e: unknown): boolean {
-  // Detects a "video not found" error structurally (by name/message) so an
-  // orphan lesson.videoId — one pointing at a deleted Video — folds into a
+  // An orphan lesson.videoId — one pointing at a deleted Video — folds into a
   // LESSON_HAS_NO_VIDEO reason instead of aborting eligibility computation.
-  return e instanceof Error && (e.name === 'VideoNotFoundException' || /not found/i.test(e.message));
+  return e instanceof VideoNotFoundException;
 }
 
 /**

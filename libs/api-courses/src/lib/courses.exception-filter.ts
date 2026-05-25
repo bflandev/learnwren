@@ -3,9 +3,12 @@ import {
   BadRequestException,
   Catch,
   ExceptionFilter,
+  HttpException,
   Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
+
+import { AuthException } from '@learnwren/api-auth';
 
 import { CoursesException } from './errors/courses.exception';
 
@@ -23,7 +26,12 @@ type CoursesShapedException = Error & {
   details?: Record<string, unknown>;
 };
 
-@Catch()
+/**
+ * Filter narrowed to the domain + framework exception types that have a stable
+ * wire shape. Anything else falls through to a generic 500 with no exception
+ * detail leaked to the client.
+ */
+@Catch(CoursesException, AuthException, HttpException)
 export class CoursesExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('CoursesExceptionFilter');
 
@@ -37,6 +45,13 @@ export class CoursesExceptionFilter implements ExceptionFilter {
       respondValidation(response, exception);
       return;
     }
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      response.status(status).json({
+        error: { code: codeForStatus(status), message: exception.message },
+      } satisfies CoursesErrorBody);
+      return;
+    }
     this.logger.error(formatLogLine(exception));
     response.status(500).json({
       error: { code: 'INTERNAL', message: 'An internal error occurred.' },
@@ -45,9 +60,17 @@ export class CoursesExceptionFilter implements ExceptionFilter {
 }
 
 function isCoursesShaped(exception: unknown): exception is CoursesShapedException {
-  if (exception instanceof CoursesException) return true;
-  if (!(exception instanceof Error)) return false;
-  return exception.name === 'AuthException' || exception.constructor.name === 'AuthException';
+  return exception instanceof CoursesException || exception instanceof AuthException;
+}
+
+function codeForStatus(status: number): string {
+  if (status === 400) return 'BAD_REQUEST';
+  if (status === 401) return 'UNAUTHORIZED';
+  if (status === 403) return 'FORBIDDEN';
+  if (status === 404) return 'NOT_FOUND';
+  if (status === 409) return 'CONFLICT';
+  if (status === 422) return 'VALIDATION_ERROR';
+  return 'HTTP_ERROR';
 }
 
 function respondShaped(response: Response, err: CoursesShapedException): void {

@@ -1,6 +1,8 @@
 import { ArgumentsHost, BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AuthException } from '@learnwren/api-auth';
+
 import { ModuleNotFoundException } from '../errors/courses.exception';
 import { MaterialsExceptionFilter } from './materials.exception-filter';
 import { InvalidMaterialStateException, MaterialNotFoundException } from './errors/material.exception';
@@ -74,27 +76,9 @@ describe('MaterialsExceptionFilter', () => {
     expect((cap.body() as { error: { code: string } }).error.code).toBe('VALIDATION_FAILED');
   });
 
-  it('maps an AuthException by name', () => {
+  it('maps an AuthException via instanceof (no string-name matching)', () => {
     const cap = hostCapturing();
-    const authErr = Object.assign(new Error('No session.'), {
-      name: 'AuthException',
-      code: 'NOT_AUTHENTICATED',
-      status: 401,
-    });
-    new MaterialsExceptionFilter().catch(authErr, cap.host);
-    expect(cap.status()).toBe(401);
-    expect((cap.body() as { error: { code: string } }).error.code).toBe('NOT_AUTHENTICATED');
-  });
-
-  it('maps an AuthException when matched by constructor.name rather than .name', () => {
-    // Distinguishes `exception.name === 'AuthException'` from `exception.constructor.name === 'AuthException'`.
-    // An object whose `.name` is something else but `.constructor.name` is 'AuthException' should still match.
-    class AuthException extends Error {
-      code = 'NOT_AUTHENTICATED';
-      status = 401;
-    }
-    const cap = hostCapturing();
-    const authErr = new AuthException('No session.');
+    const authErr = new AuthException('NOT_AUTHENTICATED', 'No session.', 401);
     new MaterialsExceptionFilter().catch(authErr, cap.host);
     expect(cap.status()).toBe(401);
     expect((cap.body() as { error: { code: string } }).error.code).toBe('NOT_AUTHENTICATED');

@@ -3,9 +3,12 @@ import {
   BadRequestException,
   Catch,
   ExceptionFilter,
+  HttpException,
   Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
+
+import { AuthException } from '@learnwren/api-auth';
 
 import { CoursesException } from '../errors/courses.exception';
 import { MaterialException } from './errors/material.exception';
@@ -18,7 +21,7 @@ interface MaterialErrorBody {
   };
 }
 
-@Catch()
+@Catch(MaterialException, CoursesException, AuthException, HttpException)
 export class MaterialsExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('MaterialsExceptionFilter');
 
@@ -30,9 +33,7 @@ export class MaterialsExceptionFilter implements ExceptionFilter {
     if (
       exception instanceof MaterialException ||
       exception instanceof CoursesException ||
-      (exception instanceof Error &&
-        (exception.name === 'AuthException' ||
-          exception.constructor.name === 'AuthException'))
+      exception instanceof AuthException
     ) {
       const err = exception as Error & {
         code: string;
@@ -64,6 +65,14 @@ export class MaterialsExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      response.status(status).json({
+        error: { code: codeForStatus(status), message: exception.message },
+      } satisfies MaterialErrorBody);
+      return;
+    }
+
     this.logger.error(
       exception instanceof Error ? (exception.stack ?? exception.message) : String(exception),
     );
@@ -71,6 +80,16 @@ export class MaterialsExceptionFilter implements ExceptionFilter {
       error: { code: 'INTERNAL', message: 'An internal error occurred.' },
     } satisfies MaterialErrorBody);
   }
+}
+
+function codeForStatus(status: number): string {
+  if (status === 400) return 'BAD_REQUEST';
+  if (status === 401) return 'UNAUTHORIZED';
+  if (status === 403) return 'FORBIDDEN';
+  if (status === 404) return 'NOT_FOUND';
+  if (status === 409) return 'CONFLICT';
+  if (status === 422) return 'VALIDATION_ERROR';
+  return 'HTTP_ERROR';
 }
 
 /** class-validator emits "filename should not be empty" — key on the first word. */
