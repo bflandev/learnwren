@@ -11,8 +11,9 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > - **EP-03 Video & DRM** — resumable upload (MP4 / MOV / MKV ≤ 10 GB), GCP Transcoder → AES-128 HLS, owner playback in the lesson editor (hls.js, native HLS on Safari/iOS), publish / unpublish / archive / restore gate with structured eligibility feedback.
 > - **EP-04 Lesson materials** — attach / rename / remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB each); owner downloads via short-lived signed URL.
 > - **EP-05 Course discovery & enrollment** — public catalogue with category/difficulty filters, Newest / Alphabetical / Most Popular sort, pagination, keyword search; public course-detail page; logged-in students enroll and leave; guests who click Enroll are auto-enrolled after login.
+> - **EP-06 Slice A: Student lesson playback** — enrolled students (and the course owner) navigate from the course detail page via **Start Learning** to `/learn/:cid/:lid` and watch the lesson video in the existing hls.js player. Mark Complete, Resume, and the course outline are deferred to subsequent EP-06 slices.
 >
-> Not built yet: cover image upload, enrolled-student playback / progress tracking (EP-06), instructor dashboard (EP-07), platform administration (EP-08). `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
+> Not built yet: cover image upload, mark-complete / progress tracking / resume / course-outline panel (rest of EP-06), instructor dashboard (EP-07), platform administration (EP-08). `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
 
 ---
 
@@ -37,6 +38,7 @@ learnwren/
 │   ├── web-video/           # Angular video upload + hls.js owner playback
 │   ├── web-catalog/         # Angular standalone components for public course discovery (catalogue, search, course detail)
 │   ├── web-enrollment/      # Angular enroll/leave panel for the course detail page
+│   ├── web-learn/           # Angular standalone student lesson player page at /learn/:cid/:lid
 │   └── web-ui/              # Shared Angular UI primitives (cover tones, buttons, etc.)
 ├── tools/
 │   ├── promote-to-instructor.ts                    # CLI: promote a STUDENT to INSTRUCTOR via custom claim
@@ -66,6 +68,7 @@ learnwren/
 | `web-video` | Library | Angular resumable video upload + hls.js (or native HLS) owner playback widget |
 | `web-catalog` | Library | Angular standalone components for public course discovery (catalogue, search, course detail) |
 | `web-enrollment` | Library | Angular standalone `EnrollmentService` + `CourseEnrollmentPanelComponent` |
+| `web-learn` | Library | Angular standalone `LearnService` + `LessonPlayerPageComponent`; the `/learn/:cid/:lid` student playback route |
 | `web-ui` | Library | Shared Angular UI primitives (deterministic course-cover tones, etc.) consumed by `web-catalog` and `web-courses` |
 | `web-e2e`, `api-e2e` | E2E suite | Playwright (api-e2e covers `/auth/**` end-to-end including lockout + Firestore rules) |
 
@@ -177,6 +180,12 @@ The API endpoints exposed by EP-05 Slice B (course enrollment — session cookie
 | `POST` | `/api/enrollments` | Enroll the caller in the body-supplied course (restores a withdrawn enrollment). |
 | `DELETE` | `/api/enrollments/:courseId` | Unenroll the caller (soft-delete; progress retained 90 days). |
 | `GET` | `/api/enrollments/:courseId` | The caller's enrollment status for that course, plus whether they own it. |
+
+The API endpoints exposed by EP-06 Slice A (student lesson playback — session cookie required):
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/api/learn/courses/:cid/lessons/:lid` | The caller's lesson view (course + lesson + video state); 403 unless owner or active enrollee on a PUBLISHED course; 404 if the lesson does not belong to the course. |
 
 For the full auth dev workflow, the deferred items, and error-code → prose mappings, see [`docs/development.md`](./docs/development.md#auth-dev-workflow) and the design specs at [`docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`](./docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md) and [`docs/superpowers/specs/2026-05-06-auth-hardening-design.md`](./docs/superpowers/specs/2026-05-06-auth-hardening-design.md).
 

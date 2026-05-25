@@ -356,13 +356,47 @@ An enrolled student can leave any course they are enrolled in:
 Re-enrolling within the 90-day window restores the same enrollment record (including
 any progress data written by EP-06).
 
-> **Note — what is deferred.** The **Continue Learning** button and the lesson player
-> itself ship with EP-06; for now, enrolling lands the student on the course detail page
-> in its enrolled state, with no link into the lesson content. The 90-day hard-delete of
-> withdrawn enrollment records is also deferred (soft-delete and restore on re-enroll are
-> live; the scheduled purge is not). Access is not revoked if an instructor unpublishes a
-> course after a student has already enrolled — that limitation is documented and deferred
-> to a follow-up.
+> **Note — what is deferred.** The **Continue Learning** / resume button, mark-complete,
+> progress tracking, and the course-outline panel still ship with later EP-06 slices.
+> The **Start Learning** button and a minimal lesson player page DO ship now (see 2.14
+> below). The 90-day hard-delete of withdrawn enrollment records remains deferred
+> (soft-delete and restore on re-enroll are live; the scheduled purge is not). Access
+> IS revoked when an instructor unpublishes a course — the lesson endpoint and the
+> manifest endpoint both require `course.status === 'PUBLISHED'` for non-owner callers,
+> so a previously enrolled student starts seeing 403s on the next manifest refresh
+> after an unpublish.
+
+## 2.14 Watching a lesson as an enrolled student (EP-06 Slice A)
+
+Once a student has enrolled in a `PUBLISHED` course, the course detail page
+(`/catalog/:cid`) shows a **Start Learning** button. The course's instructor sees the
+same button on their own course — the playback guard allows owners through so they can
+preview as a student would.
+
+Clicking **Start Learning** navigates to `/learn/:cid/:lid` for the first lesson of the
+first module (lowest `module.order`, then lowest `lesson.order`). The lesson page
+renders the lesson title, description, and the same AES-128 HLS player used by the
+owner editor (hls.js on Chrome/Firefox, native HLS on Safari/iOS).
+
+A logged-out visitor who opens `/learn/:cid/:lid` directly is redirected to
+`/login?redirect=/learn/:cid/:lid` and returned to the lesson page after sign-in.
+
+Edge cases:
+
+- **Lesson video still transcoding** — the page renders the title and a "This lesson's
+  video is still being processed. Please check back later." panel in place of the
+  player.
+- **Fatal playback error** (manifest 403 from a course unpublished mid-session, key
+  fetch failure) — the player swaps in its own error message with a Try again button.
+- **Defensive: authenticated but not enrolled** — Start Learning only renders for
+  enrolled callers, but a stale direct URL renders a "You're not enrolled" panel with a
+  back-to-course link.
+- **Lesson missing or in the wrong course** — the page renders a "Lesson not available"
+  panel.
+
+**Deferred to later EP-06 slices:** mark lessons complete, progress / last-watched
+tracking, the **Continue Learning** resume button, and the collapsible course-outline
+panel with completion checkmarks.
 
 ---
 
@@ -394,6 +428,7 @@ See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./epics/TECHNICAL_ARCHITECTURE.md).
 | `libs/web-video` | Angular lib | Upload component, state badge/polling, hls.js player. |
 | `libs/web-catalog` | Angular lib | Public catalogue, search, and course detail page. |
 | `libs/web-enrollment` | Angular lib | `EnrollmentService` + `CourseEnrollmentPanelComponent` (enroll/leave panel on the course detail page). |
+| `libs/web-learn` | Angular lib | `LearnService` + `LessonPlayerPageComponent`; the `/learn/:cid/:lid` student playback route (EP-06 Slice A). |
 
 ## 3.2 API conventions
 

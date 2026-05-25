@@ -36,7 +36,7 @@ carries at least minor drift.
 | EP-03 — Video Management & DRM | 5 | **Major (architectural)** | Specs assume commercial multi-DRM; code is a scoped-down HLS + AES-128 pipeline |
 | EP-04 — Lesson Materials | 2 | **Moderate** | UC-04-01 faithful; UC-04-02 (student download) unbuilt for its actor |
 | EP-05 — Course Discovery & Enrollment | 5 | **Deferred** | Entirely unbuilt; documented as deferred |
-| EP-06 — Learning Experience | 4 | **Deferred** | Entirely unbuilt; documented as deferred |
+| EP-06 — Learning Experience | 4 | **Partial** | UC-06-01 built (2026-05-25 Slice A); UC-06-02/03/04 deferred |
 
 ### Three kinds of drift
 
@@ -290,18 +290,25 @@ Course Detail · UC-05-04 Enrol · UC-05-05 Unenrol.
 
 ## EP-06 — Learning Experience
 
-**Drift: Deferred — entirely unbuilt.** No progress-tracking, lesson-completion,
-resume, or course-outline behavior exists. Two honest, well-commented forward
-hooks exist in shipped epics:
+**Drift: Partially built (2026-05-25).** UC-06-01 (Watch a Lesson Video) ships as the
+minimal "player only" page — see
+`docs/superpowers/specs/2026-05-25-ep06-slice-a-student-playback-design.md`. An
+authenticated enrolled student (or the course owner) lands on `/learn/:cid/:lid` via
+a **Start Learning** button on the course detail page and watches the lesson video in
+the existing hls.js player. The lesson page intentionally omits the materials list,
+prev/next navigation, and the course-outline panel — those are deferred.
 
-- **Low** — `EnrollmentOrOwnerGuard` is named for "enrolment or owner" but grants
-  owner-only access; the enrolled-student branch is a `TODO(EP-06)`.
-  `playback/enrollment-or-owner.guard.ts:31-35`.
-- **Low** — `MaterialAccessGuard` is an owner-only stub with a doc-comment stating
-  "EP-06 will widen this to enrolled students". `materials/material-access.guard.ts:33-37`.
+The previously listed forward-hook drifts are now stale and resolved:
 
-Unbuilt use cases: UC-06-01 Watch a Lesson Video · UC-06-02 Mark a Lesson Complete
-· UC-06-03 Resume Learning · UC-06-04 Navigate the Course Outline.
+- `EnrollmentOrOwnerGuard` was widened to grant `owner OR active enrolment on a
+  PUBLISHED course` as part of EP-05 Slice B; the `TODO(EP-06)` marker is gone.
+- `MaterialAccessGuard` was widened the same way in EP-05 Slice B.
+
+A course-scoped sibling, `LessonEnrollmentOrOwnerGuard`, was added in this slice for
+the new `/api/learn/courses/:cid/lessons/:lid` endpoint.
+
+Unbuilt use cases: UC-06-02 Mark a Lesson Complete · UC-06-03 Resume Learning ·
+UC-06-04 Navigate the Course Outline.
 
 ---
 
