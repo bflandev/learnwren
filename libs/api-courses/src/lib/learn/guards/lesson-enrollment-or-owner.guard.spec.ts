@@ -261,4 +261,16 @@ describe('LessonEnrollmentOrOwnerGuard', () => {
       ),
     ).rejects.toBeInstanceOf(LessonNotFoundException);
   });
+
+  it('throws LessonNotFoundException (404) when req.user is absent (defensive — upstream auth should have rejected)', async () => {
+    // Pins the `req.user?.uid` short-circuit and the `req.user ? … : null`
+    // ternary. The auth guard would normally reject before this point, but
+    // the guard defends against the missing-user case and must collapse to
+    // 404 (same shape as an unenrolled user) — never 403 or a route success.
+    const courses = makeCourses(publishedCourse, [testModule], testLesson);
+    const guard = new LessonEnrollmentOrOwnerGuard(courses, makeEnrollment(null));
+    await expect(
+      guard.canActivate(ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID } })),
+    ).rejects.toBeInstanceOf(LessonNotFoundException);
+  });
 });
