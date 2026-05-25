@@ -1,10 +1,27 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
 
-import type { LessonId, ModuleId, PublishBlockReason } from '@learnwren/shared-data-models';
+import type {
+  LessonId,
+  ModuleId,
+  PublishBlockReason,
+  VideoState,
+} from '@learnwren/shared-data-models';
 
 import { LwButtonDirective } from '@learnwren/web-ui';
 
 import { PublishEligibilityService } from './publish-eligibility.service';
+
+// Per-currentState prose for LESSON_VIDEO_NOT_READY. Exhaustive over
+// Exclude<VideoState, 'READY'> so adding a new VideoState (e.g. a future
+// "QUEUED" state) is caught by the TS exhaustiveness check rather than
+// silently falling through to a generic message.
+const NOT_READY_TEXT: Record<Exclude<VideoState, 'READY'>, string> = {
+  PENDING_UPLOAD: 'Video upload is in progress.',
+  UPLOADING: 'Video upload is in progress.',
+  UPLOADED: 'Video upload is in progress.',
+  TRANSCODING: 'Video is still transcoding. Status will update automatically.',
+  FAILED: 'Video processing failed — re-upload required.',
+};
 
 @Component({
   selector: 'lib-publish-eligibility-panel',
@@ -45,14 +62,8 @@ export class PublishEligibilityPanelComponent {
         return `Module "${r.moduleTitle}" has no lessons.`;
       case 'LESSON_HAS_NO_VIDEO':
         return `${r.moduleTitle} › ${r.lessonTitle} — no video uploaded yet.`;
-      case 'LESSON_VIDEO_NOT_READY': {
-        const txt = r.currentState === 'TRANSCODING'
-          ? 'Video is still transcoding. Status will update automatically.'
-          : r.currentState === 'UPLOADING' || r.currentState === 'UPLOADED' || r.currentState === 'PENDING_UPLOAD'
-            ? 'Video upload is in progress.'
-            : 'Video processing failed — re-upload required.';
-        return `${r.moduleTitle} › ${r.lessonTitle} — ${txt}`;
-      }
+      case 'LESSON_VIDEO_NOT_READY':
+        return `${r.moduleTitle} › ${r.lessonTitle} — ${NOT_READY_TEXT[r.currentState]}`;
       default:
         return '';
     }
