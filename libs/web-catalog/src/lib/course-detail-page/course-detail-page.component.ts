@@ -1,11 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ActivatedRoute, type ParamMap } from '@angular/router';
+import { ActivatedRoute, RouterLink, type ParamMap } from '@angular/router';
 
-import type { CourseCatalogDetail } from '@learnwren/shared-data-models';
+import type { CourseCatalogDetail, EnrollmentStatusView } from '@learnwren/shared-data-models';
 import { LwCoverComponent, LwPillComponent, coverToneForId } from '@learnwren/web-ui';
-import { CourseEnrollmentPanelComponent } from '@learnwren/web-enrollment';
+import { CourseEnrollmentPanelComponent, EnrollmentService } from '@learnwren/web-enrollment';
+import { AuthService } from '@learnwren/web-auth';
 
 import { CatalogService } from '../catalog.service';
 import { ModuleOutlineComponent } from '../components/module-outline/module-outline.component';
@@ -14,25 +15,66 @@ import { ModuleOutlineComponent } from '../components/module-outline/module-outl
   selector: 'lib-course-detail-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LwCoverComponent, LwPillComponent, ModuleOutlineComponent, CourseEnrollmentPanelComponent],
+  imports: [LwCoverComponent, LwPillComponent, ModuleOutlineComponent, CourseEnrollmentPanelComponent, RouterLink],
   templateUrl: './course-detail-page.component.html',
 })
-export class CourseDetailPageComponent {
+export class CourseDetailPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(CatalogService);
+  private readonly auth = inject(AuthService);
+  private readonly enrollments = inject(EnrollmentService);
 
   readonly course = signal<CourseCatalogDetail | null>(null);
   readonly notFound = signal(false);
   readonly error = signal(false);
+  readonly enrollmentStatus = signal<EnrollmentStatusView | null>(null);
+
   readonly coverTone = computed(() => {
     const c = this.course();
     return c ? coverToneForId(c.id) : 'ink';
+  });
+
+  readonly firstLessonHref = computed<readonly [string, string, string] | null>(() => {
+    const c = this.course();
+    const firstModule = c?.modules?.[0];
+    const firstLesson = firstModule?.lessons?.[0];
+    return c && firstLesson ? (['/learn', c.id, firstLesson.id] as const) : null;
+  });
+
+  readonly canStartLearning = computed<boolean>(() => {
+    const status = this.enrollmentStatus();
+    if (!this.firstLessonHref()) return false;
+    return status?.isOwner === true || status?.enrollment?.status === 'ACTIVE';
+  });
+
+  readonly showNoLessons = computed<boolean>(() => {
+    if (this.firstLessonHref()) return false;
+    const status = this.enrollmentStatus();
+    return status?.isOwner === true || status?.enrollment?.status === 'ACTIVE';
   });
 
   constructor() {
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       void this.load(params);
     });
+  }
+
+  async ngOnInit(): Promise<void> {
+    if (!this.auth.currentUser()) {
+      return;
+    }
+    await this.resolveEnrollmentStatus();
+  }
+
+  private async resolveEnrollmentStatus(): Promise<void> {
+    const courseId = this.route.snapshot.paramMap.get('id');
+    if (!courseId) return;
+    try {
+      const view = await this.enrollments.getEnrollmentStatus(courseId);
+      this.enrollmentStatus.set(view);
+    } catch {
+      // enrollment status is best-effort; CTA simply stays hidden on failure
+    }
   }
 
   private async load(params: ParamMap): Promise<void> {
