@@ -1,0 +1,32 @@
+{
+  "name": "web-learn",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/web-learn/src",
+  "prefix": "lib",
+  "projectType": "library",
+  "tags": ["scope:web"],
+  "targets": {
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "options": {
+        "cwd": "libs/web-learn",
+        "command": "tsc --build tsconfig.lib.json --emitDeclarationOnly"
+      },
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default",
+        {
+          "externalDependencies": ["typescript"]
+        }
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/out-tsc/libs/web-learn/**/*.{d.ts,d.cts,d.mts}",
+        "{workspaceRoot}/libs/web-learn/tsconfig.lib.tsbuildinfo"
+      ]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}
