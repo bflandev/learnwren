@@ -121,14 +121,15 @@ export class EnrollmentRepository {
 
       const progress = [...(existing.progress ?? [])];
       const idx = progress.findIndex((p) => p.lessonId === lessonId);
+      const existingRow = idx >= 0 ? progress[idx] : undefined;
 
-      if (idx >= 0 && progress[idx].completedAt != null) {
+      if (existingRow && existingRow.completedAt != null) {
         // Already complete — idempotent no-op. Return the prior value, write nothing.
-        return { completedAt: progress[idx].completedAt as ISODateString };
+        return { completedAt: existingRow.completedAt };
       }
 
-      if (idx >= 0) {
-        progress[idx] = { ...progress[idx], completedAt: completedAtIso };
+      if (existingRow) {
+        progress[idx] = { ...existingRow, completedAt: completedAtIso };
       } else {
         progress.push({ lessonId, completedAt: completedAtIso, lastWatchedSeconds: 0 });
       }
