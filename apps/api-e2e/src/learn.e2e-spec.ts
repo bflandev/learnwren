@@ -467,3 +467,132 @@ test('POST /complete returns 401 without a session cookie', async ({ request }) 
   );
   expect(res.status()).toBe(401);
 });
+
+// ──────────────────────── POST /position tests (Slice C) ────────────────────────
+
+test.describe('POST /api/learn/courses/:cid/lessons/:lid/position', () => {
+  test('200 with returned lastWatchedSeconds; idempotent on equal repeat', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const student = await registerStudent(request);
+    const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+    const moduleId = await seedModule(courseId);
+    const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+    await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+    const r1 = await request.post(
+      `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/position`,
+      { data: { seconds: 30 }, headers: { cookie: student.cookieHeader } },
+    );
+    expect(r1.status()).toBe(200);
+    expect(await r1.json()).toEqual({ lastWatchedSeconds: 30 });
+
+    const r2 = await request.post(
+      `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/position`,
+      { data: { seconds: 30 }, headers: { cookie: student.cookieHeader } },
+    );
+    expect(r2.status()).toBe(200);
+    expect(await r2.json()).toEqual({ lastWatchedSeconds: 30 });
+  });
+
+  test('monotonic regression: smaller seconds returns the stored larger value and does not overwrite', async ({
+    request,
+  }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const student = await registerStudent(request);
+    const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+    const moduleId = await seedModule(courseId);
+    const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+    await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+    await request.post(
+      `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/position`,
+      { data: { seconds: 100 }, headers: { cookie: student.cookieHeader } },
+    );
+    const r = await request.post(
+      `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/position`,
+      { data: { seconds: 50 }, headers: { cookie: student.cookieHeader } },
+    );
+    expect(r.status()).toBe(200);
+    expect(await r.json()).toEqual({ lastWatchedSeconds: 100 });
+  });
+
+  test('400 INVALID_POSITION on negative seconds', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const student = await registerStudent(request);
+    const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+    const moduleId = await seedModule(courseId);
+    const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+    await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+    const r = await request.post(
+      `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/position`,
+      { data: { seconds: -1 }, headers: { cookie: student.cookieHeader } },
+    );
+    expect(r.status()).toBe(400);
+    expect(((await r.json()) as { error: { code: string } }).error.code).toBe('INVALID_POSITION');
+  });
+
+  test('400 INVALID_POSITION on missing body', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const student = await registerStudent(request);
+    const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+    const moduleId = await seedModule(courseId);
+    const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+    await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+    const r = await request.post(
+      `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/position`,
+      { data: {}, headers: { cookie: student.cookieHeader } },
+    );
+    expect(r.status()).toBe(400);
+    expect(((await r.json()) as { error: { code: string } }).error.code).toBe('INVALID_POSITION');
+  });
+
+  test('403 NOT_ENROLLED_LESSON for a withdrawn enrolment', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const student = await registerStudent(request);
+    const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+    const moduleId = await seedModule(courseId);
+    const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+    // Seed ACTIVE then overwrite with WITHDRAWN (mirrors the /complete sibling test above).
+    await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+    await seedEnrollment({ userId: student.uid, courseId, status: 'WITHDRAWN' });
+
+    const r = await request.post(
+      `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/position`,
+      { data: { seconds: 5 }, headers: { cookie: student.cookieHeader } },
+    );
+    expect(r.status()).toBe(403);
+    expect(((await r.json()) as { error: { code: string } }).error.code).toBe('NOT_ENROLLED_LESSON');
+  });
+});
+
+// ──────────────────── GET /learn side-effect (Slice C) ────────────────────
+
+test('GET /learn/.../lessons/:lid bumps lastAccessedLessonId as a side effect', async ({
+  request,
+}) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const student = await registerStudent(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const moduleId = await seedModule(courseId);
+  const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+  await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+  // Touch the lesson via the student-playback GET — this is the side effect under test.
+  const view = await request.get(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}`,
+    { headers: { cookie: student.cookieHeader } },
+  );
+  expect(view.status()).toBe(200);
+
+  // Read the enrolment back via the public status endpoint and confirm the touch landed.
+  const status = await request.get(`${API_BASE}/enrollments/${courseId}`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  expect(status.status()).toBe(200);
+  const body = (await status.json()) as {
+    enrollment: { lastAccessedLessonId: string | null } | null;
+  };
+  expect(body.enrollment?.lastAccessedLessonId).toBe(lessonId);
+});
