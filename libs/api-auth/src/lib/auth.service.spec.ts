@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FIREBASE_AUTH, FIRESTORE } from '@learnwren/api-firebase';
 
+import { AccountRecoveryService } from './account-recovery.service';
 import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { AuthService } from './auth.service';
 import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
+import { SessionCookieService } from './session-cookie.service';
 import {
   AccountLockedException,
   EmailAlreadyExistsException,
@@ -16,9 +18,6 @@ import {
   InvalidDisplayNameException,
   InvalidEmailException,
   InternalAuthException,
-  InvalidUnlockTokenException,
-  TooManyRequestsException,
-  UnlockTokenExpiredException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -77,28 +76,12 @@ function buildFakeRestClient(idToken = 'ID-TOKEN') {
   };
 }
 
-/**
- * A fake FirebaseAuth that models Firebase's whole-second session-cookie
- * revocation: a cookie is rejected by a checkRevoked verify only once the
- * user's validSince second is *strictly greater* than the cookie's `iat`
- * second. `revokeRefreshTokens` stamps validSince at the current second.
- *
- * `stampLagMs` encodes the real, unavoidable slop between the API process
- * clock and the second the validSince stamp is actually floored into — a
- * correct logout must tolerate it instead of racing the second boundary.
- */
-function buildRevocationModelAuth(cookieIatSec: number, stampLagMs = 10) {
-  let validSinceSec: number | null = null;
-  const verifySessionCookie = vi.fn(async (_cookie: string, checkRevoked: boolean) => {
-    if (checkRevoked && validSinceSec !== null && cookieIatSec < validSinceSec) {
-      throw new Error('auth/session-cookie-revoked');
-    }
-    return { uid: 'uid-abc', iat: cookieIatSec, auth_time: cookieIatSec };
-  });
-  const revokeRefreshTokens = vi.fn(async () => {
-    validSinceSec = Math.floor((Date.now() - stampLagMs) / 1000);
-  });
-  return { ...buildFakeAuth(), verifySessionCookie, revokeRefreshTokens };
+function buildEmailTransportMock(): EmailTransport {
+  return {
+    sendUnlockEmail: vi.fn(async () => undefined),
+    sendVerificationEmail: vi.fn(async () => undefined),
+    sendPasswordResetEmail: vi.fn(async () => undefined),
+  };
 }
 
 async function buildModule(
@@ -111,17 +94,12 @@ async function buildModule(
       AuthService,
       PasswordPolicyService,
       AuthAttemptsRepository,
+      AccountRecoveryService,
+      SessionCookieService,
       { provide: FIREBASE_AUTH, useValue: auth },
       { provide: FIRESTORE, useValue: firestore },
       { provide: FirebaseAuthRestClient, useValue: rest },
-      {
-        provide: EMAIL_TRANSPORT,
-        useValue: {
-          sendUnlockEmail: vi.fn(async () => undefined),
-          sendVerificationEmail: vi.fn(async () => undefined),
-          sendPasswordResetEmail: vi.fn(async () => undefined),
-        },
-      },
+      { provide: EMAIL_TRANSPORT, useValue: buildEmailTransportMock() },
     ],
   }).compile();
   return moduleRef.get(AuthService);
@@ -427,105 +405,6 @@ describe('AuthService.register', () => {
   });
 });
 
-describe('AuthService.logoutSideEffects', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('revokes the session cookie even when logout runs in the same wall-second it was minted', async () => {
-    vi.useFakeTimers();
-    try {
-      const cookieIatSec = 1_700_000_000;
-      // Clock sits 300ms into the cookie's own second — logout races the
-      // second boundary, the exact condition that produced the e2e flake.
-      vi.setSystemTime(new Date(cookieIatSec * 1000 + 300));
-      const auth = buildRevocationModelAuth(cookieIatSec);
-      const service = await buildModule(auth as unknown as FakeAuth, buildFakeFirestore());
-
-      const pending = service.logoutSideEffects('valid.cookie');
-      await vi.advanceTimersByTimeAsync(5000);
-      await pending;
-
-      // Contract: after logout, a checkRevoked verify must reject the cookie.
-      await expect(auth.verifySessionCookie('valid.cookie', true)).rejects.toThrow();
-      // The first revoke landed in the cookie's own second; logout must retry.
-      expect(auth.revokeRefreshTokens.mock.calls.length).toBeGreaterThanOrEqual(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('revokes on the first attempt when the cookie was minted in an earlier second', async () => {
-    // Cookie iat is well in the past, so the very first revokeRefreshTokens
-    // stamps a validSince strictly greater than it — no retry, no sleep.
-    const cookieIatSec = Math.floor(Date.now() / 1000) - 3600;
-    const auth = buildRevocationModelAuth(cookieIatSec);
-    const service = await buildModule(auth as unknown as FakeAuth, buildFakeFirestore());
-
-    await service.logoutSideEffects('valid.cookie');
-
-    expect(auth.verifySessionCookie).toHaveBeenCalledWith('valid.cookie', true);
-    expect(auth.revokeRefreshTokens).toHaveBeenCalledTimes(1);
-    // Revocation must target the uid decoded from the cookie — a StringLiteral
-    // mutant on `decoded['uid']` would call revokeRefreshTokens(undefined),
-    // revoking nothing while still reporting success.
-    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('uid-abc');
-    await expect(auth.verifySessionCookie('valid.cookie', true)).rejects.toThrow();
-  });
-
-  it('gives up after LOGOUT_REVOKE_MAX_ATTEMPTS when revocation never confirms', async () => {
-    // verifySessionCookie never rejects, so isSessionCookieRevoked stays false
-    // and the retry loop runs to exhaustion. Pins the loop bound exactly: a
-    // `<` → `<=` mutant would revoke 5×, and an `attempt++` → `attempt--`
-    // mutant would loop forever (Stryker kills that one via timeout).
-    vi.useFakeTimers();
-    try {
-      vi.setSystemTime(new Date(1_700_000_000 * 1000 + 300));
-      const verifySessionCookie = vi.fn(async () => ({ uid: 'uid-abc', iat: 1_700_000_000 }));
-      const revokeRefreshTokens = vi.fn(async () => undefined);
-      const auth = { ...buildFakeAuth(), verifySessionCookie, revokeRefreshTokens };
-      const service = await buildModule(auth as unknown as FakeAuth, buildFakeFirestore());
-
-      const pending = service.logoutSideEffects('stubborn.cookie');
-      await vi.advanceTimersByTimeAsync(20_000);
-      await pending;
-
-      expect(revokeRefreshTokens).toHaveBeenCalledTimes(4);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('is a no-op when the cookie is undefined', async () => {
-    const auth = {
-      ...buildFakeAuth(),
-      verifySessionCookie: vi.fn(),
-      revokeRefreshTokens: vi.fn(),
-    };
-    const firestore = buildFakeFirestore();
-    const service = await buildModule(auth as unknown as FakeAuth, firestore);
-
-    await service.logoutSideEffects(undefined);
-    expect(auth.verifySessionCookie).not.toHaveBeenCalled();
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
-  });
-
-  it('silently swallows verifySessionCookie failures (does not call revoke)', async () => {
-    const auth = {
-      ...buildFakeAuth(),
-      verifySessionCookie: vi.fn(async () => {
-        throw new Error('expired');
-      }),
-      revokeRefreshTokens: vi.fn(),
-    };
-    const firestore = buildFakeFirestore();
-    const service = await buildModule(auth as unknown as FakeAuth, firestore);
-
-    await expect(service.logoutSideEffects('expired.cookie')).resolves.toBeUndefined();
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
-  });
-});
-
 describe('AuthService.getMe', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -598,52 +477,48 @@ function buildAttemptsMock(): {
   return { repo: spies as unknown as AuthAttemptsRepository, spies };
 }
 
+async function buildLoginModule(
+  auth: FakeAuth,
+  firestore: FakeFirestore,
+  rest: ReturnType<typeof buildFakeRestClient>,
+  attempts: AuthAttemptsRepository,
+  emailTransport: EmailTransport = buildEmailTransportMock(),
+): Promise<AuthService> {
+  const moduleRef = await Test.createTestingModule({
+    providers: [
+      AuthService,
+      PasswordPolicyService,
+      AccountRecoveryService,
+      SessionCookieService,
+      { provide: FIREBASE_AUTH, useValue: auth },
+      { provide: FIRESTORE, useValue: firestore },
+      { provide: FirebaseAuthRestClient, useValue: rest },
+      { provide: AuthAttemptsRepository, useValue: attempts },
+      { provide: EMAIL_TRANSPORT, useValue: emailTransport },
+    ],
+  }).compile();
+  return moduleRef.get(AuthService);
+}
+
+function fsWithUser(uid = 'uid-123', role = 'STUDENT', displayName = 'Alice'): FakeFirestore {
+  const fs = buildFakeFirestore();
+  // patch get() to return the user doc
+  fs.collection = vi.fn(() => ({
+    doc: vi.fn(() => ({
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ id: uid, displayName, role }),
+      })),
+      set: fs._set,
+    })),
+  })) as unknown as FakeFirestore['collection'];
+  return fs;
+}
+
 describe('AuthService.login', () => {
   beforeEach(() => vi.clearAllMocks());
 
   const validInput = { email: 'alice@example.com', password: 'Aa1!aaaaaaaa' };
-
-  async function buildLoginModule(
-    auth: FakeAuth,
-    firestore: FakeFirestore,
-    rest: ReturnType<typeof buildFakeRestClient>,
-    attempts: AuthAttemptsRepository,
-  ): Promise<AuthService> {
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        PasswordPolicyService,
-        { provide: FIREBASE_AUTH, useValue: auth },
-        { provide: FIRESTORE, useValue: firestore },
-        { provide: FirebaseAuthRestClient, useValue: rest },
-        { provide: AuthAttemptsRepository, useValue: attempts },
-        {
-        provide: EMAIL_TRANSPORT,
-        useValue: {
-          sendUnlockEmail: vi.fn(async () => undefined),
-          sendVerificationEmail: vi.fn(async () => undefined),
-          sendPasswordResetEmail: vi.fn(async () => undefined),
-        },
-      },
-      ],
-    }).compile();
-    return moduleRef.get(AuthService);
-  }
-
-  function fsWithUser(uid = 'uid-123', role = 'STUDENT', displayName = 'Alice'): FakeFirestore {
-    const fs = buildFakeFirestore();
-    // patch get() to return the user doc
-    fs.collection = vi.fn(() => ({
-      doc: vi.fn(() => ({
-        get: vi.fn(async () => ({
-          exists: true,
-          data: () => ({ id: uid, displayName, role }),
-        })),
-        set: fs._set,
-      })),
-    })) as unknown as FakeFirestore['collection'];
-    return fs;
-  }
 
   it('happy path: returns uid + role + cookie and clears lockout doc', async () => {
     const auth = buildFakeAuth({
@@ -780,7 +655,7 @@ describe('AuthService.login', () => {
     await service.login(validInput);
 
     // verifyIdToken is called twice: once for the email-verification gate at
-    // login (must be checkRevoked=true) and once inside mintSessionCookie.
+    // login (must be checkRevoked=true) and once inside SessionCookieService.mint.
     // Pin the first call specifically — a BooleanLiteral mutant flipping the
     // gate's `true` to `false` would silently disable revocation checking.
     expect(auth.verifyIdToken).toHaveBeenNthCalledWith(1, 'ID-TOKEN', true);
@@ -864,307 +739,8 @@ describe('AuthService.login', () => {
   });
 });
 
-describe('AuthService.resendVerification', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    delete process.env['LEARNWREN_PUBLIC_URL'];
-  });
-
-  async function buildResendModule(opts: {
-    getUserResult?: unknown | 'not-found';
-    throttle?: { throttled: boolean };
-  }) {
-    const auth = buildFakeAuth();
-    const firestore = buildFakeFirestore();
-    const rest = buildFakeRestClient();
-    const { repo: attempts, spies } = buildAttemptsMock();
-    spies.recordResendVerification = vi.fn(async () => opts.throttle ?? { throttled: false });
-
-    if (opts.getUserResult === 'not-found') {
-      (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
-        async () => {
-          throw Object.assign(new Error('user-not-found'), { code: 'auth/user-not-found' });
-        },
-      );
-    } else {
-      (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
-        async () => opts.getUserResult ?? { uid: 'uid-123', email: 'alice@example.com', emailVerified: false },
-      );
-    }
-    auth.generateEmailVerificationLink = vi.fn(async () => 'https://verify/abc');
-
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        PasswordPolicyService,
-        { provide: FIREBASE_AUTH, useValue: auth },
-        { provide: FIRESTORE, useValue: firestore },
-        { provide: FirebaseAuthRestClient, useValue: rest },
-        { provide: AuthAttemptsRepository, useValue: attempts },
-        {
-        provide: EMAIL_TRANSPORT,
-        useValue: {
-          sendUnlockEmail: vi.fn(async () => undefined),
-          sendVerificationEmail: vi.fn(async () => undefined),
-          sendPasswordResetEmail: vi.fn(async () => undefined),
-        },
-      },
-      ],
-    }).compile();
-    return { service: moduleRef.get(AuthService), auth, spies };
-  }
-
-  it('throws TOO_MANY_REQUESTS when within throttle window', async () => {
-    const { service } = await buildResendModule({ throttle: { throttled: true } });
-    await expect(service.resendVerification('alice@example.com')).rejects.toBeInstanceOf(
-      TooManyRequestsException,
-    );
-  });
-
-  it('returns silently when user does not exist', async () => {
-    const { service, auth } = await buildResendModule({ getUserResult: 'not-found' });
-    await expect(service.resendVerification('ghost@example.com')).resolves.toBeUndefined();
-    expect(auth.generateEmailVerificationLink).not.toHaveBeenCalled();
-  });
-
-  it('returns silently when user is already verified', async () => {
-    const { service, auth } = await buildResendModule({
-      getUserResult: { uid: 'uid-123', email: 'alice@example.com', emailVerified: true },
-    });
-    await expect(service.resendVerification('alice@example.com')).resolves.toBeUndefined();
-    expect(auth.generateEmailVerificationLink).not.toHaveBeenCalled();
-  });
-
-  it('generates a verification link when user exists and is unverified', async () => {
-    const { service, auth } = await buildResendModule({});
-    await service.resendVerification('alice@example.com');
-    // Pin the exact URL — kills LogicalOperator + StringLiteral mutants on
-    // the `process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200'`
-    // default, and ObjectLiteral mutants on the link options.
-    expect(auth.generateEmailVerificationLink).toHaveBeenCalledWith(
-      'alice@example.com',
-      { url: 'http://localhost:4200/login' },
-    );
-  });
-
-  it('propagates a non-user-not-found Firebase error from getUserByEmail (does not silently succeed)', async () => {
-    // The catch only swallows `auth/user-not-found` for enumeration resistance.
-    // A ConditionalExpression mutant flipping the guard to `true` would
-    // silently swallow ANY Firebase error and return success.
-    const { service, auth } = await buildResendModule({});
-    (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
-      async () => {
-        throw Object.assign(new Error('quota'), { code: 'auth/quota-exceeded' });
-      },
-    );
-    await expect(service.resendVerification('alice@example.com')).rejects.toMatchObject({
-      code: 'auth/quota-exceeded',
-    });
-  });
-
-  it('throws InternalAuthException when generateEmailVerificationLink fails', async () => {
-    // The catch around the Firebase call rethrows InternalAuthException. A
-    // BlockStatement mutant emptying the catch body would let the original
-    // failure bubble up unmapped — losing the consistent error contract.
-    const { service, auth } = await buildResendModule({});
-    auth.generateEmailVerificationLink = vi.fn(async () => {
-      throw new Error('Admin SDK timeout');
-    });
-    await expect(service.resendVerification('alice@example.com')).rejects.toBeInstanceOf(
-      InternalAuthException,
-    );
-  });
-});
-
-describe('AuthService.requestPasswordReset', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    delete process.env['LEARNWREN_PUBLIC_URL'];
-  });
-
-  async function build(opts: {
-    getUserResult?: unknown | 'not-found';
-    throttle?: { throttled: boolean };
-  }) {
-    const auth = buildFakeAuth();
-    const firestore = buildFakeFirestore();
-    const rest = buildFakeRestClient();
-    const { repo: attempts, spies } = buildAttemptsMock();
-    spies.recordPasswordResetRequest = vi.fn(async () => opts.throttle ?? { throttled: false });
-
-    if (opts.getUserResult === 'not-found') {
-      (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
-        async () => {
-          throw Object.assign(new Error('not-found'), { code: 'auth/user-not-found' });
-        },
-      );
-    } else {
-      (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
-        async () => opts.getUserResult ?? { uid: 'uid-123', email: 'alice@example.com' },
-      );
-    }
-    (auth as unknown as { generatePasswordResetLink: ReturnType<typeof vi.fn> }).generatePasswordResetLink =
-      vi.fn(async () => 'https://reset/abc');
-
-    const emailTransport = {
-      sendUnlockEmail: vi.fn(async () => undefined),
-      sendVerificationEmail: vi.fn(async () => undefined),
-      sendPasswordResetEmail: vi.fn(async () => undefined),
-    };
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        PasswordPolicyService,
-        { provide: FIREBASE_AUTH, useValue: auth },
-        { provide: FIRESTORE, useValue: firestore },
-        { provide: FirebaseAuthRestClient, useValue: rest },
-        { provide: AuthAttemptsRepository, useValue: attempts },
-        { provide: EMAIL_TRANSPORT, useValue: emailTransport },
-      ],
-    }).compile();
-    return { service: moduleRef.get(AuthService), auth, spies, emailTransport };
-  }
-
-  it('throws TOO_MANY_REQUESTS when within throttle window', async () => {
-    const { service } = await build({ throttle: { throttled: true } });
-    await expect(
-      service.requestPasswordReset('alice@example.com'),
-    ).rejects.toBeInstanceOf(TooManyRequestsException);
-  });
-
-  it('returns silently when user does not exist', async () => {
-    const { service, auth } = await build({ getUserResult: 'not-found' });
-    await expect(service.requestPasswordReset('ghost@example.com')).resolves.toBeUndefined();
-    expect(
-      (auth as unknown as { generatePasswordResetLink: ReturnType<typeof vi.fn> })
-        .generatePasswordResetLink,
-    ).not.toHaveBeenCalled();
-  });
-
-  it('generates a reset link when user exists', async () => {
-    const { service, auth } = await build({});
-    await service.requestPasswordReset('alice@example.com');
-    const fn = (auth as unknown as { generatePasswordResetLink: ReturnType<typeof vi.fn> })
-      .generatePasswordResetLink;
-    // Pin the full URL so a StringLiteral mutant cannot drop `?reset=ok` (the
-    // signal the front-end uses to render the success state).
-    expect(fn).toHaveBeenCalledWith(
-      'alice@example.com',
-      { url: 'http://localhost:4200/login?reset=ok' },
-    );
-  });
-
-  it('dispatches the reset link via emailTransport.sendPasswordResetEmail', async () => {
-    // generatePasswordResetLink on the Admin SDK only returns a URL — it does
-    // not send any email. We must explicitly hand the link to the transport,
-    // or "Forgot password?" is silently dead in production.
-    const { service, emailTransport } = await build({});
-    await service.requestPasswordReset('alice@example.com');
-    expect(emailTransport.sendPasswordResetEmail).toHaveBeenCalledWith({
-      to: 'alice@example.com',
-      resetUrl: 'https://reset/abc',
-    });
-  });
-
-  it('propagates a non-user-not-found Firebase error from getUserByEmail (does not silently succeed)', async () => {
-    const { service, auth } = await build({});
-    (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
-      async () => {
-        throw Object.assign(new Error('quota'), { code: 'auth/quota-exceeded' });
-      },
-    );
-    await expect(service.requestPasswordReset('alice@example.com')).rejects.toMatchObject({
-      code: 'auth/quota-exceeded',
-    });
-  });
-
-  it('throws InternalAuthException when generatePasswordResetLink fails', async () => {
-    // Same contract as resendVerification — the catch must rethrow as
-    // InternalAuthException, not let the Admin SDK error bubble up unmapped.
-    const { service, auth } = await build({});
-    (auth as unknown as { generatePasswordResetLink: ReturnType<typeof vi.fn> })
-      .generatePasswordResetLink = vi.fn(async () => {
-      throw new Error('Admin SDK timeout');
-    });
-    await expect(service.requestPasswordReset('alice@example.com')).rejects.toBeInstanceOf(
-      InternalAuthException,
-    );
-  });
-
-  it('does NOT clear lockout state when called for a locked email', async () => {
-    const { service, spies } = await build({});
-    await service.requestPasswordReset('alice@example.com');
-    expect(spies.clear).not.toHaveBeenCalled();
-  });
-});
-
-describe('AuthService.unlock', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  async function build(redeemResult: { status: 'ok' | 'invalid' | 'expired' }) {
-    const auth = buildFakeAuth();
-    const firestore = buildFakeFirestore();
-    const rest = buildFakeRestClient();
-    const { repo: attempts, spies } = buildAttemptsMock();
-    spies.redeemUnlockToken = vi.fn(async () => redeemResult);
-
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        PasswordPolicyService,
-        { provide: FIREBASE_AUTH, useValue: auth },
-        { provide: FIRESTORE, useValue: firestore },
-        { provide: FirebaseAuthRestClient, useValue: rest },
-        { provide: AuthAttemptsRepository, useValue: attempts },
-        {
-        provide: EMAIL_TRANSPORT,
-        useValue: {
-          sendUnlockEmail: vi.fn(async () => undefined),
-          sendVerificationEmail: vi.fn(async () => undefined),
-          sendPasswordResetEmail: vi.fn(async () => undefined),
-        },
-      },
-      ],
-    }).compile();
-    return moduleRef.get(AuthService);
-  }
-
-  it('returns void on a valid token', async () => {
-    const service = await build({ status: 'ok' });
-    await expect(service.unlock('GOOD-TOKEN')).resolves.toBeUndefined();
-  });
-
-  it('throws INVALID_UNLOCK_TOKEN on an unknown token', async () => {
-    const service = await build({ status: 'invalid' });
-    await expect(service.unlock('BAD-TOKEN')).rejects.toBeInstanceOf(
-      InvalidUnlockTokenException,
-    );
-  });
-
-  it('throws UNLOCK_TOKEN_EXPIRED on a token whose lock has elapsed', async () => {
-    const service = await build({ status: 'expired' });
-    await expect(service.unlock('OLD-TOKEN')).rejects.toBeInstanceOf(
-      UnlockTokenExpiredException,
-    );
-  });
-});
-
 describe('AuthService.login — lock-fired email send', () => {
   beforeEach(() => vi.clearAllMocks());
-
-  function fsWithUser(uid = 'uid-123', role = 'STUDENT', displayName = 'Alice'): FakeFirestore {
-    const fs = buildFakeFirestore();
-    fs.collection = vi.fn(() => ({
-      doc: vi.fn(() => ({
-        get: vi.fn(async () => ({
-          exists: true,
-          data: () => ({ id: uid, displayName, role }),
-        })),
-        set: fs._set,
-      })),
-    })) as unknown as FakeFirestore['collection'];
-    return fs;
-  }
 
   it('sends the unlock email when the third failure transitions to locked', async () => {
     const { repo: attempts, spies } = buildAttemptsMock();
@@ -1184,25 +760,17 @@ describe('AuthService.login — lock-fired email send', () => {
     } as unknown as FirebaseAuthRestClient;
 
     const sendUnlockEmail = vi.fn(async () => undefined);
-    const emailTransport = { sendUnlockEmail } as unknown as EmailTransport;
+    const emailTransport = {
+      ...buildEmailTransportMock(),
+      sendUnlockEmail,
+    } as unknown as EmailTransport;
 
     // Resolve email from emailHash by mocking auth.getUserByEmail
     (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
       async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true }),
     );
 
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        PasswordPolicyService,
-        { provide: FIREBASE_AUTH, useValue: auth },
-        { provide: FIRESTORE, useValue: firestore },
-        { provide: FirebaseAuthRestClient, useValue: rest },
-        { provide: AuthAttemptsRepository, useValue: attempts },
-        { provide: EMAIL_TRANSPORT, useValue: emailTransport },
-      ],
-    }).compile();
-    const service = moduleRef.get(AuthService);
+    const service = await buildLoginModule(auth, firestore, rest, attempts, emailTransport);
 
     await expect(
       service.login({ email: 'alice@example.com', password: 'pw' }),
@@ -1216,7 +784,7 @@ describe('AuthService.login — lock-fired email send', () => {
   });
 
   it('does NOT send an unlock email when the locked-out email maps to no user', async () => {
-    // dispatchUnlockEmail catches getUserByEmail and returns. A BlockStatement
+    // sendUnlockEmail catches getUserByEmail and returns. A BlockStatement
     // mutant emptying the catch block would skip the early return and call
     // sendUnlockEmail with `to=undefined`, sending mail nowhere (or worse,
     // spraying it through the transport).
@@ -1236,7 +804,10 @@ describe('AuthService.login — lock-fired email send', () => {
       }),
     } as unknown as FirebaseAuthRestClient;
     const sendUnlockEmail = vi.fn(async () => undefined);
-    const emailTransport = { sendUnlockEmail } as unknown as EmailTransport;
+    const emailTransport = {
+      ...buildEmailTransportMock(),
+      sendUnlockEmail,
+    } as unknown as EmailTransport;
 
     // The brute-force attempt was against a typo'd address: getUserByEmail
     // throws auth/user-not-found.
@@ -1246,18 +817,7 @@ describe('AuthService.login — lock-fired email send', () => {
       },
     );
 
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        PasswordPolicyService,
-        { provide: FIREBASE_AUTH, useValue: auth },
-        { provide: FIRESTORE, useValue: firestore },
-        { provide: FirebaseAuthRestClient, useValue: rest },
-        { provide: AuthAttemptsRepository, useValue: attempts },
-        { provide: EMAIL_TRANSPORT, useValue: emailTransport },
-      ],
-    }).compile();
-    const service = moduleRef.get(AuthService);
+    const service = await buildLoginModule(auth, firestore, rest, attempts, emailTransport);
 
     await expect(
       service.login({ email: 'typo@example.com', password: 'pw' }),
@@ -1283,6 +843,7 @@ describe('AuthService.login — lock-fired email send', () => {
       }),
     } as unknown as FirebaseAuthRestClient;
     const emailTransport = {
+      ...buildEmailTransportMock(),
       sendUnlockEmail: vi.fn(async () => {
         throw new Error('SMTP down');
       }),
@@ -1291,18 +852,7 @@ describe('AuthService.login — lock-fired email send', () => {
       async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true }),
     );
 
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        PasswordPolicyService,
-        { provide: FIREBASE_AUTH, useValue: auth },
-        { provide: FIRESTORE, useValue: firestore },
-        { provide: FirebaseAuthRestClient, useValue: rest },
-        { provide: AuthAttemptsRepository, useValue: attempts },
-        { provide: EMAIL_TRANSPORT, useValue: emailTransport },
-      ],
-    }).compile();
-    const service = moduleRef.get(AuthService);
+    const service = await buildLoginModule(auth, firestore, rest, attempts, emailTransport);
 
     await expect(
       service.login({ email: 'alice@example.com', password: 'pw' }),
