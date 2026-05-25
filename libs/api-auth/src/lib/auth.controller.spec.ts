@@ -2,11 +2,13 @@ import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AccountRecoveryService } from './account-recovery.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { ConsoleEmailTransport } from './email-transport/console-email-transport';
 import { EMAIL_TRANSPORT } from './email-transport/email-transport';
 import { SessionCookieHelper } from './session-cookie.helper';
+import { SessionCookieService } from './session-cookie.service';
 import { FirebaseSessionGuard } from './firebase-session.guard';
 import {
   AccountLockedException,
@@ -30,11 +32,31 @@ function buildResMock() {
 async function buildController(
   authServiceMock: Partial<AuthService>,
   transportOverride?: unknown,
+  overrides: {
+    recovery?: Partial<AccountRecoveryService>;
+    sessionCookies?: Partial<SessionCookieService>;
+  } = {},
 ) {
   const moduleRef = await Test.createTestingModule({
     controllers: [AuthController],
     providers: [
       { provide: AuthService, useValue: authServiceMock },
+      {
+        provide: AccountRecoveryService,
+        useValue:
+          overrides.recovery ??
+          ({
+            resendVerification: vi.fn(async () => undefined),
+            requestPasswordReset: vi.fn(async () => undefined),
+            unlock: vi.fn(async () => undefined),
+          } as Partial<AccountRecoveryService>),
+      },
+      {
+        provide: SessionCookieService,
+        useValue:
+          overrides.sessionCookies ??
+          ({ revokeFromCookie: vi.fn(async () => undefined) } as Partial<SessionCookieService>),
+      },
       SessionCookieHelper,
       {
         provide: EMAIL_TRANSPORT,
@@ -138,7 +160,9 @@ describe('AuthController.login', () => {
 describe('AuthController.resendVerification', () => {
   it('returns void on 202', async () => {
     const resendVerification = vi.fn(async () => undefined);
-    const ctrl = await buildController({ resendVerification } as never);
+    const ctrl = await buildController({} as never, undefined, {
+      recovery: { resendVerification } as Partial<AccountRecoveryService>,
+    });
     await expect(
       ctrl.resendVerification({ email: 'a@b.c' } as never),
     ).resolves.toBeUndefined();
@@ -148,7 +172,9 @@ describe('AuthController.resendVerification', () => {
     const resendVerification = vi.fn(async () => {
       throw new TooManyRequestsException();
     });
-    const ctrl = await buildController({ resendVerification } as never);
+    const ctrl = await buildController({} as never, undefined, {
+      recovery: { resendVerification } as Partial<AccountRecoveryService>,
+    });
     await expect(
       ctrl.resendVerification({ email: 'a@b.c' } as never),
     ).rejects.toBeInstanceOf(TooManyRequestsException);
@@ -157,11 +183,13 @@ describe('AuthController.resendVerification', () => {
 
 describe('AuthController.requestPasswordReset', () => {
   it('forwards the email to the service and returns void on 202', async () => {
-    // The handler body must call authService.requestPasswordReset(dto.email).
+    // The handler body must call recovery.requestPasswordReset(dto.email).
     // A BlockStatement mutant emptying the function body would still resolve
     // void, so we assert the side effect explicitly.
     const requestPasswordReset = vi.fn(async () => undefined);
-    const ctrl = await buildController({ requestPasswordReset } as never);
+    const ctrl = await buildController({} as never, undefined, {
+      recovery: { requestPasswordReset } as Partial<AccountRecoveryService>,
+    });
     await expect(
       ctrl.requestPasswordReset({ email: 'a@b.c' } as never),
     ).resolves.toBeUndefined();
@@ -172,7 +200,9 @@ describe('AuthController.requestPasswordReset', () => {
 describe('AuthController.unlock', () => {
   it('returns void on 204', async () => {
     const unlock = vi.fn(async () => undefined);
-    const ctrl = await buildController({ unlock } as never);
+    const ctrl = await buildController({} as never, undefined, {
+      recovery: { unlock } as Partial<AccountRecoveryService>,
+    });
     await expect(ctrl.unlock({ token: 'tok' } as never)).resolves.toBeUndefined();
   });
 
@@ -184,37 +214,43 @@ describe('AuthController.unlock', () => {
     const unlock = vi.fn(async () => {
       throw ex;
     });
-    const ctrl = await buildController({ unlock } as never);
+    const ctrl = await buildController({} as never, undefined, {
+      recovery: { unlock } as Partial<AccountRecoveryService>,
+    });
     await expect(ctrl.unlock({ token: 'tok' } as never)).rejects.toBe(ex);
   });
 });
 
 describe('AuthController.logout', () => {
-  it('clears the cookie and calls logoutSideEffects', async () => {
-    const logoutSideEffects = vi.fn(async () => undefined);
-    const ctrl = await buildController({ logoutSideEffects } as never);
+  it('clears the cookie and calls revokeFromCookie', async () => {
+    const revokeFromCookie = vi.fn(async () => undefined);
+    const ctrl = await buildController({} as never, undefined, {
+      sessionCookies: { revokeFromCookie } as Partial<SessionCookieService>,
+    });
     const res = buildResMock();
 
     await ctrl.logout({ cookies: { __session: 'old' } } as never, res as never);
 
-    expect(logoutSideEffects).toHaveBeenCalledWith('old');
+    expect(revokeFromCookie).toHaveBeenCalledWith('old');
     expect(res.setHeader).toHaveBeenCalledWith(
       'Set-Cookie',
       '__session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0',
     );
   });
 
-  it('passes undefined to logoutSideEffects when req.cookies is missing entirely', async () => {
+  it('passes undefined to revokeFromCookie when req.cookies is missing entirely', async () => {
     // The controller uses `req.cookies?.[NAME]` — without optional chaining
     // it would throw on requests where cookie-parser hasn't run. Verifies
     // the optional chain isn't dropped.
-    const logoutSideEffects = vi.fn(async () => undefined);
-    const ctrl = await buildController({ logoutSideEffects } as never);
+    const revokeFromCookie = vi.fn(async () => undefined);
+    const ctrl = await buildController({} as never, undefined, {
+      sessionCookies: { revokeFromCookie } as Partial<SessionCookieService>,
+    });
     const res = buildResMock();
 
     await ctrl.logout({} as never, res as never);
 
-    expect(logoutSideEffects).toHaveBeenCalledWith(undefined);
+    expect(revokeFromCookie).toHaveBeenCalledWith(undefined);
     expect(res.setHeader).toHaveBeenCalledWith(
       'Set-Cookie',
       '__session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0',

@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
+import { AccountRecoveryService } from './account-recovery.service';
 import { AuthExceptionFilter } from './auth.exception-filter';
 import { AuthService, type MeResponse } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -25,6 +26,7 @@ import { ConsoleEmailTransport } from './email-transport/console-email-transport
 import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
 import { FirebaseSessionGuard } from './firebase-session.guard';
 import { SessionCookieHelper } from './session-cookie.helper';
+import { SessionCookieService } from './session-cookie.service';
 import type { AuthenticatedRequest } from './types/authenticated-request';
 
 interface RegisterResponseBody {
@@ -46,6 +48,8 @@ interface LoginResponseBody {
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly sessionCookies: SessionCookieService,
+    private readonly recovery: AccountRecoveryService,
     private readonly sessionCookieHelper: SessionCookieHelper,
     @Inject(EMAIL_TRANSPORT) private readonly emailTransport: EmailTransport,
   ) {}
@@ -105,19 +109,19 @@ export class AuthController {
   @Post('resend-verification')
   @HttpCode(202)
   async resendVerification(@Body() dto: ResendVerificationDto): Promise<void> {
-    await this.authService.resendVerification(dto.email);
+    await this.recovery.resendVerification(dto.email);
   }
 
   @Post('request-password-reset')
   @HttpCode(202)
   async requestPasswordReset(@Body() dto: RequestPasswordResetDto): Promise<void> {
-    await this.authService.requestPasswordReset(dto.email);
+    await this.recovery.requestPasswordReset(dto.email);
   }
 
   @Post('unlock')
   @HttpCode(204)
   async unlock(@Body() dto: UnlockDto): Promise<void> {
-    await this.authService.unlock(dto.token);
+    await this.recovery.unlock(dto.token);
   }
 
   @Post('logout')
@@ -127,7 +131,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
     const cookie = req.cookies?.[SessionCookieHelper.COOKIE_NAME];
-    await this.authService.logoutSideEffects(cookie);
+    await this.sessionCookies.revokeFromCookie(cookie);
     res.setHeader('Set-Cookie', this.sessionCookieHelper.toClearingCookie());
   }
 

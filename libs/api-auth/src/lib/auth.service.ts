@@ -14,10 +14,11 @@ import type {
   UserRole,
 } from '@learnwren/shared-data-models';
 
+import { AccountRecoveryService } from './account-recovery.service';
 import { AuthAttemptsRepository } from './auth-attempts.repository';
-import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
+import { SessionCookieService, type MintedSession } from './session-cookie.service';
 import {
   AccountLockedException,
   EmailAlreadyExistsException,
@@ -26,9 +27,6 @@ import {
   InvalidDisplayNameException,
   InvalidEmailException,
   InternalAuthException,
-  InvalidUnlockTokenException,
-  TooManyRequestsException,
-  UnlockTokenExpiredException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -69,14 +67,6 @@ export type { MeResponse } from '@learnwren/shared-data-models';
 
 const DISPLAY_NAME_MAX = 80;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const SESSION_COOKIE_EXPIRES_IN_MS = 5 * 24 * 60 * 60 * 1000;
-const SESSION_COOKIE_MAX_AGE_SECONDS = SESSION_COOKIE_EXPIRES_IN_MS / 1000;
-
-// Logout revokes the session cookie by bumping the user's validSince second.
-// Firebase compares it against the cookie's iat at whole-second precision, so
-// a revoke can need a retry past the next boundary. See logoutSideEffects.
-const LOGOUT_REVOKE_MAX_ATTEMPTS = 4;
-const LOGOUT_REVOKE_MARGIN_MS = 250;
 
 @Injectable()
 export class AuthService {
@@ -88,7 +78,8 @@ export class AuthService {
     @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
     private readonly restClient: FirebaseAuthRestClient,
     private readonly attempts: AuthAttemptsRepository,
-    @Inject(EMAIL_TRANSPORT) private readonly emailTransport: EmailTransport,
+    private readonly sessionCookies: SessionCookieService,
+    private readonly recovery: AccountRecoveryService,
   ) {}
 
   async register(input: RegisterInput): Promise<RegisterResult> {
@@ -97,7 +88,10 @@ export class AuthService {
 
     await this.writeUserDocumentOrRollback(uid, input.email, displayName);
     await this.assignStudentClaimOrRollback(uid);
-    const emailVerificationSent = await this.sendVerificationEmailBestEffort(input.email, uid);
+    const emailVerificationSent = await this.recovery.sendInitialVerificationEmail(
+      input.email,
+      uid,
+    );
     const session = await this.autoLoginOrRollback(input, uid);
 
     this.logger.log(`[auth] register uid=${uid}`);
@@ -181,37 +175,17 @@ export class AuthService {
   }
 
   /**
-   * Best-effort: never throws, never rolls back. Returns whether the email
-   * left the building so the controller can surface partial success.
-   */
-  private async sendVerificationEmailBestEffort(email: string, uid: UserId): Promise<boolean> {
-    try {
-      const verificationUrl = await this.auth.generateEmailVerificationLink(email, {
-        url: this.continueUrl('/login'),
-      });
-      await this.emailTransport.sendVerificationEmail({ to: email, verificationUrl });
-      return true;
-    } catch (err) {
-      this.logger.warn(`[auth] register verification email failed uid=${uid}: ${String(err)}`);
-      return false;
-    }
-  }
-
-  /**
    * Auto-login after register: exchange password for an ID token, then mint
    * a session cookie. On any failure, roll back the newly-created user and
    * preserve the original Error instance for the caller.
    */
-  private async autoLoginOrRollback(
-    input: RegisterInput,
-    uid: UserId,
-  ): Promise<{ cookie: string; maxAgeSeconds: number }> {
+  private async autoLoginOrRollback(input: RegisterInput, uid: UserId): Promise<MintedSession> {
     try {
       const restResult = await this.restClient.signInWithPassword({
         email: input.email,
         password: input.password,
       });
-      return await this.mintSessionCookie(restResult.idToken);
+      return await this.sessionCookies.mint(restResult.idToken);
     } catch (err) {
       this.logger.error(`[auth] register auto-login failed uid=${uid}: ${String(err)}`);
       await this.bestEffortDeleteUser(uid);
@@ -226,7 +200,7 @@ export class AuthService {
     const idToken = await this.verifyPasswordOrCountFailure(input, emailHash);
     const userRecord = await this.requireVerifiedUser(idToken);
 
-    const session = await this.mintSessionCookie(idToken);
+    const session = await this.sessionCookies.mint(idToken);
     await this.attempts.clear(emailHash);
 
     const profile = await this.loadUserProfile(userRecord.uid);
@@ -275,7 +249,11 @@ export class AuthService {
         this.logger.log(
           `[auth] lockout fired emailHash=${emailHash} unlockToken=${failure.unlockToken!.slice(0, 6)}…`,
         );
-        await this.dispatchUnlockEmail(input.email, failure.unlockToken!, failure.lockedUntil!);
+        await this.recovery.sendUnlockEmail(
+          input.email,
+          failure.unlockToken!,
+          failure.lockedUntil!,
+        );
         throw new AccountLockedException(failure.lockedUntil!);
       }
       this.logger.log(`[auth] login failed code=INVALID_CREDENTIALS emailHash=${emailHash}`);
@@ -307,84 +285,6 @@ export class AuthService {
     return userDoc.data() as { displayName: string; role: UserRole };
   }
 
-  /**
-   * Verify a fresh ID token and exchange it for a 5-day session cookie.
-   * Used internally by register and login. Not exposed via the controller.
-   */
-  private async mintSessionCookie(
-    idToken: string,
-  ): Promise<{ cookie: string; maxAgeSeconds: number }> {
-    try {
-      await this.auth.verifyIdToken(idToken, true);
-    } catch (err) {
-      this.logger.error(`[auth] mintSessionCookie verifyIdToken failed: ${String(err)}`);
-      throw new InternalAuthException();
-    }
-    let cookie: string;
-    try {
-      cookie = await this.auth.createSessionCookie(idToken, {
-        expiresIn: SESSION_COOKIE_EXPIRES_IN_MS,
-      });
-    } catch (err) {
-      this.logger.error(`[auth] mintSessionCookie createSessionCookie failed: ${String(err)}`);
-      throw new InternalAuthException();
-    }
-    return { cookie, maxAgeSeconds: SESSION_COOKIE_MAX_AGE_SECONDS };
-  }
-
-  private continueUrl(path: string): string {
-    const base = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
-    return `${base}${path}`;
-  }
-
-  async logoutSideEffects(sessionCookie: string | undefined): Promise<void> {
-    if (!sessionCookie) return;
-
-    let uid: string;
-    try {
-      const decoded = await this.auth.verifySessionCookie(sessionCookie, true);
-      uid = decoded['uid'];
-    } catch (err) {
-      // Cookie already invalid or expired — nothing to revoke.
-      this.logger.log(`[auth] logout silent (cookie invalid): ${String(err)}`);
-      return;
-    }
-
-    // Firebase revocation has whole-second granularity: a session cookie is
-    // rejected only once the user's tokensValidAfterTime is strictly greater
-    // than the cookie's iat, both compared as integer seconds. revoke-
-    // RefreshTokens stamps tokensValidAfterTime at the current second, so a
-    // revoke landing in the same wall-second the cookie was minted is a
-    // silent no-op. Rather than racing the boundary with a precisely-timed
-    // sleep, revoke and then confirm the cookie is actually rejected; if it
-    // survived, wait safely past the next second boundary and revoke again.
-    for (let attempt = 0; attempt < LOGOUT_REVOKE_MAX_ATTEMPTS; attempt++) {
-      await this.auth.revokeRefreshTokens(uid);
-      if (await this.isSessionCookieRevoked(sessionCookie)) {
-        this.logger.log(`[auth] logout uid=${uid}`);
-        return;
-      }
-      await this.sleepPastNextSecond();
-    }
-    this.logger.error(`[auth] logout could not confirm cookie revocation uid=${uid}`);
-  }
-
-  /** True once a checkRevoked verify rejects the cookie. */
-  private async isSessionCookieRevoked(sessionCookie: string): Promise<boolean> {
-    try {
-      await this.auth.verifySessionCookie(sessionCookie, true);
-      return false;
-    } catch {
-      return true;
-    }
-  }
-
-  /** Resolve a short, safe margin past the next whole-second boundary. */
-  private sleepPastNextSecond(): Promise<void> {
-    const waitMs = 1000 - (Date.now() % 1000) + LOGOUT_REVOKE_MARGIN_MS;
-    return new Promise<void>((resolve) => setTimeout(resolve, waitMs));
-  }
-
   async getMe(
     uid: UserId,
     fromCookie: { email: string; emailVerified: boolean },
@@ -405,124 +305,6 @@ export class AuthService {
       role: data.role,
       emailVerified: fromCookie.emailVerified,
     };
-  }
-
-  async resendVerification(email: string): Promise<void> {
-    const emailHash = this.attempts.emailHash(email);
-
-    const throttle = await this.attempts.recordResendVerification(emailHash);
-    if (throttle.throttled) throw new TooManyRequestsException();
-
-    const userRecord = await this.findUserOrNullForEnumerationResistance(email);
-    if (!userRecord) return;
-    if (userRecord.emailVerified) {
-      // Already verified — silent success (don't leak verification status).
-      return;
-    }
-
-    await this.dispatchOutboundEmail('resend-verification', emailHash, async () => {
-      const verificationUrl = await this.auth.generateEmailVerificationLink(email, {
-        url: this.continueUrl('/login'),
-      });
-      await this.emailTransport.sendVerificationEmail({ to: email, verificationUrl });
-    });
-  }
-
-  async requestPasswordReset(email: string): Promise<void> {
-    const emailHash = this.attempts.emailHash(email);
-
-    const throttle = await this.attempts.recordPasswordResetRequest(emailHash);
-    if (throttle.throttled) throw new TooManyRequestsException();
-
-    const userRecord = await this.findUserOrNullForEnumerationResistance(email);
-    if (!userRecord) return;
-
-    await this.dispatchOutboundEmail('password-reset', emailHash, async () => {
-      const resetUrl = await this.auth.generatePasswordResetLink(email, {
-        url: this.continueUrl('/login?reset=ok'),
-      });
-      await this.emailTransport.sendPasswordResetEmail({ to: email, resetUrl });
-    });
-    // Note: deliberate no-op on lockout state. See spec §1.5 / §E.2(ii).
-  }
-
-  /**
-   * getUserByEmail with the standard enumeration-resistant adapter: a missing
-   * user becomes `null` so the caller can early-return silent success without
-   * having to spell out the `auth/user-not-found` branch each time. Any other
-   * Firebase error is rethrown untouched.
-   */
-  private async findUserOrNullForEnumerationResistance(
-    email: string,
-  ): Promise<adminAuth.UserRecord | null> {
-    try {
-      return await this.auth.getUserByEmail(email);
-    } catch (err) {
-      if (this.isFirebaseError(err) && err.code === 'auth/user-not-found') return null;
-      throw err;
-    }
-  }
-
-  /**
-   * Run an outbound-email send (`fn` should both generate the link and call
-   * the transport), logging success at info and mapping any failure to
-   * InternalAuthException after logging the underlying error. The `tag`
-   * appears in both log lines so operators can trace by flow type.
-   */
-  private async dispatchOutboundEmail(
-    tag: 'resend-verification' | 'password-reset',
-    emailHash: string,
-    fn: () => Promise<void>,
-  ): Promise<void> {
-    try {
-      await fn();
-      this.logger.log(`[auth] ${tag} sent emailHash=${emailHash}`);
-    } catch (err) {
-      this.logger.error(`[auth] ${tag} send failed emailHash=${emailHash}: ${String(err)}`);
-      throw new InternalAuthException();
-    }
-  }
-
-  async unlock(token: string): Promise<void> {
-    const result = await this.attempts.redeemUnlockToken(token);
-    if (result.status === 'ok') {
-      this.logger.log('[auth] unlock redeemed');
-      return;
-    }
-    if (result.status === 'expired') {
-      throw new UnlockTokenExpiredException();
-    }
-    throw new InvalidUnlockTokenException();
-  }
-
-  private async dispatchUnlockEmail(
-    email: string,
-    unlockToken: string,
-    unlockAvailableAt: Date,
-  ): Promise<void> {
-    // Resolve the canonical email address from Firebase to avoid sending to
-    // a typo'd address that happened to match the brute-force attempt.
-    let to: string;
-    try {
-      const userRecord = await this.auth.getUserByEmail(email);
-      to = userRecord.email!;
-    } catch {
-      // The lock fired against a non-existent account (typo or malicious
-      // probing). Don't send an email anywhere; lock is in place regardless.
-      return;
-    }
-
-    try {
-      await this.emailTransport.sendUnlockEmail({
-        to,
-        unlockUrl: `${this.continueUrl('/auth/unlock')}?token=${unlockToken}`,
-        unlockAvailableAt,
-      });
-    } catch (err) {
-      // Email is best-effort — the lock is enforced regardless. Surface the
-      // failure in logs so operators can investigate transport health.
-      this.logger.error(`[auth] unlock-email send failed: ${String(err)}`);
-    }
   }
 
   private isFirebaseError(err: unknown): err is { code: string } {
