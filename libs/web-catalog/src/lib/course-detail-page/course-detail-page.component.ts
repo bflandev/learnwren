@@ -88,6 +88,10 @@ export class CourseDetailPageComponent {
       }
       return;
     }
+    // Serial (post-course-fetch) is intentional: on a 404/error course load we
+    // return early above and skip the enrollment HTTP for an unreachable course.
+    // currentUser() is populated by the auth APP_INITIALIZER before any route
+    // activates, so the value here is null or a user — never undefined.
     if (this.auth.currentUser()) {
       await this.resolveEnrollmentStatus(id);
     }
