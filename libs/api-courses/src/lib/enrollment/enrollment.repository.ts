@@ -7,6 +7,7 @@ import type {
   Enrollment,
   EnrollmentId,
   ISODateString,
+  LessonId,
   UserId,
 } from '@learnwren/shared-data-models';
 
@@ -100,6 +101,40 @@ export class EnrollmentRepository {
       t.set(enrollmentRef, created);
       t.update(courseRef, { enrollmentCount: nextCount });
       return created;
+    });
+  }
+
+  async markLessonComplete(
+    userId: UserId,
+    courseId: CourseId,
+    lessonId: LessonId,
+    nowIso: ISODateString,
+  ): Promise<{ completedAt: ISODateString }> {
+    const enrollmentRef = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
+
+    return this.db.runTransaction(async (t) => {
+      const snap = await t.get(enrollmentRef);
+      const existing = snap.exists ? (snap.data() as Enrollment) : null;
+      if (!existing || existing.status !== 'ACTIVE') {
+        throw new NotEnrolledException();
+      }
+
+      const progress = [...(existing.progress ?? [])];
+      const idx = progress.findIndex((p) => p.lessonId === lessonId);
+
+      if (idx >= 0 && progress[idx].completedAt != null) {
+        // Already complete — idempotent no-op. Return the prior value, write nothing.
+        return { completedAt: progress[idx].completedAt as ISODateString };
+      }
+
+      if (idx >= 0) {
+        progress[idx] = { ...progress[idx], completedAt: nowIso };
+      } else {
+        progress.push({ lessonId, completedAt: nowIso, lastWatchedSeconds: 0 });
+      }
+
+      t.update(enrollmentRef, { progress, updatedAt: nowIso });
+      return { completedAt: nowIso };
     });
   }
 

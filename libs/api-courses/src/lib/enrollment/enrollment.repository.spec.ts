@@ -154,6 +154,134 @@ describe('EnrollmentRepository.withdraw', () => {
   });
 });
 
+describe('EnrollmentRepository.markLessonComplete', () => {
+  const baseEnrollment = (over: Partial<Enrollment> = {}): Enrollment => ({
+    id: enrollmentId('u' as UserId, 'c' as CourseId),
+    userId: 'u' as UserId,
+    courseId: 'c' as CourseId,
+    status: 'ACTIVE',
+    progress: [],
+    withdrawnAt: null,
+    createdAt: 't0' as ISODateString,
+    updatedAt: 't0' as ISODateString,
+    ...over,
+  });
+
+  it('appends a new LessonProgress row with completedAt when none exists', async () => {
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment(),
+    });
+    const result = await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l1' as LessonId,
+      '2026-05-25T12:00:00.000Z' as ISODateString,
+    );
+    expect(result.completedAt).toBe('2026-05-25T12:00:00.000Z');
+    const after = db.__store.get(`enrollments/${enrollId}`);
+    expect(after?.['progress']).toEqual([
+      { lessonId: 'l1', completedAt: '2026-05-25T12:00:00.000Z', lastWatchedSeconds: 0 },
+    ]);
+    expect(after?.['updatedAt']).toBe('2026-05-25T12:00:00.000Z');
+  });
+
+  it('updates completedAt on an existing row with completedAt: null', async () => {
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({
+        progress: [{ lessonId: 'l1' as LessonId, completedAt: null, lastWatchedSeconds: 42 }],
+      }),
+    });
+    const result = await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l1' as LessonId,
+      '2026-05-25T12:00:00.000Z' as ISODateString,
+    );
+    expect(result.completedAt).toBe('2026-05-25T12:00:00.000Z');
+    const after = db.__store.get(`enrollments/${enrollId}`);
+    expect(after?.['progress']).toEqual([
+      { lessonId: 'l1', completedAt: '2026-05-25T12:00:00.000Z', lastWatchedSeconds: 42 },
+    ]);
+  });
+
+  it('is idempotent: a second call returns the original completedAt and does not bump updatedAt', async () => {
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-05-25T08:00:00.000Z' as ISODateString, lastWatchedSeconds: 99 },
+        ],
+      }),
+    });
+    const result = await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l1' as LessonId,
+      '2026-05-25T12:00:00.000Z' as ISODateString,
+    );
+    expect(result.completedAt).toBe('2026-05-25T08:00:00.000Z');
+    const after = db.__store.get(`enrollments/${enrollId}`);
+    expect(after?.['progress'][0].lastWatchedSeconds).toBe(99); // untouched
+    expect(after?.['updatedAt']).toBe('t0'); // no write
+  });
+
+  it('throws NotEnrolledException when the enrolment doc is missing', async () => {
+    const { repo } = repoWith({});
+    await expect(
+      repo.markLessonComplete(
+        'u' as UserId,
+        'c' as CourseId,
+        'l1' as LessonId,
+        '2026-05-25T12:00:00.000Z' as ISODateString,
+      ),
+    ).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+
+  it('throws NotEnrolledException when the enrolment is WITHDRAWN', async () => {
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({
+        status: 'WITHDRAWN',
+        progress: [{ lessonId: 'l1' as LessonId, completedAt: null, lastWatchedSeconds: 0 }],
+        withdrawnAt: 't0' as ISODateString,
+      }),
+    });
+    await expect(
+      repo.markLessonComplete(
+        'u' as UserId,
+        'c' as CourseId,
+        'l1' as LessonId,
+        '2026-05-25T12:00:00.000Z' as ISODateString,
+      ),
+    ).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+
+  it('does not touch unrelated LessonProgress rows', async () => {
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({
+        progress: [
+          { lessonId: 'la' as LessonId, completedAt: '2026-05-20T00:00:00.000Z' as ISODateString, lastWatchedSeconds: 10 },
+          { lessonId: 'lb' as LessonId, completedAt: null, lastWatchedSeconds: 22 },
+        ],
+      }),
+    });
+    await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'lb' as LessonId,
+      '2026-05-25T12:00:00.000Z' as ISODateString,
+    );
+    const after = db.__store.get(`enrollments/${enrollId}`);
+    expect(after?.['progress']).toEqual([
+      { lessonId: 'la', completedAt: '2026-05-20T00:00:00.000Z', lastWatchedSeconds: 10 },
+      { lessonId: 'lb', completedAt: '2026-05-25T12:00:00.000Z', lastWatchedSeconds: 22 },
+    ]);
+  });
+});
+
 describe('EnrollmentRepository.isEnrolled / getEnrollment', () => {
   it('isEnrolled is true only for an ACTIVE enrollment', async () => {
     const { repo } = repoWith({ [`courses/${CID}`]: course() });
