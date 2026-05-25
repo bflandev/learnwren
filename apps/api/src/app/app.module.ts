@@ -5,11 +5,10 @@ import { AuthModule } from '@learnwren/api-auth';
 import { CoursesModule, VideoModule } from '@learnwren/api-courses';
 
 import { AppController } from './app.controller';
-import { FirestoreSmokeController } from './firestore-smoke/firestore-smoke.controller';
 
 @Module({
   imports: [FirebaseAdminModule.forRoot(), AuthModule, CoursesModule, VideoModule],
-  controllers: [AppController, FirestoreSmokeController],
+  controllers: [AppController],
   providers: [
     {
       provide: APP_PIPE,

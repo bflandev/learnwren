@@ -36,12 +36,22 @@ function makeTranscoder(cfg: VideoConfig): VideoTranscoder {
   });
 }
 
-// Gate the fake webhook controller by the transcoder *implementation*, not by
-// NODE_ENV. A staging/preview deploy with NODE_ENV unset but a real GCP
-// transcoder must not expose an unauthenticated endpoint that promotes any
-// video to READY with attacker-controlled output paths.
+// The fake transcoder webhook accepts unauthenticated state transitions for any
+// videoId — only safe in dev/test. Require BOTH `NODE_ENV !== 'production'`
+// AND the explicit fake transcoder flag before mounting. A staging/preview
+// deploy that forgets to set NODE_ENV would otherwise inherit the .env.tpl
+// default and expose the endpoint.
 const fakeTranscoderEnabled =
+  process.env['NODE_ENV'] !== 'production' &&
   (process.env['LEARNWREN_VIDEO_TRANSCODER'] ?? '') === 'fake';
+if (
+  process.env['NODE_ENV'] === 'production' &&
+  (process.env['LEARNWREN_VIDEO_TRANSCODER'] ?? '') === 'fake'
+) {
+  throw new Error(
+    'Refusing to start: LEARNWREN_VIDEO_TRANSCODER=fake is incompatible with NODE_ENV=production',
+  );
+}
 const controllers = [
   VideoController,
   TranscoderEventsController,

@@ -6,6 +6,8 @@ import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-fir
 import type { MaterialId } from '@learnwren/shared-data-models';
 
 import { MaterialNotFoundException } from '../errors/material.exception';
+import { MaterialAccessGuard } from '../material-access.guard';
+import { MaterialOwnerGuard } from '../material-owner.guard';
 import { MaterialsExceptionFilter } from '../materials.exception-filter';
 import { MaterialsRepository } from '../materials.repository';
 
@@ -45,6 +47,7 @@ export class FakeMaterialsController {
 
   @Put(':matId')
   @HttpCode(200)
+  @UseGuards(MaterialOwnerGuard)
   async upload(
     @Param('matId') matId: MaterialId,
     @Req() req: Request,
@@ -60,6 +63,7 @@ export class FakeMaterialsController {
   }
 
   @Get(':matId')
+  @UseGuards(MaterialAccessGuard)
   async download(
     @Param('matId') matId: MaterialId,
     @Res() res: Response,
