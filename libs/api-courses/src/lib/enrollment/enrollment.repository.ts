@@ -23,6 +23,31 @@ function nowIso(): ISODateString {
   return new Date().toISOString() as ISODateString;
 }
 
+/**
+ * Validates that a course exists, is PUBLISHED, and the caller is not its
+ * instructor. Returns the typed Course on success; throws on any rejection.
+ *
+ * Must be invoked from inside a Firestore transaction callback. The
+ * owner-self-enroll check is duplicated here (the service layer has an
+ * advisory pre-check) because that pre-check can be raced — or skipped by
+ * any future caller that bypasses the service — which would otherwise let
+ * an instructor inflate their own POPULAR rank by enrolling in their own
+ * course.
+ */
+function assertEnrollable(
+  courseSnap: { exists: boolean; data: () => unknown },
+  userId: UserId,
+): Course {
+  const course = courseSnap.exists ? (courseSnap.data() as Course) : null;
+  if (!course || course.status !== 'PUBLISHED') {
+    throw new CourseNotAvailableException();
+  }
+  if (course.instructorId === userId) {
+    throw new CannotEnrollOwnCourseException();
+  }
+  return course;
+}
+
 /** Deterministic composite document id for an enrollment. */
 export function enrollmentId(userId: UserId, courseId: CourseId): EnrollmentId {
   return `${userId}__${courseId}` as EnrollmentId;
@@ -51,18 +76,9 @@ export class EnrollmentRepository {
     const courseRef = this.db.collection(COURSES).doc(courseId);
 
     return this.db.runTransaction(async (t) => {
-      const courseSnap = await t.get(courseRef);
-      const course = courseSnap.exists ? (courseSnap.data() as Course) : null;
-      if (!course || course.status !== 'PUBLISHED') {
-        throw new CourseNotAvailableException();
-      }
-      // The owner-self-enroll check belongs INSIDE the transaction. The
-      // service-layer pre-check is advisory and can be raced (or skipped by
-      // any future caller that bypasses the service), allowing an instructor
-      // to inflate their own POPULAR rank by enrolling in their own course.
-      if (course.instructorId === userId) {
-        throw new CannotEnrollOwnCourseException();
-      }
+      // MUST be called from inside runTransaction — the owner-self-enroll
+      // check it performs is otherwise raceable (see assertEnrollable).
+      const course = assertEnrollable(await t.get(courseRef), userId);
 
       const enrollSnap = await t.get(enrollmentRef);
       const existing = enrollSnap.exists ? (enrollSnap.data() as Enrollment) : null;
