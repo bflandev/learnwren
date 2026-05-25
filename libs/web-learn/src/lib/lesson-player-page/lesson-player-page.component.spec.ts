@@ -1,8 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ComponentRef } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { LessonView } from '@learnwren/shared-data-models';
@@ -24,21 +23,29 @@ function makeView(overrides: Partial<LessonView['lesson']> = {}): LessonView {
   };
 }
 
-function configure() {
+function configure(courseId = 'c-1', lessonId = 'l-1') {
+  const activatedRouteFake = {
+    snapshot: {
+      paramMap: convertToParamMap({ courseId, lessonId }),
+    },
+  };
+
   TestBed.configureTestingModule({
     imports: [LessonPlayerPageComponent],
-    providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideRouter([]),
+      { provide: ActivatedRoute, useValue: activatedRouteFake },
+    ],
   });
 }
 
-function create(courseId = 'c-1', lessonId = 'l-1'): {
+function create(): {
   fixture: ComponentFixture<LessonPlayerPageComponent>;
   http: HttpTestingController;
 } {
   const fixture = TestBed.createComponent(LessonPlayerPageComponent);
-  const ref = fixture.componentRef as ComponentRef<LessonPlayerPageComponent>;
-  ref.setInput('courseId', courseId);
-  ref.setInput('lessonId', lessonId);
   fixture.detectChanges();
   return { fixture, http: TestBed.inject(HttpTestingController) };
 }
@@ -52,16 +59,17 @@ const query = (f: ComponentFixture<unknown>, sel: string) =>
 describe('LessonPlayerPageComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    configure();
   });
 
   it('initial state is LOADING and renders the skeleton', () => {
+    configure();
     const { fixture, http } = create();
     expect(query(fixture, '[data-testid="lesson-skeleton"]')).not.toBeNull();
     http.expectOne('/api/learn/courses/c-1/lessons/l-1');
   });
 
   it('renders lib-video-player with videoId after load resolves with READY video', async () => {
+    configure();
     const { fixture, http } = create();
     http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
     await fixture.whenStable();
@@ -71,6 +79,7 @@ describe('LessonPlayerPageComponent', () => {
   });
 
   it('renders the processing panel when videoState is not READY', async () => {
+    configure();
     const { fixture, http } = create();
     http
       .expectOne('/api/learn/courses/c-1/lessons/l-1')
@@ -82,6 +91,7 @@ describe('LessonPlayerPageComponent', () => {
   });
 
   it('renders the processing panel when videoId is null', async () => {
+    configure();
     const { fixture, http } = create();
     http
       .expectOne('/api/learn/courses/c-1/lessons/l-1')
@@ -93,7 +103,8 @@ describe('LessonPlayerPageComponent', () => {
   });
 
   it('renders not-enrolled panel with back-to-course link on 403', async () => {
-    const { fixture, http } = create('c-1', 'l-1');
+    configure();
+    const { fixture, http } = create();
     http
       .expectOne('/api/learn/courses/c-1/lessons/l-1')
       .flush('Forbidden', { status: 403, statusText: 'Forbidden' });
@@ -106,6 +117,7 @@ describe('LessonPlayerPageComponent', () => {
   });
 
   it('renders lesson-not-found panel on 404', async () => {
+    configure();
     const { fixture, http } = create();
     http
       .expectOne('/api/learn/courses/c-1/lessons/l-1')
@@ -116,6 +128,7 @@ describe('LessonPlayerPageComponent', () => {
   });
 
   it('renders generic error panel with Retry button on 500; clicking Retry re-calls getLessonView', async () => {
+    configure();
     const { fixture, http } = create();
     http
       .expectOne('/api/learn/courses/c-1/lessons/l-1')
@@ -133,6 +146,7 @@ describe('LessonPlayerPageComponent', () => {
   });
 
   it('renders the lesson title', async () => {
+    configure();
     const { fixture, http } = create();
     http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({ title: 'My Lesson' }));
     await fixture.whenStable();

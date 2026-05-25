@@ -8,14 +8,14 @@
     <h1 class="text-xl font-semibold">You're not enrolled in this course</h1>
     <p class="mt-2 text-sm text-gray-600">Enroll to start watching lessons.</p>
     <a data-testid="back-to-course" class="mt-4 inline-block underline"
-       [routerLink]="['/catalog', courseId()]">← Back to course</a>
+       [routerLink]="['/catalog', courseId]">← Back to course</a>
   </div>
 } @else if (state() === 'NOT_FOUND') {
   <div class="rounded border p-6">
     <h1 class="text-xl font-semibold">Lesson not available</h1>
     <p class="mt-2 text-sm text-gray-600">This lesson could not be found.</p>
     <a data-testid="back-to-course" class="mt-4 inline-block underline"
-       [routerLink]="['/catalog', courseId()]">← Back to course</a>
+       [routerLink]="['/catalog', courseId]">← Back to course</a>
   </div>
 } @else if (state() === 'LOAD_ERROR') {
   <div class="rounded border p-6">
@@ -38,6 +38,6 @@
     }
 
     <a data-testid="back-to-course" class="inline-block underline"
-       [routerLink]="['/catalog', courseId()]">← Back to course</a>
+       [routerLink]="['/catalog', courseId]">← Back to course</a>
   </article>
 }
