@@ -138,6 +138,14 @@ describe('LoginPageComponent post-login navigation', () => {
     expect(navSpy).toHaveBeenCalledWith('/dashboard');
   });
 
+  it('rejects a URL-encoded protocol-relative redirect (%2F%2Fevil.com)', async () => {
+    // Regression note: Angular's queryParamMap.get() decodes %2F%2F to // before
+    // the predicate runs, so the component always sees the decoded value.
+    // Providing '//evil.com' here mirrors what Angular hands the component.
+    const navSpy = await loginOk(new Map([['redirect', '//evil.com']]));
+    expect(navSpy).toHaveBeenCalledWith('/dashboard');
+  });
+
   it('rejects a backslash-after-slash redirect (/\\evil.com)', async () => {
     // String literal contains: '/', '\', 'e', 'v', ...
     const navSpy = await loginOk(new Map([['redirect', '/\\evil.com']]));
