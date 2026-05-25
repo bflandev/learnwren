@@ -1,11 +1,12 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 
-import type { CourseId, Lesson, LessonId } from '@learnwren/shared-data-models';
+import type { CourseId, LessonId } from '@learnwren/shared-data-models';
 
 import { CoursesRepository } from '../../courses.repository';
 import { EnrollmentRepository } from '../../enrollment/enrollment.repository';
 import { LessonNotFoundException, NotLessonOwnerException } from '../errors/learn.exception';
 import type { LessonScopedRequest } from '../types/lesson-scoped-request';
+import { findLessonInCourse } from './find-lesson-in-course';
 
 @Injectable()
 export class LessonEnrollmentOrOwnerGuard implements CanActivate {
@@ -23,7 +24,7 @@ export class LessonEnrollmentOrOwnerGuard implements CanActivate {
     const course = await this.courses.getCourse(cid);
     if (!course) throw new LessonNotFoundException();
 
-    const lesson = await this.findLessonInCourse(cid, lid);
+    const lesson = await findLessonInCourse(this.courses, cid, lid);
     if (!lesson) throw new LessonNotFoundException();
 
     // Owner branch — owners get access regardless of course.status (preview).
@@ -45,14 +46,5 @@ export class LessonEnrollmentOrOwnerGuard implements CanActivate {
     }
 
     throw new NotLessonOwnerException();
-  }
-
-  private async findLessonInCourse(cid: CourseId, lid: LessonId): Promise<Lesson | null> {
-    const modules = await this.courses.listModulesByCourse(cid);
-    for (const m of modules) {
-      const lesson = await this.courses.getLesson(cid, m.id, lid);
-      if (lesson) return lesson;
-    }
-    return null;
   }
 }
