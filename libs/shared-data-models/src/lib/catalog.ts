@@ -1,4 +1,4 @@
-import type { CourseId, ISODateString } from './common';
+import type { CourseId, ISODateString, LessonId } from './common';
 import type { CourseCategory, CourseDifficulty } from './course';
 
 /**
@@ -33,10 +33,10 @@ export type CatalogSort = (typeof CATALOG_SORT_OPTIONS)[number];
 /** Courses shown per page. UC-05-01 requires "at least 20 per page". */
 export const CATALOG_PAGE_SIZE = 20;
 
-/** A module in the public course outline — titles only, no IDs, no content. */
+/** A module in the public course outline — titles and lesson IDs for linking. */
 export interface CatalogModuleOutline {
   title: string;
-  lessons: { title: string }[];
+  lessons: { id: LessonId; title: string }[];
 }
 
 /** The full public course detail page payload. */

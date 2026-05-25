@@ -70,6 +70,7 @@ export class CatalogService {
       modules.map(async (m) => ({
         title: m.title,
         lessons: (await this.repo.listLessonsByModule(cid, m.id)).map((l) => ({
+          id: l.id,
           title: l.title,
         })),
       })),
