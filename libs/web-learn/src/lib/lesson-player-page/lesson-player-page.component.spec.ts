@@ -5,11 +5,14 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { LessonView } from '@learnwren/shared-data-models';
+import type { ISODateString, LessonView } from '@learnwren/shared-data-models';
 
 import { LessonPlayerPageComponent } from './lesson-player-page.component';
 
-function makeView(overrides: Partial<LessonView['lesson']> = {}): LessonView {
+function makeView(
+  overrides: Partial<LessonView['lesson']> = {},
+  progress: LessonView['progress'] = { completedAt: null },
+): LessonView {
   return {
     course: { id: 'c-1' as LessonView['course']['id'], title: 'Test Course', status: 'PUBLISHED' },
     lesson: {
@@ -21,6 +24,7 @@ function makeView(overrides: Partial<LessonView['lesson']> = {}): LessonView {
       videoState: 'READY',
       ...overrides,
     },
+    progress,
   };
 }
 
@@ -138,5 +142,87 @@ describe('LessonPlayerPageComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect(text(fixture)).toContain('My Lesson');
+  });
+
+  describe('Mark as Complete', () => {
+    it('renders the Mark as Complete button when progress.completedAt is null', async () => {
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(query(fixture, '[data-testid="mark-complete"]')).not.toBeNull();
+      expect(query(fixture, '[data-testid="completed-pill"]')).toBeNull();
+    });
+
+    it('renders the Completed pill when progress.completedAt is set', async () => {
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: '2026-05-20T00:00:00.000Z' as ISODateString }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(query(fixture, '[data-testid="completed-pill"]')).not.toBeNull();
+      expect(query(fixture, '[data-testid="mark-complete"]')).toBeNull();
+    });
+
+    it('renders the instructor-preview hint when progress is null', async () => {
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, null));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(query(fixture, '[data-testid="instructor-preview-hint"]')).not.toBeNull();
+      expect(query(fixture, '[data-testid="mark-complete"]')).toBeNull();
+      expect(query(fixture, '[data-testid="completed-pill"]')).toBeNull();
+    });
+
+    it('swaps the button for the pill after clicking Mark as Complete', async () => {
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      (query(fixture, '[data-testid="mark-complete"]') as HTMLButtonElement).click();
+      // The component's onMarkComplete dispatches a POST; flush it.
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1/complete')
+        .flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(query(fixture, '[data-testid="completed-pill"]')).not.toBeNull();
+      expect(query(fixture, '[data-testid="mark-complete"]')).toBeNull();
+    });
+
+    it('shows the revoked banner on a 403 from POST /complete', async () => {
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      (query(fixture, '[data-testid="mark-complete"]') as HTMLButtonElement).click();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1/complete')
+        .flush({ error: { code: 'NOT_ENROLLED_LESSON' } }, { status: 403, statusText: 'Forbidden' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(query(fixture, '[data-testid="mark-error-revoked"]')).not.toBeNull();
+    });
+
+    it('shows the generic error banner with Retry on other failures', async () => {
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      (query(fixture, '[data-testid="mark-complete"]') as HTMLButtonElement).click();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1/complete')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(query(fixture, '[data-testid="mark-error-other"]')).not.toBeNull();
+    });
   });
 });
