@@ -13,6 +13,10 @@ import { CoursesController } from './courses.controller';
 import { CoursesExceptionFilter } from './courses.exception-filter';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
+import { LearnController } from './learn/learn.controller';
+import { LearnExceptionFilter } from './learn/learn.exception-filter';
+import { LessonEnrollmentOrOwnerGuard } from './learn/guards/lesson-enrollment-or-owner.guard';
+import { LearnService } from './learn/learn.service';
 import { PublishService } from './publish/publish.service';
 import { MaterialsModule } from './materials/materials.module';
 import { VideoModule } from './video/video.module';
@@ -24,7 +28,7 @@ import { VideoModule } from './video/video.module';
 // NestJS resolves both cycles with forwardRef.
 @Module({
   imports: [AuthModule, forwardRef(() => VideoModule), forwardRef(() => MaterialsModule)],
-  controllers: [CoursesController, CatalogController, EnrollmentController],
+  controllers: [CoursesController, CatalogController, EnrollmentController, LearnController],
   providers: [
     CoursesService,
     CoursesRepository,
@@ -35,6 +39,9 @@ import { VideoModule } from './video/video.module';
     InstructorDirectory,
     EnrollmentService,
     EnrollmentRepository,
+    LearnService,
+    LearnExceptionFilter,
+    LessonEnrollmentOrOwnerGuard,
   ],
   exports: [CoursesRepository, CourseOwnerGuard, EnrollmentRepository],
 })
