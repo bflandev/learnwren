@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink, type ParamMap } from '@angular/router';
@@ -18,7 +18,7 @@ import { ModuleOutlineComponent } from '../components/module-outline/module-outl
   imports: [LwCoverComponent, LwPillComponent, ModuleOutlineComponent, CourseEnrollmentPanelComponent, RouterLink],
   templateUrl: './course-detail-page.component.html',
 })
-export class CourseDetailPageComponent implements OnInit {
+export class CourseDetailPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(CatalogService);
   private readonly auth = inject(AuthService);
@@ -59,16 +59,7 @@ export class CourseDetailPageComponent implements OnInit {
     });
   }
 
-  async ngOnInit(): Promise<void> {
-    if (!this.auth.currentUser()) {
-      return;
-    }
-    await this.resolveEnrollmentStatus();
-  }
-
-  private async resolveEnrollmentStatus(): Promise<void> {
-    const courseId = this.route.snapshot.paramMap.get('id');
-    if (!courseId) return;
+  private async resolveEnrollmentStatus(courseId: string): Promise<void> {
     try {
       const view = await this.enrollments.getEnrollmentStatus(courseId);
       this.enrollmentStatus.set(view);
@@ -95,6 +86,14 @@ export class CourseDetailPageComponent implements OnInit {
       } else {
         this.error.set(true);
       }
+      return;
+    }
+    // Serial (post-course-fetch) is intentional: on a 404/error course load we
+    // return early above and skip the enrollment HTTP for an unreachable course.
+    // currentUser() is populated by the auth APP_INITIALIZER before any route
+    // activates, so the value here is null or a user — never undefined.
+    if (this.auth.currentUser()) {
+      await this.resolveEnrollmentStatus(id);
     }
   }
 }

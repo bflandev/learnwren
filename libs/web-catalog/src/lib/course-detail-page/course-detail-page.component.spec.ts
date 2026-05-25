@@ -204,6 +204,10 @@ describe('CourseDetailPageComponent', () => {
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
     await fixture.whenStable();
+    // Second tick: load() awaits the enrollment-status promise AFTER the
+    // catalog response resolves, so a single whenStable settles only the
+    // catalog HTTP. A second whenStable lets the enrollment promise flush.
+    await fixture.whenStable();
     fixture.detectChanges();
 
     const el = fixture.nativeElement as HTMLElement;
@@ -223,6 +227,10 @@ describe('CourseDetailPageComponent', () => {
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
     await fixture.whenStable();
+    // Second tick: load() awaits the enrollment-status promise AFTER the
+    // catalog response resolves, so a single whenStable settles only the
+    // catalog HTTP. A second whenStable lets the enrollment promise flush.
+    await fixture.whenStable();
     fixture.detectChanges();
 
     const el = fixture.nativeElement as HTMLElement;
@@ -234,6 +242,10 @@ describe('CourseDetailPageComponent', () => {
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    // Second tick: load() awaits the enrollment-status promise AFTER the
+    // catalog response resolves, so a single whenStable settles only the
+    // catalog HTTP. A second whenStable lets the enrollment promise flush.
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -247,6 +259,10 @@ describe('CourseDetailPageComponent', () => {
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    // Second tick: load() awaits the enrollment-status promise AFTER the
+    // catalog response resolves, so a single whenStable settles only the
+    // catalog HTTP. A second whenStable lets the enrollment promise flush.
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -273,6 +289,10 @@ describe('CourseDetailPageComponent', () => {
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_NO_LESSONS);
     await fixture.whenStable();
+    // Second tick: load() awaits the enrollment-status promise AFTER the
+    // catalog response resolves, so a single whenStable settles only the
+    // catalog HTTP. A second whenStable lets the enrollment promise flush.
+    await fixture.whenStable();
     fixture.detectChanges();
 
     const el = fixture.nativeElement as HTMLElement;
@@ -286,6 +306,10 @@ describe('CourseDetailPageComponent', () => {
     const fixture = TestBed.createComponent(CourseDetailPageComponent);
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    // Second tick: load() awaits the enrollment-status promise AFTER the
+    // catalog response resolves, so a single whenStable settles only the
+    // catalog HTTP. A second whenStable lets the enrollment promise flush.
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -323,6 +347,10 @@ describe('CourseDetailPageComponent', () => {
     fixture.detectChanges();
     http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
     await fixture.whenStable();
+    // Second tick: load() awaits the enrollment-status promise AFTER the
+    // catalog response resolves, so a single whenStable settles only the
+    // catalog HTTP. A second whenStable lets the enrollment promise flush.
+    await fixture.whenStable();
     fixture.detectChanges();
 
     // Sanity: enrollmentStatus is populated from course A.
@@ -338,5 +366,59 @@ describe('CourseDetailPageComponent', () => {
     // Drain pending HTTP so HttpTestingController.verify() in teardown is happy.
     http.expectOne('/api/catalog/c-2').flush({ ...COURSE_WITH_LESSONS, id: 'c-2' });
     await fixture.whenStable();
+  });
+
+  it('refetches enrollment status on SPA navigation between two enrolled courses', async () => {
+    // Both c-1 and c-2 are ACTIVE-enrolled for this user; the fake
+    // EnrollmentService returns the same view regardless of which course is
+    // requested. That's fine — the assertion under test is that the CTA is
+    // visible on BOTH pages, which requires enrollmentStatus to be re-resolved
+    // after the route change. Without the fix, enrollmentStatus stays null on
+    // c-2 because resolveEnrollmentStatus is only called from ngOnInit.
+    const enrollmentView: EnrollmentStatusView = {
+      enrollment: {
+        id: 'u-1__c-1' as never,
+        userId: 'u-1' as never,
+        courseId: 'c-1' as never,
+        status: 'ACTIVE',
+        progress: [],
+        withdrawnAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z' as never,
+        updatedAt: '2026-01-01T00:00:00.000Z' as never,
+      },
+      isOwner: false,
+    };
+    const { http, setRouteId } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    // Second tick: load() awaits the enrollment-status promise AFTER the
+    // catalog response resolves, so a single whenStable settles only the
+    // catalog HTTP. A second whenStable lets the enrollment promise flush.
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // CTA visible on c-1.
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="start-learning"]')).not.toBeNull();
+
+    // SPA-navigate to c-2.
+    setRouteId('c-2');
+    // The reset is synchronous; this guards against a regression where the
+    // status from c-1 leaks into c-2's first paint.
+    expect(component.enrollmentStatus()).toBeNull();
+
+    http.expectOne('/api/catalog/c-2').flush({ ...COURSE_WITH_LESSONS, id: 'c-2' });
+    await fixture.whenStable();
+    // Second tick so the c-2 enrollment-status promise settles before assert.
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // CTA visible on c-2 too — only possible if enrollmentStatus was re-resolved
+    // after the route change.
+    expect(component.enrollmentStatus()).not.toBeNull();
+    expect(el.querySelector('[data-testid="start-learning"]')).not.toBeNull();
   });
 });
