@@ -1,14 +1,14 @@
 {
   "threshold": 75,
   "maxIterations": 20,
-  "iteration": 7,
+  "iteration": 8,
   "modules": [
     { "name": "shared-data-models", "status": "done", "score": 100.00, "iterations": 1, "notes": "100% on first run — only material.ts has runtime logic; 9/9 killed" },
     { "name": "api-firebase", "status": "done", "score": 81.69, "iterations": 2, "notes": "69.01% → 81.69% after adding tests for FIREBASE_WEB_API_KEY provider, emulator projectId, and module exports" },
     { "name": "api-auth", "status": "done", "score": 89.02, "iterations": 1, "notes": "89.02% on first run — already above threshold thanks to prior testing investment" },
     { "name": "api-courses", "status": "done", "score": 90.75, "iterations": 1, "notes": "90.75% on first run — biggest lib (2055 mutants), already well-tested" },
     { "name": "web-ui", "status": "done", "score": 88.46, "iterations": 2, "notes": "38.46% → 88.46% via icon table-driven test, cover-tone new spec, pill/cover/theme branch tests" },
-    { "name": "web-auth", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "web-auth", "status": "done", "score": 80.31, "iterations": 1, "notes": "80.31% on first run — already above threshold" },
     { "name": "web-courses", "status": "pending", "score": null, "iterations": 0, "notes": "" },
     { "name": "web-catalog", "status": "pending", "score": null, "iterations": 0, "notes": "" },
     { "name": "web-enrollment", "status": "pending", "score": null, "iterations": 0, "notes": "" },
