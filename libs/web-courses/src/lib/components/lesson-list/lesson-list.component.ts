@@ -4,7 +4,7 @@ import {
   CdkDropList,
   moveItemInArray,
 } from '@angular/cdk/drag-drop';
-import { Component, EventEmitter, Output, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
 import type { CourseId, Lesson, VideoState } from '@learnwren/shared-data-models';
 
@@ -15,15 +15,16 @@ import { LessonItemComponent } from '../lesson-item/lesson-item.component';
   standalone: true,
   imports: [CdkDropList, CdkDrag, LessonItemComponent],
   templateUrl: './lesson-list.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LessonListComponent {
   readonly lessons = input.required<Lesson[]>();
   readonly courseId = input.required<CourseId>();
-  @Output() readonly reorder = new EventEmitter<string[]>();
-  @Output() readonly renameLesson = new EventEmitter<{ lessonId: string; title: string }>();
-  @Output() readonly deleteLesson = new EventEmitter<string>();
-  @Output() readonly videoChanged = new EventEmitter<void>();
-  @Output() readonly videoStateChanged = new EventEmitter<VideoState>();
+  readonly reorder = output<string[]>();
+  readonly renameLesson = output<{ lessonId: string; title: string }>();
+  readonly deleteLesson = output<string>();
+  readonly videoChanged = output<void>();
+  readonly videoStateChanged = output<VideoState>();
 
   onDrop(event: CdkDragDrop<Lesson[]>): void {
     if (event.previousIndex === event.currentIndex) return;

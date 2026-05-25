@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { LwButtonDirective, LwCardComponent } from '@learnwren/web-ui';
 
 @Component({
@@ -6,10 +6,11 @@ import { LwButtonDirective, LwCardComponent } from '@learnwren/web-ui';
   standalone: true,
   imports: [LwButtonDirective, LwCardComponent],
   templateUrl: './confirm-dialog.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConfirmDialogComponent {
   readonly message = input.required<string>();
   readonly confirmLabel = input<string>('Delete');
   readonly cancelLabel = input<string>('Cancel');
-  @Output() readonly closed = new EventEmitter<boolean>();
+  readonly closed = output<boolean>();
 }

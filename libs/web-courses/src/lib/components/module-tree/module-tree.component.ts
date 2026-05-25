@@ -4,7 +4,7 @@ import {
   CdkDropList,
   moveItemInArray,
 } from '@angular/cdk/drag-drop';
-import { Component, EventEmitter, Output, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
 import type { CourseId, Lesson, Module, VideoState } from '@learnwren/shared-data-models';
 
@@ -20,24 +20,25 @@ export interface ModuleNode {
   standalone: true,
   imports: [CdkDropList, CdkDrag, ModuleItemComponent],
   templateUrl: './module-tree.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ModuleTreeComponent {
   readonly nodes = input.required<ModuleNode[]>();
   readonly courseId = input.required<CourseId>();
 
-  @Output() readonly reorderModules = new EventEmitter<string[]>();
-  @Output() readonly renameModule = new EventEmitter<{ moduleId: string; title: string }>();
-  @Output() readonly deleteModule = new EventEmitter<string>();
-  @Output() readonly addLesson = new EventEmitter<{ moduleId: string; title: string }>();
-  @Output() readonly renameLesson = new EventEmitter<{
+  readonly reorderModules = output<string[]>();
+  readonly renameModule = output<{ moduleId: string; title: string }>();
+  readonly deleteModule = output<string>();
+  readonly addLesson = output<{ moduleId: string; title: string }>();
+  readonly renameLesson = output<{
     moduleId: string;
     lessonId: string;
     title: string;
   }>();
-  @Output() readonly deleteLesson = new EventEmitter<{ moduleId: string; lessonId: string }>();
-  @Output() readonly reorderLessons = new EventEmitter<{ moduleId: string; lessonIds: string[] }>();
-  @Output() readonly videoChanged = new EventEmitter<void>();
-  @Output() readonly videoStateChanged = new EventEmitter<VideoState>();
+  readonly deleteLesson = output<{ moduleId: string; lessonId: string }>();
+  readonly reorderLessons = output<{ moduleId: string; lessonIds: string[] }>();
+  readonly videoChanged = output<void>();
+  readonly videoStateChanged = output<VideoState>();
 
   onDrop(event: CdkDragDrop<ModuleNode[]>): void {
     if (event.previousIndex === event.currentIndex) return;

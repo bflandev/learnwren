@@ -1,5 +1,12 @@
-import { CommonModule } from '@angular/common';
-import { Component, computed, EventEmitter, Input, Output, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 
 import type { Course, CourseStatus } from '@learnwren/shared-data-models';
 
@@ -13,14 +20,15 @@ type PrimaryActionKind = 'publish' | 'unpublish' | 'restore' | null;
 @Component({
   selector: 'lib-course-publish-bar',
   standalone: true,
-  imports: [CommonModule, LwButtonDirective, LwPillComponent],
+  imports: [LwButtonDirective, LwPillComponent],
   templateUrl: './course-publish-bar.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CoursePublishBarComponent {
-  @Input({ required: true }) course!: Course;
+  readonly course = input.required<Course>();
 
-  @Output() courseUpdated = new EventEmitter<Course>();
-  @Output() requestConfirm = new EventEmitter<'unpublish' | 'archive'>();
+  readonly courseUpdated = output<Course>();
+  readonly requestConfirm = output<'unpublish' | 'archive'>();
 
   private readonly courses = inject(CoursesService);
   protected readonly publishSvc = inject(PublishEligibilityService);
@@ -28,9 +36,9 @@ export class CoursePublishBarComponent {
   protected readonly inFlight = signal<boolean>(false);
   protected readonly genericError = signal<string | null>(null);
 
-  protected readonly status = computed<CourseStatus>(() => this.course.status);
+  protected readonly status = computed<CourseStatus>(() => this.course().status);
   protected readonly primaryKind = computed<PrimaryActionKind>(() => {
-    switch (this.course.status) {
+    switch (this.course().status) {
       case 'DRAFT': return 'publish';
       case 'PUBLISHED': return 'unpublish';
       case 'ARCHIVED': return 'restore';
@@ -52,9 +60,10 @@ export class CoursePublishBarComponent {
     }
     return false;
   });
-  protected readonly canArchive = computed<boolean>(() =>
-    this.course.status === 'DRAFT' || this.course.status === 'PUBLISHED',
-  );
+  protected readonly canArchive = computed<boolean>(() => {
+    const s = this.course().status;
+    return s === 'DRAFT' || s === 'PUBLISHED';
+  });
 
   protected onPrimary(): void {
     const kind = this.primaryKind();
@@ -63,8 +72,8 @@ export class CoursePublishBarComponent {
       this.requestConfirm.emit('unpublish');
       return;
     }
-    if (kind === 'publish') this.doTransition(() => this.courses.publishCourse(this.course.id));
-    if (kind === 'restore') this.doTransition(() => this.courses.restoreCourse(this.course.id));
+    if (kind === 'publish') this.doTransition(() => this.courses.publishCourse(this.course().id));
+    if (kind === 'restore') this.doTransition(() => this.courses.restoreCourse(this.course().id));
   }
 
   protected onArchive(): void {
@@ -73,8 +82,8 @@ export class CoursePublishBarComponent {
 
   /** Called by the editor page after the confirmation dialog resolves. */
   runConfirmedTransition(kind: 'unpublish' | 'archive'): void {
-    if (kind === 'unpublish') this.doTransition(() => this.courses.unpublishCourse(this.course.id));
-    if (kind === 'archive') this.doTransition(() => this.courses.archiveCourse(this.course.id));
+    if (kind === 'unpublish') this.doTransition(() => this.courses.unpublishCourse(this.course().id));
+    if (kind === 'archive') this.doTransition(() => this.courses.archiveCourse(this.course().id));
   }
 
   private async doTransition(call: () => Promise<Course>): Promise<void> {
