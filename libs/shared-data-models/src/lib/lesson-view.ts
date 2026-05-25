@@ -20,7 +20,7 @@ export interface LessonView {
     id: LessonId;
     moduleId: ModuleId;
     title: string;
-    description: string;
+    description?: string;
     videoId: VideoId | null;
     videoState: VideoState | null;
   };
