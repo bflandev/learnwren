@@ -23,3 +23,13 @@ export class NotLessonOwnerException extends LearnException {
     super('NOT_LESSON_OWNER', 'You do not have access to this lesson.', 403);
   }
 }
+
+export class NotEnrolledLessonException extends LearnException {
+  constructor() {
+    super(
+      'NOT_ENROLLED_LESSON',
+      'You must be enrolled in this course to mark lessons complete.',
+      403,
+    );
+  }
+}

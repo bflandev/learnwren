@@ -1,14 +1,16 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
+  computed,
   inject,
   signal,
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
-import type { LessonView } from '@learnwren/shared-data-models';
+import type { ISODateString, LessonView } from '@learnwren/shared-data-models';
 import { VideoPlayerComponent } from '@learnwren/web-video';
 
 import { LearnService } from '../learn.service';
@@ -19,7 +21,7 @@ type PageState = 'LOADING' | 'READY' | 'PROCESSING' | 'NOT_ENROLLED' | 'NOT_FOUN
   selector: 'lib-lesson-player-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, VideoPlayerComponent],
+  imports: [RouterLink, VideoPlayerComponent, DatePipe],
   templateUrl: './lesson-player-page.component.html',
 })
 export class LessonPlayerPageComponent implements OnInit {
@@ -31,6 +33,13 @@ export class LessonPlayerPageComponent implements OnInit {
 
   readonly state = signal<PageState>('LOADING');
   readonly view = signal<LessonView | null>(null);
+
+  readonly completedAt = computed<ISODateString | null>(
+    () => this.view()?.progress?.completedAt ?? null,
+  );
+  readonly isOwnerPreview = computed<boolean>(() => this.view()?.progress === null);
+  readonly markBusy = signal<boolean>(false);
+  readonly markError = signal<null | 'revoked' | 'other'>(null);
 
   async ngOnInit(): Promise<void> {
     const courseId = this.route.snapshot.paramMap.get('courseId');
@@ -72,5 +81,19 @@ export class LessonPlayerPageComponent implements OnInit {
 
   retry(): void {
     void this.load();
+  }
+
+  async onMarkComplete(): Promise<void> {
+    this.markBusy.set(true);
+    this.markError.set(null);
+    try {
+      const { completedAt } = await this.learn.markLessonComplete(this.courseId, this.lessonId);
+      this.view.update((v) => (v ? { ...v, progress: { completedAt } } : v));
+    } catch (err) {
+      const status = err instanceof HttpErrorResponse ? err.status : 0;
+      this.markError.set(status === 403 ? 'revoked' : 'other');
+    } finally {
+      this.markBusy.set(false);
+    }
   }
 }

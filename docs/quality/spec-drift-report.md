@@ -36,7 +36,7 @@ carries at least minor drift.
 | EP-03 — Video Management & DRM | 5 | **Major (architectural)** | Specs assume commercial multi-DRM; code is a scoped-down HLS + AES-128 pipeline |
 | EP-04 — Lesson Materials | 2 | **Moderate** | UC-04-01 faithful; UC-04-02 (student download) unbuilt for its actor |
 | EP-05 — Course Discovery & Enrollment | 5 | **Deferred** | Entirely unbuilt; documented as deferred |
-| EP-06 — Learning Experience | 4 | **Partial** | UC-06-01 built (2026-05-25 Slice A); UC-06-02/03/04 deferred |
+| EP-06 — Learning Experience | 4 | **Partial** | UC-06-01 built (Slice A); UC-06-02 built (Slice B, 2026-05-25); UC-06-03/04 deferred |
 
 ### Three kinds of drift
 
@@ -304,11 +304,20 @@ The previously listed forward-hook drifts are now stale and resolved:
   PUBLISHED course` as part of EP-05 Slice B; the `TODO(EP-06)` marker is gone.
 - `MaterialAccessGuard` was widened the same way in EP-05 Slice B.
 
-A course-scoped sibling, `LessonEnrollmentOrOwnerGuard`, was added in this slice for
+A course-scoped sibling, `LessonEnrollmentOrOwnerGuard`, was added in Slice A for
 the new `/api/learn/courses/:cid/lessons/:lid` endpoint.
 
-Unbuilt use cases: UC-06-02 Mark a Lesson Complete · UC-06-03 Resume Learning ·
-UC-06-04 Navigate the Course Outline.
+**Slice B (2026-05-25)** ships UC-06-02 Mark a Lesson Complete — see
+`docs/superpowers/specs/2026-05-25-ep06-slice-b-mark-complete-design.md`. Enrolled
+students click **Mark as Complete** on the lesson page; the API writes `completedAt`
+on their per-lesson progress (idempotent, transactional). The lesson page surfaces a
+"✓ Completed" pill in place of the button; the pill persists across reload and across
+a `WITHDRAWN → ACTIVE` re-enrolment. A new owner-rejecting guard
+`LessonEnrollmentGuard` gates the new POST endpoint. Module/course completion
+rollups and the "Course Completed" badge remain deferred to whichever slice lands the
+course-outline panel.
+
+Unbuilt use cases: UC-06-03 Resume Learning · UC-06-04 Navigate the Course Outline.
 
 ---
 

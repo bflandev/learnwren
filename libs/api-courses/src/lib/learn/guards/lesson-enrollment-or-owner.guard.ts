@@ -6,6 +6,7 @@ import { CoursesRepository } from '../../courses.repository';
 import { EnrollmentRepository } from '../../enrollment/enrollment.repository';
 import { LessonNotFoundException, NotLessonOwnerException } from '../errors/learn.exception';
 import type { LessonScopedRequest } from '../types/lesson-scoped-request';
+import { findLessonInCourse } from './find-lesson-in-course';
 
 @Injectable()
 export class LessonEnrollmentOrOwnerGuard implements CanActivate {
@@ -21,7 +22,7 @@ export class LessonEnrollmentOrOwnerGuard implements CanActivate {
     const course = await this.courses.getCourse(cid);
     if (!course) throw new LessonNotFoundException();
 
-    const lesson = await this.findLessonInCourse(cid, lid);
+    const lesson = await findLessonInCourse(this.courses, cid, lid);
     if (!lesson) throw new LessonNotFoundException();
 
     // Owners get truthful access regardless of course.status (preview /
@@ -76,14 +77,5 @@ export class LessonEnrollmentOrOwnerGuard implements CanActivate {
     // archived after enrolment. In both cases the student had access and
     // lost it, so a 403 is the honest answer (and the UI needs the signal).
     throw new NotLessonOwnerException();
-  }
-
-  private async findLessonInCourse(cid: CourseId, lid: LessonId): Promise<Lesson | null> {
-    const modules = await this.courses.listModulesByCourse(cid);
-    for (const m of modules) {
-      const lesson = await this.courses.getLesson(cid, m.id, lid);
-      if (lesson) return lesson;
-    }
-    return null;
   }
 }

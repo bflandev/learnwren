@@ -15,6 +15,7 @@ import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
 import { LearnController } from './learn/learn.controller';
 import { LearnExceptionFilter } from './learn/learn.exception-filter';
+import { LessonEnrollmentGuard } from './learn/guards/lesson-enrollment.guard';
 import { LessonEnrollmentOrOwnerGuard } from './learn/guards/lesson-enrollment-or-owner.guard';
 import { LearnService } from './learn/learn.service';
 import { PublishService } from './publish/publish.service';
@@ -42,6 +43,7 @@ import { VideoModule } from './video/video.module';
     LearnService,
     LearnExceptionFilter,
     LessonEnrollmentOrOwnerGuard,
+    LessonEnrollmentGuard,
   ],
   exports: [CoursesRepository, CourseOwnerGuard, EnrollmentRepository],
 })

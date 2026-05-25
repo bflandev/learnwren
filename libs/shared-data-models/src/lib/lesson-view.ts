@@ -8,7 +8,7 @@ import type { VideoState } from './video';
  * null when the lesson has no video uploaded yet.
  *
  * `progress` is the caller's per-lesson progress (populated by UC-06-02
- * Mark Complete; optional until that slice lands):
+ * Mark Complete; optional for backwards compatibility with pre-Slice-B clients):
  *   - null when the caller is the course's owner (no enrolment doc),
  *   - { completedAt: null } when the caller is an enrolled student who has not
  *     yet completed this lesson,

@@ -130,3 +130,148 @@ test('unauthenticated visit to /learn/:cid/:lid redirects to /login with redirec
   await page.waitForURL(/\/login(\?|$)/);
   await expect(page.url()).toMatch(/redirect=/);
 });
+
+/** Register an INSTRUCTOR, mark them email-verified, and promote their role. */
+async function registerVerifiedInstructor(): Promise<{
+  email: string;
+  password: string;
+  uid: string;
+}> {
+  const email = `web-e2e-learn-inst-${Date.now()}-${Math.floor(Math.random() * 1000)}@example.com`;
+  const password = 'Aa1!aaaaaaaa';
+  const reg = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, displayName: 'I' }),
+  });
+  expect(reg.status).toBe(201);
+  const { uid } = (await reg.json()) as { uid: string };
+  await admin.auth().updateUser(uid, { emailVerified: true });
+  await admin.auth().setCustomUserClaims(uid, { role: 'INSTRUCTOR' });
+  await admin.firestore().collection('users').doc(uid).update({ role: 'INSTRUCTOR' });
+  return { email, password, uid };
+}
+
+/**
+ * Seed a DRAFT course with one module, one READY-video lesson, and the
+ * corresponding video document. Uses the supplied instructorId so the
+ * server-side ownership check passes for that instructor.
+ */
+async function seedDraftCourseWithReadyLessonForInstructor(instructorId: string): Promise<{
+  courseId: string;
+  lessonId: string;
+}> {
+  const ts = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  const courseId = `web-e2e-learn-draft-${ts}`;
+  const moduleId = `web-e2e-learn-mod-${ts}`;
+  const lessonId = `web-e2e-learn-les-${ts}`;
+  const videoId = `web-e2e-learn-vid-${ts}`;
+  const now = new Date().toISOString();
+  const db = admin.firestore();
+
+  await db.collection('courses').doc(courseId).set({
+    id: courseId,
+    title: 'Instructor Preview Course',
+    description: 'A DRAFT course for the instructor preview test.',
+    instructorId,
+    status: 'DRAFT',
+    enrollmentCount: 0,
+    publishedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await db.doc(`courses/${courseId}/modules/${moduleId}`).set({
+    id: moduleId,
+    courseId,
+    title: 'M',
+    order: 0,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await db.doc(`courses/${courseId}/modules/${moduleId}/lessons/${lessonId}`).set({
+    id: lessonId,
+    moduleId,
+    title: 'Lesson 1',
+    order: 0,
+    videoId,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await db.collection('videos').doc(videoId).set({
+    id: videoId,
+    ownerInstructorId: instructorId,
+    courseId,
+    lessonId,
+    state: 'READY',
+    source: {
+      bucket: 'fake-source-bucket',
+      path: `uploads/${videoId}/original.mp4`,
+      sizeBytes: 1024,
+    },
+    output: {
+      bucket: 'fake-output-bucket',
+      manifestPath: `videos/${videoId}/manifest.m3u8`,
+      durationSec: 30,
+    },
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  return { courseId, lessonId };
+}
+
+test('student can mark a lesson complete and the pill persists across reload', async ({ page }) => {
+  const { email, password } = await registerVerifiedStudent();
+  const { courseId, lessonId } = await seedPublishedCourseWithReadyLesson();
+
+  // Sign in
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+
+  // Catalog → enroll → start learning
+  await page.goto(`/catalog/${courseId}`);
+  await page.getByRole('button', { name: 'Enroll' }).click();
+  await expect(page.getByTestId('start-learning')).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId('start-learning').click();
+  await expect(page).toHaveURL(`/learn/${courseId}/${lessonId}`);
+
+  // Mark as complete
+  await expect(page.getByTestId('mark-complete')).toBeVisible();
+  await page.getByTestId('mark-complete').click();
+
+  // Pill is visible; button is gone
+  const pill = page.getByTestId('completed-pill');
+  await expect(pill).toBeVisible();
+  await expect(pill).toContainText(/Completed on/);
+  await expect(page.getByTestId('mark-complete')).toHaveCount(0);
+
+  // Reload — pill still visible
+  await page.reload();
+  await expect(page.getByTestId('completed-pill')).toBeVisible();
+});
+
+test('instructor preview shows the instructor-preview hint and no Mark Complete button', async ({
+  page,
+}) => {
+  const { email, password, uid } = await registerVerifiedInstructor();
+  const { courseId, lessonId } = await seedDraftCourseWithReadyLessonForInstructor(uid);
+
+  // Sign in as the instructor
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  // Instructors may be routed to /instructor or /dashboard — wait for either
+  await page.waitForURL((url) => url.pathname !== '/login', { timeout: 10_000 });
+
+  // Navigate directly to the lesson page
+  await page.goto(`/learn/${courseId}/${lessonId}`);
+
+  // Instructor preview hint visible; button and pill absent
+  await expect(page.getByTestId('instructor-preview-hint')).toBeVisible();
+  await expect(page.getByTestId('mark-complete')).toHaveCount(0);
+  await expect(page.getByTestId('completed-pill')).toHaveCount(0);
+});
