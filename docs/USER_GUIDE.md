@@ -39,7 +39,9 @@ This guide covers **every feature wired up so far** from two angles:
 | Discovery | Course detail page | Built |
 | Discovery | Enroll in a course, leave a course | Built |
 | Discovery | Guest auto-enroll after login | Built |
-| Learning | Enrolled-student playback, progress tracking | Not built |
+| Learning | Student lesson playback (`/learn/:cid/:lid`) | Built |
+| Learning | Mark lesson complete + persistent completed pill | Built |
+| Learning | Resume / last-watched, course-outline panel, completion rollups | Not built |
 | Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
 | Cover images | Course cover image upload | Not built |
 
@@ -115,9 +117,9 @@ Hot-reloading the variable is not supported — restart the process to switch mo
 This part walks through the platform as the people who use it: a **student** (any
 registered user) and an **instructor** (a student promoted to author courses).
 
-> Today, students can browse and enroll in published courses. The learning experience
-> (video playback and progress tracking for enrolled students) ships with EP-06 and is
-> not yet built.
+> Today, students can browse and enroll in published courses, watch any lesson in an
+> enrolled course (`/learn/:cid/:lid`), and mark lessons complete. Resume / last-watched
+> tracking and the course-outline panel ship with later EP-06 slices.
 
 ## 2.1 Creating an account
 
@@ -148,8 +150,9 @@ exists with `role: STUDENT`.
 ## 2.3 Signing in and the dashboard
 
 1. Go to **http://localhost:4200/login** and enter your email and password.
-2. On success you are redirected to **`/dashboard`**, which greets you by display name
-   and shows your current **role**.
+2. On success you are redirected to **`/dashboard`**. The dashboard greets you by display
+   name, shows your current **role**, and — for instructors — renders a course-card grid
+   of your owned courses. Students see the welcome hero with a link into the catalogue.
 
 The session is held in an `HttpOnly` cookie named `__session` (5-day lifetime). Click
 **Sign out** on the dashboard to clear it and return to `/login`.
@@ -263,9 +266,9 @@ confirmation prompt.
 
 At the API layer, `MaterialAccessGuard` already grants `GET
 /materials/:matId/download-url` to the course owner **or** any
-`ACTIVE`-enrolled student. The student-facing UI to actually browse and
-download materials is part of the learning experience (EP-06) and is not yet
-built — for now, only the instructor has a UI path to these files.
+`ACTIVE`-enrolled student. The student-facing UI to browse and download
+materials from the lesson player ships with a later EP-06 slice — for now,
+only the instructor course editor surfaces these files.
 
 ## 2.10 Publishing a course
 
@@ -743,17 +746,16 @@ Target a single project by invoking Nx directly, e.g. `pnpm nx test api-courses`
 
 These are specified in `docs/epics/` and `docs/use-cases/` but **not yet implemented**:
 
-- **Enrolled-student learning experience (EP-06)** — no student-facing lesson player
-  or progress tracking. The **Continue Learning** button does not exist yet; enrolling
-  lands the student on the course detail page in its enrolled state. `EnrollmentOrOwnerGuard`
-  grants access to video/material endpoints for enrolled students, but the player UI is
-  not built.
+- **EP-06 Slice C and later — Resume Learning & course-outline panel.** Resume /
+  `lastWatchedSeconds`, the **Continue Learning** button, the collapsible course-outline
+  panel with per-lesson checkmarks, module-completion and course-completion rollups, and
+  the "Course Completed" badge on the dashboard are deferred. Per-lesson playback (Slice A)
+  and mark-complete (Slice B) are shipped.
+- **Student-facing materials browser** — `MaterialAccessGuard` already grants enrolled
+  students download access, but the lesson player does not yet surface a materials panel.
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll are
   live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than 90 days is
   not implemented.
-- **Access revocation on course unpublish** — an enrolled student retains access if the
-  instructor later unpublishes the course; guards do not re-check `Course.status` on
-  playback.
 - **Course cover images** — upload is deferred.
 - **Self-service instructor requests** — promotion is CLI-only; there is no in-app
   "become an instructor" flow.
