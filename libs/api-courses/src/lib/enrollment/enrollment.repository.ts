@@ -181,4 +181,26 @@ export class EnrollmentRepository {
       }
     });
   }
+
+  async touchLastAccessed(
+    userId: UserId,
+    courseId: CourseId,
+    lessonId: LessonId,
+    nowIso: ISODateString,
+  ): Promise<void> {
+    const enrollmentRef = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
+
+    await this.db.runTransaction(async (t) => {
+      const snap = await t.get(enrollmentRef);
+      const existing = snap.exists ? (snap.data() as Enrollment) : null;
+      if (!existing || existing.status !== 'ACTIVE') {
+        throw new NotEnrolledException();
+      }
+      t.update(enrollmentRef, {
+        lastAccessedLessonId: lessonId,
+        lastAccessedAt: nowIso,
+        updatedAt: nowIso,
+      });
+    });
+  }
 }

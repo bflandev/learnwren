@@ -309,3 +309,51 @@ describe('EnrollmentRepository.isEnrolled / getEnrollment', () => {
     expect(result?.status).toBe('WITHDRAWN');
   });
 });
+
+describe('EnrollmentRepository.touchLastAccessed', () => {
+  const NOW = '2026-05-25T12:00:00.000Z' as ISODateString;
+  const LID = 'lesson-x' as LessonId;
+
+  function active(over: Partial<Enrollment> = {}): Enrollment {
+    return {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'ACTIVE',
+      progress: [],
+      withdrawnAt: null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
+      createdAt: '2026-05-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-05-01T00:00:00.000Z' as ISODateString,
+      ...over,
+    };
+  }
+
+  it('sets lastAccessedLessonId and lastAccessedAt on an ACTIVE enrolment', async () => {
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: active() });
+    await repo.touchLastAccessed(UID, CID, LID, NOW);
+    const stored = db.__store.get(`enrollments/${ID}`) as Enrollment;
+    expect(stored.lastAccessedLessonId).toBe(LID);
+    expect(stored.lastAccessedAt).toBe(NOW);
+    expect(stored.updatedAt).toBe(NOW);
+  });
+
+  it('overwrites a prior lastAccessedLessonId on each call', async () => {
+    const seeded = active({ lastAccessedLessonId: 'old' as LessonId, lastAccessedAt: '2026-05-20T00:00:00.000Z' as ISODateString });
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: seeded });
+    await repo.touchLastAccessed(UID, CID, LID, NOW);
+    const stored = db.__store.get(`enrollments/${ID}`) as Enrollment;
+    expect(stored.lastAccessedLessonId).toBe(LID);
+  });
+
+  it('throws NotEnrolledException when the enrolment is WITHDRAWN', async () => {
+    const { repo } = repoWith({ [`enrollments/${ID}`]: active({ status: 'WITHDRAWN', withdrawnAt: NOW }) });
+    await expect(repo.touchLastAccessed(UID, CID, LID, NOW)).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+
+  it('throws NotEnrolledException when no enrolment exists', async () => {
+    const { repo } = repoWith({});
+    await expect(repo.touchLastAccessed(UID, CID, LID, NOW)).rejects.toBeInstanceOf(NotEnrolledException);
+  });
+});
