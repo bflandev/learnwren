@@ -4,10 +4,17 @@ import type { Observable } from 'rxjs';
 
 import type {
   CourseId,
+  CreateMaterialUploadResponse,
   LessonId,
   Material,
+  MaterialDownloadUrlResponse,
   MaterialId,
   ModuleId,
+} from '@learnwren/shared-data-models';
+
+export type {
+  CreateMaterialUploadResponse,
+  MaterialDownloadUrlResponse,
 } from '@learnwren/shared-data-models';
 
 const OPTS = { withCredentials: true } as const;
@@ -15,17 +22,6 @@ const OPTS = { withCredentials: true } as const;
 export interface CreateMaterialUploadPayload {
   filename: string;
   sizeBytes: number;
-}
-
-export interface CreateMaterialUploadResponse {
-  materialId: MaterialId;
-  uploadUrl: string;
-  expiresAt: string;
-}
-
-export interface MaterialDownloadUrlResponse {
-  downloadUrl: string;
-  expiresAt: string;
 }
 
 @Injectable({ providedIn: 'root' })

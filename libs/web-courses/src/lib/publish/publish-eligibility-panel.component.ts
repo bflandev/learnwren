@@ -1,5 +1,4 @@
-import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Output, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
 
 import type { LessonId, ModuleId, PublishBlockReason } from '@learnwren/shared-data-models';
 
@@ -10,12 +9,13 @@ import { PublishEligibilityService } from './publish-eligibility.service';
 @Component({
   selector: 'lib-publish-eligibility-panel',
   standalone: true,
-  imports: [CommonModule, LwButtonDirective],
+  imports: [LwButtonDirective],
   templateUrl: './publish-eligibility-panel.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PublishEligibilityPanelComponent {
-  @Output() jumpToModule = new EventEmitter<ModuleId>();
-  @Output() jumpToLesson = new EventEmitter<LessonId>();
+  readonly jumpToModule = output<ModuleId>();
+  readonly jumpToLesson = output<LessonId>();
 
   protected readonly publishSvc = inject(PublishEligibilityService);
 

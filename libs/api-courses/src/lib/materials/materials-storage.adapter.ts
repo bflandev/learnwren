@@ -1,17 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-firebase';
+import type { ISODateString } from '@learnwren/shared-data-models';
 
 import { MATERIALS_CONFIG, type MaterialsConfig } from './materials.config';
 
 export interface SignedUploadUrl {
   uploadUrl: string;
-  expiresAt: string;
+  expiresAt: ISODateString;
 }
 
 export interface SignedDownloadUrl {
   downloadUrl: string;
-  expiresAt: string;
+  expiresAt: ISODateString;
 }
 
 export interface MaterialObjectMetadata {
@@ -71,7 +72,7 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort {
       contentType: input.contentType,
       expires: expiresMs,
     });
-    return { uploadUrl: url, expiresAt: new Date(expiresMs).toISOString() };
+    return { uploadUrl: url, expiresAt: new Date(expiresMs).toISOString() as ISODateString };
   }
 
   async headObject(input: {
@@ -107,7 +108,7 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort {
       responseDisposition: `attachment; filename="${sanitizeFilename(input.filename)}"`,
       responseType: input.contentType,
     });
-    return { downloadUrl: url, expiresAt: new Date(expiresMs).toISOString() };
+    return { downloadUrl: url, expiresAt: new Date(expiresMs).toISOString() as ISODateString };
   }
 
   async deleteObject(input: { bucket: string; path: string }): Promise<void> {
@@ -132,10 +133,10 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort {
     key: K,
     materialId: string,
     expiresMs: number,
-  ): { [P in K]: string } & { expiresAt: string } {
+  ): { [P in K]: string } & { expiresAt: ISODateString } {
     return {
       [key]: `/api/internal/fake-materials/${materialId}`,
-      expiresAt: new Date(expiresMs).toISOString(),
-    } as { [P in K]: string } & { expiresAt: string };
+      expiresAt: new Date(expiresMs).toISOString() as ISODateString,
+    } as { [P in K]: string } & { expiresAt: ISODateString };
   }
 }

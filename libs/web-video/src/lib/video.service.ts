@@ -4,6 +4,7 @@ import type { Observable } from 'rxjs';
 
 import type {
   CourseId,
+  CreateUploadSessionResponse,
   LessonId,
   ModuleId,
   SupportedVideoContentType,
@@ -11,18 +12,14 @@ import type {
   VideoId,
 } from '@learnwren/shared-data-models';
 
+export type { CreateUploadSessionResponse } from '@learnwren/shared-data-models';
+
 const OPTS = { withCredentials: true } as const;
 
 export interface CreateUploadSessionPayload {
   sizeBytes: number;
   contentType: SupportedVideoContentType;
   filename?: string;
-}
-
-export interface CreateUploadSessionResponse {
-  videoId: VideoId;
-  uploadSessionUri: string;
-  expiresAt: string;
 }
 
 @Injectable({ providedIn: 'root' })

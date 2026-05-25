@@ -1,11 +1,11 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  EventEmitter,
-  Output,
   effect,
   inject,
   input,
+  output,
   signal,
   untracked,
 } from '@angular/core';
@@ -29,6 +29,7 @@ import { MaterialsListComponent } from '../../materials/materials-list.component
   standalone: true,
   imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, LwButtonDirective, LwInputDirective],
   templateUrl: './lesson-item.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LessonItemComponent {
   private readonly api = inject(VideoService);
@@ -37,10 +38,10 @@ export class LessonItemComponent {
   readonly lesson = input.required<Lesson>();
   readonly courseId = input.required<CourseId>();
 
-  @Output() readonly rename = new EventEmitter<string>();
-  @Output() readonly delete = new EventEmitter<void>();
-  @Output() readonly videoChanged = new EventEmitter<void>();
-  @Output() readonly videoStateChanged = new EventEmitter<VideoState>();
+  readonly rename = output<string>();
+  readonly delete = output<void>();
+  readonly videoChanged = output<void>();
+  readonly videoStateChanged = output<VideoState>();
 
   readonly editing = signal(false);
   readonly draftTitle = signal('');

@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
@@ -20,6 +20,7 @@ import type { CoursesApiErrorBody } from '../types/api-error';
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink, LwButtonDirective, LwCardComponent, LwInputDirective],
   templateUrl: './course-create-page.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CourseCreatePageComponent {
   private readonly service = inject(CoursesService);

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import type { Course } from '@learnwren/shared-data-models';
@@ -11,11 +11,12 @@ import type { UpdateCourseInput } from '../../courses.service';
   standalone: true,
   imports: [FormsModule, LwButtonDirective, LwCardComponent, LwInputDirective],
   templateUrl: './course-meta-panel.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CourseMetaPanelComponent {
   readonly course = input.required<Course>();
-  @Output() readonly update = new EventEmitter<UpdateCourseInput>();
-  @Output() readonly deleteCourse = new EventEmitter<void>();
+  readonly update = output<UpdateCourseInput>();
+  readonly deleteCourse = output<void>();
 
   readonly draftTitle = signal('');
   readonly draftDescription = signal('');

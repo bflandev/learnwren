@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 
 import type { MaterialId } from '@learnwren/shared-data-models';
 
+import { CoursesRepository } from '../courses.repository';
 import { EnrollmentRepository } from '../enrollment/enrollment.repository';
 import {
   MaterialNotFoundException,
@@ -10,12 +11,17 @@ import {
 import { MaterialsRepository } from './materials.repository';
 import type { MaterialScopedRequest } from './types/loaded-material';
 
-/** Gates the material download endpoint: the course owner or an ACTIVE-enrolled student. */
+/**
+ * Gates material download: course owner OR active enrollee in a PUBLISHED
+ * course. If the instructor unpublishes/archives, enrolled students lose
+ * access until the course is re-published.
+ */
 @Injectable()
 export class MaterialAccessGuard implements CanActivate {
   constructor(
     private readonly repo: MaterialsRepository,
     private readonly enrollment: EnrollmentRepository,
+    private readonly courses: CoursesRepository,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -32,8 +38,11 @@ export class MaterialAccessGuard implements CanActivate {
     }
 
     if (req.user && (await this.enrollment.isEnrolled(req.user.uid, material.courseId))) {
-      req.material = material;
-      return true;
+      const course = await this.courses.getCourse(material.courseId);
+      if (course?.status === 'PUBLISHED') {
+        req.material = material;
+        return true;
+      }
     }
 
     throw new NotMaterialOwnerException();

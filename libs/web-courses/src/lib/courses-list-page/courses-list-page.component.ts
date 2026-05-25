@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import type { Course } from '@learnwren/shared-data-models';
@@ -11,6 +11,7 @@ import { CoursesService } from '../courses.service';
   standalone: true,
   imports: [RouterLink, LwCardComponent, LwCoverComponent, LwPillComponent],
   templateUrl: './courses-list-page.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CoursesListPageComponent {
   private readonly service = inject(CoursesService);

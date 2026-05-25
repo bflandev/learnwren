@@ -61,7 +61,7 @@ export interface CreateUploadSessionInput {
 export interface CreateUploadSessionResult {
   videoId: VideoId;
   uploadSessionUri: string;
-  expiresAt: string;
+  expiresAt: ISODateString;
 }
 
 export interface VideoServiceDeps {

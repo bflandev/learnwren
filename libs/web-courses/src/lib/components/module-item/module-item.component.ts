@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import type { CourseId, Lesson, Module, VideoState } from '@learnwren/shared-data-models';
@@ -12,19 +12,20 @@ import { LessonListComponent } from '../lesson-list/lesson-list.component';
   standalone: true,
   imports: [FormsModule, LessonListComponent, LwButtonDirective, LwCardComponent, LwInputDirective],
   templateUrl: './module-item.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ModuleItemComponent {
   readonly module = input.required<Module>();
   readonly lessons = input.required<Lesson[]>();
   readonly courseId = input.required<CourseId>();
-  @Output() readonly renameModule = new EventEmitter<string>();
-  @Output() readonly deleteModule = new EventEmitter<void>();
-  @Output() readonly addLesson = new EventEmitter<string>();
-  @Output() readonly renameLesson = new EventEmitter<{ lessonId: string; title: string }>();
-  @Output() readonly deleteLesson = new EventEmitter<string>();
-  @Output() readonly reorderLessons = new EventEmitter<string[]>();
-  @Output() readonly videoChanged = new EventEmitter<void>();
-  @Output() readonly videoStateChanged = new EventEmitter<VideoState>();
+  readonly renameModule = output<string>();
+  readonly deleteModule = output<void>();
+  readonly addLesson = output<string>();
+  readonly renameLesson = output<{ lessonId: string; title: string }>();
+  readonly deleteLesson = output<string>();
+  readonly reorderLessons = output<string[]>();
+  readonly videoChanged = output<void>();
+  readonly videoStateChanged = output<VideoState>();
 
   readonly editing = signal(false);
   readonly draftTitle = signal('');

@@ -13,6 +13,7 @@ import type {
   VideoId,
 } from '@learnwren/shared-data-models';
 
+import { VideoNotFoundException } from '../video/errors/video.exception';
 import { PublishService } from './publish.service';
 
 const COURSE = 'c1' as CourseId;
@@ -120,40 +121,14 @@ describe('PublishService.computeEligibility', () => {
     repo.getCourse.mockResolvedValue(makeCourse());
     repo.listModulesByCourse.mockResolvedValue([makeModule('m1', 0)]);
     repo.listLessonsByModule.mockResolvedValue([makeLesson('l1', 'm1', 0, 'v-orphan')]);
-    // Simulate VideoService throwing — PublishService catches and folds:
-    const err = new Error('Video not found.');
-    err.name = 'VideoNotFoundException';
-    videoSvc.getVideo.mockRejectedValue(err);
+    videoSvc.getVideo.mockRejectedValue(new VideoNotFoundException());
     const r = await service.computeEligibility(COURSE);
     expect(r.eligible).toBe(false);
     expect(r.reasons).toHaveLength(1);
     expect(r.reasons[0]).toMatchObject({ kind: 'LESSON_HAS_NO_VIDEO', lessonId: 'l1' });
   });
 
-  it('folds an error by name even when its message has no "not found" text', async () => {
-    // isVideoNotFound's name branch — message intentionally lacks "not found".
-    repo.getCourse.mockResolvedValue(makeCourse());
-    repo.listModulesByCourse.mockResolvedValue([makeModule('m1', 0)]);
-    repo.listLessonsByModule.mockResolvedValue([makeLesson('l1', 'm1', 0, 'v-orphan')]);
-    const err = new Error('the requested resource is gone');
-    err.name = 'VideoNotFoundException';
-    videoSvc.getVideo.mockRejectedValue(err);
-    const r = await service.computeEligibility(COURSE);
-    expect(r.reasons[0]).toMatchObject({ kind: 'LESSON_HAS_NO_VIDEO', lessonId: 'l1' });
-  });
-
-  it('folds an error by message even when its name is generic', async () => {
-    // isVideoNotFound's regex branch — name is the default 'Error'.
-    repo.getCourse.mockResolvedValue(makeCourse());
-    repo.listModulesByCourse.mockResolvedValue([makeModule('m1', 0)]);
-    repo.listLessonsByModule.mockResolvedValue([makeLesson('l1', 'm1', 0, 'v-orphan')]);
-    videoSvc.getVideo.mockRejectedValue(new Error('Video Not Found in datastore'));
-    const r = await service.computeEligibility(COURSE);
-    expect(r.reasons[0]).toMatchObject({ kind: 'LESSON_HAS_NO_VIDEO', lessonId: 'l1' });
-  });
-
   it('rethrows an unrelated getVideo error instead of folding it', async () => {
-    // Neither name nor message marks it as not-found → must propagate.
     repo.getCourse.mockResolvedValue(makeCourse());
     repo.listModulesByCourse.mockResolvedValue([makeModule('m1', 0)]);
     repo.listLessonsByModule.mockResolvedValue([makeLesson('l1', 'm1', 0, 'v1')]);
@@ -284,9 +259,7 @@ describe('PublishService.publish', () => {
     ]);
     videoSvc.getVideo.mockImplementation(async (vid: string) => {
       if (vid === 'v1') return makeVideo('v1', 'READY');
-      const err = new Error('Video not found.');
-      err.name = 'VideoNotFoundException';
-      throw err;
+      throw new VideoNotFoundException();
     });
     const fakeFs = { runTransaction: vi.fn(async (cb: (t: unknown) => unknown) => cb({})) };
     service = new PublishService(repo as never, videoSvc as never, fakeFs as never);

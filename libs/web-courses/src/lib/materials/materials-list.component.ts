@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -23,6 +23,7 @@ import { MaterialsService } from './materials.service';
   imports: [FormsModule, ConfirmDialogComponent, LwButtonDirective, LwInputDirective],
   templateUrl: './materials-list.component.html',
   providers: [MaterialUploadService],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MaterialsListComponent {
   private readonly api = inject(MaterialsService);

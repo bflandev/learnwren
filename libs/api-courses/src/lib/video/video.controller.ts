@@ -21,10 +21,10 @@ import {
 } from '../errors/courses.exception';
 import type {
   CourseId,
+  CreateUploadSessionResponse,
   LessonId,
   ModuleId,
   Video,
-  VideoId,
 } from '@learnwren/shared-data-models';
 
 import { CreateUploadSessionDto } from './dto/create-upload-session.dto';
@@ -51,7 +51,7 @@ export class VideoController {
     @Param('lid') lid: LessonId,
     @Body() body: CreateUploadSessionDto,
     @Req() req: VideoScopedRequest,
-  ): Promise<{ videoId: VideoId; uploadSessionUri: string; expiresAt: string }> {
+  ): Promise<CreateUploadSessionResponse> {
     const moduleOk = await this.coursesRepo.moduleExists(cid, mid);
     if (!moduleOk) throw new ModuleNotFoundException();
     const lesson = await this.coursesRepo.getLesson(cid, mid, lid);

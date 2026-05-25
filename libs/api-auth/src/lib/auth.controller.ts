@@ -141,15 +141,18 @@ export class AuthController {
     });
   }
 
-  // Test-mode-only: surface the last in-process email URL (unlock or
-  // verification) so the api-e2e suite can drive the redemption flows now
-  // that unlock tokens are hashed before being persisted. Gated by
-  // LEARNWREN_TEST_OUTBOX_ENABLED so it cannot be reached in production.
+  // Test-mode-only: surface the last in-process email URL so the api-e2e
+  // suite can drive redemption flows. Gated by BOTH `NODE_ENV !== 'production'`
+  // and `LEARNWREN_TEST_OUTBOX_ENABLED === '1'` — env-var-only gating would
+  // hand an attacker complete account takeover if the flag leaked into prod.
   @Get('_test/last-email')
   async lastTestEmail(
     @Query('to') to: string,
     @Query('kind') kind: 'unlock' | 'verification' | 'password-reset',
   ): Promise<{ url: string; sentAt: string }> {
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new NotFoundException();
+    }
     if (process.env['LEARNWREN_TEST_OUTBOX_ENABLED'] !== '1') {
       throw new NotFoundException();
     }

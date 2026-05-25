@@ -1,4 +1,4 @@
-import { Component, ViewChild, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
@@ -25,6 +25,7 @@ type PendingConfirm =
   standalone: true,
   imports: [RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, ConfirmDialogComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent, LwButtonDirective],
   templateUrl: './course-editor-page.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CourseEditorPageComponent {
   private readonly service = inject(CoursesService);

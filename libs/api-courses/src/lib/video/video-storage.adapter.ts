@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-firebase';
+import type { ISODateString } from '@learnwren/shared-data-models';
 
 import { VIDEO_CONFIG, type VideoConfig } from './video.config';
 
@@ -19,7 +20,7 @@ try {
 
 export interface ResumableSession {
   uri: string;
-  expiresAt: string;
+  expiresAt: ISODateString;
 }
 
 export interface ObjectMetadata {
@@ -87,7 +88,7 @@ export class VideoStorageAdapter implements VideoStoragePort {
     });
     return {
       uri,
-      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString() as ISODateString,
     };
   }
 

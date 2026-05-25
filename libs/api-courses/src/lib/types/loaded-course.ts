@@ -1,14 +1,10 @@
-import type { Course, Lesson, Module } from '@learnwren/shared-data-models';
+import type { Course } from '@learnwren/shared-data-models';
 
 import type { AuthenticatedRequest } from '@learnwren/api-auth';
 
-/**
- * Hydrated course tree returned by GET /api/courses/:cid.
- */
-export interface CourseTree {
-  course: Course;
-  modules: Array<{ module: Module; lessons: Lesson[] }>;
-}
+// CourseTree lives in shared-data-models so the web client and the server
+// share a single source of truth for the response shape.
+export type { CourseTree } from '@learnwren/shared-data-models';
 
 /**
  * Request shape after CourseOwnerGuard has loaded the course doc.
