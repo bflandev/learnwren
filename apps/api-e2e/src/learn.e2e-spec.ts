@@ -261,3 +261,138 @@ test('404 LESSON_NOT_FOUND for a missing course id', async ({ request }) => {
   expect(res.status()).toBe(404);
   expect(((await res.json()) as { error: { code: string } }).error.code).toBe('LESSON_NOT_FOUND');
 });
+
+// ──────────────────────── POST /complete tests ────────────────────────
+
+test('POST /complete is idempotent and reflected in subsequent GET', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const student = await registerStudent(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const moduleId = await seedModule(courseId);
+  const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+  await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+  // First POST /complete — expect 200 with a completedAt timestamp.
+  const res1 = await request.post(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/complete`,
+    { headers: { cookie: student.cookieHeader } },
+  );
+  expect(res1.status()).toBe(200);
+  const body1 = (await res1.json()) as { completedAt: string };
+  expect(typeof body1.completedAt).toBe('string');
+  const firstCompletedAt = body1.completedAt;
+
+  // Second POST /complete — idempotent; must return the same completedAt.
+  const res2 = await request.post(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/complete`,
+    { headers: { cookie: student.cookieHeader } },
+  );
+  expect(res2.status()).toBe(200);
+  const body2 = (await res2.json()) as { completedAt: string };
+  expect(body2.completedAt).toBe(firstCompletedAt);
+
+  // GET the lesson — progress.completedAt must match.
+  const getRes = await request.get(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}`,
+    { headers: { cookie: student.cookieHeader } },
+  );
+  expect(getRes.status()).toBe(200);
+  const getBody = (await getRes.json()) as { progress: { completedAt: string } };
+  expect(getBody.progress.completedAt).toBe(firstCompletedAt);
+});
+
+test('POST /complete returns 403 NOT_ENROLLED_LESSON for the course owner', async ({
+  request,
+}) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const moduleId = await seedModule(courseId);
+  const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+
+  const res = await request.post(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/complete`,
+    { headers: { cookie: instructor.cookieHeader } },
+  );
+  expect(res.status()).toBe(403);
+  expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+    'NOT_ENROLLED_LESSON',
+  );
+});
+
+test('POST /complete returns 403 NOT_ENROLLED_LESSON after the student withdraws', async ({
+  request,
+}) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const student = await registerStudent(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const moduleId = await seedModule(courseId);
+  const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+
+  // Seed ACTIVE then overwrite with WITHDRAWN.
+  await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+  await seedEnrollment({ userId: student.uid, courseId, status: 'WITHDRAWN' });
+
+  const res = await request.post(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/complete`,
+    { headers: { cookie: student.cookieHeader } },
+  );
+  expect(res.status()).toBe(403);
+  expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+    'NOT_ENROLLED_LESSON',
+  );
+});
+
+test('completion persists across WITHDRAWN → ACTIVE re-enrolment', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const student = await registerStudent(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const moduleId = await seedModule(courseId);
+  const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+
+  // Enrol via the real API so enrollmentCount is correct (required for the
+  // withdraw endpoint to work correctly when it decrements the counter).
+  const enrollRes = await request.post(`${API_BASE}/enrollments`, {
+    headers: { cookie: student.cookieHeader },
+    data: { courseId },
+  });
+  expect(enrollRes.status()).toBe(201);
+
+  // Mark the lesson complete and capture the timestamp.
+  const completeRes = await request.post(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}/complete`,
+    { headers: { cookie: student.cookieHeader } },
+  );
+  expect(completeRes.status()).toBe(200);
+  const { completedAt: firstCompletedAt } = (await completeRes.json()) as {
+    completedAt: string;
+  };
+
+  // Withdraw.
+  const withdrawRes = await request.delete(`${API_BASE}/enrollments/${courseId}`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  expect(withdrawRes.status()).toBe(204);
+
+  // Re-enrol.
+  const reEnrolRes = await request.post(`${API_BASE}/enrollments`, {
+    headers: { cookie: student.cookieHeader },
+    data: { courseId },
+  });
+  expect(reEnrolRes.status()).toBe(201);
+
+  // GET the lesson — completion must have survived the round-trip.
+  const getRes = await request.get(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}`,
+    { headers: { cookie: student.cookieHeader } },
+  );
+  expect(getRes.status()).toBe(200);
+  const getBody = (await getRes.json()) as { progress: { completedAt: string } };
+  expect(getBody.progress.completedAt).toBe(firstCompletedAt);
+});
+
+test('POST /complete returns 401 without a session cookie', async ({ request }) => {
+  const res = await request.post(
+    `${API_BASE}/learn/courses/any-course/lessons/any-lesson/complete`,
+  );
+  expect(res.status()).toBe(401);
+});
