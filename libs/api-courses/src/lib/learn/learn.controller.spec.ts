@@ -16,6 +16,7 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
+import { InvalidPositionException } from './errors/learn.exception';
 import { LessonEnrollmentGuard } from './guards/lesson-enrollment.guard';
 import { LessonEnrollmentOrOwnerGuard } from './guards/lesson-enrollment-or-owner.guard';
 import { LearnController } from './learn.controller';
@@ -419,5 +420,72 @@ describe('GET /learn/courses/:cid/lessons/:lid progress field', () => {
     const req = makeReq();
     const result = await ctrl.getLesson(req);
     expect(result.progress).toEqual({ completedAt: null });
+  });
+});
+
+// ─── Direct controller tests (POST /position) ──────────────────────────────
+
+describe('LearnController.savePosition', () => {
+  let ctrl: LearnController;
+  let svc: {
+    getLessonView: ReturnType<typeof vi.fn>;
+    markLessonComplete: ReturnType<typeof vi.fn>;
+    savePosition: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(async () => {
+    svc = {
+      getLessonView: vi.fn().mockResolvedValue(LESSON_VIEW),
+      markLessonComplete: vi.fn(),
+      savePosition: vi.fn(async () => ({ lastWatchedSeconds: 42 })),
+    };
+    ctrl = await buildController(svc as unknown as LearnService);
+  });
+
+  it('returns 200 with the stored value on a valid POST', async () => {
+    const req = makeReq();
+    const result = await ctrl.savePosition(req, { seconds: 42 });
+    expect(result).toEqual({ lastWatchedSeconds: 42 });
+    expect(svc.savePosition).toHaveBeenCalledWith(USER_ID, COURSE, LESSON, 42);
+  });
+
+  it('throws InvalidPositionException when seconds is missing', async () => {
+    const req = makeReq();
+    await expect(ctrl.savePosition(req, {} as never)).rejects.toBeInstanceOf(
+      InvalidPositionException,
+    );
+    expect(svc.savePosition).not.toHaveBeenCalled();
+  });
+
+  it('throws InvalidPositionException when seconds is negative', async () => {
+    const req = makeReq();
+    await expect(ctrl.savePosition(req, { seconds: -1 })).rejects.toBeInstanceOf(
+      InvalidPositionException,
+    );
+    expect(svc.savePosition).not.toHaveBeenCalled();
+  });
+
+  it('throws InvalidPositionException when seconds is NaN', async () => {
+    const req = makeReq();
+    await expect(ctrl.savePosition(req, { seconds: Number.NaN })).rejects.toBeInstanceOf(
+      InvalidPositionException,
+    );
+    expect(svc.savePosition).not.toHaveBeenCalled();
+  });
+
+  it('throws InvalidPositionException when seconds is Infinity', async () => {
+    const req = makeReq();
+    await expect(
+      ctrl.savePosition(req, { seconds: Number.POSITIVE_INFINITY }),
+    ).rejects.toBeInstanceOf(InvalidPositionException);
+    expect(svc.savePosition).not.toHaveBeenCalled();
+  });
+
+  it('throws InvalidPositionException when seconds is not a number', async () => {
+    const req = makeReq();
+    await expect(
+      ctrl.savePosition(req, { seconds: '42' as unknown as number }),
+    ).rejects.toBeInstanceOf(InvalidPositionException);
+    expect(svc.savePosition).not.toHaveBeenCalled();
   });
 });
