@@ -11,9 +11,10 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > - **EP-03 Video & DRM** — resumable upload (MP4 / MOV / MKV ≤ 10 GB), GCP Transcoder → AES-128 HLS, owner playback in the lesson editor (hls.js, native HLS on Safari/iOS), publish / unpublish / archive / restore gate with structured eligibility feedback.
 > - **EP-04 Lesson materials** — attach / rename / remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB each); owner downloads via short-lived signed URL.
 > - **EP-05 Course discovery & enrollment** — public catalogue with category/difficulty filters, Newest / Alphabetical / Most Popular sort, pagination, keyword search; public course-detail page; logged-in students enroll and leave; guests who click Enroll are auto-enrolled after login.
-> - **EP-06 Slice A: Student lesson playback** — enrolled students (and the course owner) navigate from the course detail page via **Start Learning** to `/learn/:cid/:lid` and watch the lesson video in the existing hls.js player. Mark Complete, Resume, and the course outline are deferred to subsequent EP-06 slices.
+> - **EP-06 Slice A: Student lesson playback** — enrolled students (and the course owner) navigate from the course detail page via **Start Learning** to `/learn/:cid/:lid` and watch the lesson video in the existing hls.js player.
+> - **EP-06 Slice B: Mark a lesson complete** — enrolled students click **Mark as Complete** on the lesson page; the API persists `completedAt` on their per-lesson progress; the button swaps to a "✓ Completed" pill that persists across reload and across a `WITHDRAWN → ACTIVE` re-enrolment. Per-lesson only; module / course rollups and the course-outline panel are deferred.
 >
-> Not built yet: cover image upload, mark-complete / progress tracking / resume / course-outline panel (rest of EP-06), instructor dashboard (EP-07), platform administration (EP-08). `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
+> Not built yet: cover image upload, resume / last-watched timestamp, course-outline panel (rest of EP-06), instructor dashboard (EP-07), platform administration (EP-08). `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
 
 ---
 
@@ -181,11 +182,12 @@ The API endpoints exposed by EP-05 Slice B (course enrollment — session cookie
 | `DELETE` | `/api/enrollments/:courseId` | Unenroll the caller (soft-delete; progress retained 90 days). |
 | `GET` | `/api/enrollments/:courseId` | The caller's enrollment status for that course, plus whether they own it. |
 
-The API endpoints exposed by EP-06 Slice A (student lesson playback — session cookie required):
+The API endpoints exposed by EP-06 Slices A & B (student lesson playback + mark-complete — session cookie required):
 
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
-| `GET` | `/api/learn/courses/:cid/lessons/:lid` | The caller's lesson view (course + lesson + video state); 403 unless owner or active enrollee on a PUBLISHED course; 404 if the lesson does not belong to the course. |
+| `GET` | `/api/learn/courses/:cid/lessons/:lid` | The caller's lesson view (course + lesson + video state + per-lesson progress); 403 unless owner or active enrollee on a PUBLISHED course; 404 if the lesson does not belong to the course. |
+| `POST` | `/api/learn/courses/:cid/lessons/:lid/complete` | Mark the lesson complete for the caller. Idempotent (returns 200 with the same `completedAt` on repeat calls). 403 `NOT_ENROLLED_LESSON` for owners and for non-active enrolments. |
 
 For the full auth dev workflow, the deferred items, and error-code → prose mappings, see [`docs/development.md`](./docs/development.md#auth-dev-workflow) and the design specs at [`docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`](./docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md) and [`docs/superpowers/specs/2026-05-06-auth-hardening-design.md`](./docs/superpowers/specs/2026-05-06-auth-hardening-design.md).
 

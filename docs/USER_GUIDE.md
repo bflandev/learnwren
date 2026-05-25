@@ -394,9 +394,43 @@ Edge cases:
 - **Lesson missing or in the wrong course** — the page renders a "Lesson not available"
   panel.
 
-**Deferred to later EP-06 slices:** mark lessons complete, progress / last-watched
-tracking, the **Continue Learning** resume button, and the collapsible course-outline
-panel with completion checkmarks.
+**Deferred to later EP-06 slices:** progress / last-watched tracking, the
+**Continue Learning** resume button, and the collapsible course-outline panel with
+completion checkmarks.
+
+---
+
+## 2.15 Marking a lesson complete (EP-06 Slice B)
+
+While watching a lesson, the student sees a **Mark as Complete** button below the
+video. Clicking it:
+
+- POSTs to `/api/learn/courses/:cid/lessons/:lid/complete`, which sets
+  `completedAt = <now>` on the matching `LessonProgress` entry of the student's
+  enrolment doc.
+- Swaps the button for a disabled **✓ Completed on \<date\>** pill.
+- The pill persists across reload — the GET endpoint exposes the caller's
+  `progress.completedAt` alongside the lesson payload.
+
+Idempotent: clicking again (or retrying after a flaky network) is safe. The API
+returns the original `completedAt` and writes nothing.
+
+If the student unenrols and later re-enrols, their prior completions are still
+visible — the `progress` array is preserved across the `WITHDRAWN → ACTIVE`
+round-trip by EP-05 Slice B.
+
+Instructors previewing their own course see an **(Instructor preview — progress
+not tracked)** hint instead of the button. Progress is per-student; the owner
+has no enrolment row to record against, and the API rejects owner POSTs with
+`403 NOT_ENROLLED_LESSON`.
+
+If the student's enrolment is withdrawn in another tab between page load and
+click, the POST returns 403 and the page surfaces an inline banner: "Your
+enrolment is no longer active" with a link back to `/catalog/:cid`.
+
+**Deferred to later EP-06 slices:** module-completion and course-completion
+rollups, the "Course Completed" badge, and per-lesson progress indicators on the
+catalog detail page.
 
 ---
 

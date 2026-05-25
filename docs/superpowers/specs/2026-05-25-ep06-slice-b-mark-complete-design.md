@@ -1,10 +1,10 @@
 # Mark Lesson Complete — EP-06 Slice B Design Spec
 
 > [!NOTE]
-> **DOCUMENT STATUS: DRAFT**
-> This document is a living specification and is subject to change. All content is considered provisional until formally approved by project stakeholders.
+> **DOCUMENT STATUS: APPROVED**
+> Implemented in commits leading up to the merge of branch `ep06-slice-b-mark-complete` (2026-05-25).
 
-**Status:** Draft (2026-05-25)
+**Status:** Approved (2026-05-25)
 **Scope:** Second implementation slice of EP-06 (Learning Experience). Delivers **UC-06-02 (Mark a Lesson as Complete)** in its minimal per-lesson form: an enrolled student can mark the lesson they are watching as complete, the page reflects the new state immediately and on reload, and the completion persists across the student's `WITHDRAWN → ACTIVE` re-enrolment round-trip. Adds one write endpoint to the existing `learn/` submodule in `libs/api-courses`, extends the Slice A `LessonView` payload with the caller's per-lesson progress, and extends the `LessonPlayerPageComponent` in `libs/web-learn` with a Mark-as-Complete button and a Completed pill.
 
 This spec sits on top of:
