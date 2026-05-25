@@ -7,7 +7,7 @@
   <div class="rounded border p-6">
     <h1 class="text-xl font-semibold">You're not enrolled in this course</h1>
     <p class="mt-2 text-sm text-gray-600">
-      You don't have access to this course's lessons. Visit the course page to enrol or check its status.
+      You don't have access to this course's lessons. Visit the course page to enrol.
     </p>
     <div class="mt-4 flex flex-wrap items-center gap-4">
       <a data-testid="view-course-to-enrol"
@@ -15,8 +15,6 @@
          [routerLink]="['/catalog', courseId]">
         View course to enrol
       </a>
-      <a data-testid="back-to-course" class="inline-block underline"
-         [routerLink]="['/catalog', courseId]">← Back to course</a>
     </div>
   </div>
 } @else if (state() === 'NOT_FOUND') {

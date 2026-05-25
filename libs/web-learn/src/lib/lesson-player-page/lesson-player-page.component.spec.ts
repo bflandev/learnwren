@@ -130,7 +130,7 @@ describe('LessonPlayerPageComponent', () => {
     expect(query(fixture, 'lib-video-player')).toBeNull();
   });
 
-  it('renders not-enrolled panel with view-course CTA and back-to-course link on 403', async () => {
+  it('renders not-enrolled panel with view-course CTA and no secondary back-to-course link on 403', async () => {
     configure();
     const { fixture, http } = create();
     http
@@ -142,9 +142,7 @@ describe('LessonPlayerPageComponent', () => {
     const cta = query(fixture, '[data-testid="view-course-to-enrol"]') as HTMLAnchorElement | null;
     expect(cta).not.toBeNull();
     expect(cta?.getAttribute('href')).toBe('/catalog/c-1');
-    const back = query(fixture, '[data-testid="back-to-course"]') as HTMLAnchorElement | null;
-    expect(back).not.toBeNull();
-    expect(back?.getAttribute('href')).toBe('/catalog/c-1');
+    expect(query(fixture, '[data-testid="back-to-course"]')).toBeNull();
   });
 
   it('renders lesson-not-found panel on 404', async () => {
