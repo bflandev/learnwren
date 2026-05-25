@@ -22,13 +22,38 @@ export default defineConfig({
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'pnpm exec nx serve web',
-    url: 'http://localhost:4200',
-    reuseExistingServer: !process.env['CI'],
-    cwd: workspaceRoot,
-  },
+  /*
+   * Boot the api alongside the web dev server. Most web-e2e specs
+   * (courses, enrollment, learn, videos, materials, publish-gate) talk to
+   * the api at :3333 and seed Firestore via firebase-admin against the
+   * emulators, so the api must be running for the suite to pass. The api
+   * config mirrors apps/api-e2e/playwright.config.ts — fake-mode video and
+   * materials adapters, console email transport, test outbox enabled.
+   */
+  webServer: [
+    {
+      command: 'pnpm exec nx serve web',
+      url: 'http://localhost:4200',
+      reuseExistingServer: !process.env['CI'],
+      cwd: workspaceRoot,
+    },
+    {
+      command: 'node dist/apps/api/main.js',
+      url: 'http://localhost:3333/api/health',
+      reuseExistingServer: !process.env['CI'],
+      cwd: workspaceRoot,
+      timeout: 30000,
+      env: {
+        LEARNWREN_VIDEO_SOURCE_BUCKET: 'learnwren-e2e-source',
+        LEARNWREN_VIDEO_OUTPUT_BUCKET: 'learnwren-e2e-output',
+        LEARNWREN_VIDEO_TRANSCODER: 'fake',
+        LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE: 'true',
+        LEARNWREN_MATERIALS_STORAGE_FAKE: 'true',
+        LEARNWREN_EMAIL_TRANSPORT: 'console',
+        LEARNWREN_TEST_OUTBOX_ENABLED: '1',
+      },
+    },
+  ],
   projects: [
     {
       name: 'chromium',

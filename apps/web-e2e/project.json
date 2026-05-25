@@ -6,5 +6,9 @@
   "implicitDependencies": ["web"],
   "tags": ["scope:web"],
   "// targets": "to see all targets run: nx show project web-e2e --web",
-  "targets": {}
+  "targets": {
+    "e2e": {
+      "dependsOn": ["api:build", { "projects": ["web"], "target": "serve" }]
+    }
+  }
 }
