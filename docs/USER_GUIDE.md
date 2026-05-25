@@ -14,7 +14,7 @@ This guide covers **every feature wired up so far** from two angles:
   configuration for people extending the code.
 
 > [!NOTE]
-> **STATUS: EARLY DEVELOPMENT.** Learn Wren is built in vertical slices. What is
+> **STATUS: ACTIVE DEVELOPMENT.** Learn Wren is built in vertical slices. What is
 > documented below is what is *actually wired end to end today*. Features that are
 > specified but not yet built are listed in [What is not built yet](#what-is-not-built-yet).
 > The product specs in `docs/epics/` and `docs/use-cases/` describe the full intended
@@ -190,9 +190,11 @@ pnpm tools:promote-to-instructor <email>
 - **The user must sign out and sign back in** for the new role to take effect (the
   role is baked into the session).
 
-Against the emulators the tool works with `FIREBASE_AUTH_EMULATOR_HOST` and
-`FIRESTORE_EMULATOR_HOST` exported; against a real project it needs a service-account
-JSON. See the header comment in `tools/promote-to-instructor.ts`.
+The tool targets the local emulators by default — `pnpm emulators` is the only
+prerequisite. To promote against the real project instead, set
+`LEARNWREN_FIREBASE_TARGET=production` together with
+`LEARNWREN_API_FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT_JSON_PATH`.
+See the header comment in `tools/promote-to-instructor.ts`.
 
 Once promoted and re-signed-in, the **`/courses`** area becomes accessible.
 
@@ -235,8 +237,8 @@ Each lesson holds at most one video. In the lesson editor:
    badge** that you can watch (the editor polls every ~5 seconds):
 
    ```
-   PENDING_UPLOAD → UPLOADING → UPLOADED → TRANSCODING → READY
-                                                      ↘ FAILED
+   PENDING_UPLOAD → UPLOADED → TRANSCODING → READY
+                                          ↘ FAILED
    ```
 
    - `UPLOADED` — bytes received; the transcoder validates the file with `ffprobe` and
@@ -259,8 +261,11 @@ default display name, which you can rename inline. **Download** fetches the
 file through a short-lived signed link; **Remove** deletes it after a
 confirmation prompt.
 
-Today, downloads are available to the course owner. Enrolled-student access to
-lesson materials is delivered with the learning experience (EP-06).
+At the API layer, `MaterialAccessGuard` already grants `GET
+/materials/:matId/download-url` to the course owner **or** any
+`ACTIVE`-enrolled student. The student-facing UI to actually browse and
+download materials is part of the learning experience (EP-06) and is not yet
+built — for now, only the instructor has a UI path to these files.
 
 ## 2.10 Publishing a course
 
@@ -482,7 +487,25 @@ Error codes specific to enrollment:
 | `CANNOT_ENROLL_OWN_COURSE` | `409` | The course owner clicked Enroll on their own course. |
 | `NOT_ENROLLED` | `404` | `DELETE` called when the caller has no `ACTIVE` enrollment for that course. |
 
-## 3.7 Video endpoints
+## 3.7 Materials endpoints
+
+Create / list / mutate endpoints require session + `INSTRUCTOR` and are gated
+by `CourseOwnerGuard` or `MaterialOwnerGuard`. The download endpoint widens
+access to ACTIVE-enrolled students via `MaterialAccessGuard`.
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `POST` | `/api/courses/:cid/modules/:mid/lessons/:lid/materials/upload-url` | Validate type + size; create a `PENDING_UPLOAD` material; return a signed upload URL. |
+| `POST` | `/api/materials/:matId/complete` | HEAD-verify the uploaded object; transition the material to `READY`. |
+| `GET`  | `/api/courses/:cid/modules/:mid/lessons/:lid/materials` | List the lesson's `READY` materials. |
+| `PATCH`| `/api/materials/:matId` | Rename a material's display name. |
+| `DELETE` | `/api/materials/:matId` | Remove a material (storage object + metadata). |
+| `GET`  | `/api/materials/:matId/download-url` | Mint a 15-minute signed download URL (owner or enrolled student). |
+
+Supported content types: PDF, DOCX, PPTX, XLSX, TXT, ZIP. Per-file size cap:
+50 MB.
+
+## 3.8 Video endpoints
 
 Upload/management endpoints require session + `INSTRUCTOR`; per-video endpoints add
 `VideoOwnerGuard`.
@@ -522,13 +545,13 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `GET` | `/api/health` | `{ status:"ok", version, serverTime }`. |
 | `GET` | `/api/firestore-smoke` | Writes a doc via the Admin SDK to prove Firestore wiring. |
 
-## 3.8 Web routes
+## 3.9 Web routes
 
 | Path | Guard | Page |
 | :--- | :--- | :--- |
 | `/` | — | Course catalogue (public). |
 | `/catalog` | — | Course catalogue — browse, filter, sort, and paginate PUBLISHED courses. |
-| `/catalog/search` | — | Search results page. |
+| `/search` | — | Search results page (the catalogue search bar navigates here). |
 | `/catalog/:id` | — | Public course detail page; shows the enrollment panel (state varies by auth/enrollment). |
 | `/login` | — | Sign-in page. Honours a `?redirect=` query param on success (used by guest auto-enroll). |
 | `/register` | — | Registration page (mirrors the password policy client-side). |
@@ -540,7 +563,7 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `/courses/new` | `instructorRoleGuard` | Create a course. |
 | `/courses/:id/edit` | `instructorRoleGuard` | Course editor: modules, lessons, video, publish bar. |
 
-## 3.9 Roles and guards
+## 3.10 Roles and guards
 
 | Role | Granted | Can do |
 | :--- | :--- | :--- |
@@ -560,7 +583,7 @@ must **sign out and back in** after a role change.
 | `EnrollmentOrOwnerGuard` | The caller owns the course **or** has an `ACTIVE` enrollment in it. |
 | `PubSubPushGuard` | The transcoder webhook request carries a valid Pub/Sub push token. |
 
-## 3.10 Data models
+## 3.11 Data models
 
 Defined in `libs/shared-data-models` and shared by both apps. IDs are **branded
 strings** (Firestore document IDs); timestamps are **ISO 8601 strings**; enum-like
@@ -589,7 +612,7 @@ fields are **string-literal unions** (not TypeScript enums).
 - **`LessonProgress`** — `lessonId`, `completedAt`, `lastWatchedSeconds` — reserved for
   the EP-06 learning experience.
 
-## 3.11 Video pipeline configuration
+## 3.12 Video pipeline configuration
 
 The `VideoModule` reads its configuration from environment variables
 (`libs/api-courses/src/lib/video/video.config.ts`):
@@ -629,7 +652,7 @@ curl -X POST http://localhost:3333/api/internal/fake-transcoder/fail/<videoId> \
 The fake transcoder wraps the payload in the same Pub/Sub push envelope the real
 webhook expects, so it exercises the identical `TranscoderEventsController` code path.
 
-## 3.12 Developer commands
+## 3.13 Developer commands
 
 | Command | Description |
 | :--- | :--- |
