@@ -10,6 +10,7 @@ import type {
   LessonId,
   LessonView,
   ModuleId,
+  UserId,
 } from '@learnwren/shared-data-models';
 
 import { LessonEnrollmentOrOwnerGuard } from './guards/lesson-enrollment-or-owner.guard';
@@ -51,12 +52,16 @@ const LESSON_VIEW: LessonView = {
     videoId: null,
     videoState: null,
   },
+  progress: null,
 };
+
+const USER_ID = 'student-1' as UserId;
 
 function makeReq(overrides: Partial<LessonScopedRequest> = {}): LessonScopedRequest {
   return {
     course: COURSE,
     lesson: LESSON,
+    user: { uid: USER_ID, email: 'student@test.com', role: 'STUDENT', emailVerified: true },
     params: { cid: CID, lid: LID },
     ...overrides,
   } as LessonScopedRequest;
@@ -91,7 +96,7 @@ describe('LearnController', () => {
   it('calls getLessonView with req.course and req.lesson and returns the result', async () => {
     const req = makeReq();
     const result = await ctrl.getLesson(req);
-    expect(svc.getLessonView).toHaveBeenCalledWith(COURSE, LESSON);
+    expect(svc.getLessonView).toHaveBeenCalledWith(USER_ID, COURSE, LESSON);
     expect(result).toBe(LESSON_VIEW);
   });
 

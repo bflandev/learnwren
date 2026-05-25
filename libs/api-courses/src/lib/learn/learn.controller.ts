@@ -21,6 +21,6 @@ export class LearnController {
       // Should be unreachable — the guard always attaches both on allow.
       throw new Error('LearnController: guard did not attach course/lesson');
     }
-    return this.service.getLessonView(req.course, req.lesson);
+    return this.service.getLessonView(req.user!.uid, req.course, req.lesson);
   }
 }
