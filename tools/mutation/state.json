@@ -1,0 +1,18 @@
+{
+  "threshold": 75,
+  "maxIterations": 20,
+  "iteration": 0,
+  "modules": [
+    { "name": "shared-data-models", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "api-firebase", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "api-auth", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "api-courses", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "web-ui", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "web-auth", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "web-courses", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "web-catalog", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "web-enrollment", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "web-learn", "status": "pending", "score": null, "iterations": 0, "notes": "" },
+    { "name": "web-video", "status": "pending", "score": null, "iterations": 0, "notes": "" }
+  ]
+}
