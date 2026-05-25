@@ -12,7 +12,7 @@ import { LessonPlayerPageComponent } from './lesson-player-page.component';
 
 function makeView(
   overrides: Partial<LessonView['lesson']> = {},
-  progress: LessonView['progress'] = { completedAt: null },
+  progress: LessonView['progress'] = { completedAt: null, lastWatchedSeconds: 0 },
 ): LessonView {
   return {
     course: { id: 'c-1' as LessonView['course']['id'], title: 'Test Course', status: 'PUBLISHED' },
@@ -271,6 +271,121 @@ describe('LessonPlayerPageComponent', () => {
       fixture.detectChanges();
 
       expect(query(fixture, '[data-testid="mark-error-other"]')).not.toBeNull();
+    });
+  });
+
+  describe('resume on metadata', () => {
+    it('seeks to the saved lastWatchedSeconds when 0 < saved < duration - 5', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 30 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const seek = vi
+        .spyOn(fixture.componentInstance, 'seekVideoTo')
+        .mockImplementation(() => undefined);
+
+      fixture.componentInstance.onMetadata(60);
+      expect(seek).toHaveBeenCalledWith(30);
+    });
+
+    it('clamps to duration - 5 when saved is within 5 s of the end', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 58 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const seek = vi
+        .spyOn(fixture.componentInstance, 'seekVideoTo')
+        .mockImplementation(() => undefined);
+
+      fixture.componentInstance.onMetadata(60);
+      expect(seek).toHaveBeenCalledWith(55);
+    });
+
+    it('resets to 0 when saved >= duration (UC-06-03 ext 5b)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 120 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const seek = vi
+        .spyOn(fixture.componentInstance, 'seekVideoTo')
+        .mockImplementation(() => undefined);
+
+      fixture.componentInstance.onMetadata(60);
+      expect(seek).toHaveBeenCalledWith(0);
+    });
+
+    it('does not seek when saved is 0', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const seek = vi
+        .spyOn(fixture.componentInstance, 'seekVideoTo')
+        .mockImplementation(() => undefined);
+
+      fixture.componentInstance.onMetadata(60);
+      expect(seek).not.toHaveBeenCalled();
+    });
+
+    it('does not seek in owner-preview mode', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, null));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const seek = vi
+        .spyOn(fixture.componentInstance, 'seekVideoTo')
+        .mockImplementation(() => undefined);
+
+      fixture.componentInstance.onMetadata(60);
+      expect(seek).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('position saver wiring', () => {
+    it('does not start the saver in owner-preview mode', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, null));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // Simulate the player emitting (played); in owner-preview the saver
+      // must NOT be started, so no POST /position should ever fire.
+      fixture.componentInstance.onPlayed();
+
+      // Verify there are no outstanding requests to /position.
+      http.expectNone('/api/learn/courses/c-1/lessons/l-1/position');
+    });
+
+    it('switches state to NOT_ENROLLED when the saver reports revocation', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      fixture.componentInstance.onSaverRevoked();
+      expect(fixture.componentInstance.state()).toBe('NOT_ENROLLED');
     });
   });
 });

@@ -37,7 +37,12 @@
     }
 
     @if (state() === 'READY' && v.lesson.videoId; as vid) {
-      <lib-video-player [videoId]="vid" />
+      <lib-video-player
+        [videoId]="vid"
+        (metadata)="onMetadata()"
+        (played)="onPlayed()"
+        (paused)="onPaused()"
+        (ended)="onEnded()" />
     } @else {
       <div class="rounded border p-6 bg-amber-50" data-testid="video-processing">
         This lesson's video is still being processed. Please check back later.
