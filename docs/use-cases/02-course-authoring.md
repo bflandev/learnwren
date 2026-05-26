@@ -3,7 +3,7 @@
 This document contains the fully-dressed Cockburn use cases for course creation, module and lesson management, and publication.
 
 > [!NOTE]
-> **DRIFT — this spec no longer matches the implementation.** Frozen 2026-03-27 and not reconciled since. The CRUD core is faithful, but cover image is now an editor-only flow (UC-02-05) rather than a create-form field (UC-02-01), module creation prompts for a title instead of generating a default (UC-02-02), lesson deletion cascades to the video and materials (UC-02-03), and the publish gate adds an eligibility-preview surface and a restore transition beyond UC-02-04. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-02--course-authoring).
+> **STATUS: IMPLEMENTED (2026-05-26).** UC-02-01 through UC-02-05 are all wired up — see `docs/superpowers/specs/2026-05-12-course-authoring-design.md`, `2026-05-20-publish-gate-slice-d-design.md`, and `2026-05-25-cover-image-upload-design.md`. The CRUD core is faithful to the original use cases; deliberate divergences (called out explicitly in the design specs and preserved below for historical record): cover image is an editor-only flow (UC-02-05) rather than a create-form field (UC-02-01); module creation prompts for a title rather than auto-generating one (UC-02-02); lesson deletion cascades to the video and attached materials (UC-02-03); the publish gate adds an eligibility-preview surface and an Archive→DRAFT restore transition beyond what UC-02-04 originally enumerated. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-02--course-authoring) for the per-UC detail.
 
 ---
 

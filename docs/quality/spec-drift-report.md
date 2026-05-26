@@ -31,12 +31,12 @@ carries at least minor drift.
 
 | Epic | Use cases | Drift level | Headline |
 |---|---|---|---|
-| EP-01 — User Identity & Access | 4 | **Major** | UC-01-03 and UC-01-04 entirely unbuilt; 2 behavioral contradictions |
-| EP-02 — Course Authoring | 4 | **Moderate** | CRUD core faithful; module-title flow inverted, publish slice over-built |
-| EP-03 — Video Management & DRM | 5 | **Major (architectural)** | Specs assume commercial multi-DRM; code is a scoped-down HLS + AES-128 pipeline |
-| EP-04 — Lesson Materials | 2 | **Minor (2026-05-26)** | UC-04-01 faithful; UC-04-02 student download now implemented |
-| EP-05 — Course Discovery & Enrollment | 5 | **Deferred** | Entirely unbuilt; documented as deferred |
-| EP-06 — Learning Experience | 4 | **Partial** | UC-06-01 built (Slice A); UC-06-02 built (Slice B, 2026-05-25); UC-06-03/04 deferred |
+| EP-01 — User Identity & Access | 4 | **Partial (2026-05-26)** | UC-01-01/02 built; UC-01-03/04 unbuilt; 2 minor behavioral divergences on shipped UCs |
+| EP-02 — Course Authoring | 5 | **Reconciled (2026-05-26)** | UC-02-01..05 all built; UC-02-05 (cover image) added; divergences are documented design choices |
+| EP-03 — Video Management & DRM | 5 | **Reconciled (2026-05-26)** | UC-03-01..04 built as scoped-down HLS + AES-128 (intentional); UC-03-05 unbuilt (admin scope → EP-08) |
+| EP-04 — Lesson Materials | 2 | **Reconciled (2026-05-26)** | UC-04-01/02 both built; UC-04-02 student download landed in `af5a928` |
+| EP-05 — Course Discovery & Enrollment | 5 | **Reconciled (2026-05-22)** | UC-05-01..05 all built across Slice A (discovery) and Slice B (enrolment) |
+| EP-06 — Learning Experience | 4 | **Reconciled (2026-05-26)** | UC-06-01..04 all built across Slices A–D; module/course rollups deferred post-MVP |
 
 ### Three kinds of drift
 
@@ -273,69 +273,77 @@ cases. The previously listed UC-04-02 drifts below are stale and resolved.
 
 ## EP-05 — Course Discovery and Enrollment
 
-**Drift: Deferred — entirely unbuilt.** The README's "deferred" claim is accurate.
-There is no catalogue, search, course-detail, or enrolment surface: the only
-listing endpoint returns the caller's *own* courses, not a public catalogue
-(`courses.controller.ts:60-63`); there are no enrolment endpoints, service, or
-repository; the web app has no discovery routes.
-
-- **BEYOND SPEC / model-ahead-of-use-case** · Medium — `Enrollment` and
-  `LessonProgress` interfaces are defined in
-  `libs/shared-data-models/src/lib/enrollment.ts` and re-exported from `index.ts`,
-  with no repository, service, or consumer behind them. An inert contract that
-  overstates readiness.
-
-Unbuilt use cases: UC-05-01 Browse the Catalogue · UC-05-02 Search · UC-05-03 View
-Course Detail · UC-05-04 Enrol · UC-05-05 Unenrol.
+**Drift: Reconciled (2026-05-22).** All five UCs are now built across two slices.
+Slice A shipped UC-05-01..03 (browse, search, course-detail) — see
+`docs/superpowers/specs/2026-05-22-course-discovery-slice-a-design.md`.
+Slice B shipped UC-05-04..05 (enrol, unenrol with 90-day progress retention) — see
+`2026-05-22-ep05-slice-b-enrolment-design.md`. The previously listed forward-hook
+drifts (inert `Enrollment` / `LessonProgress` types, missing endpoints) are now
+stale and resolved.
 
 ---
 
 ## EP-06 — Learning Experience
 
-**Drift: Partially built (2026-05-25).** UC-06-01 (Watch a Lesson Video) ships as the
-minimal "player only" page — see
-`docs/superpowers/specs/2026-05-25-ep06-slice-a-student-playback-design.md`. An
-authenticated enrolled student (or the course owner) lands on `/learn/:cid/:lid` via
-a **Start Learning** button on the course detail page and watches the lesson video in
-the existing hls.js player. The lesson page intentionally omits the materials list,
-prev/next navigation, and the course-outline panel — those are deferred.
+**Drift: Reconciled (2026-05-26).** All four UCs ship across four vertical slices on
+2026-05-25.
 
-The previously listed forward-hook drifts are now stale and resolved:
+- **UC-06-01 — Watch a Lesson Video (Slice A).** Enrolled students (and the course
+  owner) land on `/learn/:cid/:lid` via the **Start Learning** button on the course
+  detail page and watch the lesson video in the existing hls.js player. See
+  `docs/superpowers/specs/2026-05-25-ep06-slice-a-student-playback-design.md`. A new
+  course-scoped `LessonEnrollmentOrOwnerGuard` gates the new
+  `/api/learn/courses/:cid/lessons/:lid` endpoint.
+- **UC-06-02 — Mark a Lesson Complete (Slice B).** Enrolled students click
+  **Mark as Complete**; the API writes `completedAt` on their per-lesson progress
+  (idempotent, transactional). The page swaps the button for a "✓ Completed" pill that
+  persists across reload and across a `WITHDRAWN → ACTIVE` re-enrolment. See
+  `2026-05-25-ep06-slice-b-mark-complete-design.md`. Module/course completion
+  rollups and the "Course Completed" badge (UC-06-02 extensions 3a/3b) are deliberate
+  scope cuts.
+- **UC-06-03 — Resume Learning (Slice C).** Opening a lesson is tracked per-enrolment;
+  the course-detail page surfaces **Continue Learning** (falling back to **Start
+  Learning** for new enrolments and owners); the player auto-saves every ~15s and
+  flushes on pause / `pagehide` / tab-hidden via `navigator.sendBeacon`. Position
+  writes are idempotent and monotonic. See
+  `2026-05-25-ep06-slice-c-resume-learning-design.md`.
+- **UC-06-04 — Navigate the Course Outline (Slice D).** The lesson player renders a
+  collapsible left sidebar (desktop) or drawer (mobile) listing every module and
+  lesson; the active row is highlighted; completed rows carry a checkmark;
+  non-`READY` rows surface an inline notice. Clicking a different lesson flushes any
+  in-flight playback position and navigates. See
+  `2026-05-25-ep06-slice-d-course-outline-design.md`. Post-MVP follow-up on
+  2026-05-26 fixed an Angular route-reuse bug (`bf7ea20`): the page now subscribes to
+  `ActivatedRoute.paramMap` instead of reading the snapshot, so outline-driven nav
+  re-fetches the LessonView correctly.
 
-- `EnrollmentOrOwnerGuard` was widened to grant `owner OR active enrolment on a
-  PUBLISHED course` as part of EP-05 Slice B; the `TODO(EP-06)` marker is gone.
-- `MaterialAccessGuard` was widened the same way in EP-05 Slice B.
-
-A course-scoped sibling, `LessonEnrollmentOrOwnerGuard`, was added in Slice A for
-the new `/api/learn/courses/:cid/lessons/:lid` endpoint.
-
-**Slice B (2026-05-25)** ships UC-06-02 Mark a Lesson Complete — see
-`docs/superpowers/specs/2026-05-25-ep06-slice-b-mark-complete-design.md`. Enrolled
-students click **Mark as Complete** on the lesson page; the API writes `completedAt`
-on their per-lesson progress (idempotent, transactional). The lesson page surfaces a
-"✓ Completed" pill in place of the button; the pill persists across reload and across
-a `WITHDRAWN → ACTIVE` re-enrolment. A new owner-rejecting guard
-`LessonEnrollmentGuard` gates the new POST endpoint. Module/course completion
-rollups and the "Course Completed" badge remain deferred to whichever slice lands the
-course-outline panel.
-
-Unbuilt use cases: UC-06-03 Resume Learning · UC-06-04 Navigate the Course Outline.
+The previously listed forward-hook drifts (TODO(EP-06) guards, deferred UCs) are now
+stale and resolved.
 
 ---
 
 ## Recommendations
 
-1. **Reconcile the DRM architecture story (highest priority).** Decide whether the
-   AES-128 HLS pipeline is the intended end state or an interim step. Update
-   UC-03-03/04/05 and confirm `docs/epics/TECHNICAL_ARCHITECTURE.md` reflects the
-   shipped design — CLAUDE.md requires architecture changes to be spec-led.
-2. **Capture the five undocumented behavioral changes** (see the table above) in
-   the use cases or the design specs so the spec stops contradicting the code.
-3. **Mark deferred use cases as deferred** in `docs/use-cases/` (EP-05, EP-06,
-   UC-01-03, UC-01-04, UC-03-05) so readers do not
-   mistake them for current MVP behavior.
+1. **Reconcile the DRM architecture story.** ✅ Addressed 2026-05-26 — the EP-03
+   DRIFT note in `docs/use-cases/03-video-management-and-drm.md` and the EP-03
+   section above now declare the scoped-down HLS + AES-128 + session-cookie pipeline
+   the intended end state for the self-hosted small-community MVP. `docs/epics/
+   TECHNICAL_ARCHITECTURE.md` should still be cross-checked against the shipped
+   design.
+2. **Capture the undocumented behavioral changes** in the use cases or the design
+   specs so the spec stops contradicting the code. Partially addressed 2026-05-26:
+   the EP-01 and EP-02 DRIFT notes now call out the divergences (registration auto-
+   auths pre-verification; suspended-account error code; module-title prompt; lesson-
+   delete cascade; publish-gate eligibility-preview + restore). The 5% upload-size
+   tolerance (`SIZE_TOLERANCE = 1.05`) is still undocumented in the UCs.
+3. **Mark unbuilt use cases.** ✅ Addressed 2026-05-26 — only **UC-01-03 (Manage
+   Profile)**, **UC-01-04 (Request Instructor Role)**, and **UC-03-05 (Manage Video
+   Storage)** remain unbuilt in MVP scope; each is called out in the relevant
+   epic's DRIFT note. EP-05 and EP-06 are fully built.
 4. **Re-label the publish gate** consistently — it is UC-02-04 (EP-02), not
-   "EP-03 slice D".
-5. **Decide on the `Enrollment`/`LessonProgress` types** — either keep them with a
-   comment that they are forward declarations, or remove them until EP-05/06 work
-   begins.
+   "EP-03 slice D". Two references remain in this report (above); historical plan
+   docs under `docs/superpowers/plans/` are post-implementation summaries and need
+   not be rewritten.
+5. **Decide on the `Enrollment`/`LessonProgress` types.** ✅ Resolved by EP-05
+   Slice B — `Enrollment` and `LessonProgress` are now load-bearing with a real
+   repository, service, and HTTP surface.
