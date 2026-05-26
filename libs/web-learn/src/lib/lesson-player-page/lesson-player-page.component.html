@@ -30,60 +30,90 @@
     <button class="mt-4 underline" type="button" (click)="retry()">Retry</button>
   </div>
 } @else if (view(); as v) {
-  <article class="space-y-4">
-    <h1 class="text-2xl font-semibold">{{ v.lesson.title }}</h1>
-    @if (v.lesson.description) {
-      <p class="text-sm text-gray-700">{{ v.lesson.description }}</p>
-    }
+  <div>
+    <div class="mb-4">
+      <button
+        type="button"
+        data-testid="outline-toggle"
+        [attr.aria-expanded]="outlineOpen()"
+        aria-controls="course-outline-panel"
+        (click)="toggleOutline()"
+      >
+        Course outline
+      </button>
+    </div>
 
-    @if (state() === 'READY' && v.lesson.videoId; as vid) {
-      <lib-video-player
-        [videoId]="vid"
-        (metadata)="onMetadata()"
-        (played)="onPlayed()"
-        (paused)="onPaused()"
-        (videoEnded)="onEnded()" />
-    } @else {
-      <div class="rounded border p-6 bg-amber-50" data-testid="video-processing">
-        This lesson's video is still being processed. Please check back later.
+    <div class="lg:grid lg:grid-cols-[20rem_1fr]">
+      @if (outline(); as o) {
+        <lib-course-outline-panel
+          id="course-outline-panel"
+          [outline]="o"
+          [activeLessonId]="lessonId"
+          [courseId]="courseId"
+          [mode]="outlineMode()"
+          [outlineOpen]="outlineOpen()"
+          (outlineOpenChange)="outlineOpen.set($event)"
+          (lessonSelected)="onLessonSelected($event)"
+        />
+      }
+      <div>
+        <article class="space-y-4">
+          <h1 class="text-2xl font-semibold">{{ v.lesson.title }}</h1>
+          @if (v.lesson.description) {
+            <p class="text-sm text-gray-700">{{ v.lesson.description }}</p>
+          }
+
+          @if (state() === 'READY' && v.lesson.videoId; as vid) {
+            <lib-video-player
+              [videoId]="vid"
+              (metadata)="onMetadata()"
+              (played)="onPlayed()"
+              (paused)="onPaused()"
+              (videoEnded)="onEnded()" />
+          } @else {
+            <div class="rounded border p-6 bg-amber-50" data-testid="video-processing">
+              This lesson's video is still being processed. Please check back later.
+            </div>
+          }
+
+          <section class="mt-4">
+            @if (isOwnerPreview()) {
+              <p data-testid="instructor-preview-hint" class="text-sm text-gray-500 italic">
+                (Instructor preview — progress not tracked)
+              </p>
+            } @else if (completedAt(); as ts) {
+              <span data-testid="completed-pill"
+                    class="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-sm text-green-800"
+                    aria-disabled="true">
+                ✓ Completed on {{ ts | date: 'mediumDate' }}
+              </span>
+            } @else {
+              <button data-testid="mark-complete"
+                      type="button"
+                      class="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+                      [disabled]="markBusy()"
+                      (click)="onMarkComplete()">
+                {{ markBusy() ? 'Marking…' : 'Mark as Complete' }}
+              </button>
+            }
+
+            @if (markError() === 'revoked') {
+              <p data-testid="mark-error-revoked" class="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm">
+                Your enrolment is no longer active.
+                <a class="underline" [routerLink]="['/catalog', courseId]">Back to course</a>
+              </p>
+            } @else if (markError() === 'other') {
+              <p data-testid="mark-error-other" class="mt-3 rounded border border-red-300 bg-red-50 p-3 text-sm">
+                Something went wrong.
+                <button class="underline" type="button" [disabled]="markBusy()" (click)="onMarkComplete()">Retry</button>
+              </p>
+            }
+          </section>
+
+          <a data-testid="back-to-course" class="inline-block underline"
+             [routerLink]="['/catalog', courseId]">← Back to course</a>
+        </article>
       </div>
-    }
-
-    <section class="mt-4">
-      @if (isOwnerPreview()) {
-        <p data-testid="instructor-preview-hint" class="text-sm text-gray-500 italic">
-          (Instructor preview — progress not tracked)
-        </p>
-      } @else if (completedAt(); as ts) {
-        <span data-testid="completed-pill"
-              class="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-sm text-green-800"
-              aria-disabled="true">
-          ✓ Completed on {{ ts | date: 'mediumDate' }}
-        </span>
-      } @else {
-        <button data-testid="mark-complete"
-                type="button"
-                class="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
-                [disabled]="markBusy()"
-                (click)="onMarkComplete()">
-          {{ markBusy() ? 'Marking…' : 'Mark as Complete' }}
-        </button>
-      }
-
-      @if (markError() === 'revoked') {
-        <p data-testid="mark-error-revoked" class="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm">
-          Your enrolment is no longer active.
-          <a class="underline" [routerLink]="['/catalog', courseId]">Back to course</a>
-        </p>
-      } @else if (markError() === 'other') {
-        <p data-testid="mark-error-other" class="mt-3 rounded border border-red-300 bg-red-50 p-3 text-sm">
-          Something went wrong.
-          <button class="underline" type="button" [disabled]="markBusy()" (click)="onMarkComplete()">Retry</button>
-        </p>
-      }
-    </section>
-
-    <a data-testid="back-to-course" class="inline-block underline"
-       [routerLink]="['/catalog', courseId]">← Back to course</a>
-  </article>
+    </div>
+  </div>
 }
