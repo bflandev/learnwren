@@ -566,12 +566,14 @@ test('UC-04-02 student sees the lesson materials section and Download opens a po
   const downloadButton = page.getByTestId(`material-download-${materialId}`);
   await expect(downloadButton).toBeVisible();
 
-  // Click Download — assert a popup opens with a non-empty URL
+  // Click Download — assert a popup opens with a URL targeting THIS material
+  // (fake storage adapter returns /api/internal/fake-materials/<materialId>)
   const popupPromise = context.waitForEvent('page');
   await downloadButton.click();
   const popup = await popupPromise;
-  expect(popup.url()).not.toBe('');
   expect(popup.url()).not.toBe('about:blank');
+  expect(popup.url()).toMatch(/\/fake-materials\//);
+  expect(popup.url()).toContain(materialId);
 });
 
 test('UC-04-02 lesson-materials section is absent when the lesson has no materials', async ({
