@@ -2,25 +2,46 @@
 
 ## Mutation testing
 
-[`mutation-report.md`](./mutation-report.md) is the actionable triage list — survivors clustered by file and nearby lines, each with a plain-English diagnosis and a recommended test. Headline mutation score for `libs/api-auth` is at the top of the report.
+[`mutation-report.md`](./mutation-report.md) is the actionable triage list — survivors clustered by file and nearby lines, each with a plain-English diagnosis and a recommended test. Each lib has a section with a headline, per-file scores, survivor clusters, and an equivalent-mutant candidate list.
 
 ```sh
-pnpm mutate            # full Stryker run on api-auth + regenerate the report
-pnpm mutate:api-auth   # just run Stryker (writes reports/mutation/api-auth/*)
-pnpm mutate:report     # just regenerate docs/quality/mutation-report.md from the JSON
+pnpm mutate                  # full Stryker run across every lib + regenerate the report
+pnpm mutate:api-auth         # just run Stryker for api-auth (writes reports/mutation/api-auth/*)
+pnpm mutate:api-courses      # ditto for api-courses
+pnpm mutate:web-catalog      # ditto for web-catalog
+pnpm mutate:web-enrollment   # ditto for web-enrollment
+pnpm mutate:web-ui           # ditto for web-ui
+pnpm mutate:report           # just regenerate docs/quality/mutation-report.md from the JSONs
 ```
 
-Configuration lives in `stryker.api-auth.config.mjs`. Scope is intentionally narrow on day one — `libs/api-auth/src/lib/**/*.ts` excluding `email-transport/**` (broken spec), `auth.module.ts`, `dto/**`, `types/**`, `errors/**`, and `index.ts`. The runner is `@stryker-mutator/vitest-runner` pointed at `libs/api-auth/vitest.config.mts`.
+Each lib has its own `stryker.<lib>.config.mjs` at the workspace root. The runner is `@stryker-mutator/vitest-runner` pointed at each lib's `vite.config.mts`. Configs exclude DTOs, modules, type-only files, barrel re-exports, and any spec that fails to import its deps in vitest.
 
-The report:
+`tools/mutation/report.mjs` auto-discovers every `reports/mutation/<lib>/mutation.json` and renders one consolidated report. To add a new lib, drop a `stryker.<lib>.config.mjs`, add a `mutate:<lib>` script, and the report picks it up automatically — no edits to `report.mjs` needed (though `LIB_GUIDANCE` there sets the target band per lib; unknown libs render as "unclassified").
 
-- groups survivors into clusters (mutants within 5 lines of each other),
-- translates Stryker mutator names (`ConditionalExpression`, `OptionalChaining`, `BlockStatement`, ...) into the missing-assertion shape they imply,
-- proposes equivalent-mutant candidates (logger string content) but does not silently exclude them — review before adding to the config.
+### Target bands
 
-Auth code targets **90%+** mutation score per the mutation-testing skill. Treat survivors as latent bugs, not as cosmetic gaps.
+Per the mutation-testing skill:
 
-The current score is **88.94% headline** / **97.10% after equivalent-mutant classification** — meeting the auth target. The classifier (in `tools/mutation/report.mjs`) auto-detects three equivalent patterns: (1) string literals inside logger calls (single- and multi-line), (2) `Logger` constructor names, (3) catch blocks whose body is only logging. Other survivors require manual review.
+| Lib | Band | Adjusted target |
+|---|---|---|
+| `api-auth` | auth / billing / auth-adjacent | 90%+ |
+| `api-courses` | core domain logic | 75–85% |
+| `web-catalog`, `web-enrollment`, `web-ui` | glue / orchestration | 50–70% |
+
+### Adjusted vs. raw score
+
+The report shows **two** scores per lib:
+
+- **Raw** — what Stryker emits directly: `killed / (killed + survived + no-cov)`.
+- **Adjusted** — the same with equivalent-mutant candidates dropped from the denominator. This is what the team operates against.
+
+The classifier in `tools/mutation/report.mjs` auto-detects three equivalent patterns:
+
+1. String literals inside logger calls (single- and multi-line),
+2. `Logger` constructor names,
+3. Catch blocks whose body is only logging.
+
+Other survivors require manual review and either a test or an explicit `// Stryker disable next-line all` comment in source. The raw score is preserved so regressions in *real* survivors stay visible even when the adjusted number looks fine.
 
 ## CRAP score
 
@@ -40,7 +61,7 @@ pnpm crap:coverage   # just (re)generate vitest coverage-final.json files
 pnpm crap:report     # just regenerate docs/quality/crap-report.md from existing coverage
 ```
 
-Coverage runs are gathered from these projects: `api-auth`, `api-firebase`, `web-auth`, `shared-data-models`, `api`. The `web` app uses `@angular/build:unit-test` which doesn't emit Istanbul JSON in this workspace yet, so it's omitted.
+Coverage runs are gathered from these projects: `api-auth`, `api-courses`, `api-firebase`, `shared-data-models`, `web-auth`, `web-catalog`, `web-courses`, `web-enrollment`, `web-ui`, `web-video`, `api`. The `web` app uses `@angular/build:unit-test` which doesn't emit Istanbul JSON in this workspace yet, so it's omitted. To add a new lib, append a `coverage/libs/<name>` entry to `COVERAGE_DIRS` in `tools/crap/crap.mjs` and add the project to the `--projects=` list in the `crap:coverage` script.
 
 ### How it works
 

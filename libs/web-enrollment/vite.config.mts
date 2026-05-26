@@ -1,4 +1,5 @@
 /// <reference types='vitest' />
+import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import angular from '@analogjs/vite-plugin-angular';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
@@ -8,10 +9,16 @@ export default defineConfig(() => ({
   root: __dirname,
   cacheDir: '../../node_modules/.vite/libs/web-enrollment',
   plugins: [angular(), nxViteTsPaths(), nxCopyAssetsPlugin(['*.md'])],
-  // Uncomment this if you are using workers.
-  // worker: {
-  //   plugins: () => [ nxViteTsPaths() ],
-  // },
+  // The course-enrollment-panel spec imports AuthService from
+  // @learnwren/web-auth, and that barrel re-exports LoginPageComponent (which
+  // has a templateUrl). @analogjs/vite-plugin-angular fetches the templateUrl
+  // via `?raw`, and vite's default server.fs.allow only includes this lib's
+  // root — so we widen to the workspace root.
+  server: {
+    fs: {
+      allow: [resolve(__dirname, '..', '..')],
+    },
+  },
   test: {
     name: 'web-enrollment',
     watch: false,

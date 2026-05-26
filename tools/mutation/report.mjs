@@ -1,14 +1,13 @@
 #!/usr/bin/env node
-// Mutation report generator. Consumes Stryker's mutation.json and emits a
-// triage-oriented markdown report that clusters survivors by file + line
-// proximity and translates mutator names into plain-English guidance about
-// the missing assertion.
+// Mutation report generator. Auto-discovers every reports/mutation/<lib>/mutation.json,
+// clusters survivors by file + line proximity, and translates mutator names
+// into plain-English guidance about the missing assertion.
 //
-// Usage:
-//   node tools/mutation/report.mjs <module>
-//   node tools/mutation/report.mjs api-courses
-//
-// Defaults to api-auth for backward compat when called with no args.
+// Headline score: each lib has two numbers
+//   - raw: Stryker's own (killed) / (killed + survived + no-cov)
+//   - adjusted: same with equivalent-mutant candidates excluded from the denominator
+// The adjusted score is what the team operates against; the raw score is
+// preserved so regressions stay visible.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,11 +15,8 @@ import url from 'node:url';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
-
-const MODULE = process.argv[2] || 'api-auth';
-const STRYKER_JSON = path.join(REPO_ROOT, `reports/mutation/${MODULE}/mutation.json`);
-const REPORT_PATH = path.join(REPO_ROOT, `docs/quality/mutation-report-${MODULE}.md`);
-const LIB_PREFIX = `libs/${MODULE}/`;
+const REPORTS_ROOT = path.join(REPO_ROOT, 'reports', 'mutation');
+const REPORT_PATH = path.join(REPO_ROOT, 'docs', 'quality', 'mutation-report.md');
 
 const CLUSTER_GAP = 5; // lines
 
@@ -28,54 +24,80 @@ const SKIP_STATUSES = new Set(['Ignored']);
 const KILLED_STATUSES = new Set(['Killed', 'Timeout', 'RuntimeError']);
 const SURVIVOR_STATUSES = new Set(['Survived', 'NoCoverage']);
 
+// Library-specific guidance for thresholds. Lifted from the mutation-testing skill:
+// auth code → 90%+; core domain → 75–85%; glue/orchestration → 50–70%.
+const LIB_GUIDANCE = {
+  'api-auth': {
+    band: 'auth / billing / auth-adjacent — 90%+ target',
+    target: 90,
+  },
+  'api-courses': {
+    band: 'core domain logic — 75–85% target',
+    target: 80,
+  },
+  'web-catalog': {
+    band: 'web glue/orchestration — 50–70% target',
+    target: 60,
+  },
+  'web-enrollment': {
+    band: 'web glue/orchestration — 50–70% target',
+    target: 60,
+  },
+  'web-ui': {
+    band: 'web glue/orchestration — 50–70% target',
+    target: 60,
+  },
+};
+
 function readSourceLine(source, line) {
   return source.split('\n')[line - 1] ?? '';
 }
 
+// Plain-English description of what a surviving mutant of this kind tells you.
 function diagnosisFor(mutator, replacement, originalLine) {
   const stringInLogger = /(logger|console|log)\.(log|warn|error|info|debug)\(/.test(originalLine);
   switch (mutator) {
     case 'StringLiteral':
       if (stringInLogger) {
-        return 'Log message text isn\'t asserted on. Usually intentional — log strings are observability, not behavior.';
+        return 'Log message text isn\'t asserted on. Usually intentional — log strings are observability, not behavior. Candidate to mark as equivalent unless the log content is contractual (e.g. structured fields a downstream parser depends on).';
       }
-      return 'A string literal could be replaced with the empty string and tests still pass.';
+      return 'A string literal could be replaced with the empty string and tests still pass — the test doesn\'t assert on this value.';
     case 'BooleanLiteral':
-      return 'A `true`/`false` literal could be flipped and tests still pass.';
+      return 'A `true`/`false` literal could be flipped and tests still pass. Add an assertion that pins the boolean.';
     case 'ConditionalExpression':
       if (replacement === 'true' || replacement === 'false') {
-        return 'The condition\'s outcome isn\'t observed. Add a test that drives both sides with distinguishing assertions.';
+        return 'The condition\'s outcome isn\'t observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.';
       }
-      return 'A ternary or conditional could be replaced and tests still pass.';
+      return 'A ternary or conditional could be replaced and tests still pass. Cover both branches with distinct assertions.';
     case 'EqualityOperator':
-      return 'An equality / inequality operator could be flipped and tests still pass.';
+      return 'An equality / inequality operator could be flipped (`==`↔`!=`, `===`↔`!==`) and tests still pass. Test both equal and unequal inputs at the boundary.';
     case 'RelationalOperator':
-      return 'A boundary operator could be flipped without test failure. Add the off-by-one case.';
+      return 'A boundary operator (`<`, `<=`, `>`, `>=`) could be flipped without test failure. Add the off-by-one case.';
     case 'LogicalOperator':
-      return '`&&` / `||` swap survived. Add a test for the partial case.';
+      return '`&&` / `||` swap survived: short-circuit semantics aren\'t exercised. Add a test for the partial case where one operand is true and the other false.';
     case 'ArithmeticOperator':
       return 'An arithmetic operator could be replaced. Pin the math with a deterministic input/output pair.';
     case 'UpdateOperator':
-      return '`++` / `--` could be swapped.';
+      return '`++` / `--` could be swapped. The counter\'s direction isn\'t asserted.';
     case 'OptionalChaining':
-      return 'Removing `?.` didn\'t break tests. Add a case where the parent is null/undefined.';
+      return 'Removing `?.` from an access didn\'t break tests — every test exercises the path where the parent exists. Add a case where the parent is null/undefined to lock in defensive access.';
     case 'BlockStatement':
-      return 'An entire block could be deleted without test failure.';
+      return 'An entire block could be deleted without test failure: the side effect inside it is not observed. Assert on the change it makes (state, mock call, returned value).';
     case 'MethodExpression':
     case 'ArrowFunction':
-      return 'A method/arrow body could be emptied with no test failing.';
+      return 'A method/arrow body could be emptied with no test failing. The function is called but its effect isn\'t asserted.';
     case 'ArrayDeclaration':
-      return 'An array literal could be replaced with `[]` and tests pass.';
+      return 'An array literal could be replaced with `[]` and tests pass. The contents (length, ordering, item shape) are not pinned.';
     case 'ObjectLiteral':
-      return 'An object literal could be replaced with `{}` and tests pass.';
+      return 'An object literal could be replaced with `{}` and tests pass. The shape isn\'t asserted — only that something object-like is returned.';
     case 'AssignmentOperator':
-      return 'An assignment operator could be swapped.';
+      return 'An assignment operator could be swapped (e.g. `+=` ↔ `-=`) without test failure.';
     case 'UnaryOperator':
-      return 'A unary operator could be flipped.';
+      return 'A unary operator (`+`, `-`, `!`) could be flipped without test failure.';
     case 'Regex':
-      return 'A regex literal could be replaced with `/.*/`.';
+      return 'A regex literal could be replaced with `/.*/` and tests pass. Assert against inputs that should and should not match.';
     default:
-      return `Mutator \`${mutator}\` survived.`;
+      return `Mutator \`${mutator}\` survived. Look at the line and ask: if a colleague made this exact change in a PR, would any test fail?`;
   }
 }
 
@@ -85,30 +107,31 @@ function recommendTest(cluster) {
   const fnHint = cluster.functionHint ? ` in \`${cluster.functionHint}\`` : '';
   switch (dominant) {
     case 'StringLiteral':
-      return `Pin the literal value at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}.`;
+      return `Add an assertion that pins the literal value at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}. If it's a log message, classify as equivalent.`;
     case 'BooleanLiteral':
     case 'ConditionalExpression':
-      return `Drive both sides of the conditional at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}.`;
+      return `Add a test that drives both sides of the conditional at \`${fileShort}.ts:${cluster.startLine}\`${fnHint} with assertions that distinguish the outcomes.`;
     case 'EqualityOperator':
     case 'RelationalOperator':
-      return `Add a boundary test at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}.`;
+      return `Add a boundary test that exercises the equal / off-by-one case at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}.`;
     case 'LogicalOperator':
-      return `Test the partial case for the logical expression at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}.`;
+      return `Add a test where one operand of the logical expression at \`${fileShort}.ts:${cluster.startLine}\`${fnHint} is true and the other is false.`;
     case 'OptionalChaining':
-      return `Add a null/undefined parent case at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}.`;
+      return `Add a test where the optional-chained parent is undefined / null at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}.`;
     case 'BlockStatement':
     case 'MethodExpression':
     case 'ArrowFunction':
-      return `Assert on the side effect at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}.`;
+      return `Add an assertion on the side effect of the block/function at \`${fileShort}.ts:${cluster.startLine}\`${fnHint} — verify state change, mock invocation, or returned value.`;
     case 'ArrayDeclaration':
     case 'ObjectLiteral':
-      return `Assert on array length / object shape at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}.`;
+      return `Assert on the array length / object shape returned at \`${fileShort}.ts:${cluster.startLine}\`${fnHint}, not just truthiness.`;
     default:
-      return `Inspect \`${fileShort}.ts:${cluster.startLine}\`${fnHint}.`;
+      return `Inspect \`${fileShort}.ts:${cluster.startLine}\`${fnHint} and add an assertion that distinguishes the original from the surviving mutation.`;
   }
 }
 
 function inferFunctionHint(source, line) {
+  // Walk upward looking for the nearest enclosing function-ish line.
   const lines = source.split('\n');
   for (let i = line - 1; i >= 0; i--) {
     const l = lines[i];
@@ -128,7 +151,12 @@ function clusterMutants(mutants, source, filePath) {
   for (const m of sorted) {
     const startLine = m.location.start.line;
     if (!cur || startLine - cur.endLine > CLUSTER_GAP) {
-      cur = { file: filePath, startLine, endLine: m.location.end.line, mutants: [] };
+      cur = {
+        file: filePath,
+        startLine,
+        endLine: m.location.end.line,
+        mutants: [],
+      };
       clusters.push(cur);
     } else {
       cur.endLine = Math.max(cur.endLine, m.location.end.line);
@@ -149,6 +177,9 @@ function isLikelyLoggerLine(source, line) {
   return /(logger|console|log)\.(log|warn|error|info|debug)\(/.test(readSourceLine(source, line));
 }
 
+// Walk backward up to 8 lines looking for an unclosed `logger.X(` call. Used
+// to detect string literals / logical operators inside multi-line logger
+// invocations, where the mutant line itself doesn't contain `logger.`.
 function isInsideLoggerCall(source, line) {
   const lines = source.split('\n');
   let openParens = 0;
@@ -161,14 +192,20 @@ function isInsideLoggerCall(source, line) {
     if (openParens > 0 && /(logger|console|log)\.(log|warn|error|info|debug)\(/.test(l)) {
       return true;
     }
+    // If we crossed a non-comment statement terminator without finding logger, stop.
     if (i < line - 1 && /;\s*$/.test(l)) break;
   }
   return false;
 }
 
+// Detect catch blocks whose entire body is a single logger.X(...) call. A
+// BlockStatement mutant emptying such a catch is observably equivalent —
+// both versions silently swallow the error.
 function isCatchWithOnlyLogging(source, line) {
   const lines = source.split('\n');
   if (!/}?\s*catch(\s|\()/.test(lines[line - 1] ?? '')) return false;
+  // Body starts on the line after the catch header. We assume depth=1 right
+  // inside the catch and walk until matching `}`.
   let depth = 1;
   let sawLogger = false;
   let sawNonLogger = false;
@@ -177,6 +214,8 @@ function isCatchWithOnlyLogging(source, line) {
     if (/(logger|console|log)\.(log|warn|error|info|debug)\(/.test(l)) {
       sawLogger = true;
     } else if (/\S/.test(l)) {
+      // Allow lines that are just continuations (closing brackets, commas,
+      // string literals on their own line) of a multi-line logger call.
       const stripped = l.trim();
       const isContinuation =
         /^[)\]},;]/.test(stripped) || /^['"`]/.test(stripped) || /^\/\//.test(stripped);
@@ -193,7 +232,12 @@ function isCatchWithOnlyLogging(source, line) {
 
 function isLikelyEquivalent(mutant, source) {
   const line = readSourceLine(source, mutant.location.start.line);
+
+  // Class-name string passed to `new Logger(...)`.
   if (mutant.mutatorName === 'StringLiteral' && /new\s+Logger\(/.test(line)) return true;
+
+  // String literal directly inside a logger call (single-line) or inside a
+  // multi-line logger call.
   if (
     (mutant.mutatorName === 'StringLiteral' || mutant.mutatorName === 'LogicalOperator' ||
       mutant.mutatorName === 'MethodExpression') &&
@@ -202,23 +246,42 @@ function isLikelyEquivalent(mutant, source) {
   ) {
     return true;
   }
+
+  // BlockStatement on a catch whose body is only logging — swallowing equals swallowing.
   if (mutant.mutatorName === 'BlockStatement' && isCatchWithOnlyLogging(source, mutant.location.start.line)) {
     return true;
   }
+
   return false;
 }
 
-function escapeForRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function equivalenceReason(mutant, source) {
+  const line = readSourceLine(source, mutant.location.start.line);
+  if (/new\s+Logger\(/.test(line)) {
+    return 'Logger name passed to `new Logger(...)` — observability, not behavior.';
+  }
+  if (mutant.mutatorName === 'BlockStatement') {
+    return 'Catch block contains only logging — emptying it preserves the silent-swallow behavior.';
+  }
+  if (mutant.mutatorName === 'LogicalOperator' || mutant.mutatorName === 'MethodExpression') {
+    return 'Operator/expression inside a logger call — affects log content only, not behavior.';
+  }
+  return 'String literal inside a logger call — log content is observability, not behavior.';
 }
 
-function buildReport(report, moduleName) {
+// ---------------------------------------------------------------------------
+// Per-lib processing
+
+function processLib(libName, strykerReport) {
   const allMutants = [];
   const fileSummaries = [];
-  for (const [filePath, fileData] of Object.entries(report.files)) {
+  for (const [filePath, fileData] of Object.entries(strykerReport.files)) {
     const fileMutants = (fileData.mutants || []).map((m) => ({ ...m, file: filePath, source: fileData.source }));
     allMutants.push(...fileMutants);
-    let killed = 0, survived = 0, noCov = 0, ignored = 0;
+    let killed = 0;
+    let survived = 0;
+    let noCov = 0;
+    let ignored = 0;
     for (const m of fileMutants) {
       if (KILLED_STATUSES.has(m.status)) killed += 1;
       else if (m.status === 'Survived') survived += 1;
@@ -230,62 +293,122 @@ function buildReport(report, moduleName) {
     fileSummaries.push({ file: filePath, killed, survived, noCov, ignored, score });
   }
 
-  let totalKilled = 0, totalSurvived = 0, totalNoCov = 0, totalIgnored = 0;
+  let totalKilled = 0,
+    totalSurvived = 0,
+    totalNoCov = 0,
+    totalIgnored = 0;
   for (const m of allMutants) {
     if (KILLED_STATUSES.has(m.status)) totalKilled += 1;
     else if (m.status === 'Survived') totalSurvived += 1;
     else if (m.status === 'NoCoverage') totalNoCov += 1;
     else if (SKIP_STATUSES.has(m.status)) totalIgnored += 1;
   }
-  const totalDenom = totalKilled + totalSurvived + totalNoCov;
-  const totalScore = totalDenom === 0 ? 100 : (totalKilled / totalDenom) * 100;
+  const denom = totalKilled + totalSurvived + totalNoCov;
+  const rawScore = denom === 0 ? 100 : (totalKilled / denom) * 100;
   const coveredScore = totalKilled + totalSurvived === 0 ? 100 : (totalKilled / (totalKilled + totalSurvived)) * 100;
 
   const survivors = allMutants.filter((m) => SURVIVOR_STATUSES.has(m.status));
   const equivalentCandidates = survivors.filter((m) => isLikelyEquivalent(m, m.source));
   const realSurvivors = survivors.filter((m) => !isLikelyEquivalent(m, m.source));
 
-  const survivorsByFile = new Map();
-  for (const m of realSurvivors) {
-    if (!survivorsByFile.has(m.file)) survivorsByFile.set(m.file, []);
-    survivorsByFile.get(m.file).push(m);
-  }
+  // Adjusted score subtracts equivalent candidates from the denominator. The
+  // numerator stays the same (real kills) — equivalents drop out entirely
+  // rather than being counted as kills, which is the honest accounting per the
+  // mutation-testing skill: a mutation that is observably indistinguishable
+  // from the original cannot be "killed" by any test.
+  const adjDenom = Math.max(1, denom - equivalentCandidates.length);
+  const adjustedScore = (totalKilled / adjDenom) * 100;
 
-  const prefixRe = new RegExp('^' + escapeForRegex(LIB_PREFIX));
+  return {
+    libName,
+    fileSummaries,
+    totalKilled,
+    totalSurvived,
+    totalNoCov,
+    totalIgnored,
+    rawScore,
+    coveredScore,
+    adjustedScore,
+    equivalentCandidates,
+    realSurvivors,
+    allMutants,
+  };
+}
 
+function verdictFor(libName, adjustedScore) {
+  const g = LIB_GUIDANCE[libName];
+  if (!g) return { band: 'unclassified', emoji: '⚪', target: null };
+  const emoji = adjustedScore >= g.target ? '✅' : adjustedScore >= g.target - 5 ? '⚠️' : '❌';
+  return { ...g, emoji };
+}
+
+// ---------------------------------------------------------------------------
+// Report rendering
+
+function renderHeadline(libResults) {
   const out = [];
-  out.push(`# Mutation Test Report — \`libs/${moduleName}\``);
+  out.push('## Headline');
   out.push('');
-  out.push(`> Generated ${new Date().toISOString()}`);
+  out.push('| Lib | Raw score | Adjusted¹ | Band | Verdict |');
+  out.push('|-----|-----------|-----------|------|---------|');
+  for (const r of libResults) {
+    const v = verdictFor(r.libName, r.adjustedScore);
+    out.push(
+      `| \`${r.libName}\` | ${r.rawScore.toFixed(2)}% | **${r.adjustedScore.toFixed(2)}%** | ${v.band} | ${v.emoji} |`,
+    );
+  }
   out.push('');
   out.push(
-    `**Headline mutation score: ${totalScore.toFixed(2)}%** (killed=${totalKilled}, survived=${totalSurvived}, no-cov=${totalNoCov}, ignored=${totalIgnored}). ` +
-      `Score on covered mutants only: ${coveredScore.toFixed(2)}%.`,
+    '¹ *Adjusted score* excludes equivalent-mutant candidates (logger strings, Logger names, catch blocks with only logging) flagged by the report\'s heuristic. The raw score is preserved so regressions stay visible.',
   );
   out.push('');
+  return out.join('\n');
+}
+
+function renderLibSection(r) {
+  const v = verdictFor(r.libName, r.adjustedScore);
+  const out = [];
+  out.push(`# \`libs/${r.libName}\``);
+  out.push('');
+  out.push(
+    `**Raw score: ${r.rawScore.toFixed(2)}%** · **Adjusted score: ${r.adjustedScore.toFixed(2)}%** ${v.emoji} ` +
+      `(killed=${r.totalKilled}, survived=${r.totalSurvived}, no-cov=${r.totalNoCov}, ignored=${r.totalIgnored}, ` +
+      `equivalents=${r.equivalentCandidates.length}). Covered-only: ${r.coveredScore.toFixed(2)}%.`,
+  );
+  out.push('');
+  out.push(`Target band: ${v.band}.`);
+  out.push('');
+
   out.push('## Per-file scores');
   out.push('');
   out.push('| File | Score | Killed | Survived | No-Coverage |');
   out.push('|------|-------|--------|----------|-------------|');
-  fileSummaries.sort((a, b) => a.score - b.score);
-  for (const fs of fileSummaries) {
-    out.push(
-      `| \`${fs.file.replace(prefixRe, '')}\` | ${fs.score.toFixed(1)}% | ${fs.killed} | ${fs.survived} | ${fs.noCov} |`,
-    );
+  const sorted = [...r.fileSummaries].sort((a, b) => a.score - b.score);
+  for (const fs of sorted) {
+    const rel = fs.file.replace(new RegExp(`^libs/${r.libName}/`), '');
+    out.push(`| \`${rel}\` | ${fs.score.toFixed(1)}% | ${fs.killed} | ${fs.survived} | ${fs.noCov} |`);
   }
   out.push('');
+
+  // Survivor clusters
+  const survivorsByFile = new Map();
+  for (const m of r.realSurvivors) {
+    if (!survivorsByFile.has(m.file)) survivorsByFile.set(m.file, []);
+    survivorsByFile.get(m.file).push(m);
+  }
 
   out.push('## Survivor clusters — gaps to close');
   out.push('');
   if (survivorsByFile.size === 0) {
     out.push('_No actionable survivors after filtering equivalent candidates._');
+    out.push('');
   } else {
     let clusterNum = 0;
     const sortedFiles = [...survivorsByFile.entries()].sort((a, b) => b[1].length - a[1].length);
     for (const [filePath, mutants] of sortedFiles) {
       const source = mutants[0].source;
       const clusters = clusterMutants(mutants, source, filePath);
-      const rel = filePath.replace(prefixRe, '');
+      const rel = filePath.replace(new RegExp(`^libs/${r.libName}/`), '');
       out.push(`### \`${rel}\` — ${mutants.length} surviving mutant${mutants.length === 1 ? '' : 's'}`);
       out.push('');
       for (const c of clusters) {
@@ -295,6 +418,7 @@ function buildReport(report, moduleName) {
           `**Cluster ${clusterNum}** (lines ${c.startLine}${c.endLine !== c.startLine ? `–${c.endLine}` : ''}${fnPart}): ${c.mutants.length} mutant${c.mutants.length === 1 ? '' : 's'} surviving — ${Object.entries(c.mutatorBreakdown).map(([k, v]) => `${k}×${v}`).join(', ')}`,
         );
         out.push('');
+        out.push('Sample mutation:');
         const sample = c.mutants[0];
         const sampleLine = readSourceLine(source, sample.location.start.line).trim();
         out.push('```diff');
@@ -310,40 +434,106 @@ function buildReport(report, moduleName) {
     }
   }
 
-  out.push('## Equivalent-mutant candidates');
+  // Equivalent candidates
+  out.push('## Equivalent-mutant candidates (excluded from adjusted score)');
   out.push('');
-  if (equivalentCandidates.length === 0) {
-    out.push('_None proposed._');
+  if (r.equivalentCandidates.length === 0) {
+    out.push('_None._');
+    out.push('');
   } else {
+    out.push(
+      `${r.equivalentCandidates.length} mutants flagged as likely equivalent — these are excluded from the **adjusted** score above. Reviewer should confirm each before treating the adjusted score as authoritative:`,
+    );
+    out.push('');
     out.push('| File:line | Mutator | Reason |');
     out.push('|-----------|---------|--------|');
-    for (const m of equivalentCandidates) {
-      const rel = m.file.replace(prefixRe, '');
-      const line = readSourceLine(m.source, m.location.start.line);
-      let reason;
-      if (/new\s+Logger\(/.test(line)) {
-        reason = 'Logger name passed to `new Logger(...)`.';
-      } else if (m.mutatorName === 'BlockStatement') {
-        reason = 'Catch block contains only logging.';
-      } else {
-        reason = 'Inside logger call — observability, not behavior.';
-      }
-      out.push(`| \`${rel}:${m.location.start.line}\` | ${m.mutatorName} | ${reason} |`);
+    for (const m of r.equivalentCandidates) {
+      const rel = m.file.replace(new RegExp(`^libs/${r.libName}/`), '');
+      out.push(`| \`${rel}:${m.location.start.line}\` | ${m.mutatorName} | ${equivalenceReason(m, m.source)} |`);
     }
+    out.push('');
   }
-  out.push('');
 
-  return { md: out.join('\n'), score: totalScore, killed: totalKilled, survived: totalSurvived, noCov: totalNoCov };
+  return out.join('\n');
 }
 
-if (!fs.existsSync(STRYKER_JSON)) {
-  console.error(`No Stryker report at ${STRYKER_JSON}. Run stryker first.`);
+function buildConsolidatedReport(libResults) {
+  const out = [];
+  out.push('# Mutation Test Report');
+  out.push('');
+  out.push(`> Generated ${new Date().toISOString()}`);
+  out.push('');
+  out.push(
+    'Each lib reports two scores. The **adjusted** score (bold) is what the team operates against — it excludes equivalent-mutant candidates the heuristic identifies (logger strings, Logger names, catch-only-logging blocks). The **raw** score is what Stryker emits directly, kept so regressions in real survivors stay visible.',
+  );
+  out.push('');
+  out.push(renderHeadline(libResults));
+  for (const r of libResults) {
+    out.push('---');
+    out.push('');
+    out.push(renderLibSection(r));
+  }
+  out.push('---');
+  out.push('');
+  out.push('## Caveats');
+  out.push('');
+  out.push('- **Scope is per-lib Stryker config.** Each `stryker.<lib>.config.mjs` controls what gets mutated. Excluded paths (DTOs, modules, barrel exports, type-only files) are listed there.');
+  out.push('- **Coverage analysis is `perTest`.** Stryker only runs tests whose coverage hit the mutated line. Tests that exercise the line via dynamic dispatch may be missed.');
+  out.push('- **No-coverage mutants count against the raw score.** They reflect lines no test executes — CRAP\'s coverage data should agree these are gaps.');
+  out.push('- **Equivalent classification is heuristic.** The "candidates" lists per lib flag strings inside logger calls, Logger names, and catch-only-logging blocks. Review each before treating the adjusted score as authoritative. To make a candidate permanent, either add a `// Stryker disable next-line all` comment above the line in source, or accept the heuristic and move on.');
+  out.push('- **Test quality is real but bounded.** A surviving mutant means an assertion is missing for the *code as written*. If the code is wrong and tests pin the wrong behavior, mutation testing won\'t catch it.');
+  out.push('');
+  return out.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Main
+
+function discoverLibs() {
+  if (!fs.existsSync(REPORTS_ROOT)) return [];
+  const entries = fs.readdirSync(REPORTS_ROOT, { withFileTypes: true });
+  const libs = [];
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    const jsonPath = path.join(REPORTS_ROOT, e.name, 'mutation.json');
+    if (!fs.existsSync(jsonPath)) continue;
+    libs.push({ libName: e.name, jsonPath });
+  }
+  // Stable, deterministic order: known libs first in their declared order, then the rest alphabetically.
+  const known = ['api-auth', 'api-courses', 'web-catalog', 'web-enrollment', 'web-ui'];
+  libs.sort((a, b) => {
+    const ai = known.indexOf(a.libName);
+    const bi = known.indexOf(b.libName);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.libName.localeCompare(b.libName);
+  });
+  return libs;
+}
+
+const discovered = discoverLibs();
+if (discovered.length === 0) {
+  // eslint-disable-next-line no-console
+  console.error(`No mutation.json files found under ${REPORTS_ROOT}. Run a mutation suite first.`);
   process.exit(1);
 }
-const stryker = JSON.parse(fs.readFileSync(STRYKER_JSON, 'utf8'));
-const { md, score, killed, survived, noCov } = buildReport(stryker, MODULE);
+
+const libResults = [];
+for (const { libName, jsonPath } of discovered) {
+  const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  libResults.push(processLib(libName, data));
+}
+
+const md = buildConsolidatedReport(libResults);
 fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
 fs.writeFileSync(REPORT_PATH, md);
 
+// eslint-disable-next-line no-console
 console.log(`Wrote ${path.relative(REPO_ROOT, REPORT_PATH)}`);
-console.log(`SCORE=${score.toFixed(2)} KILLED=${killed} SURVIVED=${survived} NOCOV=${noCov}`);
+for (const r of libResults) {
+  // eslint-disable-next-line no-console
+  console.log(
+    `  ${r.libName}: raw=${r.rawScore.toFixed(2)}% adjusted=${r.adjustedScore.toFixed(2)}% (survivors=${r.totalSurvived}, equiv=${r.equivalentCandidates.length})`,
+  );
+}
