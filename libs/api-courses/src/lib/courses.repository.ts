@@ -108,6 +108,21 @@ export class CoursesRepository {
     await this.courseRef(cid).update({ ...patch, updatedAt: nowIso() });
   }
 
+  /**
+   * Remove the coverImageUrl field from a course document.
+   *
+   * Firebase Admin's `.update({ coverImageUrl: undefined })` silently strips
+   * `undefined` keys, leaving the existing field in place — so a plain
+   * `updateCourse(cid, { coverImageUrl: undefined })` is a no-op against
+   * Firestore. We must call `FieldValue.delete()` explicitly to remove it.
+   */
+  async clearCoverImageUrl(cid: CourseId): Promise<void> {
+    await this.courseRef(cid).update({
+      coverImageUrl: FieldValue.delete(),
+      updatedAt: nowIso(),
+    });
+  }
+
   async deleteCourseRecursive(cid: CourseId): Promise<void> {
     await this.firestore.recursiveDelete(this.courseRef(cid));
   }

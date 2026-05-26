@@ -76,7 +76,10 @@ export class CoverImageService {
     const path = `course-covers/${courseId}/cover.jpg`;
     await this.storage.deleteObject({ path });
     const updatedAt = new Date().toISOString() as Course['updatedAt'];
-    await this.courses.updateCourse(courseId, { coverImageUrl: undefined } as Partial<Course>);
+    // Use the dedicated field-delete path: a plain updateCourse with
+    // `coverImageUrl: undefined` is a no-op in Firebase Admin because
+    // `.update()` strips undefined keys, leaving the URL in place.
+    await this.courses.clearCoverImageUrl(courseId);
     return { updatedAt };
   }
 }

@@ -27,6 +27,16 @@ function makeRepo() {
       };
       courses.set(id, next);
     }),
+    clearCoverImageUrl: vi.fn(async (id: CourseId) => {
+      const prev = courses.get(id);
+      if (!prev) return;
+      // Mirror FieldValue.delete() semantics: remove the field entirely.
+      const { coverImageUrl: _drop, ...rest } = prev;
+      courses.set(id, {
+        ...(rest as Course),
+        updatedAt: '2026-05-25T12:00:00.000Z' as ISODateString,
+      });
+    }),
   };
 }
 
@@ -148,7 +158,9 @@ describe('CoverImageService — happy path', () => {
     });
     await svc.removeCover(CID);
     expect(storage.has('course-covers/c1/cover.jpg')).toBe(false);
-    expect(repo.updateCourse).toHaveBeenCalledTimes(1);
-    expect(repo.updateCourse.mock.calls[0][1]).toEqual({ coverImageUrl: undefined });
+    expect(repo.clearCoverImageUrl).toHaveBeenCalledTimes(1);
+    expect(repo.clearCoverImageUrl).toHaveBeenCalledWith(CID);
+    expect(repo.updateCourse).not.toHaveBeenCalled();
+    expect(repo.state.get(CID)!.coverImageUrl).toBeUndefined();
   });
 });
