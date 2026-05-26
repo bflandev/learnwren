@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ArgumentsHost } from '@nestjs/common';
-import { HttpException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  NotFoundException,
+  PayloadTooLargeException,
+  UnauthorizedException,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
 
 import { CoverDimensionsTooSmallException, CoverException } from './errors/cover.exception';
 import { CoverExceptionFilter } from './cover.exception-filter';
@@ -47,5 +55,34 @@ describe('CoverExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith({
       error: { code: 'INTERNAL', message: 'An internal error occurred.' },
     });
+  });
+});
+
+describe('CoverExceptionFilter — codeForStatus branches', () => {
+  function mapHttpException(exc: HttpException): { status: number; code: string } {
+    const { host, status, json } = makeHost();
+    new CoverExceptionFilter().catch(exc, host);
+    const statusArg = status.mock.calls[0]![0] as number;
+    const body = json.mock.calls[0]![0] as { error: { code: string } };
+    return { status: statusArg, code: body.error.code };
+  }
+
+  it('maps 400 → BAD_REQUEST', () => {
+    expect(mapHttpException(new BadRequestException('x'))).toEqual({ status: 400, code: 'BAD_REQUEST' });
+  });
+  it('maps 401 → UNAUTHORIZED', () => {
+    expect(mapHttpException(new UnauthorizedException('x'))).toEqual({ status: 401, code: 'UNAUTHORIZED' });
+  });
+  it('maps 403 → FORBIDDEN', () => {
+    expect(mapHttpException(new ForbiddenException('x'))).toEqual({ status: 403, code: 'FORBIDDEN' });
+  });
+  it('maps 413 → PAYLOAD_TOO_LARGE', () => {
+    expect(mapHttpException(new PayloadTooLargeException('x'))).toEqual({ status: 413, code: 'PAYLOAD_TOO_LARGE' });
+  });
+  it('maps 415 → UNSUPPORTED_MEDIA_TYPE', () => {
+    expect(mapHttpException(new UnsupportedMediaTypeException('x'))).toEqual({ status: 415, code: 'UNSUPPORTED_MEDIA_TYPE' });
+  });
+  it('defaults unknown statuses to ERROR', () => {
+    expect(mapHttpException(new HttpException('teapot', 418))).toEqual({ status: 418, code: 'ERROR' });
   });
 });
