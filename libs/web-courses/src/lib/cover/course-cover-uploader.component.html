@@ -1,0 +1,49 @@
+<lw-card>
+  <div class="space-y-3">
+    <h2 class="text-lg">Cover image</h2>
+
+    <div class="flex items-start gap-4">
+      <div class="w-[200px] shrink-0">
+        <lw-cover
+          [imageUrl]="currentCoverUrl()"
+          [alt]="'Course cover'"
+          [tone]="'paper'"
+          [glyph]="'W'"
+        ></lw-cover>
+      </div>
+
+      <div class="flex-1 space-y-2">
+        @switch (state().kind) {
+          @case ('uploading') {
+            <lw-progress></lw-progress>
+            <p class="text-sm text-ink-3">Uploading…</p>
+          }
+          @case ('failed') {
+            @if (failedState(); as f) {
+              <p class="text-sm text-red-600" data-testid="cover-error">{{ f.reason }}</p>
+              <button lwButton type="button" (click)="onRetry()">Try again</button>
+            }
+          }
+          @default {
+            <label class="inline-block">
+              <input
+                type="file"
+                accept="image/jpeg,image/png"
+                class="sr-only"
+                (change)="onFileInput($event)"
+                data-testid="cover-file-input"
+              />
+              <span class="lw-btn">{{ currentCoverUrl() ? 'Replace cover' : 'Upload cover' }}</span>
+            </label>
+            @if (currentCoverUrl()) {
+              <button lwButton type="button" (click)="onRemove()" data-testid="cover-remove">
+                Remove cover
+              </button>
+            }
+            <p class="text-xs text-ink-3">JPEG or PNG, at least 1280×720 pixels, max 10 MB.</p>
+          }
+        }
+      </div>
+    </div>
+  </div>
+</lw-card>
