@@ -45,6 +45,7 @@ function makeView(
     },
     progress,
     outline: { modules: outlineModules },
+    materials: [],
   };
 }
 

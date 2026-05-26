@@ -43,6 +43,7 @@ describe('LessonView (Slice D)', () => {
           },
         ],
       },
+      materials: [],
     };
     expect(view.outline.modules).toHaveLength(1);
     expect(view.outline.modules[0]!.lessons[0]!.completedAt).toBeNull();

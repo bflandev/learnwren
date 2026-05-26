@@ -59,6 +59,7 @@ const LESSON_VIEW: LessonView = {
     videoState: null,
   },
   progress: null,
+  materials: [],
 };
 
 const USER_ID = 'student-1' as UserId;
