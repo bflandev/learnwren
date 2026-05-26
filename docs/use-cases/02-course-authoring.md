@@ -3,7 +3,7 @@
 This document contains the fully-dressed Cockburn use cases for course creation, module and lesson management, and publication.
 
 > [!NOTE]
-> **DRIFT — this spec no longer matches the implementation.** Frozen 2026-03-27 and not reconciled since. The CRUD core is faithful, but cover image (UC-02-01) is unbuilt, module creation prompts for a title instead of generating a default (UC-02-02), lesson deletion cascades to the video and materials (UC-02-03), and the publish gate adds an eligibility-preview surface and a restore transition beyond UC-02-04. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-02--course-authoring).
+> **DRIFT — this spec no longer matches the implementation.** Frozen 2026-03-27 and not reconciled since. The CRUD core is faithful, but cover image is now an editor-only flow (UC-02-05) rather than a create-form field (UC-02-01), module creation prompts for a title instead of generating a default (UC-02-02), lesson deletion cascades to the video and materials (UC-02-03), and the publish gate adds an eligibility-preview surface and a restore transition beyond UC-02-04. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-02--course-authoring).
 
 ---
 
@@ -29,9 +29,8 @@ Main Success Scenario:
   3. The instructor enters:
      - Title (required, max 100 characters)
      - Short description (required, max 500 characters)
-     - Optionally: long description, category (from predefined list), cover
-       image (JPEG or PNG, min 1280x720 pixels), difficulty level (Beginner,
-       Intermediate, or Advanced)
+     - Optionally: long description, category (from predefined list),
+       difficulty level (Beginner, Intermediate, or Advanced)
   4. The instructor clicks "Create."
   5. The system validates the input.
   6. The system creates the course in Draft status with the instructor as owner.
@@ -44,11 +43,6 @@ Extensions:
 
   5b. The short description exceeds 500 characters:
       1. The system displays: "Description must be 500 characters or fewer."
-      2. The use case returns to step 3.
-
-  5c. The cover image does not meet requirements:
-      1. The system displays: "Cover image must be JPEG or PNG, at least
-         1280x720 pixels."
       2. The use case returns to step 3.
 
   5d. Required fields (title or short description) are empty:
@@ -200,4 +194,53 @@ Extensions:
       3. The course is hidden from the catalogue and no new enrollments
          are accepted.
       4. Existing enrolled students retain access to the course content.
+```
+
+---
+
+## UC-02-05 — Manage Course Cover Image
+
+```
+Use Case: UC-02-05 — Manage Course Cover Image
+
+Goal in Context:  An instructor sets, replaces, or removes the cover image on
+                  an existing course they own.
+Scope:            Learn Wren Platform
+Level:            Primary Task
+Primary Actor:    Instructor
+Preconditions:    - The instructor is authenticated with the Instructor role.
+                  - The instructor owns the course.
+                  - The instructor is in the course editor.
+Success End:      The course's cover image is updated (set, replaced, or
+                  removed). The catalogue immediately reflects the change.
+Failed End:       No change is persisted. The previous cover (or absence) is
+                  retained.
+
+Main Success Scenario:
+  1. The instructor opens the Cover Image panel in the course editor.
+  2. The instructor clicks "Upload cover" (or "Replace cover" if one is
+     already set) and selects a JPEG or PNG file at least 1280x720 pixels and
+     no larger than 10 MB.
+  3. The system uploads the file, resizes it to a canonical JPEG within
+     1920x1080 pixels, and stores it.
+  4. The system updates the course with the new cover URL.
+  5. The editor immediately renders the new cover.
+
+Extensions:
+  2a. The file is not JPEG or PNG:
+      1. The system displays: "Cover image must be JPEG or PNG."
+      2. The use case returns to step 2.
+
+  2b. The file exceeds 10 MB:
+      1. The system displays: "Cover image exceeds the 10 MB limit."
+      2. The use case returns to step 2.
+
+  3a. The image dimensions are smaller than 1280x720:
+      1. The system displays: "Cover image must be JPEG or PNG, at least
+         1280x720 pixels."
+      2. The use case returns to step 2.
+
+  *. The instructor clicks "Remove cover":
+      1. The system deletes the cover image and clears it from the course.
+      2. The editor reverts to the default placeholder cover.
 ```
