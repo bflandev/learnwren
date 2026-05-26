@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, Output, signal } from '@angular/core';
+import { A11yModule } from '@angular/cdk/a11y';
 
 import type { CourseId, CourseOutline, LessonId } from '@learnwren/shared-data-models';
 
@@ -8,6 +9,7 @@ export type CourseOutlinePanelMode = 'sidebar' | 'drawer';
   selector: 'lib-course-outline-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [A11yModule],
   templateUrl: './course-outline-panel.component.html',
 })
 export class CourseOutlinePanelComponent {
@@ -30,5 +32,19 @@ export class CourseOutlinePanelComponent {
     }
     this.processingNoticeFor.set(null);
     this.lessonSelected.emit(lessonId);
+    if (this.mode === 'drawer') {
+      this.outlineOpenChange.emit(false);
+    }
+  }
+
+  onBackdropClick(): void {
+    if (this.mode === 'drawer') this.outlineOpenChange.emit(false);
+  }
+
+  @HostListener('keydown.escape')
+  onEscape(): void {
+    if (this.mode === 'drawer' && this.outlineOpen) {
+      this.outlineOpenChange.emit(false);
+    }
   }
 }

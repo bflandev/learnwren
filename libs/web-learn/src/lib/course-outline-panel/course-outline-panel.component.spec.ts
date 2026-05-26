@@ -97,3 +97,61 @@ describe('CourseOutlinePanelComponent', () => {
     expect(notice?.textContent).toContain('still being processed');
   });
 });
+
+describe('CourseOutlinePanelComponent (drawer mode)', () => {
+  it('emits outlineOpenChange(false) when Escape is pressed in drawer mode', () => {
+    TestBed.configureTestingModule({ imports: [CourseOutlinePanelComponent] });
+    const fixture = TestBed.createComponent(CourseOutlinePanelComponent);
+    fixture.componentRef.setInput('outline', outline());
+    fixture.componentRef.setInput('activeLessonId', 'l2' as LessonId);
+    fixture.componentRef.setInput('courseId', CID);
+    fixture.componentRef.setInput('mode', 'drawer');
+    fixture.componentRef.setInput('outlineOpen', true);
+    fixture.detectChanges();
+
+    const emissions: boolean[] = [];
+    fixture.componentInstance.outlineOpenChange.subscribe((v) => emissions.push(v));
+
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+    fixture.nativeElement.querySelector('aside').dispatchEvent(event);
+    expect(emissions).toEqual([false]);
+  });
+
+  it('emits outlineOpenChange(false) after selecting a lesson in drawer mode', () => {
+    TestBed.configureTestingModule({ imports: [CourseOutlinePanelComponent] });
+    const fixture = TestBed.createComponent(CourseOutlinePanelComponent);
+    fixture.componentRef.setInput('outline', outline());
+    fixture.componentRef.setInput('activeLessonId', 'l2' as LessonId);
+    fixture.componentRef.setInput('courseId', CID);
+    fixture.componentRef.setInput('mode', 'drawer');
+    fixture.componentRef.setInput('outlineOpen', true);
+    fixture.detectChanges();
+
+    const opens: boolean[] = [];
+    fixture.componentInstance.outlineOpenChange.subscribe((v) => opens.push(v));
+    const selections: LessonId[] = [];
+    fixture.componentInstance.lessonSelected.subscribe((id) => selections.push(id));
+
+    fixture.nativeElement.querySelectorAll('button[data-testid="outline-row"]')[0].click();
+    expect(selections).toEqual(['l1']);
+    expect(opens).toEqual([false]);
+  });
+
+  it('emits outlineOpenChange(false) when the backdrop is clicked in drawer mode', () => {
+    TestBed.configureTestingModule({ imports: [CourseOutlinePanelComponent] });
+    const fixture = TestBed.createComponent(CourseOutlinePanelComponent);
+    fixture.componentRef.setInput('outline', outline());
+    fixture.componentRef.setInput('activeLessonId', 'l2' as LessonId);
+    fixture.componentRef.setInput('courseId', CID);
+    fixture.componentRef.setInput('mode', 'drawer');
+    fixture.componentRef.setInput('outlineOpen', true);
+    fixture.detectChanges();
+
+    const opens: boolean[] = [];
+    fixture.componentInstance.outlineOpenChange.subscribe((v) => opens.push(v));
+
+    const backdrop = fixture.nativeElement.querySelector('[data-testid="outline-backdrop"]');
+    backdrop.click();
+    expect(opens).toEqual([false]);
+  });
+});

@@ -1,4 +1,15 @@
-<aside aria-label="Course outline" class="course-outline" [class.is-drawer]="mode === 'drawer'">
+@if (mode === 'drawer' && outlineOpen) {
+  <div data-testid="outline-backdrop" class="outline-backdrop" (click)="onBackdropClick()"></div>
+}
+<aside
+  aria-label="Course outline"
+  class="course-outline"
+  [class.is-drawer]="mode === 'drawer'"
+  [class.is-open]="outlineOpen"
+  [attr.hidden]="mode === 'sidebar' && !outlineOpen ? '' : null"
+  [cdkTrapFocus]="mode === 'drawer' && outlineOpen"
+  [cdkTrapFocusAutoCapture]="mode === 'drawer' && outlineOpen"
+>
   @for (m of outline.modules; track m.id) {
     <section>
       <h3>{{ m.title }}</h3>
