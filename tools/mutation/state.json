@@ -1,7 +1,7 @@
 {
   "threshold": 80,
   "maxIterations": 25,
-  "iteration": 13,
+  "iteration": 14,
   "notes": "Round 2 (2026-05-25). Threshold bumped from 75 → 80. Order prioritises libs that received net-new code in EP-06 Slices B/C/D (b854dcb, dcabc60, 584b3c8 landed 2026-05-25): web-learn first (course-outline panel + position-saver + mark-complete), then api-courses (lesson completion endpoint), then shared-data-models (LessonProgress shape). Remaining libs in alphabetical order for drift detection.",
   "modules": [
     { "name": "web-learn", "status": "done", "score": 82.70, "iterations": 3, "notes": "iter 1: 54.33% baseline (-36.58 from round 1 due to net-new EP-06 C/D code). iter 2: 77.16% (+22.83). iter 3: 82.70% (+5.54). Closed in 3 iter with 33 new tests across position-saver, learn.service, course-outline-panel, lesson-player-page. course-outline-panel + learn.service hit 100%. lesson-player-page remains at 76.32% raw — residual survivors are typeof window/document SSR guards (cannot exercise in jsdom) and OptionalChaining on saver?.flush()/?.stop() where the saver-is-null path is structurally rare." },
@@ -13,7 +13,7 @@
     { "name": "web-catalog", "status": "done", "score": 82.33, "iterations": 1, "notes": "iter 9: 82.33% (177/33/5). +2.65 vs round 1's 79.68% — likely picked up the post-round-1 tightening that happened naturally. course-card.component.ts is at 0% (single survivor, no coverage at all) — investigate next round." },
     { "name": "web-courses", "status": "done", "score": 81.29, "iterations": 3, "notes": "iter 10-12: 77.08% → 79.31% → 81.29%. Added 25 tests across publish-eligibility-panel, course-create-page, material-upload.service. Above threshold. Remaining survivors concentrated in lesson-item (42.86%), module-item (47.06%) — flagged as follow-up." },
     { "name": "web-enrollment", "status": "done", "score": 83.33, "iterations": 1, "notes": "iter 13: 83.33% (80/12/4). +2.01 vs round 1's 81.32%. enrollment.service 100%; course-enrollment-panel 82%." },
-    { "name": "web-ui", "status": "pending", "score": null, "iterations": 0, "notes": "prev round 1: 88.46% (2 iter, 38→88)." },
+    { "name": "web-ui", "status": "done", "score": 86.11, "iterations": 1, "notes": "iter 14: 86.11% (62/9/1). -2.35 vs round 1's 88.46% but well above threshold. cover-tone at 64.71% drags slightly; progress + lw-cover 100%." },
     { "name": "web-video", "status": "pending", "score": null, "iterations": 0, "notes": "prev round 1: 75.98% (1 iter). Below threshold 80." }
   ]
 }
