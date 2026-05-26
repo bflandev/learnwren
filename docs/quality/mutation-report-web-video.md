@@ -1,19 +1,22 @@
 # Mutation Test Report — `libs/web-video`
 
-> Generated 2026-05-25T17:28:28.271Z
+> Generated 2026-05-26T03:27:22.936Z
 
-**Headline mutation score: 75.98%** (killed=272, survived=80, no-cov=6, ignored=0). Score on covered mutants only: 77.27%.
+**Headline mutation score: 81.41%** (killed=311, survived=65, no-cov=6, ignored=0). Score on covered mutants only: 82.71%. Adjusted (equivalent candidates excluded): 81.41%.
+
+
+Target band: unclassified.
 
 ## Per-file scores
 
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
 | `src/lib/upload/video-upload.service.ts` | 70.1% | 124 | 51 | 2 |
-| `src/lib/video-state-badge.component.ts` | 75.3% | 61 | 16 | 4 |
 | `src/lib/polling/video-state-polling.service.ts` | 76.0% | 19 | 6 | 0 |
-| `src/lib/player/video-player.component.ts` | 77.8% | 7 | 2 | 0 |
 | `src/lib/player/video-player.service.ts` | 90.7% | 39 | 4 | 0 |
 | `src/lib/upload/video-upload.component.ts` | 90.9% | 10 | 1 | 0 |
+| `src/lib/video-state-badge.component.ts` | 92.6% | 75 | 2 | 4 |
+| `src/lib/player/video-player.component.ts` | 97.0% | 32 | 1 | 0 |
 | `src/lib/video.service.ts` | 100.0% | 12 | 0 | 0 |
 
 ## Survivor clusters — gaps to close
@@ -22,105 +25,115 @@
 
 **Cluster 1** (lines 15–18): 5 mutants surviving — StringLiteral×2, ObjectLiteral×1, ArrowFunction×2
 
+Sample mutation:
 ```diff
 - export const XHR_FACTORY = new InjectionToken<() => XMLHttpRequest>('XHR_FACTORY', {
 + <replaced with: "">
 ```
 
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Pin the literal value at `video-upload.service.ts:15`.
+_Recommended test._ Add an assertion that pins the literal value at `video-upload.service.ts:15`. If it's a log message, classify as equivalent.
 
 **Cluster 2** (lines 24): 1 mutant surviving — ArrayDeclaration×1
 
+Sample mutation:
 ```diff
 - const BACKOFF_MS = [1000, 2000, 4000];
 + <replaced with: []>
 ```
 
-_Diagnosis._ An array literal could be replaced with `[]` and tests pass.
+_Diagnosis._ An array literal could be replaced with `[]` and tests pass. The contents (length, ordering, item shape) are not pinned.
 
-_Recommended test._ Assert on array length / object shape at `video-upload.service.ts:24`.
+_Recommended test._ Assert on the array length / object shape returned at `video-upload.service.ts:24`, not just truthiness.
 
 **Cluster 3** (lines 47–54): 4 mutants surviving — BooleanLiteral×2, EqualityOperator×1, ObjectLiteral×1
 
+Sample mutation:
 ```diff
 - private aborted = false;
 + <replaced with: true>
 ```
 
-_Diagnosis._ A `true`/`false` literal could be flipped and tests still pass.
+_Diagnosis._ A `true`/`false` literal could be flipped and tests still pass. Add an assertion that pins the boolean.
 
-_Recommended test._ Drive both sides of the conditional at `video-upload.service.ts:47`.
+_Recommended test._ Add a test that drives both sides of the conditional at `video-upload.service.ts:47` with assertions that distinguish the outcomes.
 
 **Cluster 4** (lines 61 — `if()`): 2 mutants surviving — ObjectLiteral×1, BooleanLiteral×1
 
+Sample mutation:
 ```diff
 - return { ok: false };
 + <replaced with: {}>
 ```
 
-_Diagnosis._ An object literal could be replaced with `{}` and tests pass.
+_Diagnosis._ An object literal could be replaced with `{}` and tests pass. The shape isn't asserted — only that something object-like is returned.
 
-_Recommended test._ Assert on array length / object shape at `video-upload.service.ts:61` in `if`.
+_Recommended test._ Assert on the array length / object shape returned at `video-upload.service.ts:61` in `if`, not just truthiness.
 
 **Cluster 5** (lines 69 — `start()`): 1 mutant surviving — ConditionalExpression×1
 
+Sample mutation:
 ```diff
 - if (!check.ok) return;
 + <replaced with: false>
 ```
 
-_Diagnosis._ The condition's outcome isn't observed. Add a test that drives both sides with distinguishing assertions.
+_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
 
-_Recommended test._ Drive both sides of the conditional at `video-upload.service.ts:69` in `start`.
+_Recommended test._ Add a test that drives both sides of the conditional at `video-upload.service.ts:69` in `start` with assertions that distinguish the outcomes.
 
 **Cluster 6** (lines 76–79 — `start()`): 1 mutant surviving — ObjectLiteral×1
 
+Sample mutation:
 ```diff
 - this.api.createUploadSession(ctx.courseId, ctx.moduleId, ctx.lessonId, {
 + <replaced with: {}>
 ```
 
-_Diagnosis._ An object literal could be replaced with `{}` and tests pass.
+_Diagnosis._ An object literal could be replaced with `{}` and tests pass. The shape isn't asserted — only that something object-like is returned.
 
-_Recommended test._ Assert on array length / object shape at `video-upload.service.ts:76` in `start`.
+_Recommended test._ Assert on the array length / object shape returned at `video-upload.service.ts:76` in `start`, not just truthiness.
 
-**Cluster 7** (lines 97–99 — `if()`): 3 mutants surviving — LogicalOperator×1, ObjectLiteral×1, StringLiteral×1
+**Cluster 7** (lines 97–99 — `if()`): 3 mutants surviving — LogicalOperator×1, StringLiteral×1, ObjectLiteral×1
 
+Sample mutation:
 ```diff
 - if (!uploadOk || this.aborted) return;
 + <replaced with: !uploadOk && this.aborted>
 ```
 
-_Diagnosis._ `&&` / `||` swap survived. Add a test for the partial case.
+_Diagnosis._ `&&` / `||` swap survived: short-circuit semantics aren't exercised. Add a test for the partial case where one operand is true and the other false.
 
-_Recommended test._ Test the partial case for the logical expression at `video-upload.service.ts:97` in `if`.
+_Recommended test._ Add a test where one operand of the logical expression at `video-upload.service.ts:97` in `if` is true and the other is false.
 
 **Cluster 8** (lines 116–119 — `if()`): 10 mutants surviving — ConditionalExpression×4, EqualityOperator×2, StringLiteral×3, ObjectLiteral×1
 
+Sample mutation:
 ```diff
 - if (s.kind === 'uploading' || s.kind === 'finalizing' || s.kind === 'failed') {
 + <replaced with: true>
 ```
 
-_Diagnosis._ The condition's outcome isn't observed. Add a test that drives both sides with distinguishing assertions.
+_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
 
-_Recommended test._ Drive both sides of the conditional at `video-upload.service.ts:116` in `if`.
+_Recommended test._ Add a test that drives both sides of the conditional at `video-upload.service.ts:116` in `if` with assertions that distinguish the outcomes.
 
 **Cluster 9** (lines 128 — `retry()`): 2 mutants surviving — LogicalOperator×1, ConditionalExpression×1
 
+Sample mutation:
 ```diff
 - if (s.kind !== 'failed' || !s.videoId) return;
 + <replaced with: s.kind !== 'failed' && !s.videoId>
 ```
 
-_Diagnosis._ `&&` / `||` swap survived. Add a test for the partial case.
+_Diagnosis._ `&&` / `||` swap survived: short-circuit semantics aren't exercised. Add a test for the partial case where one operand is true and the other false.
 
-_Recommended test._ Test the partial case for the logical expression at `video-upload.service.ts:128` in `retry`.
+_Recommended test._ Add a test where one operand of the logical expression at `video-upload.service.ts:128` in `retry` is true and the other is false.
 
 **Cluster 10** (lines 142–150 — `while()`): 7 mutants surviving — MethodExpression×1, ConditionalExpression×1, BooleanLiteral×1, ObjectLiteral×1, StringLiteral×1, ArithmeticOperator×2
 
+Sample mutation:
 ```diff
 - const chunk = file.slice(offset, end);
 + <replaced with: file>
@@ -128,124 +141,111 @@ _Recommended test._ Test the partial case for the logical expression at `video-u
 
 _Diagnosis._ An arithmetic operator could be replaced. Pin the math with a deterministic input/output pair.
 
-_Recommended test._ Inspect `video-upload.service.ts:142` in `while`.
+_Recommended test._ Inspect `video-upload.service.ts:142` in `while` and add an assertion that distinguishes the original from the surviving mutation.
 
 **Cluster 11** (lines 165–182 — `for()`): 13 mutants surviving — BooleanLiteral×3, ConditionalExpression×3, EqualityOperator×3, BlockStatement×1, LogicalOperator×1, StringLiteral×2
 
+Sample mutation:
 ```diff
 - if (this.aborted) return false;
 + <replaced with: true>
 ```
 
-_Diagnosis._ A `true`/`false` literal could be flipped and tests still pass.
+_Diagnosis._ A `true`/`false` literal could be flipped and tests still pass. Add an assertion that pins the boolean.
 
-_Recommended test._ Drive both sides of the conditional at `video-upload.service.ts:165` in `for`.
+_Recommended test._ Add a test that drives both sides of the conditional at `video-upload.service.ts:165` in `for` with assertions that distinguish the outcomes.
 
 **Cluster 12** (lines 195 — `if()`): 2 mutants surviving — StringLiteral×1, BooleanLiteral×1
 
+Sample mutation:
 ```diff
 - xhr.open('PUT', sessionUri, true);
 + <replaced with: "">
 ```
 
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Pin the literal value at `video-upload.service.ts:195` in `if`.
+_Recommended test._ Add an assertion that pins the literal value at `video-upload.service.ts:195` in `if`. If it's a log message, classify as equivalent.
 
 **Cluster 13** (lines 201 — `if()`): 1 mutant surviving — ArrowFunction×1
 
+Sample mutation:
 ```diff
 - xhr.onerror = () => resolve(0);
 + <replaced with: () => undefined>
 ```
 
-_Diagnosis._ A method/arrow body could be emptied with no test failing.
+_Diagnosis._ A method/arrow body could be emptied with no test failing. The function is called but its effect isn't asserted.
 
-_Recommended test._ Assert on the side effect at `video-upload.service.ts:201` in `if`.
+_Recommended test._ Add an assertion on the side effect of the block/function at `video-upload.service.ts:201` in `if` — verify state change, mock invocation, or returned value.
 
 **Cluster 14** (lines 209 — `errorMessage()`): 1 mutant surviving — ConditionalExpression×1
 
+Sample mutation:
 ```diff
 - typeof err === 'object' && err !== null && 'message' in err
 + <replaced with: true>
 ```
 
-_Diagnosis._ The condition's outcome isn't observed. Add a test that drives both sides with distinguishing assertions.
+_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
 
-_Recommended test._ Drive both sides of the conditional at `video-upload.service.ts:209` in `errorMessage`.
+_Recommended test._ Add a test that drives both sides of the conditional at `video-upload.service.ts:209` in `errorMessage` with assertions that distinguish the outcomes.
 
-### `src/lib/video-state-badge.component.ts` — 20 surviving mutants
+### `src/lib/video-state-badge.component.ts` — 6 surviving mutants
 
-**Cluster 15** (lines 10): 1 mutant surviving — StringLiteral×1
+**Cluster 15** (lines 42–43 — `switch()`): 2 mutants surviving — ConditionalExpression×1, StringLiteral×1
 
-```diff
-- const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
-+ <replaced with: "">
-```
-
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
-
-_Recommended test._ Pin the literal value at `video-state-badge.component.ts:10`.
-
-**Cluster 16** (lines 33–35 — `switch()`): 4 mutants surviving — StringLiteral×3, ConditionalExpression×1
-
-```diff
-- case 'PENDING_UPLOAD':
-+ <replaced with: "">
-```
-
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
-
-_Recommended test._ Pin the literal value at `video-state-badge.component.ts:33` in `switch`.
-
-**Cluster 17** (lines 42–43 — `switch()`): 2 mutants surviving — ConditionalExpression×1, StringLiteral×1
-
+Sample mutation:
 ```diff
 - default:
 + <replaced with: default:>
 ```
 
-_Diagnosis._ A ternary or conditional could be replaced and tests still pass.
+_Diagnosis._ A ternary or conditional could be replaced and tests still pass. Cover both branches with distinct assertions.
 
-_Recommended test._ Drive both sides of the conditional at `video-state-badge.component.ts:42` in `switch`.
+_Recommended test._ Add a test that drives both sides of the conditional at `video-state-badge.component.ts:42` in `switch` with assertions that distinguish the outcomes.
 
-**Cluster 18** (lines 53 — `switch()`): 1 mutant surviving — StringLiteral×1
+**Cluster 16** (lines 60–61 — `switch()`): 2 mutants surviving — ConditionalExpression×1, StringLiteral×1
 
-```diff
-- case 'UPLOADED':
-+ <replaced with: "">
-```
-
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
-
-_Recommended test._ Pin the literal value at `video-state-badge.component.ts:53` in `switch`.
-
-**Cluster 19** (lines 60–72 — `switch()`): 10 mutants surviving — ConditionalExpression×4, StringLiteral×2, ArrowFunction×2, LogicalOperator×1, BooleanLiteral×1
-
+Sample mutation:
 ```diff
 - default:
 + <replaced with: default:>
 ```
 
-_Diagnosis._ A ternary or conditional could be replaced and tests still pass.
+_Diagnosis._ A ternary or conditional could be replaced and tests still pass. Cover both branches with distinct assertions.
 
-_Recommended test._ Drive both sides of the conditional at `video-state-badge.component.ts:60` in `switch`.
+_Recommended test._ Add a test that drives both sides of the conditional at `video-state-badge.component.ts:60` in `switch` with assertions that distinguish the outcomes.
 
-**Cluster 20** (lines 89 — `isStuck()`): 2 mutants surviving — EqualityOperator×1, ArithmeticOperator×1
+**Cluster 17** (lines 72 — `ngOnInit()`): 1 mutant surviving — ConditionalExpression×1
 
+Sample mutation:
+```diff
+- if (NON_TERMINAL.includes(v.state)) {
++ <replaced with: true>
+```
+
+_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
+
+_Recommended test._ Add a test that drives both sides of the conditional at `video-state-badge.component.ts:72` in `ngOnInit` with assertions that distinguish the outcomes.
+
+**Cluster 18** (lines 89 — `isStuck()`): 1 mutant surviving — EqualityOperator×1
+
+Sample mutation:
 ```diff
 - return ageMs > STUCK_THRESHOLD_MIN * 60 * 1000;
 + <replaced with: ageMs >= STUCK_THRESHOLD_MIN * 60 * 1000>
 ```
 
-_Diagnosis._ An equality / inequality operator could be flipped and tests still pass.
+_Diagnosis._ An equality / inequality operator could be flipped (`==`↔`!=`, `===`↔`!==`) and tests still pass. Test both equal and unequal inputs at the boundary.
 
-_Recommended test._ Add a boundary test at `video-state-badge.component.ts:89` in `isStuck`.
+_Recommended test._ Add a boundary test that exercises the equal / off-by-one case at `video-state-badge.component.ts:89` in `isStuck`.
 
 ### `src/lib/polling/video-state-polling.service.ts` — 6 surviving mutants
 
-**Cluster 21** (lines 10): 2 mutants surviving — ArithmeticOperator×2
+**Cluster 19** (lines 10): 2 mutants surviving — ArithmeticOperator×2
 
+Sample mutation:
 ```diff
 - const DEFAULT_CAP_MS = 30 * 60 * 1_000;
 + <replaced with: 30 * 60 / 1_000>
@@ -253,91 +253,105 @@ _Recommended test._ Add a boundary test at `video-state-badge.component.ts:89` i
 
 _Diagnosis._ An arithmetic operator could be replaced. Pin the math with a deterministic input/output pair.
 
-_Recommended test._ Inspect `video-state-polling.service.ts:10`.
+_Recommended test._ Inspect `video-state-polling.service.ts:10` and add an assertion that distinguishes the original from the surviving mutation.
 
-**Cluster 22** (lines 26–33 — `fetch()`): 4 mutants surviving — ObjectLiteral×1, BooleanLiteral×1, ConditionalExpression×1, EqualityOperator×1
+**Cluster 20** (lines 26–33 — `fetch()`): 4 mutants surviving — ObjectLiteral×1, BooleanLiteral×1, ConditionalExpression×1, EqualityOperator×1
 
+Sample mutation:
 ```diff
 - this.http.get<Video>(`/api/videos/${vid}`, { withCredentials: true });
 + <replaced with: {}>
 ```
 
-_Diagnosis._ An object literal could be replaced with `{}` and tests pass.
+_Diagnosis._ An object literal could be replaced with `{}` and tests pass. The shape isn't asserted — only that something object-like is returned.
 
-_Recommended test._ Assert on array length / object shape at `video-state-polling.service.ts:26` in `fetch`.
+_Recommended test._ Assert on the array length / object shape returned at `video-state-polling.service.ts:26` in `fetch`, not just truthiness.
 
 ### `src/lib/player/video-player.service.ts` — 4 surviving mutants
 
-**Cluster 23** (lines 51 — `switch()`): 1 mutant surviving — StringLiteral×1
+**Cluster 21** (lines 51 — `switch()`): 1 mutant surviving — StringLiteral×1
 
+Sample mutation:
 ```diff
 - el.removeAttribute('src');
 + <replaced with: "">
 ```
 
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Pin the literal value at `video-player.service.ts:51` in `switch`.
+_Recommended test._ Add an assertion that pins the literal value at `video-player.service.ts:51` in `switch`. If it's a log message, classify as equivalent.
 
-**Cluster 24** (lines 57 — `switch()`): 1 mutant surviving — StringLiteral×1
+**Cluster 22** (lines 57 — `switch()`): 1 mutant surviving — StringLiteral×1
 
+Sample mutation:
 ```diff
 - if (el.canPlayType('application/vnd.apple.mpegurl')) {
 + <replaced with: "">
 ```
 
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Pin the literal value at `video-player.service.ts:57` in `switch`.
+_Recommended test._ Add an assertion that pins the literal value at `video-player.service.ts:57` in `switch`. If it's a log message, classify as equivalent.
 
-**Cluster 25** (lines 63 — `handler()`): 1 mutant surviving — StringLiteral×1
+**Cluster 23** (lines 63 — `handler()`): 1 mutant surviving — StringLiteral×1
 
+Sample mutation:
 ```diff
 - el.removeEventListener('error', handler);
 + <replaced with: "">
 ```
 
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Pin the literal value at `video-player.service.ts:63` in `handler`.
+_Recommended test._ Add an assertion that pins the literal value at `video-player.service.ts:63` in `handler`. If it's a log message, classify as equivalent.
 
-**Cluster 26** (lines 71 — `handler()`): 1 mutant surviving — ObjectLiteral×1
+**Cluster 24** (lines 71 — `handler()`): 1 mutant surviving — ObjectLiteral×1
 
+Sample mutation:
 ```diff
 - return { dispose: () => undefined };
 + <replaced with: {}>
 ```
 
-_Diagnosis._ An object literal could be replaced with `{}` and tests pass.
+_Diagnosis._ An object literal could be replaced with `{}` and tests pass. The shape isn't asserted — only that something object-like is returned.
 
-_Recommended test._ Assert on array length / object shape at `video-player.service.ts:71` in `handler`.
+_Recommended test._ Assert on the array length / object shape returned at `video-player.service.ts:71` in `handler`, not just truthiness.
 
-### `src/lib/player/video-player.component.ts` — 2 surviving mutants
+### `src/lib/player/video-player.component.ts` — 1 surviving mutant
 
-**Cluster 27** (lines 38–43 — `ngOnDestroy()`): 2 mutants surviving — OptionalChaining×2
+**Cluster 25** (lines 58 — `retry()`): 1 mutant surviving — OptionalChaining×1
 
+Sample mutation:
 ```diff
 - this.handle?.dispose();
 + <replaced with: this.handle.dispose>
 ```
 
-_Diagnosis._ Removing `?.` didn't break tests. Add a case where the parent is null/undefined.
+_Diagnosis._ Removing `?.` from an access didn't break tests — every test exercises the path where the parent exists. Add a case where the parent is null/undefined to lock in defensive access.
 
-_Recommended test._ Add a null/undefined parent case at `video-player.component.ts:38` in `ngOnDestroy`.
+_Recommended test._ Add a test where the optional-chained parent is undefined / null at `video-player.component.ts:58` in `retry`.
 
 ### `src/lib/upload/video-upload.component.ts` — 1 surviving mutant
 
-**Cluster 28** (lines 31 — `onFile()`): 1 mutant surviving — ObjectLiteral×1
+**Cluster 26** (lines 31 — `onFile()`): 1 mutant surviving — ObjectLiteral×1
 
+Sample mutation:
 ```diff
 - { courseId: this.courseId(), moduleId: this.moduleId(), lessonId: this.lessonId() },
 + <replaced with: {}>
 ```
 
-_Diagnosis._ An object literal could be replaced with `{}` and tests pass.
+_Diagnosis._ An object literal could be replaced with `{}` and tests pass. The shape isn't asserted — only that something object-like is returned.
 
-_Recommended test._ Assert on array length / object shape at `video-upload.component.ts:31` in `onFile`.
+_Recommended test._ Assert on the array length / object shape returned at `video-upload.component.ts:31` in `onFile`, not just truthiness.
 
-## Equivalent-mutant candidates
+## Equivalent-mutant candidates (excluded from adjusted score)
 
-_None proposed._
+_None._
+
+## Caveats
+
+- **Scope is per-lib Stryker config.** See `stryker.web-video.config.mjs` for what gets mutated / excluded.
+- **Coverage analysis is `perTest`.** Stryker only runs tests whose coverage hit the mutated line.
+- **No-coverage mutants count against the raw score.** They reflect lines no test executes.
+- **Equivalent classification is heuristic.** Review each candidate before treating the adjusted score as authoritative.

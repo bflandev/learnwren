@@ -32,6 +32,10 @@ describe('LearnService', () => {
     const promise = service.getLessonView('c-1', 'l-1');
     const req = http.expectOne('/api/learn/courses/c-1/lessons/l-1');
     expect(req.request.method).toBe('GET');
+    // Pin the request options object: kills the ObjectLiteral mutant that
+    // replaces `{ withCredentials: true }` with `{}`, and the BooleanLiteral
+    // mutant that flips it to false. The server requires the session cookie.
+    expect(req.request.withCredentials).toBe(true);
     req.flush(payload);
     const result = await promise;
     expect(result.lesson.title).toBe('Intro');

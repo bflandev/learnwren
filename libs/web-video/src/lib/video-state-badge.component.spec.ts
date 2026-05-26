@@ -147,4 +147,90 @@ describe('VideoStateBadgeComponent — slice B copy', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.tone()).toBe('bad');
   });
+
+  it('shows "Uploaded — preparing…" for PENDING_UPLOAD (case label)', () => {
+    fixture.componentRef.setInput('video', video('PENDING_UPLOAD'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.label()).toBe('Uploaded — preparing…');
+  });
+
+  it('shows "Uploaded — preparing…" for UPLOADED (case label)', () => {
+    fixture.componentRef.setInput('video', video('UPLOADED'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.label()).toBe('Uploaded — preparing…');
+  });
+
+  it('maps UPLOADED to the warn pill tone', () => {
+    fixture.componentRef.setInput('video', video('UPLOADED'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.tone()).toBe('warn');
+  });
+
+  it('shows the spinner for non-terminal UPLOADED state', () => {
+    fixture.componentRef.setInput('video', video('UPLOADED'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showSpinner()).toBe(true);
+  });
+
+  it('shows the spinner for non-terminal TRANSCODING state', () => {
+    fixture.componentRef.setInput('video', video('TRANSCODING'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showSpinner()).toBe(true);
+  });
+
+  it('does NOT show the spinner for terminal READY state', () => {
+    fixture.componentRef.setInput('video', video('READY'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showSpinner()).toBe(false);
+  });
+
+  it('does NOT show the spinner for terminal FAILED state', () => {
+    fixture.componentRef.setInput('video', video('FAILED'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showSpinner()).toBe(false);
+  });
+
+  it('does NOT show the spinner for PENDING_UPLOAD (not in the non-terminal list)', () => {
+    fixture.componentRef.setInput('video', video('PENDING_UPLOAD'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showSpinner()).toBe(false);
+  });
+
+  it('canRetry is true only when PENDING_UPLOAD is stale beyond the stuck threshold', () => {
+    const stale: Video = {
+      ...video('PENDING_UPLOAD'),
+      updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
+    };
+    fixture.componentRef.setInput('video', stale);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canRetry()).toBe(true);
+  });
+
+  it('canRetry is false for a fresh PENDING_UPLOAD (under threshold)', () => {
+    fixture.componentRef.setInput('video', video('PENDING_UPLOAD'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canRetry()).toBe(false);
+  });
+
+  it('canRetry is false for a stale TRANSCODING (only PENDING_UPLOAD has retry)', () => {
+    const stale: Video = {
+      ...video('TRANSCODING'),
+      updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
+    };
+    fixture.componentRef.setInput('video', stale);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canRetry()).toBe(false);
+  });
+
+  it('isStuck boundary: just under 30 minutes returns false (strict >)', () => {
+    // 100ms shy of the threshold to avoid wall-clock race with the in-component
+    // Date.now() reading. The strict > check requires ageMs > 30*60*1000, so this
+    // age must be < threshold.
+    const justUnder = new Date(Date.now() - (30 * 60 * 1000 - 1000)).toISOString() as Video['updatedAt'];
+    const v: Video = { ...video('PENDING_UPLOAD'), updatedAt: justUnder };
+    fixture.componentRef.setInput('video', v);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canRetry()).toBe(false);
+    expect(fixture.componentInstance.label()).toBe('Uploaded — preparing…');
+  });
 });

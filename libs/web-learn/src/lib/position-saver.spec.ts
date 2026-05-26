@@ -115,4 +115,163 @@ describe('PositionSaver', () => {
     expect(url).toBe('/api/learn/courses/c1/lessons/l1/position');
     expect(blob).toBeInstanceOf(Blob);
   });
+
+  it('start() called twice does not create a second interval timer', async () => {
+    const { saver, service } = makeSaver({ savePosition: async (_c, _l, s) => ({ lastWatchedSeconds: s }) });
+    saver.start(() => 1);
+    saver.start(() => 2); // second start reassigns getTime but the `if (this.timer) return` guard prevents a duplicate setInterval
+    await vi.advanceTimersByTimeAsync(100);
+    // Exactly one savePosition call per interval. If the guard were mutated to
+    // `if (true) return`, no timer would be created → 0 calls. If mutated to
+    // `if (false) return`, a second timer would be created → 2 calls.
+    expect(service.savePosition).toHaveBeenCalledTimes(1);
+    expect(service.savePosition).toHaveBeenCalledWith('c1', 'l1', 2);
+  });
+
+  describe('flushBeacon', () => {
+    let originalNav: PropertyDescriptor | undefined;
+
+    beforeEach(() => {
+      originalNav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    });
+
+    afterEach(() => {
+      if (originalNav) Object.defineProperty(globalThis, 'navigator', originalNav);
+      else delete (globalThis as { navigator?: unknown }).navigator;
+    });
+
+    it('returns early when start() has not been called (no beacon, no fetch)', () => {
+      const beacon = vi.fn(() => true);
+      const fetchSpy = vi.fn();
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { sendBeacon: beacon }, configurable: true,
+      });
+      Object.defineProperty(globalThis, 'fetch', { value: fetchSpy, configurable: true, writable: true });
+      const { saver } = makeSaver();
+      saver.flushBeacon();
+      expect(beacon).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('dedupes by integer seconds — second call with same time does not fire a beacon', () => {
+      const beacon = vi.fn(() => true);
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { sendBeacon: beacon }, configurable: true,
+      });
+      const { saver } = makeSaver();
+      saver.start(() => 50);
+      saver.flushBeacon();
+      saver.flushBeacon();
+      expect(beacon).toHaveBeenCalledTimes(1);
+    });
+
+    it('encodes the body as a non-empty Blob with content-type application/json', () => {
+      const beacon = vi.fn(() => true);
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { sendBeacon: beacon }, configurable: true,
+      });
+      const { saver } = makeSaver();
+      saver.start(() => 42);
+      saver.flushBeacon();
+      const blob = beacon.mock.calls[0][1] as Blob;
+      expect(blob.type).toBe('application/json');
+      // Killing the ArrayDeclaration mutant (`new Blob([body], …)` → `new Blob([], …)`):
+      // the body string is `{"seconds":42}` = 14 bytes; the empty-array mutant
+      // would yield a zero-byte blob.
+      expect(blob.size).toBeGreaterThan(0);
+      expect(blob.size).toBe(JSON.stringify({ seconds: 42 }).length);
+    });
+
+    it('does NOT update lastSent when sendBeacon returns false (next call retries the same value)', () => {
+      const beacon = vi.fn(() => false);
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { sendBeacon: beacon }, configurable: true,
+      });
+      const { saver } = makeSaver();
+      saver.start(() => 50);
+      saver.flushBeacon();
+      saver.flushBeacon();
+      // sendBeacon returned false both times, so dedup MUST NOT have taken effect.
+      expect(beacon).toHaveBeenCalledTimes(2);
+    });
+
+    it('falls back to fetch with the keepalive POST when navigator.sendBeacon is not a function', () => {
+      const fetchSpy = vi.fn(() => Promise.resolve(new Response(null, { status: 200 })));
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { /* no sendBeacon */ }, configurable: true,
+      });
+      Object.defineProperty(globalThis, 'fetch', { value: fetchSpy, configurable: true, writable: true });
+      const { saver } = makeSaver();
+      saver.start(() => 88);
+      saver.flushBeacon();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('/api/learn/courses/c1/lessons/l1/position');
+      expect(init.method).toBe('POST');
+      expect(init.keepalive).toBe(true);
+      expect(init.credentials).toBe('include');
+      expect((init.headers as Record<string, string>)['content-type']).toBe('application/json');
+      expect(init.body).toBe(JSON.stringify({ seconds: 88 }));
+    });
+
+    it('updates lastSent after fetch resolves so a subsequent call with the same seconds is deduped', async () => {
+      let resolveFetch!: (r: Response) => void;
+      const fetchSpy = vi.fn(() => new Promise<Response>((res) => { resolveFetch = res; }));
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { /* no sendBeacon */ }, configurable: true,
+      });
+      Object.defineProperty(globalThis, 'fetch', { value: fetchSpy, configurable: true, writable: true });
+      const { saver } = makeSaver();
+      saver.start(() => 50);
+      saver.flushBeacon();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Before fetch resolves, lastSent is unchanged — second call still fires.
+      saver.flushBeacon();
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      // After resolve, the .then sets lastSent=50; subsequent call with same seconds is deduped.
+      resolveFetch(new Response(null, { status: 200 }));
+      await Promise.resolve();
+      await Promise.resolve();
+      saver.flushBeacon();
+      expect(fetchSpy).toHaveBeenCalledTimes(2); // no third call
+    });
+
+    it('leaves lastSent unchanged when fetch rejects (next call retries with same seconds)', async () => {
+      const fetchSpy = vi.fn(() => Promise.reject(new Error('network')));
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { /* no sendBeacon */ }, configurable: true,
+      });
+      Object.defineProperty(globalThis, 'fetch', { value: fetchSpy, configurable: true, writable: true });
+      const { saver } = makeSaver();
+      saver.start(() => 50);
+      saver.flushBeacon();
+      // Drain the rejection.
+      await Promise.resolve();
+      await Promise.resolve();
+      saver.flushBeacon();
+      // lastSent was NOT updated; second call also fired.
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('url-encodes courseId and lessonId path segments', () => {
+      const beacon = vi.fn(() => true);
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { sendBeacon: beacon }, configurable: true,
+      });
+      const onRevoked = vi.fn();
+      const service = { savePosition: vi.fn() } as unknown as LearnService;
+      const saver = new PositionSaver({
+        learn: service,
+        courseId: 'c/with slash',
+        lessonId: 'l with space',
+        onRevoked,
+      });
+      saver.start(() => 1);
+      saver.flushBeacon();
+      const url = beacon.mock.calls[0][0] as string;
+      expect(url).toBe('/api/learn/courses/c%2Fwith%20slash/lessons/l%20with%20space/position');
+    });
+  });
 });

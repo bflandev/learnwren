@@ -1,17 +1,20 @@
 # Mutation Test Report — `libs/web-catalog`
 
-> Generated 2026-05-25T17:24:48.048Z
+> Generated 2026-05-26T03:01:38.452Z
 
-**Headline mutation score: 79.68%** (killed=149, survived=37, no-cov=1, ignored=0). Score on covered mutants only: 80.11%.
+**Headline mutation score: 82.33%** (killed=177, survived=33, no-cov=5, ignored=0). Score on covered mutants only: 84.29%. Adjusted (equivalent candidates excluded): 82.33%.
+
+
+Target band: web glue/orchestration — 50–70% target.
 
 ## Per-file scores
 
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
 | `src/lib/components/course-card/course-card.component.ts` | 0.0% | 0 | 1 | 0 |
-| `src/lib/course-detail-page/course-detail-page.component.ts` | 75.6% | 59 | 18 | 1 |
 | `src/lib/search-results-page/search-results-page.component.ts` | 78.6% | 22 | 6 | 0 |
 | `src/lib/catalog.service.ts` | 79.2% | 19 | 5 | 0 |
+| `src/lib/course-detail-page/course-detail-page.component.ts` | 82.1% | 87 | 14 | 5 |
 | `src/lib/components/catalog-filter-bar/catalog-filter-bar.component.ts` | 85.7% | 6 | 1 | 0 |
 | `src/lib/catalog-page/catalog-page.component.ts` | 86.1% | 31 | 5 | 0 |
 | `src/lib/components/course-search-bar/course-search-bar.component.ts` | 92.3% | 12 | 1 | 0 |
@@ -22,170 +25,203 @@
 
 **Cluster 1** (lines 28–40): 7 mutants surviving — BooleanLiteral×2, BlockStatement×1, StringLiteral×1, OptionalChaining×3
 
+Sample mutation:
 ```diff
 - readonly notFound = signal(false);
 + <replaced with: true>
 ```
 
-_Diagnosis._ Removing `?.` didn't break tests. Add a case where the parent is null/undefined.
+_Diagnosis._ Removing `?.` from an access didn't break tests — every test exercises the path where the parent exists. Add a case where the parent is null/undefined to lock in defensive access.
 
-_Recommended test._ Add a null/undefined parent case at `course-detail-page.component.ts:28`.
+_Recommended test._ Add a test where the optional-chained parent is undefined / null at `course-detail-page.component.ts:28`.
 
-**Cluster 2** (lines 51–53 — `coverToneForId()`): 9 mutants surviving — ConditionalExpression×3, BooleanLiteral×2, EqualityOperator×1, OptionalChaining×3
+**Cluster 2** (lines 53–56 — `coverToneForId()`): 5 mutants surviving — OptionalChaining×3, ConditionalExpression×1, MethodExpression×1
 
+Sample mutation:
+```diff
+- const e = this.enrollmentStatus()?.enrollment ?? null;
++ <replaced with: this.enrollmentStatus().enrollment>
+```
+
+_Diagnosis._ Removing `?.` from an access didn't break tests — every test exercises the path where the parent exists. Add a case where the parent is null/undefined to lock in defensive access.
+
+_Recommended test._ Add a test where the optional-chained parent is undefined / null at `course-detail-page.component.ts:53` in `coverToneForId`.
+
+**Cluster 3** (lines 69 — `coverToneForId()`): 2 mutants surviving — ConditionalExpression×1, BooleanLiteral×1
+
+Sample mutation:
 ```diff
 - if (this.firstLessonHref()) return false;
 + <replaced with: false>
 ```
 
-_Diagnosis._ The condition's outcome isn't observed. Add a test that drives both sides with distinguishing assertions.
+_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
 
-_Recommended test._ Drive both sides of the conditional at `course-detail-page.component.ts:51` in `coverToneForId`.
+_Recommended test._ Add a test that drives both sides of the conditional at `course-detail-page.component.ts:69` in `coverToneForId` with assertions that distinguish the outcomes.
 
-**Cluster 3** (lines 63–65 — `ngOnInit()`): 2 mutants surviving — BlockStatement×1, ConditionalExpression×1
+**Cluster 4** (lines 89–92 — `onEnrollmentStatusChanged()`): 4 mutants surviving — BlockStatement×1, OptionalChaining×1, ConditionalExpression×2
 
+Sample mutation:
 ```diff
-- if (!this.auth.currentUser()) {
+- protected async onEnrollmentStatusChanged(): Promise<void> {
 + <replaced with: {}>
 ```
 
-_Diagnosis._ An entire block could be deleted without test failure.
+_Diagnosis._ A ternary or conditional could be replaced and tests still pass. Cover both branches with distinct assertions.
 
-_Recommended test._ Assert on the side effect at `course-detail-page.component.ts:63` in `ngOnInit`.
+_Recommended test._ Add a test that drives both sides of the conditional at `course-detail-page.component.ts:89` in `onEnrollmentStatusChanged` with assertions that distinguish the outcomes.
 
-**Cluster 4** (lines 71 — `resolveEnrollmentStatus()`): 1 mutant surviving — ConditionalExpression×1
+**Cluster 5** (lines 118 — `if()`): 1 mutant surviving — ConditionalExpression×1
 
+Sample mutation:
 ```diff
-- if (!courseId) return;
-+ <replaced with: false>
+- if (this.auth.currentUser()) {
++ <replaced with: true>
 ```
 
-_Diagnosis._ The condition's outcome isn't observed. Add a test that drives both sides with distinguishing assertions.
+_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
 
-_Recommended test._ Drive both sides of the conditional at `course-detail-page.component.ts:71` in `resolveEnrollmentStatus`.
+_Recommended test._ Add a test that drives both sides of the conditional at `course-detail-page.component.ts:118` in `if` with assertions that distinguish the outcomes.
 
 ### `src/lib/search-results-page/search-results-page.component.ts` — 6 surviving mutants
 
-**Cluster 5** (lines 22–24): 2 mutants surviving — StringLiteral×1, BooleanLiteral×1
+**Cluster 6** (lines 22–24): 2 mutants surviving — StringLiteral×1, BooleanLiteral×1
 
+Sample mutation:
 ```diff
 - readonly query = signal('');
 + <replaced with: "Stryker was here!">
 ```
 
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Pin the literal value at `search-results-page.component.ts:22`.
+_Recommended test._ Add an assertion that pins the literal value at `search-results-page.component.ts:22`. If it's a log message, classify as equivalent.
 
-**Cluster 6** (lines 38 — `if()`): 4 mutants surviving — ConditionalExpression×2, LogicalOperator×1, StringLiteral×1
+**Cluster 7** (lines 38 — `if()`): 4 mutants surviving — ConditionalExpression×2, LogicalOperator×1, StringLiteral×1
 
+Sample mutation:
 ```diff
 - const page = Number(params.get('page')) || 1;
 + <replaced with: true>
 ```
 
-_Diagnosis._ The condition's outcome isn't observed. Add a test that drives both sides with distinguishing assertions.
+_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
 
-_Recommended test._ Drive both sides of the conditional at `search-results-page.component.ts:38` in `if`.
+_Recommended test._ Add a test that drives both sides of the conditional at `search-results-page.component.ts:38` in `if` with assertions that distinguish the outcomes.
 
 ### `src/lib/catalog-page/catalog-page.component.ts` — 5 surviving mutants
 
-**Cluster 7** (lines 32–36): 3 mutants surviving — BooleanLiteral×2, StringLiteral×1
+**Cluster 8** (lines 32–36): 3 mutants surviving — BooleanLiteral×2, StringLiteral×1
 
+Sample mutation:
 ```diff
 - readonly error = signal(false);
 + <replaced with: true>
 ```
 
-_Diagnosis._ A `true`/`false` literal could be flipped and tests still pass.
+_Diagnosis._ A `true`/`false` literal could be flipped and tests still pass. Add an assertion that pins the boolean.
 
-_Recommended test._ Drive both sides of the conditional at `catalog-page.component.ts:32`.
+_Recommended test._ Add a test that drives both sides of the conditional at `catalog-page.component.ts:32` with assertions that distinguish the outcomes.
 
-**Cluster 8** (lines 68 — `onFilterChange()`): 1 mutant surviving — StringLiteral×1
+**Cluster 9** (lines 68 — `onFilterChange()`): 1 mutant surviving — StringLiteral×1
 
+Sample mutation:
 ```diff
 - queryParamsHandling: 'merge',
 + <replaced with: "">
 ```
 
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Pin the literal value at `catalog-page.component.ts:68` in `onFilterChange`.
+_Recommended test._ Add an assertion that pins the literal value at `catalog-page.component.ts:68` in `onFilterChange`. If it's a log message, classify as equivalent.
 
-**Cluster 9** (lines 76 — `goToPage()`): 1 mutant surviving — StringLiteral×1
+**Cluster 10** (lines 76 — `goToPage()`): 1 mutant surviving — StringLiteral×1
 
+Sample mutation:
 ```diff
 - queryParamsHandling: 'merge',
 + <replaced with: "">
 ```
 
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Pin the literal value at `catalog-page.component.ts:76` in `goToPage`.
+_Recommended test._ Add an assertion that pins the literal value at `catalog-page.component.ts:76` in `goToPage`. If it's a log message, classify as equivalent.
 
 ### `src/lib/catalog.service.ts` — 5 surviving mutants
 
-**Cluster 10** (lines 26–29 — `getCatalogue()`): 4 mutants surviving — ConditionalExpression×4
+**Cluster 11** (lines 26–29 — `getCatalogue()`): 4 mutants surviving — ConditionalExpression×4
 
+Sample mutation:
 ```diff
 - if (params.page) httpParams = httpParams.set('page', params.page);
 + <replaced with: true>
 ```
 
-_Diagnosis._ The condition's outcome isn't observed. Add a test that drives both sides with distinguishing assertions.
+_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
 
-_Recommended test._ Drive both sides of the conditional at `catalog.service.ts:26` in `getCatalogue`.
+_Recommended test._ Add a test that drives both sides of the conditional at `catalog.service.ts:26` in `getCatalogue` with assertions that distinguish the outcomes.
 
-**Cluster 11** (lines 37 — `search()`): 1 mutant surviving — ConditionalExpression×1
+**Cluster 12** (lines 37 — `search()`): 1 mutant surviving — ConditionalExpression×1
 
+Sample mutation:
 ```diff
 - if (page) httpParams = httpParams.set('page', page);
 + <replaced with: true>
 ```
 
-_Diagnosis._ The condition's outcome isn't observed. Add a test that drives both sides with distinguishing assertions.
+_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
 
-_Recommended test._ Drive both sides of the conditional at `catalog.service.ts:37` in `search`.
+_Recommended test._ Add a test that drives both sides of the conditional at `catalog.service.ts:37` in `search` with assertions that distinguish the outcomes.
 
 ### `src/lib/components/catalog-filter-bar/catalog-filter-bar.component.ts` — 1 surviving mutant
 
-**Cluster 12** (lines 27): 1 mutant surviving — StringLiteral×1
+**Cluster 13** (lines 27): 1 mutant surviving — StringLiteral×1
 
+Sample mutation:
 ```diff
 - readonly sort = input<CatalogSort>('NEWEST');
 + <replaced with: "">
 ```
 
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Pin the literal value at `catalog-filter-bar.component.ts:27`.
+_Recommended test._ Add an assertion that pins the literal value at `catalog-filter-bar.component.ts:27`. If it's a log message, classify as equivalent.
 
 ### `src/lib/components/course-search-bar/course-search-bar.component.ts` — 1 surviving mutant
 
-**Cluster 13** (lines 16): 1 mutant surviving — StringLiteral×1
+**Cluster 14** (lines 16): 1 mutant surviving — StringLiteral×1
 
+Sample mutation:
 ```diff
 - readonly query = signal('');
 + <replaced with: "Stryker was here!">
 ```
 
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Pin the literal value at `course-search-bar.component.ts:16`.
+_Recommended test._ Add an assertion that pins the literal value at `course-search-bar.component.ts:16`. If it's a log message, classify as equivalent.
 
 ### `src/lib/components/course-card/course-card.component.ts` — 1 surviving mutant
 
-**Cluster 14** (lines 16): 1 mutant surviving — ArrowFunction×1
+**Cluster 15** (lines 16): 1 mutant surviving — ArrowFunction×1
 
+Sample mutation:
 ```diff
 - readonly coverTone = computed(() => coverToneForId(this.course().id));
 + <replaced with: () => undefined>
 ```
 
-_Diagnosis._ A method/arrow body could be emptied with no test failing.
+_Diagnosis._ A method/arrow body could be emptied with no test failing. The function is called but its effect isn't asserted.
 
-_Recommended test._ Assert on the side effect at `course-card.component.ts:16`.
+_Recommended test._ Add an assertion on the side effect of the block/function at `course-card.component.ts:16` — verify state change, mock invocation, or returned value.
 
-## Equivalent-mutant candidates
+## Equivalent-mutant candidates (excluded from adjusted score)
 
-_None proposed._
+_None._
+
+## Caveats
+
+- **Scope is per-lib Stryker config.** See `stryker.web-catalog.config.mjs` for what gets mutated / excluded.
+- **Coverage analysis is `perTest`.** Stryker only runs tests whose coverage hit the mutated line.
+- **No-coverage mutants count against the raw score.** They reflect lines no test executes.
+- **Equivalent classification is heuristic.** Review each candidate before treating the adjusted score as authoritative.
