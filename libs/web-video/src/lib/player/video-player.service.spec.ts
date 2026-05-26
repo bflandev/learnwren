@@ -3,42 +3,45 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { VideoPlayerService } from './video-player.service';
 
+type FakeInst = {
+  config: { xhrSetup?: (xhr: XMLHttpRequest) => void };
+  on: ReturnType<typeof vi.fn>;
+  loadSource: ReturnType<typeof vi.fn>;
+  attachMedia: ReturnType<typeof vi.fn>;
+  destroy: ReturnType<typeof vi.fn>;
+  fire: (data: { fatal: boolean; details?: string }) => void;
+};
+
 const hlsStub = vi.hoisted(() => {
-  const instances: Array<{
-    config: unknown;
-    on: ReturnType<typeof vi.fn>;
-    loadSource: ReturnType<typeof vi.fn>;
-    attachMedia: ReturnType<typeof vi.fn>;
-    destroy: ReturnType<typeof vi.fn>;
-    fire: (data: { fatal: boolean; details?: string }) => void;
-  }> = [];
-  const Hls = vi.fn(function (this: unknown, config: unknown) {
-    const handlers: Array<(_: unknown, data: { fatal: boolean; details?: string }) => void> = [];
-    const inst = {
-      config,
-      on: vi.fn((_e: string, h: (_: unknown, data: { fatal: boolean; details?: string }) => void) =>
-        handlers.push(h),
-      ),
-      loadSource: vi.fn(),
-      attachMedia: vi.fn(),
-      destroy: vi.fn(),
-      fire: (data: { fatal: boolean; details?: string }) =>
-        handlers.forEach((h) => h({}, data)),
-    };
-    instances.push(inst);
-    return inst;
-  });
-  Object.assign(Hls, {
-    isSupported: vi.fn(() => true),
-    Events: { ERROR: 'hlsError' },
-  });
-  return { Hls, instances };
+  const instances: FakeInst[] = [];
+  const isSupported = vi.fn<() => boolean>(() => true);
+  return { instances, isSupported };
 });
 
-vi.mock('hls.js', () => ({
-  __esModule: true,
-  default: hlsStub.Hls,
-}));
+vi.mock('hls.js', () => {
+  type ErrorHandler = (_: unknown, data: { fatal: boolean; details?: string }) => void;
+  class FakeHls {
+    static isSupported = hlsStub.isSupported;
+    static Events = { ERROR: 'hlsError' };
+    config: FakeInst['config'];
+    on: FakeInst['on'];
+    loadSource: FakeInst['loadSource'];
+    attachMedia: FakeInst['attachMedia'];
+    destroy: FakeInst['destroy'];
+    fire: FakeInst['fire'];
+    constructor(config: FakeInst['config']) {
+      const handlers: ErrorHandler[] = [];
+      this.config = config;
+      this.on = vi.fn((_e: string, h: ErrorHandler) => handlers.push(h));
+      this.loadSource = vi.fn();
+      this.attachMedia = vi.fn();
+      this.destroy = vi.fn();
+      this.fire = (data) => handlers.forEach((h) => h({}, data));
+      hlsStub.instances.push(this);
+    }
+  }
+  return { default: FakeHls, Hls: FakeHls };
+});
 
 function videoEl(canPlay = ''): HTMLVideoElement {
   const el = document.createElement('video');
@@ -51,8 +54,7 @@ describe('VideoPlayerService', () => {
 
   beforeEach(() => {
     hlsStub.instances.length = 0;
-    (hlsStub.Hls as unknown as { mockClear: () => void }).mockClear();
-    (hlsStub.Hls as unknown as { isSupported: ReturnType<typeof vi.fn> }).isSupported.mockReturnValue(true);
+    hlsStub.isSupported.mockReturnValue(true);
     TestBed.configureTestingModule({ providers: [VideoPlayerService] });
     svc = TestBed.inject(VideoPlayerService);
   });
@@ -119,7 +121,7 @@ describe('VideoPlayerService', () => {
   });
 
   it('falls back to native HLS when Hls.isSupported() is false', () => {
-    (hlsStub.Hls as unknown as { isSupported: ReturnType<typeof vi.fn> }).isSupported.mockReturnValue(false);
+    hlsStub.isSupported.mockReturnValue(false);
     const el = videoEl('maybe');
     const onFatalError = vi.fn();
     const handle = svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
@@ -132,7 +134,7 @@ describe('VideoPlayerService', () => {
   });
 
   it('invokes onFatalError when no HLS path is available', () => {
-    (hlsStub.Hls as unknown as { isSupported: ReturnType<typeof vi.fn> }).isSupported.mockReturnValue(false);
+    hlsStub.isSupported.mockReturnValue(false);
     const el = videoEl(''); // canPlayType returns '' → falsy
     const onFatalError = vi.fn();
     svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
