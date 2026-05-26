@@ -271,3 +271,28 @@ describe('CatalogService.listCatalogue — POPULAR sort', () => {
     expect(page.items.map((i) => i.id)).toEqual(['c-high', 'c-low', 'c-none']);
   });
 });
+
+describe('CatalogService — cover image projection', () => {
+  it('includes coverImageUrl in CourseSummary when present on Course', async () => {
+    const svc = makeService([
+      course({ id: 'c-cover' as CourseId, coverImageUrl: 'https://cdn/x.jpg?v=1' }),
+    ]);
+    const page = await svc.listCatalogue({});
+    const item = page.items.find((i) => i.id === 'c-cover');
+    expect(item?.coverImageUrl).toBe('https://cdn/x.jpg?v=1');
+  });
+
+  it('omits coverImageUrl in CourseSummary when absent on Course', async () => {
+    const svc = makeService([course({ id: 'c-bare' as CourseId })]);
+    const page = await svc.listCatalogue({});
+    expect(page.items.find((i) => i.id === 'c-bare')?.coverImageUrl).toBeUndefined();
+  });
+
+  it('includes coverImageUrl in CourseCatalogDetail when present', async () => {
+    const svc = makeService([
+      course({ id: 'c-cover' as CourseId, coverImageUrl: 'https://cdn/x.jpg?v=1' }),
+    ]);
+    const detail = await svc.getCourseDetail('c-cover' as CourseId);
+    expect(detail.coverImageUrl).toBe('https://cdn/x.jpg?v=1');
+  });
+});

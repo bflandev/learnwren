@@ -88,6 +88,7 @@ export class CatalogService {
       lessonCount,
       modules: outline,
       publishedAt: publishedAt(course),
+      coverImageUrl: course.coverImageUrl,
     };
   }
 
@@ -146,5 +147,6 @@ function toSummary(course: Course, names: Map<UserId, string>): CourseSummary {
     difficulty: course.difficulty,
     instructorDisplayName: names.get(course.instructorId) ?? 'Instructor',
     publishedAt: publishedAt(course),
+    coverImageUrl: course.coverImageUrl,
   };
 }
