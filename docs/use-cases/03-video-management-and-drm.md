@@ -3,7 +3,7 @@
 This document contains the fully-dressed Cockburn use cases for the video pipeline: upload, transcoding, DRM encryption, secure playback, and storage management.
 
 > [!NOTE]
-> **DRIFT — this spec no longer matches the implementation.** Frozen 2026-03-27 and not reconciled since. These use cases assume a commercial multi-DRM architecture (Widevine/PlayReady/FairPlay, CENC/CBCS, MPEG-DASH, a license server with playback tokens, KMS-stored keys); the implementation is a deliberately scoped-down HLS + AES-128 pipeline gated by session cookies. UC-03-05 (Manage Video Storage) is unbuilt. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-03--video-management-and-drm).
+> **STATUS: PARTIALLY IMPLEMENTED (2026-05-26).** UC-03-01 (Upload), UC-03-02 (Transcode), UC-03-03 (Encrypt), and UC-03-04 (Play) are wired up via a **deliberately scoped-down HLS + AES-128 pipeline gated by session cookies** — see `docs/superpowers/specs/2026-05-13-video-pipeline-architecture-design.md`, `2026-05-13-video-upload-slice-a-design.md`, `2026-05-13-video-transcoding-slice-b-design.md`, and `2026-05-14-video-playback-slice-c-design.md`. This is **architecturally narrower than the original UCs**, which assumed a commercial multi-DRM stack (Widevine/PlayReady/FairPlay, CENC/CBCS, MPEG-DASH, a license server with playback tokens, KMS-stored keys). The AES-128 + session-cookie posture is the intended end state for the self-hosted small-community MVP, not an interim step. UC-03-05 (Manage Video Storage) is **unbuilt** — it's an administrator-facing feature and effectively EP-08 territory. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-03--video-management-and-drm) for the per-UC detail.
 
 ---
 

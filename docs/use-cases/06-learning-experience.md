@@ -3,7 +3,7 @@
 This document contains the fully-dressed Cockburn use cases for the learning experience: watching videos, tracking progress, resuming sessions, and navigating course content.
 
 > [!NOTE]
-> **DRIFT — this spec is unimplemented.** Frozen 2026-03-27. EP-06 (lesson playback for students, progress tracking, resume, course-outline navigation) is entirely deferred. The only footprint in shipped code is two `TODO(EP-06)` owner-only access guards. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-06--learning-experience).
+> **STATUS: IMPLEMENTED (2026-05-26).** UC-06-01 through UC-06-04 are all wired up across four vertical slices: Slice A — student lesson playback (`docs/superpowers/specs/2026-05-25-ep06-slice-a-student-playback-design.md`); Slice B — mark a lesson complete (`2026-05-25-ep06-slice-b-mark-complete-design.md`); Slice C — resume learning (`2026-05-25-ep06-slice-c-resume-learning-design.md`); Slice D — course outline panel (`2026-05-25-ep06-slice-d-course-outline-design.md`). Module-level and course-level completion rollups (UC-06-02 extensions 3a/3b) and the "Course Completed" badge are deliberate scope cuts — call out in the Slice B design spec. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-06--learning-experience) for the per-UC detail.
 
 ---
 
