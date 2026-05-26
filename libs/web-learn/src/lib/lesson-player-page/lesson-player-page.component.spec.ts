@@ -1,11 +1,11 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ISODateString, LessonId, LessonView } from '@learnwren/shared-data-models';
+import type { ISODateString, LessonId, LessonView, MaterialId } from '@learnwren/shared-data-models';
 import { VideoPlayerComponent } from '@learnwren/web-video';
 
 import { LessonPlayerPageComponent } from './lesson-player-page.component';
@@ -31,6 +31,7 @@ function makeView(
   overrides: Partial<LessonView['lesson']> = {},
   progress: LessonView['progress'] = { completedAt: null, lastWatchedSeconds: 0 },
   outlineModules: LessonView['outline']['modules'] = [],
+  materials: LessonView['materials'] = [],
 ): LessonView {
   return {
     course: { id: 'c-1' as LessonView['course']['id'], title: 'Test Course', status: 'PUBLISHED' },
@@ -45,7 +46,7 @@ function makeView(
     },
     progress,
     outline: { modules: outlineModules },
-    materials: [],
+    materials,
   };
 }
 
@@ -951,5 +952,153 @@ describe('LessonPlayerPageComponent outline integration (Slice D)', () => {
 
     expect(navSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalled();
+  });
+});
+
+describe('UC-04-02 materials section', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const twoMaterials: LessonView['materials'] = [
+    { id: 'mat-1' as MaterialId, displayName: 'Slides.pdf', extension: 'pdf', sizeBytes: 2_500_000 },
+    { id: 'mat-2' as MaterialId, displayName: 'Notes.docx', extension: 'docx', sizeBytes: 12_345 },
+  ];
+
+  it('renders one row per material with extension, displayName, sizeBytes, and Download button', async () => {
+    configure();
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }, [], twoMaterials));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const section = query(fixture, '[data-testid="lesson-materials"]');
+    expect(section).not.toBeNull();
+
+    const btn1 = query(fixture, '[data-testid="material-download-mat-1"]') as HTMLButtonElement | null;
+    const btn2 = query(fixture, '[data-testid="material-download-mat-2"]') as HTMLButtonElement | null;
+    expect(btn1).not.toBeNull();
+    expect(btn2).not.toBeNull();
+
+    const sectionText = (section as HTMLElement).textContent ?? '';
+    expect(sectionText).toContain('Slides.pdf');
+    expect(sectionText).toContain('Notes.docx');
+    // formatted bytes — 2_500_000 bytes ≈ 2.4 MB; 12_345 bytes ≈ 12.1 KB
+    expect(sectionText).toContain('MB');
+    expect(sectionText).toContain('KB');
+    // extension badges (uppercase)
+    expect(sectionText).toContain('PDF');
+    expect(sectionText).toContain('DOCX');
+  });
+
+  it('hides the section entirely when materials is empty', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(query(fixture, '[data-testid="lesson-materials"]')).toBeNull();
+  });
+
+  it('click on material-download-{matId} calls requestDownloadUrl then window.open with the URL', async () => {
+    configure();
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }, [], twoMaterials));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const learn = (fixture.componentInstance as unknown as { learn: { requestDownloadUrl: (id: MaterialId) => Promise<{ downloadUrl: string; expiresAt: ISODateString }> } }).learn;
+    const reqSpy = vi
+      .spyOn(learn, 'requestDownloadUrl')
+      .mockResolvedValue({ downloadUrl: 'https://example.com/signed', expiresAt: '2026-05-26T12:00:00.000Z' as ISODateString });
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    const btn = query(fixture, '[data-testid="material-download-mat-1"]') as HTMLButtonElement;
+    btn.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(reqSpy).toHaveBeenCalledWith('mat-1');
+    expect(openSpy).toHaveBeenCalledWith('https://example.com/signed', '_blank', 'noopener');
+  });
+
+  it('on 404 renders material-error-{matId} with the gone copy; sibling rows stay enabled', async () => {
+    configure();
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }, [], twoMaterials));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const learn = (fixture.componentInstance as unknown as { learn: { requestDownloadUrl: (id: MaterialId) => Promise<unknown> } }).learn;
+    vi.spyOn(learn, 'requestDownloadUrl').mockRejectedValue(
+      new HttpErrorResponse({ status: 404, statusText: 'Not Found' }),
+    );
+
+    (query(fixture, '[data-testid="material-download-mat-1"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const err = query(fixture, '[data-testid="material-error-mat-1"]');
+    expect(err).not.toBeNull();
+    expect((err as HTMLElement).textContent ?? '').toContain('This file is no longer available.');
+
+    // Sibling row still has its Download button enabled (no error on mat-2).
+    const sibling = query(fixture, '[data-testid="material-download-mat-2"]') as HTMLButtonElement | null;
+    expect(sibling).not.toBeNull();
+    expect(sibling?.disabled).toBe(false);
+    expect(query(fixture, '[data-testid="material-error-mat-2"]')).toBeNull();
+  });
+
+  it('on 403 renders the forbidden copy', async () => {
+    configure();
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }, [], twoMaterials));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const learn = (fixture.componentInstance as unknown as { learn: { requestDownloadUrl: (id: MaterialId) => Promise<unknown> } }).learn;
+    vi.spyOn(learn, 'requestDownloadUrl').mockRejectedValue(
+      new HttpErrorResponse({ status: 403, statusText: 'Forbidden' }),
+    );
+
+    (query(fixture, '[data-testid="material-download-mat-1"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const err = query(fixture, '[data-testid="material-error-mat-1"]');
+    expect(err).not.toBeNull();
+    expect((err as HTMLElement).textContent ?? '').toContain('You no longer have access to this material.');
+  });
+
+  it('on other errors (500) renders the generic retry copy', async () => {
+    configure();
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }, [], twoMaterials));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const learn = (fixture.componentInstance as unknown as { learn: { requestDownloadUrl: (id: MaterialId) => Promise<unknown> } }).learn;
+    vi.spyOn(learn, 'requestDownloadUrl').mockRejectedValue(
+      new HttpErrorResponse({ status: 500, statusText: 'Server Error' }),
+    );
+
+    (query(fixture, '[data-testid="material-download-mat-1"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const err = query(fixture, '[data-testid="material-error-mat-1"]');
+    expect(err).not.toBeNull();
+    expect((err as HTMLElement).textContent ?? '').toContain("Couldn't prepare the download. Try again.");
   });
 });

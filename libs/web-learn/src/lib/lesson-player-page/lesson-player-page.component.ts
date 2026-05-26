@@ -12,7 +12,14 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
-import type { CourseId, CourseOutline, ISODateString, LessonId, LessonView } from '@learnwren/shared-data-models';
+import type {
+  CourseId,
+  CourseOutline,
+  ISODateString,
+  LessonId,
+  LessonView,
+  MaterialId,
+} from '@learnwren/shared-data-models';
 import { VideoPlayerComponent } from '@learnwren/web-video';
 
 import { CourseOutlinePanelComponent } from '../course-outline-panel/course-outline-panel.component';
@@ -20,6 +27,18 @@ import { LearnService } from '../learn.service';
 import { PositionSaver } from '../position-saver';
 
 type PageState = 'LOADING' | 'READY' | 'PROCESSING' | 'NOT_ENROLLED' | 'NOT_FOUND' | 'LOAD_ERROR';
+
+type MaterialRowState =
+  | { status: 'idle' }
+  | { status: 'preparing' }
+  | { status: 'error'; kind: 'gone' | 'forbidden' | 'other' };
+
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 @Component({
   selector: 'lib-lesson-player-page',
@@ -50,6 +69,14 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   readonly isOwnerPreview = computed<boolean>(() => this.view()?.progress === null);
   readonly markBusy = signal<boolean>(false);
   readonly markError = signal<null | 'revoked' | 'other'>(null);
+
+  readonly materialRowState = signal<Map<MaterialId, MaterialRowState>>(new Map());
+
+  rowState(id: MaterialId): MaterialRowState {
+    return this.materialRowState().get(id) ?? { status: 'idle' };
+  }
+
+  readonly formatBytes = formatBytes;
 
   readonly outline = computed<CourseOutline | null>(() => this.view()?.outline ?? null);
   readonly outlineOpen = signal<boolean>(
@@ -211,6 +238,28 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     } finally {
       this.markBusy.set(false);
     }
+  }
+
+  async onDownloadMaterial(matId: MaterialId): Promise<void> {
+    this.setRow(matId, { status: 'preparing' });
+    try {
+      const { downloadUrl } = await this.learn.requestDownloadUrl(matId);
+      window.open(downloadUrl, '_blank', 'noopener');
+      this.setRow(matId, { status: 'idle' });
+    } catch (err) {
+      const status = err instanceof HttpErrorResponse ? err.status : 0;
+      const kind: 'gone' | 'forbidden' | 'other' =
+        status === 404 ? 'gone' : status === 403 ? 'forbidden' : 'other';
+      this.setRow(matId, { status: 'error', kind });
+    }
+  }
+
+  private setRow(id: MaterialId, next: MaterialRowState): void {
+    this.materialRowState.update((m) => {
+      const copy = new Map(m);
+      copy.set(id, next);
+      return copy;
+    });
   }
 
   private ensureSaver(): void {
