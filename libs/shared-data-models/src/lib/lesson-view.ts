@@ -15,6 +15,9 @@ import type { VideoState } from './video';
  *     enrolled student with no progress row yet,
  *   - { completedAt: <ISO|null>, lastWatchedSeconds: <number> } when a row
  *     exists.
+ *
+ * `outline` is the course structure projection (added in Slice D) carrying all
+ * modules and lessons in order, with per-lesson completion state for the caller.
  */
 export interface LessonView {
   course: {
@@ -34,4 +37,28 @@ export interface LessonView {
     completedAt: ISODateString | null;
     lastWatchedSeconds: number;
   } | null;
+  outline: CourseOutline;
+}
+
+/**
+ * A lesson as projected in the course outline (sidebar/drawer on lesson player).
+ * Includes minimal data needed to render the outline and track per-lesson completion.
+ */
+export interface CourseOutlineLesson {
+  id: LessonId;
+  title: string;
+  videoState: VideoState | null;
+  completedAt: ISODateString | null;
+}
+
+/**
+ * The course outline structure: modules in order, each with its lessons in order.
+ * Used by the lesson player's sidebar/drawer (UC-06-04).
+ */
+export interface CourseOutline {
+  modules: Array<{
+    id: ModuleId;
+    title: string;
+    lessons: CourseOutlineLesson[];
+  }>;
 }
