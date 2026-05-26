@@ -34,7 +34,7 @@ carries at least minor drift.
 | EP-01 — User Identity & Access | 4 | **Major** | UC-01-03 and UC-01-04 entirely unbuilt; 2 behavioral contradictions |
 | EP-02 — Course Authoring | 4 | **Moderate** | CRUD core faithful; module-title flow inverted, publish slice over-built |
 | EP-03 — Video Management & DRM | 5 | **Major (architectural)** | Specs assume commercial multi-DRM; code is a scoped-down HLS + AES-128 pipeline |
-| EP-04 — Lesson Materials | 2 | **Moderate** | UC-04-01 faithful; UC-04-02 (student download) unbuilt for its actor |
+| EP-04 — Lesson Materials | 2 | **Minor (2026-05-26)** | UC-04-01 faithful; UC-04-02 student download now implemented |
 | EP-05 — Course Discovery & Enrollment | 5 | **Deferred** | Entirely unbuilt; documented as deferred |
 | EP-06 — Learning Experience | 4 | **Partial** | UC-06-01 built (Slice A); UC-06-02 built (Slice B, 2026-05-25); UC-06-03/04 deferred |
 
@@ -232,8 +232,14 @@ shipped; the use cases significantly overstate it.
 
 ## EP-04 — Lesson Materials
 
-**Drift: Moderate.** UC-04-01 (attach/rename/remove) is faithful in substance.
-UC-04-02 (student download) is effectively unbuilt for its stated actor.
+**Drift: Reconciled (2026-05-26).** UC-04-01 (attach/rename/remove) is faithful in
+substance. UC-04-02 (student download) is now implemented — see
+`docs/superpowers/specs/2026-05-26-lesson-materials-student-download-design.md`.
+`MaterialAccessGuard` was widened to `owner OR active enrolment on a PUBLISHED
+course`, and the learn page now renders a materials list with per-row Download
+buttons. Ext 4a (auto-retry on expired URL) and ext 4b (auto-removal of stale
+rows) are deliberate scope cuts; per-row error copy + a manual Retry handle those
+cases. The previously listed UC-04-02 drifts below are stale and resolved.
 
 ### UC-04-01 — Attach Materials to a Lesson
 

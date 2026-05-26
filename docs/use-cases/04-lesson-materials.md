@@ -3,7 +3,7 @@
 This document contains the fully-dressed Cockburn use cases for attaching and downloading supplementary lesson materials.
 
 > [!NOTE]
-> **DRIFT — this spec no longer matches the implementation.** Frozen 2026-03-27 and not reconciled since. UC-04-01 (Attach Materials) is faithful in substance. UC-04-02 (Download Materials) is unbuilt for its stated actor: the download endpoint is owner-only with enrolled-student access deferred to EP-06, and there is no student-facing lesson page. See the [Specification Drift Report](../quality/spec-drift-report.md#ep-04--lesson-materials).
+> **STATUS: IMPLEMENTED (2026-05-26).** UC-04-01 (Attach Materials) and UC-04-02 (Download Materials) are both wired up. UC-04-02 ext 4a (auto-retry on expired URL) and ext 4b auto-removal of stale rows are deliberate scope cuts — see [the design spec](../superpowers/specs/2026-05-26-lesson-materials-student-download-design.md) §8. Per-row error copy + Retry handle these cases manually.
 
 ---
 
