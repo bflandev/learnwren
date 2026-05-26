@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnDestroy,
   OnInit,
   ViewChild,
@@ -10,6 +11,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import type {
@@ -51,6 +53,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly learn = inject(LearnService);
+  private readonly destroyRef = inject(DestroyRef);
 
   courseId: CourseId = '' as CourseId;
   lessonId: LessonId = '' as LessonId;
@@ -99,22 +102,43 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     }
   };
 
-  async ngOnInit(): Promise<void> {
-    const courseId = this.route.snapshot.paramMap.get('courseId');
-    const lessonId = this.route.snapshot.paramMap.get('lessonId');
-    if (!courseId || !lessonId) {
-      this.state.set('NOT_FOUND');
-      return;
-    }
-    this.courseId = courseId as CourseId;
-    this.lessonId = lessonId as LessonId;
-    await this.load();
+  ngOnInit(): void {
     if (typeof window !== 'undefined') {
       window.addEventListener('pagehide', this.onPageHide);
     }
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((pm) => {
+      void this.applyRouteParams(pm.get('courseId'), pm.get('lessonId'));
+    });
+  }
+
+  /**
+   * Reacts to a route param change (initial load OR outline-driven nav between
+   * lessons on the same route). Angular reuses the component instance so we
+   * must reset per-lesson state and re-fetch the LessonView ourselves.
+   */
+  private async applyRouteParams(
+    courseId: string | null,
+    lessonId: string | null,
+  ): Promise<void> {
+    if (!courseId || !lessonId) {
+      this.state.set('NOT_FOUND');
+      return;
+    }
+    if (courseId === this.courseId && lessonId === this.lessonId && this.view() !== null) {
+      return;
+    }
+    this.saver?.stop();
+    this.saver = null;
+    this.hasResumed = false;
+    this.markBusy.set(false);
+    this.markError.set(null);
+    this.materialRowState.set(new Map());
+    this.courseId = courseId as CourseId;
+    this.lessonId = lessonId as LessonId;
+    await this.load();
   }
 
   ngOnDestroy(): void {

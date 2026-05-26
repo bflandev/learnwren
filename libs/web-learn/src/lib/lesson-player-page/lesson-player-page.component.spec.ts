@@ -1,8 +1,9 @@
 import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
+import { BehaviorSubject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ISODateString, LessonId, LessonView, MaterialId } from '@learnwren/shared-data-models';
@@ -57,10 +58,10 @@ function configure(
   const raw: Record<string, string> = {};
   if (courseId !== null) raw['courseId'] = courseId;
   if (lessonId !== null) raw['lessonId'] = lessonId;
+  const paramMap = convertToParamMap(raw);
   const activatedRouteFake = {
-    snapshot: {
-      paramMap: convertToParamMap(raw),
-    },
+    snapshot: { paramMap },
+    paramMap: of(paramMap),
   };
 
   TestBed.configureTestingModule({
@@ -72,6 +73,35 @@ function configure(
       { provide: ActivatedRoute, useValue: activatedRouteFake },
     ],
   });
+}
+
+/**
+ * Variant of configure() that exposes the ParamMap subject so a test can push a
+ * new lessonId after the first load (UC-06-04 outline navigation).
+ */
+function configureWithParamMapSubject(initial: {
+  courseId: string;
+  lessonId: string;
+}): BehaviorSubject<ParamMap> {
+  const subject = new BehaviorSubject<ParamMap>(convertToParamMap(initial));
+  TestBed.configureTestingModule({
+    imports: [LessonPlayerPageComponent],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideRouter([]),
+      {
+        provide: ActivatedRoute,
+        useValue: {
+          get snapshot() {
+            return { paramMap: subject.value };
+          },
+          paramMap: subject.asObservable(),
+        },
+      },
+    ],
+  });
+  return subject;
 }
 
 function create(): {
@@ -952,6 +982,80 @@ describe('LessonPlayerPageComponent outline integration (Slice D)', () => {
 
     expect(navSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalled();
+  });
+});
+
+describe('route param change (outline navigation between lessons)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('refetches the LessonView and re-renders when the route lessonId changes', async () => {
+    const paramMap$ = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+    const { fixture, http } = create();
+
+    // First lesson loads
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({ id: 'l-1' as LessonId, title: 'Lesson A' }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(query(fixture, 'h1')!.textContent).toContain('Lesson A');
+
+    // Outline click pushes a new lessonId — component must refetch.
+    paramMap$.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-2' }));
+    await fixture.whenStable();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-2')
+      .flush(makeView({ id: 'l-2' as LessonId, title: 'Lesson B' }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(query(fixture, 'h1')!.textContent).toContain('Lesson B');
+  });
+
+  it('resets per-lesson state when the lessonId changes', async () => {
+    const paramMap$ = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(
+      makeView({}, { completedAt: null, lastWatchedSeconds: 0 }, [], [
+        { id: 'mat-1' as MaterialId, displayName: 'A.pdf', extension: 'pdf', sizeBytes: 1 },
+      ]),
+    );
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Put the materials row into an error state so we can confirm it resets.
+    fixture.componentInstance.materialRowState.set(
+      new Map([['mat-1' as MaterialId, { status: 'error', kind: 'gone' as const }]]),
+    );
+    fixture.componentInstance.markBusy.set(true);
+    fixture.componentInstance.markError.set('other');
+
+    paramMap$.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-2' }));
+    await fixture.whenStable();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-2')
+      .flush(makeView({ id: 'l-2' as LessonId, title: 'Lesson B' }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.materialRowState().size).toBe(0);
+    expect(fixture.componentInstance.markBusy()).toBe(false);
+    expect(fixture.componentInstance.markError()).toBeNull();
+  });
+
+  it('sets NOT_FOUND if a later param change drops the lessonId', async () => {
+    const paramMap$ = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    paramMap$.next(convertToParamMap({ courseId: 'c-1' }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    http.expectNone(() => true);
+    expect(text(fixture)).toContain('Lesson not available');
   });
 });
 
