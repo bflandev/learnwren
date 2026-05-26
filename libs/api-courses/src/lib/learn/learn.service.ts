@@ -2,12 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import type {
   Course,
+  CourseOutline,
   ISODateString,
   Lesson,
+  LessonId,
   LessonView,
   UserId,
+  VideoState,
 } from '@learnwren/shared-data-models';
 
+import { CoursesRepository } from '../courses.repository';
 import { EnrollmentRepository } from '../enrollment/enrollment.repository';
 import { VideoRepository } from '../video/video.repository';
 
@@ -18,6 +22,7 @@ export class LearnService {
   constructor(
     private readonly videos: VideoRepository,
     private readonly enrollment: EnrollmentRepository,
+    private readonly courses: CoursesRepository,
   ) {}
 
   async getLessonView(userId: UserId, course: Course, lesson: Lesson): Promise<LessonView> {
@@ -45,6 +50,8 @@ export class LearnService {
       }
     }
 
+    const outline = await this.projectOutline(userId, course);
+
     return {
       course: { id: course.id, title: course.title, status: course.status },
       lesson: {
@@ -56,6 +63,37 @@ export class LearnService {
         videoState,
       },
       progress,
+      outline,
+    };
+  }
+
+  private async projectOutline(userId: UserId, course: Course): Promise<CourseOutline> {
+    const modules = await this.courses.listModulesByCourse(course.id);
+    const lessonsByModule = await Promise.all(
+      modules.map((m) => this.courses.listLessonsByModule(course.id, m.id)),
+    );
+    const allLessonIds: LessonId[] = lessonsByModule.flat().map((l) => l.id);
+    const stateByLesson = await this.videos.listVideoStatesForLessons(allLessonIds);
+
+    const progressByLesson = new Map<LessonId, ISODateString | null>();
+    if (course.instructorId !== userId) {
+      const enrolment = await this.enrollment.getEnrollment(userId, course.id);
+      for (const row of enrolment?.progress ?? []) {
+        progressByLesson.set(row.lessonId, row.completedAt ?? null);
+      }
+    }
+
+    return {
+      modules: modules.map((m, i) => ({
+        id: m.id,
+        title: m.title,
+        lessons: (lessonsByModule[i] ?? []).map((l) => ({
+          id: l.id,
+          title: l.title,
+          videoState: (stateByLesson.get(l.id) ?? null) as VideoState | null,
+          completedAt: progressByLesson.get(l.id) ?? null,
+        })),
+      })),
     };
   }
 
