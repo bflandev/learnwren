@@ -19,14 +19,35 @@ export interface SessionContext {
   cookieHeader: string;
 }
 
+/**
+ * POST to the api with retry-on-429. The Firebase Auth emulator applies a
+ * per-IP rate limit on signUp; long suites (api-e2e has ~140 tests, many of
+ * which register fresh users) hit it deterministically toward the tail. Retry
+ * up to 3 times with 2s/4s/8s backoff.
+ */
+async function postWithRetryOn429(
+  request: import('@playwright/test').APIRequestContext,
+  url: string,
+  body: unknown,
+): Promise<import('@playwright/test').APIResponse> {
+  let res = await request.post(url, { data: body });
+  for (let attempt = 0; res.status() === 429 && attempt < 3; attempt += 1) {
+    await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+    res = await request.post(url, { data: body });
+  }
+  return res;
+}
+
 /** Register a STUDENT, mark verified, then promote to INSTRUCTOR and re-mint the session cookie. */
 export async function registerAndPromoteInstructor(
   request: import('@playwright/test').APIRequestContext,
 ): Promise<SessionContext> {
   const email = uniqueEmail('instructor');
   const password = 'Aa1!aaaaaaaa';
-  const reg = await request.post(`${API_BASE}/auth/register`, {
-    data: { email, password, displayName: 'I' },
+  const reg = await postWithRetryOn429(request, `${API_BASE}/auth/register`, {
+    email,
+    password,
+    displayName: 'I',
   });
   expect(reg.status()).toBe(201);
   const { uid } = (await reg.json()) as { uid: string };
@@ -37,8 +58,9 @@ export async function registerAndPromoteInstructor(
   await admin.firestore().collection('users').doc(uid).update({ role: 'INSTRUCTOR' });
 
   // Log in to get a fresh session cookie with the new claim
-  const login = await request.post(`${API_BASE}/auth/login`, {
-    data: { email, password },
+  const login = await postWithRetryOn429(request, `${API_BASE}/auth/login`, {
+    email,
+    password,
   });
   expect(login.status()).toBe(200);
   const setCookie = login.headers()['set-cookie'];
@@ -53,8 +75,10 @@ export async function registerStudent(
 ): Promise<SessionContext> {
   const email = uniqueEmail('student');
   const password = 'Aa1!aaaaaaaa';
-  const reg = await request.post(`${API_BASE}/auth/register`, {
-    data: { email, password, displayName: 'S' },
+  const reg = await postWithRetryOn429(request, `${API_BASE}/auth/register`, {
+    email,
+    password,
+    displayName: 'S',
   });
   expect(reg.status()).toBe(201);
   const { uid } = (await reg.json()) as { uid: string };
