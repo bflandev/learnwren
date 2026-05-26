@@ -1,14 +1,14 @@
 # Mutation testing loop — Ralph prompt
 
-You are running inside a Ralph loop. This same prompt is fed back to you every iteration. Your job is to advance one module's mutation score per iteration, working entirely inside the worktree at `/Volumes/Artie-Storage/github-repos/learnwren/.claude/worktrees/mutation-loop`. **All commands MUST be run from that directory.** Use `cd` at the start of every Bash call.
+You are running inside a Ralph loop. This same prompt is fed back to you every iteration. Your job is to advance one module's mutation score per iteration, working entirely inside the worktree at `/Volumes/Artie-Storage/github-repos/learnwren/.worktrees/mutation-sweep-2026-05-25`. **All commands MUST be run from that directory.** Use `cd` at the start of every Bash call.
 
 ## Working directory
 
 ```
-/Volumes/Artie-Storage/github-repos/learnwren/.claude/worktrees/mutation-loop
+/Volumes/Artie-Storage/github-repos/learnwren/.worktrees/mutation-sweep-2026-05-25
 ```
 
-Branch: `mutation-loop` (created from main HEAD `3e5cb0d`). `node_modules/` is a symlink to the parent repo's `node_modules` — do not modify or `git add -A` (the symlink evades `.gitignore`).
+Branch: `mutation-sweep-2026-05-25` (created from main HEAD `33f653b` on 2026-05-25). `node_modules/` is a symlink to the parent repo's `node_modules` — do not modify or `git add -A` (the symlink evades `.gitignore`).
 
 ## State file
 
@@ -16,8 +16,8 @@ Branch: `mutation-loop` (created from main HEAD `3e5cb0d`). `node_modules/` is a
 
 ```json
 {
-  "threshold": 75,
-  "maxIterations": 20,
+  "threshold": 80,
+  "maxIterations": 25,
   "iteration": <int>,
   "modules": [
     { "name": "<lib>", "status": "pending|in_progress|done|skip", "score": <number|null>, "iterations": <int>, "notes": "<string>" }
@@ -32,7 +32,7 @@ Module order is the priority order — process top to bottom, one at a time.
 Read `tools/mutation/state.json`. If ANY of:
 
 1. Every module has `status` of `done` or `skip`, OR
-2. `iteration >= maxIterations` (currently 20)
+2. `iteration >= maxIterations` (currently 25)
 
 …then emit exactly this on its own line, with no other text after it, and stop:
 
@@ -51,24 +51,24 @@ The current module is the first module in `state.json` with `status` of `pending
 ### 2. Run stryker for that module
 
 ```bash
-cd /Volumes/Artie-Storage/github-repos/learnwren/.claude/worktrees/mutation-loop && pnpm exec stryker run stryker.<MODULE>.config.mjs 2>&1 | tail -80
+cd /Volumes/Artie-Storage/github-repos/learnwren/.worktrees/mutation-sweep-2026-05-25 && pnpm exec stryker run stryker.<MODULE>.config.mjs 2>&1 | tail -80
 ```
 
 Timeout: 1800000ms (30 min). If stryker exits non-zero due to a config / runtime error (not surviving mutants), **debug the config**, then mark the module `status: skip` with a `notes` field explaining why, and exit the iteration (Ralph will pick the next module on next run).
 
-If a module's `iterations` count reaches **4** without hitting threshold, mark it `status: skip` with a `notes` field stating "Plateaued at <score>% after 4 iterations" and exit the iteration. Do not burn the global 20-iteration budget on one stubborn module.
+If a module's `iterations` count reaches **4** without hitting threshold, mark it `status: skip` with a `notes` field stating "Plateaued at <score>% after 4 iterations" and exit the iteration. Do not burn the global 25-iteration budget on one stubborn module.
 
 ### 3. Generate triage report
 
 ```bash
-cd /Volumes/Artie-Storage/github-repos/learnwren/.claude/worktrees/mutation-loop && node tools/mutation/report.mjs <MODULE>
+cd /Volumes/Artie-Storage/github-repos/learnwren/.worktrees/mutation-sweep-2026-05-25 && node tools/mutation/report.mjs <MODULE>
 ```
 
-The last line of stdout is `SCORE=<n> KILLED=<k> SURVIVED=<s> NOCOV=<c>` — parse the SCORE. The markdown report is at `docs/quality/mutation-report-<MODULE>.md`.
+The last line of stdout is `SCORE=<n> RAW=<r> KILLED=<k> SURVIVED=<s> NOCOV=<c> EQUIV=<e>` — parse the SCORE (the *adjusted* score, which excludes logger-equivalent mutants and is the operational metric). The markdown report is at `docs/quality/mutation-report-<MODULE>.md`.
 
 ### 4. Decide: done, or add tests?
 
-- **If `SCORE >= 75`:**
+- **If `SCORE >= threshold` (read `threshold` from `state.json`, currently 80):**
   1. Update state: set module `status: done`, `score: <SCORE>`.
   2. Commit ONLY the test/source/state changes for this module — never the whole worktree. Use:
      ```
@@ -82,7 +82,7 @@ The last line of stdout is `SCORE=<n> KILLED=<k> SURVIVED=<s> NOCOV=<c>` — par
      ```
   3. Exit the iteration (do not start the next module — Ralph re-invokes).
 
-- **If `SCORE < 75`:**
+- **If `SCORE < threshold`:**
   1. Read `docs/quality/mutation-report-<MODULE>.md`. Identify the **top 1–3 survivor clusters** (those with the most surviving mutants — they're listed first).
   2. For each chosen cluster, read the source file at the indicated path, read the *existing* spec file alongside it, and **add targeted tests** that kill those specific mutants. Follow these rules:
      - **Add to existing spec files** when one exists for the source; only create a new spec file if none exists.
@@ -118,5 +118,5 @@ The last line of stdout is `SCORE=<n> KILLED=<k> SURVIVED=<s> NOCOV=<c>` — par
 Before exiting (whether you committed or not, whether you'll emit the completion promise or not), print a single tagged line for the user:
 
 ```
-[mutation-loop] iter=<N>/20 module=<MODULE> score=<SCORE>% status=<pending|in_progress|done|skip> next=<next-module-or-"DONE">
+[mutation-loop] iter=<N>/25 module=<MODULE> score=<SCORE>% status=<pending|in_progress|done|skip> next=<next-module-or-"DONE">
 ```

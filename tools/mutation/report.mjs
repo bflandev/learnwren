@@ -17,6 +17,8 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
 const REPORTS_ROOT = path.join(REPO_ROOT, 'reports', 'mutation');
 const REPORT_PATH = path.join(REPO_ROOT, 'docs', 'quality', 'mutation-report.md');
+const PER_LIB_REPORT = (lib) =>
+  path.join(REPO_ROOT, 'docs', 'quality', `mutation-report-${lib}.md`);
 
 const CLUSTER_GAP = 5; // lines
 
@@ -510,6 +512,62 @@ function discoverLibs() {
     return a.libName.localeCompare(b.libName);
   });
   return libs;
+}
+
+function renderPerLibReport(r) {
+  const out = [];
+  out.push(`# Mutation Test Report — \`libs/${r.libName}\``);
+  out.push('');
+  out.push(`> Generated ${new Date().toISOString()}`);
+  out.push('');
+  out.push(
+    `**Headline mutation score: ${r.rawScore.toFixed(2)}%** ` +
+      `(killed=${r.totalKilled}, survived=${r.totalSurvived}, no-cov=${r.totalNoCov}, ignored=${r.totalIgnored}). ` +
+      `Score on covered mutants only: ${r.coveredScore.toFixed(2)}%. ` +
+      `Adjusted (equivalent candidates excluded): ${r.adjustedScore.toFixed(2)}%.`,
+  );
+  out.push('');
+  // Reuse the same per-file + survivor-cluster + equivalent rendering used by
+  // the consolidated report, minus the top-level `# libs/<lib>` heading which
+  // we replace above with a self-contained title.
+  const section = renderLibSection(r).split('\n');
+  // Drop the first three lines: lib heading + blank + score restate (we've
+  // already produced a per-lib headline above).
+  out.push(...section.slice(3));
+  out.push('## Caveats');
+  out.push('');
+  out.push('- **Scope is per-lib Stryker config.** See `stryker.' + r.libName + '.config.mjs` for what gets mutated / excluded.');
+  out.push('- **Coverage analysis is `perTest`.** Stryker only runs tests whose coverage hit the mutated line.');
+  out.push('- **No-coverage mutants count against the raw score.** They reflect lines no test executes.');
+  out.push('- **Equivalent classification is heuristic.** Review each candidate before treating the adjusted score as authoritative.');
+  out.push('');
+  return out.join('\n');
+}
+
+const argModule = process.argv[2];
+
+if (argModule) {
+  const jsonPath = path.join(REPORTS_ROOT, argModule, 'mutation.json');
+  if (!fs.existsSync(jsonPath)) {
+    // eslint-disable-next-line no-console
+    console.error(`No mutation.json found at ${path.relative(REPO_ROOT, jsonPath)}. Run \`pnpm exec stryker run stryker.${argModule}.config.mjs\` first.`);
+    process.exit(1);
+  }
+  const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  const r = processLib(argModule, data);
+  const md = renderPerLibReport(r);
+  const outPath = PER_LIB_REPORT(argModule);
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  fs.writeFileSync(outPath, md);
+  // eslint-disable-next-line no-console
+  console.log(`Wrote ${path.relative(REPO_ROOT, outPath)}`);
+  // Final tagged line for the Ralph loop to parse. Adjusted score is the
+  // operational metric (excludes logger-equivalents per the heuristic).
+  // eslint-disable-next-line no-console
+  console.log(
+    `SCORE=${r.adjustedScore.toFixed(2)} RAW=${r.rawScore.toFixed(2)} KILLED=${r.totalKilled} SURVIVED=${r.totalSurvived} NOCOV=${r.totalNoCov} EQUIV=${r.equivalentCandidates.length}`,
+  );
+  process.exit(0);
 }
 
 const discovered = discoverLibs();
