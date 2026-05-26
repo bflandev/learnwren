@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { VideoPlayerService } from './video-player.service';
+import { HLS_CONSTRUCTOR, VideoPlayerService } from './video-player.service';
 
 type FakeInst = {
   config: { xhrSetup?: (xhr: XMLHttpRequest) => void };
@@ -12,36 +12,30 @@ type FakeInst = {
   fire: (data: { fatal: boolean; details?: string }) => void;
 };
 
-const hlsStub = vi.hoisted(() => {
-  const instances: FakeInst[] = [];
-  const isSupported = vi.fn<() => boolean>(() => true);
-  return { instances, isSupported };
-});
+const instances: FakeInst[] = [];
+const isSupportedMock = vi.fn<() => boolean>(() => true);
 
-vi.mock('hls.js', () => {
-  type ErrorHandler = (_: unknown, data: { fatal: boolean; details?: string }) => void;
-  class FakeHls {
-    static isSupported = hlsStub.isSupported;
-    static Events = { ERROR: 'hlsError' };
-    config: FakeInst['config'];
-    on: FakeInst['on'];
-    loadSource: FakeInst['loadSource'];
-    attachMedia: FakeInst['attachMedia'];
-    destroy: FakeInst['destroy'];
-    fire: FakeInst['fire'];
-    constructor(config: FakeInst['config']) {
-      const handlers: ErrorHandler[] = [];
-      this.config = config;
-      this.on = vi.fn((_e: string, h: ErrorHandler) => handlers.push(h));
-      this.loadSource = vi.fn();
-      this.attachMedia = vi.fn();
-      this.destroy = vi.fn();
-      this.fire = (data) => handlers.forEach((h) => h({}, data));
-      hlsStub.instances.push(this);
-    }
+type ErrorHandler = (_: unknown, data: { fatal: boolean; details?: string }) => void;
+class FakeHls {
+  static isSupported = isSupportedMock;
+  static Events = { ERROR: 'hlsError' };
+  config: FakeInst['config'];
+  on: FakeInst['on'];
+  loadSource: FakeInst['loadSource'];
+  attachMedia: FakeInst['attachMedia'];
+  destroy: FakeInst['destroy'];
+  fire: FakeInst['fire'];
+  constructor(config: FakeInst['config']) {
+    const handlers: ErrorHandler[] = [];
+    this.config = config;
+    this.on = vi.fn((_e: string, h: ErrorHandler) => handlers.push(h));
+    this.loadSource = vi.fn();
+    this.attachMedia = vi.fn();
+    this.destroy = vi.fn();
+    this.fire = (data) => handlers.forEach((h) => h({}, data));
+    instances.push(this);
   }
-  return { default: FakeHls, Hls: FakeHls };
-});
+}
 
 function videoEl(canPlay = ''): HTMLVideoElement {
   const el = document.createElement('video');
@@ -53,9 +47,14 @@ describe('VideoPlayerService', () => {
   let svc: VideoPlayerService;
 
   beforeEach(() => {
-    hlsStub.instances.length = 0;
-    hlsStub.isSupported.mockReturnValue(true);
-    TestBed.configureTestingModule({ providers: [VideoPlayerService] });
+    instances.length = 0;
+    isSupportedMock.mockReturnValue(true);
+    TestBed.configureTestingModule({
+      providers: [
+        VideoPlayerService,
+        { provide: HLS_CONSTRUCTOR, useValue: FakeHls },
+      ],
+    });
     svc = TestBed.inject(VideoPlayerService);
   });
 
@@ -67,8 +66,8 @@ describe('VideoPlayerService', () => {
     const el = videoEl();
     const onFatalError = vi.fn();
     const handle = svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
-    expect(hlsStub.instances.length).toBe(1);
-    const inst = hlsStub.instances[0]!;
+    expect(instances.length).toBe(1);
+    const inst = instances[0]!;
     expect(inst.loadSource).toHaveBeenCalledWith('/api/playback/manifest/v1');
     expect(inst.attachMedia).toHaveBeenCalledWith(el);
     // xhrSetup is a config callback — exercise it
@@ -85,7 +84,7 @@ describe('VideoPlayerService', () => {
     const el = videoEl();
     const onFatalError = vi.fn();
     svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
-    const inst = hlsStub.instances[0]!;
+    const inst = instances[0]!;
     inst.fire({ fatal: true, details: 'fragLoadError' });
     expect(onFatalError).toHaveBeenCalledWith('Playback interrupted — try again.');
   });
@@ -94,7 +93,7 @@ describe('VideoPlayerService', () => {
     const el = videoEl();
     const onFatalError = vi.fn();
     svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
-    hlsStub.instances[0]!.fire({ fatal: false, details: 'bufferStalledError' });
+    instances[0]!.fire({ fatal: false, details: 'bufferStalledError' });
     expect(onFatalError).not.toHaveBeenCalled();
   });
 
@@ -114,14 +113,14 @@ describe('VideoPlayerService', () => {
       const el = videoEl();
       const onFatalError = vi.fn();
       svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
-      const inst = hlsStub.instances[hlsStub.instances.length - 1]!;
+      const inst = instances[instances.length - 1]!;
       inst.fire({ fatal: true, details: detail });
       expect(onFatalError, `for ${detail}`).toHaveBeenCalledWith(expected);
     }
   });
 
   it('falls back to native HLS when Hls.isSupported() is false', () => {
-    hlsStub.isSupported.mockReturnValue(false);
+    isSupportedMock.mockReturnValue(false);
     const el = videoEl('maybe');
     const onFatalError = vi.fn();
     const handle = svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
@@ -134,7 +133,7 @@ describe('VideoPlayerService', () => {
   });
 
   it('invokes onFatalError when no HLS path is available', () => {
-    hlsStub.isSupported.mockReturnValue(false);
+    isSupportedMock.mockReturnValue(false);
     const el = videoEl(''); // canPlayType returns '' → falsy
     const onFatalError = vi.fn();
     svc.attach(el, '/api/playback/manifest/v1', { onFatalError });

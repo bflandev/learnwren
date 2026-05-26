@@ -1,5 +1,5 @@
-import { Injectable } from '@angular/core';
-import Hls from 'hls.js';
+import { Injectable, InjectionToken, inject } from '@angular/core';
+import HlsImport from 'hls.js';
 
 export interface PlayerHooks {
   onFatalError: (message: string) => void;
@@ -8,6 +8,11 @@ export interface PlayerHooks {
 export interface PlayerHandle {
   dispose(): void;
 }
+
+export const HLS_CONSTRUCTOR = new InjectionToken<typeof HlsImport>('HLS_CONSTRUCTOR', {
+  providedIn: 'root',
+  factory: () => HlsImport,
+});
 
 function userMessageFor(details: string | undefined): string {
   switch (details) {
@@ -29,11 +34,14 @@ function userMessageFor(details: string | undefined): string {
 
 @Injectable({ providedIn: 'root' })
 export class VideoPlayerService {
+  private readonly Hls = inject(HLS_CONSTRUCTOR);
+
   attach(
     el: HTMLVideoElement,
     manifestUrl: string,
     hooks: PlayerHooks,
   ): PlayerHandle {
+    const Hls = this.Hls;
     if (Hls.isSupported()) {
       const hls = new Hls({
         xhrSetup: (xhr: XMLHttpRequest) => {
