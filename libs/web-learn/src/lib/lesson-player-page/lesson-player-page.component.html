@@ -110,6 +110,60 @@
             }
           </section>
 
+          @if (v.materials.length > 0) {
+            <section data-testid="lesson-materials" class="mt-6 rounded border p-4">
+              <h2 class="text-lg font-semibold mb-3">Lesson materials</h2>
+              <ul class="space-y-2">
+                @for (m of v.materials; track m.id) {
+                  <li
+                    [attr.data-testid]="'material-row-' + m.id"
+                    class="flex items-center justify-between gap-4 rounded border p-3"
+                  >
+                    <div class="min-w-0 flex items-center gap-3">
+                      <span
+                        class="inline-flex shrink-0 items-center rounded bg-gray-100 px-2 py-1 text-xs font-medium uppercase text-gray-700"
+                      >{{ m.extension.toUpperCase() }}</span>
+                      <span class="truncate" [attr.title]="m.displayName">{{ m.displayName }}</span>
+                      <span class="shrink-0 text-xs text-gray-500">{{ formatBytes(m.sizeBytes) }}</span>
+                    </div>
+                    @if (rowState(m.id); as rs) {
+                      <button
+                        type="button"
+                        [attr.data-testid]="'material-download-' + m.id"
+                        class="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                        [disabled]="rs.status === 'preparing'"
+                        (click)="onDownloadMaterial(m.id)"
+                      >
+                        {{ rs.status === 'preparing' ? 'Preparing…' : 'Download' }}
+                      </button>
+                    }
+                  </li>
+                  @if (rowState(m.id); as rs) {
+                    @if (rs.status === 'error') {
+                      <li
+                        [attr.data-testid]="'material-error-' + m.id"
+                        class="rounded border border-red-300 bg-red-50 p-2 text-sm"
+                      >
+                        @if (rs.kind === 'gone') {
+                          This file is no longer available.
+                        } @else if (rs.kind === 'forbidden') {
+                          You no longer have access to this material.
+                        } @else {
+                          Couldn't prepare the download. Try again.
+                        }
+                        <button
+                          type="button"
+                          class="ml-2 underline"
+                          (click)="onDownloadMaterial(m.id)"
+                        >Retry</button>
+                      </li>
+                    }
+                  }
+                }
+              </ul>
+            </section>
+          }
+
           <a data-testid="back-to-course" class="inline-block underline"
              [routerLink]="['/catalog', courseId]">← Back to course</a>
         </article>
