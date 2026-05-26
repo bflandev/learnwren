@@ -1,5 +1,5 @@
 @if (mode === 'drawer' && outlineOpen) {
-  <div data-testid="outline-backdrop" class="outline-backdrop" (click)="onBackdropClick()"></div>
+  <div data-testid="outline-backdrop" class="outline-backdrop" role="button" tabindex="0" (click)="onBackdropClick()" (keydown.escape)="onBackdropClick()"></div>
 }
 <aside
   aria-label="Course outline"

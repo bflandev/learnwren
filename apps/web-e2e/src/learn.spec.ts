@@ -239,7 +239,7 @@ test('unauthenticated visit to /learn/:cid/:lid redirects to /login with redirec
 }) => {
   await page.goto('/learn/some-course/some-lesson');
   await page.waitForURL(/\/login(\?|$)/);
-  await expect(page.url()).toMatch(/redirect=/);
+  expect(page.url()).toMatch(/redirect=/);
 });
 
 /** Register an INSTRUCTOR, mark them email-verified, and promote their role. */
