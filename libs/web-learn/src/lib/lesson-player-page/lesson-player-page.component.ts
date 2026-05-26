@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
-import type { CourseOutline, ISODateString, LessonId, LessonView } from '@learnwren/shared-data-models';
+import type { CourseId, CourseOutline, ISODateString, LessonId, LessonView } from '@learnwren/shared-data-models';
 import { VideoPlayerComponent } from '@learnwren/web-video';
 
 import { CourseOutlinePanelComponent } from '../course-outline-panel/course-outline-panel.component';
@@ -33,8 +33,8 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly learn = inject(LearnService);
 
-  courseId = '';
-  lessonId = '';
+  courseId: CourseId = '' as CourseId;
+  lessonId: LessonId = '' as LessonId;
 
   @ViewChild(VideoPlayerComponent) private playerRef?: VideoPlayerComponent;
 
@@ -79,8 +79,8 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
       this.state.set('NOT_FOUND');
       return;
     }
-    this.courseId = courseId;
-    this.lessonId = lessonId;
+    this.courseId = courseId as CourseId;
+    this.lessonId = lessonId as LessonId;
     await this.load();
     if (typeof window !== 'undefined') {
       window.addEventListener('pagehide', this.onPageHide);
