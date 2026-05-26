@@ -62,11 +62,11 @@ export class CoverImageService {
       metadata: { courseId: String(courseId) },
     });
 
-    await this.courses.updateCourse(courseId, {
-      coverImageUrl: '__placeholder__',
-    } as Partial<Course>);
-    const updated = await this.courses.getCourse(courseId);
-    const updatedAt = updated!.updatedAt;
+    // Pre-compute the next updatedAt locally so we can write the final URL in
+    // a single repository.updateCourse call. CoursesRepository.updateCourse
+    // overwrites updatedAt internally; we mirror its clock by formatting now()
+    // the same way (UTC ISO string).
+    const updatedAt = new Date().toISOString() as Course['updatedAt'];
     const coverImageUrl = `${this.cfg.publicBaseUrl}/${path}?v=${encodeURIComponent(updatedAt)}`;
     await this.courses.updateCourse(courseId, { coverImageUrl } as Partial<Course>);
     return { coverImageUrl, updatedAt };
@@ -75,8 +75,8 @@ export class CoverImageService {
   async removeCover(courseId: CourseId): Promise<{ updatedAt: Course['updatedAt'] }> {
     const path = `course-covers/${courseId}/cover.jpg`;
     await this.storage.deleteObject({ path });
+    const updatedAt = new Date().toISOString() as Course['updatedAt'];
     await this.courses.updateCourse(courseId, { coverImageUrl: undefined } as Partial<Course>);
-    const updated = await this.courses.getCourse(courseId);
-    return { updatedAt: updated!.updatedAt };
+    return { updatedAt };
   }
 }

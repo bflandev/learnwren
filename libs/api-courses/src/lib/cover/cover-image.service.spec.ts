@@ -82,3 +82,73 @@ describe('CoverImageService — validation', () => {
     expect(out.coverImageUrl).toMatch(/^https:\/\/cdn\.example\/course-covers\/c1\/cover\.jpg\?v=/);
   });
 });
+
+describe('CoverImageService — happy path', () => {
+  let svc: CoverImageService;
+  let storage: FakeCoverStorageAdapter;
+  let repo: ReturnType<typeof makeRepo>;
+
+  beforeEach(() => {
+    storage = new FakeCoverStorageAdapter();
+    repo = makeRepo();
+    repo.state.set(CID, {
+      id: CID,
+      title: 'T',
+      description: 'D',
+      instructorId: 'u1' as Course['instructorId'],
+      status: 'DRAFT',
+      createdAt: '2026-05-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-05-01T00:00:00.000Z' as ISODateString,
+    });
+    svc = new CoverImageService(
+      storage,
+      repo as unknown as import('../courses.repository').CoursesRepository,
+      { bucket: 'b', publicBaseUrl: 'https://cdn.example', impl: 'fake' },
+    );
+  });
+
+  it('writes a single jpeg blob at course-covers/{id}/cover.jpg with cacheControl + metadata', async () => {
+    const buf = await makeJpegBuffer(1920, 1080);
+    await svc.uploadCover(CID, buf, 'image/jpeg');
+    const blob = storage.get('course-covers/c1/cover.jpg');
+    expect(blob).toBeDefined();
+    expect(blob!.contentType).toBe('image/jpeg');
+    expect(blob!.cacheControl).toBe('public, max-age=31536000, immutable');
+    expect(blob!.metadata).toEqual({ courseId: 'c1' });
+  });
+
+  it('resizes a 3000x1500 source down within 1920x1080 preserving aspect', async () => {
+    const buf = await makeJpegBuffer(3000, 1500);
+    await svc.uploadCover(CID, buf, 'image/jpeg');
+    const blob = storage.get('course-covers/c1/cover.jpg');
+    const meta = await sharp(blob!.body).metadata();
+    expect(meta.width).toBeLessThanOrEqual(1920);
+    expect(meta.height).toBeLessThanOrEqual(1080);
+    expect(meta.format).toBe('jpeg');
+  });
+
+  it('patches Course.coverImageUrl exactly once with the resolved URL', async () => {
+    const buf = await makeJpegBuffer(1280, 720);
+    const out = await svc.uploadCover(CID, buf, 'image/jpeg');
+    expect(repo.updateCourse).toHaveBeenCalledTimes(1);
+    const calls = repo.updateCourse.mock.calls;
+    expect(calls[0][1]).toEqual({ coverImageUrl: out.coverImageUrl });
+    expect(out.coverImageUrl).toBe(repo.state.get(CID)!.coverImageUrl);
+  });
+
+  it('removeCover deletes the blob and unsets coverImageUrl in a single update', async () => {
+    repo.state.set(CID, {
+      ...repo.state.get(CID)!,
+      coverImageUrl: 'https://cdn.example/course-covers/c1/cover.jpg?v=old',
+    });
+    await storage.putObject({
+      path: 'course-covers/c1/cover.jpg',
+      contentType: 'image/jpeg',
+      body: Buffer.from('x'),
+    });
+    await svc.removeCover(CID);
+    expect(storage.has('course-covers/c1/cover.jpg')).toBe(false);
+    expect(repo.updateCourse).toHaveBeenCalledTimes(1);
+    expect(repo.updateCourse.mock.calls[0][1]).toEqual({ coverImageUrl: undefined });
+  });
+});
