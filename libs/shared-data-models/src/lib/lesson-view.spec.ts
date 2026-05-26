@@ -3,12 +3,14 @@ import { describe, expect, it } from 'vitest';
 import type {
   CourseOutline,
   CourseOutlineLesson,
+  LessonMaterialSummary,
   LessonView,
 } from './lesson-view';
 import type {
   CourseId,
   ISODateString,
   LessonId,
+  MaterialId,
   ModuleId,
   VideoId,
 } from './common';
@@ -74,5 +76,47 @@ describe('LessonView (Slice D)', () => {
       ],
     };
     expect(outline.modules[0]!.lessons[0]!.videoState).toBeNull();
+  });
+});
+
+describe('LessonView (UC-04-02)', () => {
+  it('carries a materials array of LessonMaterialSummary', () => {
+    const view: LessonView = {
+      course: { id: 'c1' as CourseId, title: 'T', status: 'PUBLISHED' },
+      lesson: {
+        id: 'l1' as LessonId,
+        moduleId: 'm1' as ModuleId,
+        title: 'L',
+        videoId: null,
+        videoState: null,
+      },
+      outline: { modules: [] },
+      materials: [
+        {
+          id: 'mat1' as MaterialId,
+          displayName: 'Worksheet.pdf',
+          extension: 'pdf',
+          sizeBytes: 1024,
+        },
+      ],
+    };
+    const m: LessonMaterialSummary = view.materials[0]!;
+    expect(m.displayName).toBe('Worksheet.pdf');
+  });
+
+  it('allows empty materials array', () => {
+    const view: LessonView = {
+      course: { id: 'c1' as CourseId, title: 'T', status: 'PUBLISHED' },
+      lesson: {
+        id: 'l1' as LessonId,
+        moduleId: 'm1' as ModuleId,
+        title: 'L',
+        videoId: null,
+        videoState: null,
+      },
+      outline: { modules: [] },
+      materials: [],
+    };
+    expect(view.materials).toEqual([]);
   });
 });
