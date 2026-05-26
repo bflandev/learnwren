@@ -51,3 +51,28 @@ describe('LwCoverComponent', () => {
     expect(host.querySelector('.lw-cover-label')).toBeNull();
   });
 });
+
+describe('LwCoverComponent — image input', () => {
+  it('renders an <img> with src + alt when imageUrl is set, and omits the glyph', () => {
+    const fixture = TestBed.createComponent(LwCoverComponent);
+    fixture.componentRef.setInput('imageUrl', 'https://cdn/x.jpg');
+    fixture.componentRef.setInput('alt', 'Intro to TypeScript');
+    fixture.detectChanges();
+    const host: HTMLElement = fixture.nativeElement;
+    const img = host.querySelector('img.lw-cover-image') as HTMLImageElement | null;
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute('src')).toBe('https://cdn/x.jpg');
+    expect(img!.getAttribute('alt')).toBe('Intro to TypeScript');
+    expect(img!.getAttribute('loading')).toBe('lazy');
+    expect(host.querySelector('.lw-cover-glyph')).toBeNull();
+  });
+
+  it('falls back to the glyph render path when imageUrl is unset', () => {
+    const fixture = TestBed.createComponent(LwCoverComponent);
+    fixture.componentRef.setInput('glyph', 'W');
+    fixture.detectChanges();
+    const host: HTMLElement = fixture.nativeElement;
+    expect(host.querySelector('img.lw-cover-image')).toBeNull();
+    expect(host.querySelector('.lw-cover-glyph')!.textContent).toContain('W');
+  });
+});
