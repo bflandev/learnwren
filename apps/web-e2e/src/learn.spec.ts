@@ -452,6 +452,35 @@ test('Continue Learning appears on /catalog/:cid after the student opens a lesso
 });
 
 test('the lesson player resumes from a non-zero saved position on reload', async ({ page }) => {
+  // The setup (admin SDK seeding + login + enrol + position seed) routinely
+  // consumes 15-20s of the default 30s test budget. Tripling it leaves the
+  // assertion phase its full 10s window.
+  test.slow();
+
+  // The fake-mode transcoder writes a manifest whose segment URLs are
+  // `gs-stub://…`. hls.js never establishes a buffer in headless Chromium, so
+  // `<video>.duration` stays NaN and `currentTime` writes get dropped by the
+  // browser. Stub both at the prototype level so the seek path the test cares
+  // about can be exercised deterministically. The seek algorithm itself is
+  // exhaustively covered by libs/web-learn/.../lesson-player-page.component.spec.ts.
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLVideoElement.prototype, 'duration', {
+      configurable: true,
+      get() {
+        return 120;
+      },
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, 'currentTime', {
+      configurable: true,
+      get(this: HTMLVideoElement & { __stubCurrentTime?: number }) {
+        return this.__stubCurrentTime ?? 0;
+      },
+      set(this: HTMLVideoElement & { __stubCurrentTime?: number }, v: number) {
+        this.__stubCurrentTime = v;
+      },
+    });
+  });
+
   const { email, password } = await registerVerifiedStudent();
   const { courseId, lessonId } = await seedPublishedCourseWithReadyLesson();
 
@@ -476,19 +505,22 @@ test('the lesson player resumes from a non-zero saved position on reload', async
   );
   expect(positionResp.status()).toBe(200);
 
-  // Open the lesson and assert the player seeked to the persisted position.
-  // Fallback: the fake transcoder may produce a manifest whose <video>.duration
-  // never resolves cleanly under hls.js in the headless test browser, so we
-  // assert that the component seeked to ANY non-zero position rather than
-  // pinning to 20 ± 5s.
+  // Open the lesson, then nudge the player by dispatching `loadedmetadata` on
+  // the real <video> element. The stubbed duration getter returns 120, so the
+  // component's onMetadata reads finite `d` and calls seekTo(20). The stubbed
+  // currentTime setter records the value; the assertion picks it up.
   await page.goto(`/learn/${courseId}/${lessonId}`);
-  await expect(page.locator('lib-video-player video')).toBeAttached();
+  const video = page.locator('lib-video-player video');
+  await expect(video).toBeAttached();
+  await video.evaluate((v: HTMLVideoElement) =>
+    v.dispatchEvent(new Event('loadedmetadata')),
+  );
   await page.waitForFunction(
     () => {
       const v = document.querySelector('lib-video-player video') as HTMLVideoElement | null;
       return v != null && v.currentTime > 0;
     },
-    { timeout: 10_000 },
+    { timeout: 5_000 },
   );
 });
 
