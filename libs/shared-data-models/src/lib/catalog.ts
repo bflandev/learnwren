@@ -15,6 +15,7 @@ export interface CourseSummary {
   difficulty?: CourseDifficulty;
   instructorDisplayName: string;
   publishedAt: ISODateString;
+  coverImageUrl?: string;
 }
 
 /** Paginated envelope shared by the catalogue and search responses. */
@@ -51,4 +52,5 @@ export interface CourseCatalogDetail {
   lessonCount: number;
   modules: CatalogModuleOutline[];
   publishedAt: ISODateString;
+  coverImageUrl?: string;
 }

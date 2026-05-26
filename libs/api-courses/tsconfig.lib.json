@@ -4,7 +4,7 @@
     "outDir": "../../dist/out-tsc",
     "composite": true,
     "declaration": true,
-    "types": ["node"]
+    "types": ["node", "multer"]
   },
   "include": ["src/**/*.ts"],
   "exclude": [

@@ -16,7 +16,9 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > - **EP-06 Slice C: Resume Learning** — opening a lesson is tracked per-enrolment; the course-detail page surfaces **Continue Learning** (falling back to **Start Learning** for new enrolments and owners); the lesson player auto-saves position every ~15 s, flushes on pause / `pagehide` / tab hidden via `navigator.sendBeacon`, and resumes within 5 s on revisit. Position writes are idempotent and monotonic (out-of-order beacons cannot rewind progress).
 > - **EP-06 Slice D: Course Outline Panel** — the lesson player renders a collapsible left sidebar (desktop) or drawer (mobile) listing every module and lesson in the course; the active lesson is highlighted; completed lessons carry a checkmark; lessons whose video is still processing surface an inline notice; clicking a different lesson navigates and flushes any in-flight playback position.
 >
-> Not built yet: cover image upload, module / course completion rollups (rest of EP-06), instructor dashboard (EP-07), platform administration (EP-08). `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
+> - **Course cover image upload** — instructors can upload a cover from the course editor (JPEG or PNG, ≥1280×720, ≤10 MB); uploads are auto-resized to a canonical 1920×1080 JPEG. Replace or remove from the same panel.
+>
+> Not built yet: module / course completion rollups (rest of EP-06), instructor dashboard (EP-07), platform administration (EP-08). `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
 
 ---
 

@@ -42,6 +42,11 @@ export default defineConfig({
       LEARNWREN_VIDEO_OUTPUT_BUCKET: 'learnwren-e2e-output',
       LEARNWREN_VIDEO_TRANSCODER: 'fake',
       LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE: 'true',
+      // Cover image storage runs in fake (in-memory) mode by default when
+      // LEARNWREN_COVER_STORAGE is unset, but bucket + public base URL are
+      // still required to satisfy readCoverConfigFromEnv at boot.
+      LEARNWREN_COVER_BUCKET: 'learnwren-e2e-covers',
+      LEARNWREN_COVER_PUBLIC_BASE_URL: 'http://localhost:9199/v0/b/learnwren-e2e-covers/o',
       // FakeMaterialsController is now gated on the storage-impl flag (not
       // NODE_ENV), so the dev-only passthrough must be enabled explicitly
       // for the materials suite. The adapter already defaults to fake when

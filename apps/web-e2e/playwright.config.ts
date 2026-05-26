@@ -49,6 +49,11 @@ export default defineConfig({
         LEARNWREN_VIDEO_TRANSCODER: 'fake',
         LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE: 'true',
         LEARNWREN_MATERIALS_STORAGE_FAKE: 'true',
+        // Cover image upload (mirrors apps/api-e2e/playwright.config.ts).
+        // LEARNWREN_COVER_STORAGE is unset, so the api uses the default
+        // adapter; bucket + public base URL point at the emulator bucket.
+        LEARNWREN_COVER_BUCKET: 'learnwren-e2e-covers',
+        LEARNWREN_COVER_PUBLIC_BASE_URL: 'http://localhost:9199/v0/b/learnwren-e2e-covers/o',
         LEARNWREN_EMAIL_TRANSPORT: 'console',
         LEARNWREN_TEST_OUTBOX_ENABLED: '1',
       },

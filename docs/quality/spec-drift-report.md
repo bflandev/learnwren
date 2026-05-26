@@ -32,7 +32,7 @@ carries at least minor drift.
 | Epic | Use cases | Drift level | Headline |
 |---|---|---|---|
 | EP-01 — User Identity & Access | 4 | **Major** | UC-01-03 and UC-01-04 entirely unbuilt; 2 behavioral contradictions |
-| EP-02 — Course Authoring | 4 | **Moderate** | CRUD core faithful; cover image absent, module-title flow inverted, publish slice over-built |
+| EP-02 — Course Authoring | 4 | **Moderate** | CRUD core faithful; module-title flow inverted, publish slice over-built |
 | EP-03 — Video Management & DRM | 5 | **Major (architectural)** | Specs assume commercial multi-DRM; code is a scoped-down HLS + AES-128 pipeline |
 | EP-04 — Lesson Materials | 2 | **Moderate** | UC-04-01 faithful; UC-04-02 (student download) unbuilt for its actor |
 | EP-05 — Course Discovery & Enrollment | 5 | **Deferred** | Entirely unbuilt; documented as deferred |
@@ -40,8 +40,8 @@ carries at least minor drift.
 
 ### Three kinds of drift
 
-1. **Scope drift — expected and documented.** EP-05/06 deferred, video cover-image
-   deferred, enrolled-student paths stubbed (`TODO(EP-06)`). The README is honest
+1. **Scope drift — expected and documented.** EP-05/06 deferred,
+   enrolled-student paths stubbed (`TODO(EP-06)`). The README is honest
    about each; only the use-case files still present them as in-scope.
 2. **Architectural drift — significant.** UC-03-03/04/05 specify Widevine /
    PlayReady / FairPlay, CENC/CBCS, MPEG-DASH, a license server with playback
@@ -122,11 +122,7 @@ exist and the publish slice is over-built relative to its use case.
 
 ### UC-02-01 — Create a New Course
 
-- **NOT IMPLEMENTED** · High — No `coverImage` field anywhere (`Course` model,
-  `CreateCourseDto`, the create form); the use case lists it as an optional create
-  field with its own validation extension (5c). README confirms cover image is
-  deferred. `libs/shared-data-models/src/lib/course.ts:18-31`,
-  `dto/create-course.dto.ts:10-31`.
+- **RECONCILED** · 2026-05-26 — UC-02-01 cover-image bullet removed from create-form; new UC-02-05 documents the editor-only upload/replace/remove flow. `Course.coverImageUrl` is set via `PUT /api/courses/:cid/cover` (`libs/api-courses/src/lib/cover/`).
 - **CONTRADICTS** · Low — Extensions 5a/5b specify exact error copy ("Title must
   be 100 characters or fewer."); the API returns raw class-validator messages.
   `courses.exception-filter.ts:75-85`.
@@ -330,7 +326,7 @@ Unbuilt use cases: UC-06-03 Resume Learning · UC-06-04 Navigate the Course Outl
 2. **Capture the five undocumented behavioral changes** (see the table above) in
    the use cases or the design specs so the spec stops contradicting the code.
 3. **Mark deferred use cases as deferred** in `docs/use-cases/` (EP-05, EP-06,
-   UC-01-03, UC-01-04, UC-03-05, plus cover image in UC-02-01) so readers do not
+   UC-01-03, UC-01-04, UC-03-05) so readers do not
    mistake them for current MVP behavior.
 4. **Re-label the publish gate** consistently — it is UC-02-04 (EP-02), not
    "EP-03 slice D".

@@ -124,3 +124,32 @@ describe('Course — slice B field', () => {
     expect(c.enrollmentCount).toBeUndefined();
   });
 });
+
+describe('Course — cover image', () => {
+  it('accepts a course with coverImageUrl set', () => {
+    const c: Course = {
+      id: 'c1' as CourseId,
+      title: 'T',
+      description: 'D',
+      instructorId: 'u1' as UserId,
+      status: 'DRAFT',
+      coverImageUrl: 'https://cdn.example/course-covers/c1/cover.jpg?v=2026-05-25T00:00:00.000Z',
+      createdAt: '2026-05-12T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-05-12T00:00:00.000Z' as ISODateString,
+    };
+    expect(c.coverImageUrl).toMatch(/course-covers\/c1\/cover\.jpg\?v=/);
+  });
+
+  it('accepts a course with coverImageUrl absent', () => {
+    const c: Course = {
+      id: 'c1' as CourseId,
+      title: 'T',
+      description: 'D',
+      instructorId: 'u1' as UserId,
+      status: 'DRAFT',
+      createdAt: '2026-05-12T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-05-12T00:00:00.000Z' as ISODateString,
+    };
+    expect(c.coverImageUrl).toBeUndefined();
+  });
+});

@@ -44,7 +44,7 @@ This guide covers **every feature wired up so far** from two angles:
 | Learning | Resume / last-watched and course-outline panel | Built |
 | Learning | Completion rollups (module / course level) | Not built |
 | Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
-| Cover images | Course cover image upload | Not built |
+| Cover images | Course cover image upload / replace / remove | Built |
 
 ---
 
@@ -225,6 +225,24 @@ Open a course to reach the **course editor** (`/courses/:id/edit`). There you ca
   API immediately.
 - Delete courses, modules, and lessons (a confirmation dialog guards destructive
   actions).
+
+### Cover image
+
+The course editor includes a **Cover Image** panel. A course starts with a
+placeholder cover (a deterministic tone derived from the course ID); you can
+attach a real cover at any time.
+
+- **Upload cover** — click **Upload cover** and pick a JPEG or PNG file at
+  least **1280×720 pixels** and no larger than **10 MB**. The platform
+  auto-resizes the upload to a canonical **1920×1080 JPEG** before storing it,
+  and the editor (and the public catalogue) reflect the new cover immediately.
+- **Replace cover** — once a cover is set, the same surface offers **Replace
+  cover** with the same constraints. The previous file is overwritten.
+- **Remove cover** — click **Remove cover** to clear the cover; the editor
+  reverts to the placeholder tone.
+
+Uploads that fail validation (wrong file type, exceeds 10 MB, smaller than
+1280×720) are rejected inline with a message; no change is persisted.
 
 ## 2.8 Adding video to a lesson
 
@@ -792,7 +810,6 @@ These are specified in `docs/epics/` and `docs/use-cases/` but **not yet impleme
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll are
   live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than 90 days is
   not implemented.
-- **Course cover images** — upload is deferred.
 - **Self-service instructor requests** — promotion is CLI-only; there is no in-app
   "become an instructor" flow.
 - **Instructor dashboard (EP-07)** and **platform administration (EP-08)** — post-MVP.

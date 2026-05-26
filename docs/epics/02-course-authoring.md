@@ -16,7 +16,7 @@ This epic covers the full lifecycle of course creation, from initial setup throu
 
 - A "Create Course" button is prominently available on the Instructor's dashboard.
 - The course creation form requires a title (max 100 characters) and a short description (max 500 characters).
-- Optional fields include a long description, a category (selected from a predefined list), a cover image (JPEG or PNG, min 1280×720 pixels), and a difficulty level (Beginner, Intermediate, Advanced).
+- Optional fields include a long description, a category (selected from a predefined list), and a difficulty level (Beginner, Intermediate, Advanced).
 - A new course is created in **Draft** status and is not visible to students.
 - The Instructor is automatically set as the course owner.
 
@@ -66,3 +66,18 @@ This epic covers the full lifecycle of course creation, from initial setup throu
 - Upon publication, the course status changes from **Draft** to **Published** and becomes visible in the course catalogue.
 - An Instructor can revert a published course to **Draft** at any time, which hides it from the catalogue but does not unenroll existing students.
 - An Instructor can archive a course, which hides it from the catalogue and prevents new enrollments but allows existing students to continue accessing it.
+
+---
+
+## US-02-05: Manage Course Cover Image
+
+> **As an** Instructor, **I want to** set, replace, or remove a cover image on an existing course **so that** the course presents a recognisable visual identity in the catalogue.
+
+**Acceptance Criteria (Conditions of Satisfaction):**
+
+- The cover image is managed from the course editor on an existing course — it is not part of the initial course creation form.
+- The Cover Image panel offers "Upload cover" when no cover is set, and "Replace cover" / "Remove cover" when one is set.
+- Accepted uploads are JPEG or PNG, at least 1280×720 pixels, and no larger than 10 MB; files outside these constraints are rejected with a clear inline error.
+- Uploaded images are resized to a canonical JPEG within 1920×1080 pixels and stored by the platform; the editor renders the new cover immediately.
+- Removing the cover deletes the stored image and reverts the course to the default placeholder cover.
+- Cover image changes are visible in the catalogue as soon as they are saved.

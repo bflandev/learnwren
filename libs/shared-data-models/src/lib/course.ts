@@ -26,6 +26,7 @@ export interface Course {
   status: CourseStatus;
   publishedAt?: ISODateString;        // slice D — last DRAFT→PUBLISHED transition timestamp; preserved across unpublish + archive
   archivedAt?: ISODateString;         // slice D — set on archive; cleared on restore
+  coverImageUrl?: string;             // public URL to canonical JPEG with ?v={updatedAt} cache-buster; absent ⇒ no cover
   enrollmentCount?: number;           // slice B — count of ACTIVE enrollments; absent on pre-Slice-B docs
   createdAt: ISODateString;
   updatedAt: ISODateString;

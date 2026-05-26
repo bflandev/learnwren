@@ -6,6 +6,15 @@ import { CatalogController } from './catalog/catalog.controller';
 import { CatalogService } from './catalog/catalog.service';
 import { InstructorDirectory } from './catalog/instructor-directory';
 import { CourseOwnerGuard } from './course-owner.guard';
+import { COVER_CONFIG, readCoverConfigFromEnv, type CoverConfig } from './cover/cover.config';
+import {
+  COVER_STORAGE,
+  FirebaseCoverStorageAdapter,
+} from './cover/cover-storage.adapter';
+import { FakeCoverStorageAdapter } from './cover/fake-cover-storage.adapter';
+import { CoverController } from './cover/cover.controller';
+import { CoverExceptionFilter } from './cover/cover.exception-filter';
+import { CoverImageService } from './cover/cover-image.service';
 import { EnrollmentController } from './enrollment/enrollment.controller';
 import { EnrollmentRepository } from './enrollment/enrollment.repository';
 import { EnrollmentService } from './enrollment/enrollment.service';
@@ -29,7 +38,7 @@ import { VideoModule } from './video/video.module';
 // NestJS resolves both cycles with forwardRef.
 @Module({
   imports: [AuthModule, forwardRef(() => VideoModule), forwardRef(() => MaterialsModule)],
-  controllers: [CoursesController, CatalogController, EnrollmentController, LearnController],
+  controllers: [CoursesController, CatalogController, EnrollmentController, LearnController, CoverController],
   providers: [
     CoursesService,
     CoursesRepository,
@@ -44,6 +53,16 @@ import { VideoModule } from './video/video.module';
     LearnExceptionFilter,
     LessonEnrollmentOrOwnerGuard,
     LessonEnrollmentGuard,
+    CoverImageService,
+    CoverExceptionFilter,
+    FirebaseCoverStorageAdapter,
+    { provide: COVER_CONFIG, useFactory: () => readCoverConfigFromEnv(process.env) },
+    {
+      provide: COVER_STORAGE,
+      inject: [COVER_CONFIG, FirebaseCoverStorageAdapter],
+      useFactory: (cfg: CoverConfig, firebase: FirebaseCoverStorageAdapter) =>
+        cfg.impl === 'firebase' ? firebase : new FakeCoverStorageAdapter({ bucket: cfg.bucket }),
+    },
   ],
   exports: [CoursesRepository, CourseOwnerGuard, EnrollmentRepository],
 })

@@ -2,11 +2,12 @@ import { ChangeDetectionStrategy, Component, ViewChild, computed, inject, signal
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
-import type { Course, CourseId, Lesson, LessonId, Module, ModuleId, VideoState } from '@learnwren/shared-data-models';
+import type { Course, CourseId, ISODateString, Lesson, LessonId, Module, ModuleId, VideoState } from '@learnwren/shared-data-models';
 
 import { ConfirmDialogComponent } from '../components/confirm-dialog/confirm-dialog.component';
 import { CourseMetaPanelComponent } from '../components/course-meta-panel/course-meta-panel.component';
 import { ModuleTreeComponent, type ModuleNode } from '../components/module-tree/module-tree.component';
+import { CourseCoverUploaderComponent } from '../cover/course-cover-uploader.component';
 import { CoursesService, type CourseTree, type UpdateCourseInput } from '../courses.service';
 import { CoursePublishBarComponent } from '../publish/course-publish-bar.component';
 import { PublishEligibilityPanelComponent } from '../publish/publish-eligibility-panel.component';
@@ -23,7 +24,7 @@ type PendingConfirm =
 @Component({
   selector: 'lib-course-editor-page',
   standalone: true,
-  imports: [RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, ConfirmDialogComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent, LwButtonDirective],
+  imports: [RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, ConfirmDialogComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent, CourseCoverUploaderComponent, LwButtonDirective],
   templateUrl: './course-editor-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -85,6 +86,15 @@ export class CourseEditorPageComponent {
     const t = this.tree();
     if (t) this.tree.set({ ...t, course: updated });
     if (updated.status === 'DRAFT') this.publishSvc.refresh();
+  }
+
+  onCoverChanged(e: { coverImageUrl: string | undefined; updatedAt: ISODateString }): void {
+    const t = this.tree();
+    if (!t) return;
+    this.tree.set({
+      ...t,
+      course: { ...t.course, coverImageUrl: e.coverImageUrl, updatedAt: e.updatedAt },
+    });
   }
 
   protected requestPublishConfirm(kind: 'unpublish' | 'archive'): void {

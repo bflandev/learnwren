@@ -7,9 +7,13 @@ export type LwCoverTone = 'ochre' | 'moss' | 'clay' | 'ink' | 'paper' | 'bark';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <span class="lw-cover-glyph">{{ glyph() }}</span>
-    @if (label()) {
-      <span class="lw-cover-label">{{ label() }}</span>
+    @if (imageUrl()) {
+      <img class="lw-cover-image" [src]="imageUrl()" [alt]="alt()" loading="lazy" />
+    } @else {
+      <span class="lw-cover-glyph">{{ glyph() }}</span>
+      @if (label()) {
+        <span class="lw-cover-label">{{ label() }}</span>
+      }
     }
     <ng-content></ng-content>
   `,
@@ -24,4 +28,6 @@ export class LwCoverComponent {
   readonly glyph = input('');
   readonly label = input('');
   readonly height = input(140);
+  readonly imageUrl = input<string | undefined>(undefined);
+  readonly alt = input('');
 }
