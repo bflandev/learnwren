@@ -19,6 +19,12 @@
         />
       }
 
+      <lib-course-cover-uploader
+        [courseId]="tree()!.course.id"
+        [currentCoverUrl]="tree()!.course.coverImageUrl"
+        (coverChanged)="onCoverChanged($event)"
+      ></lib-course-cover-uploader>
+
       <lib-course-meta-panel
         [course]="tree()!.course"
         (update)="onUpdateCourse($event)"
