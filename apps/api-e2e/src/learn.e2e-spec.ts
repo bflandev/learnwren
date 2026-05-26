@@ -637,3 +637,104 @@ test('GET /learn/.../lessons/:lid bumps lastAccessedLessonId as a side effect', 
   };
   expect(body.enrollment?.lastAccessedLessonId).toBe(lessonId);
 });
+
+// ──────────────────────── UC-04-02 — materials in LessonView ────────────────────────
+// Confirms the LearnService projection wires through MaterialsService.listForLesson:
+//   - READY materials appear in the body's `materials` array
+//   - PENDING_UPLOAD materials are filtered out
+//   - the empty case returns `materials: []`
+// The owner-side authoring tests live in materials.e2e-spec.ts; this block is
+// strictly about the student-facing projection.
+
+const PDF_BYTES = Buffer.from('%PDF-1.4\nfake pdf payload for learn e2e\n%%EOF');
+
+/** Fake-mode signed URLs are returned relative to the API origin. */
+function absoluteUrl(url: string): string {
+  return url.startsWith('http') ? url : `http://localhost:3333${url}`;
+}
+
+/**
+ * Start a materials upload via the real API and return both the new materialId
+ * and the issued (relative) uploadUrl. Caller decides whether to PUT + complete
+ * (READY) or leave dangling (PENDING_UPLOAD).
+ */
+async function startMaterialUpload(
+  request: import('@playwright/test').APIRequestContext,
+  hdr: Record<string, string>,
+  loc: { courseId: string; moduleId: string; lessonId: string },
+  filename: string,
+): Promise<{ materialId: string; uploadUrl: string }> {
+  const res = await request.post(
+    `${API_BASE}/courses/${loc.courseId}/modules/${loc.moduleId}/lessons/${loc.lessonId}/materials/upload-url`,
+    { headers: hdr, data: { filename, sizeBytes: PDF_BYTES.length } },
+  );
+  expect(res.status()).toBe(201);
+  return (await res.json()) as { materialId: string; uploadUrl: string };
+}
+
+/** Drive a material to READY: PUT bytes + POST /complete. */
+async function attachReadyMaterial(
+  request: import('@playwright/test').APIRequestContext,
+  hdr: Record<string, string>,
+  loc: { courseId: string; moduleId: string; lessonId: string },
+  filename: string,
+): Promise<string> {
+  const { materialId, uploadUrl } = await startMaterialUpload(request, hdr, loc, filename);
+  const put = await request.put(absoluteUrl(uploadUrl), {
+    headers: { ...hdr, 'Content-Type': 'application/pdf' },
+    data: PDF_BYTES,
+  });
+  expect(put.ok()).toBe(true);
+  const done = await request.post(`${API_BASE}/materials/${materialId}/complete`, {
+    headers: hdr,
+  });
+  expect(done.status()).toBe(200);
+  return materialId;
+}
+
+test.describe('UC-04-02 — materials in LessonView', () => {
+  test('projects READY-only materials, drops PENDING_UPLOAD', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const instructorHdr = { Cookie: instructor.cookieHeader };
+    const student = await registerStudent(request);
+
+    const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+    const moduleId = await seedModule(courseId);
+    const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+    await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+    // One material driven all the way to READY.
+    await attachReadyMaterial(request, instructorHdr, { courseId, moduleId, lessonId }, 'ready.pdf');
+    // One material left in PENDING_UPLOAD — upload-url issued but never PUT/completed.
+    await startMaterialUpload(request, instructorHdr, { courseId, moduleId, lessonId }, 'pending.pdf');
+
+    const res = await request.get(`${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}`, {
+      headers: { cookie: student.cookieHeader },
+    });
+    expect(res.status()).toBe(200);
+
+    const body = (await res.json()) as {
+      materials: Array<{ id: string; displayName: string; extension: string; sizeBytes: number }>;
+    };
+    expect(body.materials).toHaveLength(1);
+    expect(body.materials[0]!.displayName).toBe('ready.pdf');
+    expect(body.materials[0]!.extension).toBe('pdf');
+  });
+
+  test('returns materials: [] when the lesson has none', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const student = await registerStudent(request);
+
+    const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+    const moduleId = await seedModule(courseId);
+    const { lessonId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+    await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+    const res = await request.get(`${API_BASE}/learn/courses/${courseId}/lessons/${lessonId}`, {
+      headers: { cookie: student.cookieHeader },
+    });
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as { materials: unknown[] };
+    expect(body.materials).toEqual([]);
+  });
+});
