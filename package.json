@@ -71,6 +71,7 @@
     "@swc/core": "~1.15.5",
     "@swc/helpers": "~0.5.18",
     "@types/cookie-parser": "^1.4.10",
+    "@types/multer": "^1.4.13",
     "@types/node": "20.19.9",
     "@types/nodemailer": "^8.0.0",
     "@typescript-eslint/utils": "^8.40.0",
@@ -121,8 +122,10 @@
     "google-auth-library": "^10.6.2",
     "helmet": "^8.2.0",
     "hls.js": "^1.6.16",
+    "multer": "1.4.5-lts.2",
     "nodemailer": "^8.0.7",
     "reflect-metadata": "^0.1.13",
-    "rxjs": "~7.8.0"
+    "rxjs": "~7.8.0",
+    "sharp": "^0.33.5"
   }
 }
