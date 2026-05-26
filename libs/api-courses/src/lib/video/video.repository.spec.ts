@@ -371,7 +371,7 @@ describe('VideoRepository.listVideoStatesForLessons', () => {
   it('listVideoStatesForLessons returns a Map keyed by lessonId with the latest VideoState for each', async () => {
     const fake = createFakeFirestore({
       'videos/v1': makeVideo({ id: 'v1' as VideoId, lessonId: 'l1' as LessonId, state: 'READY' as VideoState }),
-      'videos/v2': makeVideo({ id: 'v2' as VideoId, lessonId: 'l2' as LessonId, state: 'PROCESSING' as VideoState }),
+      'videos/v2': makeVideo({ id: 'v2' as VideoId, lessonId: 'l2' as LessonId, state: 'TRANSCODING' as VideoState }),
     });
     const repo = await buildRepo(fake);
 
@@ -382,7 +382,7 @@ describe('VideoRepository.listVideoStatesForLessons', () => {
     ]);
 
     expect(states.get('l1' as LessonId)).toBe('READY');
-    expect(states.get('l2' as LessonId)).toBe('PROCESSING');
+    expect(states.get('l2' as LessonId)).toBe('TRANSCODING');
     expect(states.get('l3' as LessonId) ?? null).toBeNull();
   });
 
