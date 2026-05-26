@@ -3,6 +3,12 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import type {
+  ISODateString,
+  MaterialDownloadUrlResponse,
+  MaterialId,
+} from '@learnwren/shared-data-models';
+
 import { LearnService } from './learn.service';
 
 describe('LearnService', () => {
@@ -81,6 +87,30 @@ describe('LearnService', () => {
       );
 
       await expect(promise).rejects.toBeInstanceOf(HttpErrorResponse);
+    });
+  });
+
+  describe('requestDownloadUrl', () => {
+    it('GETs /api/materials/:matId/download-url with credentials', async () => {
+      const matId = 'mat-123' as MaterialId;
+      const expected: MaterialDownloadUrlResponse = {
+        downloadUrl: 'https://signed.example/...',
+        expiresAt: '2030-01-01T00:00:00.000Z' as ISODateString,
+      };
+      const promise = service.requestDownloadUrl(matId);
+      const req = http.expectOne(`/api/materials/${matId}/download-url`);
+      expect(req.request.method).toBe('GET');
+      expect(req.request.withCredentials).toBe(true);
+      req.flush(expected);
+      await expect(promise).resolves.toEqual(expected);
+    });
+
+    it('rejects with the HttpErrorResponse on 403', async () => {
+      const matId = 'mat-x' as MaterialId;
+      const promise = service.requestDownloadUrl(matId);
+      const req = http.expectOne(`/api/materials/${matId}/download-url`);
+      req.flush({ code: 'NOT_MATERIAL_OWNER' }, { status: 403, statusText: 'Forbidden' });
+      await expect(promise).rejects.toMatchObject({ status: 403 });
     });
   });
 });

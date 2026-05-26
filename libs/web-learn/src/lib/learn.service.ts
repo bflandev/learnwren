@@ -2,7 +2,12 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
-import type { ISODateString, LessonView } from '@learnwren/shared-data-models';
+import type {
+  ISODateString,
+  LessonView,
+  MaterialDownloadUrlResponse,
+  MaterialId,
+} from '@learnwren/shared-data-models';
 
 @Injectable({ providedIn: 'root' })
 export class LearnService {
@@ -24,6 +29,15 @@ export class LearnService {
       this.http.post<{ completedAt: ISODateString }>(
         `/api/learn/courses/${courseId}/lessons/${lessonId}/complete`,
         {},
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  requestDownloadUrl(matId: MaterialId): Promise<MaterialDownloadUrlResponse> {
+    return firstValueFrom(
+      this.http.get<MaterialDownloadUrlResponse>(
+        `/api/materials/${matId}/download-url`,
         { withCredentials: true },
       ),
     );
