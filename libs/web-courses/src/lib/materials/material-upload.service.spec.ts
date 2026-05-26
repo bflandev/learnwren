@@ -244,7 +244,7 @@ describe('MaterialUploadService', () => {
   it('progress events update inFlight with the latest percent (replaces, not appends)', async () => {
     const xhr = fakeXhr(200);
     let progressFn: ((pct: number) => void) | undefined;
-    let captured: number[] = [];
+    const captured: number[] = [];
     TestBed.configureTestingModule({
       providers: [
         MaterialUploadService,
