@@ -1,13 +1,13 @@
 {
   "threshold": 80,
   "maxIterations": 25,
-  "iteration": 5,
+  "iteration": 6,
   "notes": "Round 2 (2026-05-25). Threshold bumped from 75 → 80. Order prioritises libs that received net-new code in EP-06 Slices B/C/D (b854dcb, dcabc60, 584b3c8 landed 2026-05-25): web-learn first (course-outline panel + position-saver + mark-complete), then api-courses (lesson completion endpoint), then shared-data-models (LessonProgress shape). Remaining libs in alphabetical order for drift detection.",
   "modules": [
     { "name": "web-learn", "status": "done", "score": 82.70, "iterations": 3, "notes": "iter 1: 54.33% baseline (-36.58 from round 1 due to net-new EP-06 C/D code). iter 2: 77.16% (+22.83). iter 3: 82.70% (+5.54). Closed in 3 iter with 33 new tests across position-saver, learn.service, course-outline-panel, lesson-player-page. course-outline-panel + learn.service hit 100%. lesson-player-page remains at 76.32% raw — residual survivors are typeof window/document SSR guards (cannot exercise in jsdom) and OptionalChaining on saver?.flush()/?.stop() where the saver-is-null path is structurally rare." },
     { "name": "api-courses", "status": "done", "score": 91.54, "iterations": 1, "notes": "iter 4: 91.54% adjusted (2089 killed / 178 survived / 29 no-cov, 14 equiv). Drift from round-1 90.75% is +0.79 — net-new learn.service (lesson-completion endpoint from EP-06 Slice B) clocks 83.93% raw / 88.68% covered, slightly below the lib average but well above threshold. Persistent debt remains in video/video-storage.adapter.ts (67.69%), video/video.exception-filter.ts (77.92%), and video/webhook/transcoder-events.controller.ts (70.59%) — these are pre-EP-06 carry-over flagged in the round-1 master report. Lib is above the 80 threshold; deeper triage on those three files is a follow-up." },
     { "name": "shared-data-models", "status": "done", "score": 100.00, "iterations": 1, "notes": "iter 5: 100% on first run. Only material.ts has runtime logic; 9/9 killed. Matches round 1 baseline." },
-    { "name": "api-auth", "status": "pending", "score": null, "iterations": 0, "notes": "prev round 1: 89.02% (1 iter). Auth-band target is 90%+." },
+    { "name": "api-auth", "status": "done", "score": 94.26, "iterations": 1, "notes": "iter 6: 94.26% adjusted / 87.82% raw (476/60/6, 37 equiv logger-strings). Two new files since round 1: account-recovery.service.ts (79.31% raw) and session-cookie.service.ts (82.61% raw) — both above threshold but below auth-band 90%+ target. Above threshold so marking done; the 90%+ stretch goal for these two new files is a follow-up." },
     { "name": "api-firebase", "status": "pending", "score": null, "iterations": 0, "notes": "prev round 1: 81.69% (2 iter, 69→82)." },
     { "name": "web-auth", "status": "pending", "score": null, "iterations": 0, "notes": "prev round 1: 80.31% (1 iter)." },
     { "name": "web-catalog", "status": "pending", "score": null, "iterations": 0, "notes": "prev round 1: 79.68% (2 iter). Sat just under threshold 80." },
