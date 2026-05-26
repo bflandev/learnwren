@@ -300,6 +300,49 @@ describe('CourseDetailPageComponent', () => {
     expect(el.querySelector('[data-testid="no-lessons"]')).not.toBeNull();
   });
 
+  it('shows the "No lessons yet" disabled state for the course owner with zero lessons', async () => {
+    const enrollmentView: EnrollmentStatusView = { enrollment: null, isOwner: true };
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_NO_LESSONS);
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="start-learning"]')).toBeNull();
+    expect(el.querySelector('[data-testid="no-lessons"]')).not.toBeNull();
+  });
+
+  it('hides "No lessons yet" for an unenrolled authenticated student with zero lessons', async () => {
+    const enrollmentView: EnrollmentStatusView = { enrollment: null, isOwner: false };
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_NO_LESSONS);
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="start-learning"]')).toBeNull();
+    expect(el.querySelector('[data-testid="no-lessons"]')).toBeNull();
+  });
+
+  it('hides "No lessons yet" for a guest user with zero lessons', async () => {
+    const { http } = setup({ id: 'c-1', isAuthenticated: false });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_NO_LESSONS);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="start-learning"]')).toBeNull();
+    expect(el.querySelector('[data-testid="no-lessons"]')).toBeNull();
+  });
+
   it('resolves the href to the FIRST lesson id (not the second)', async () => {
     const enrollmentView: EnrollmentStatusView = { enrollment: null, isOwner: true };
     const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });
