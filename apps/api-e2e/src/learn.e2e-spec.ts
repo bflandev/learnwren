@@ -468,6 +468,47 @@ test('POST /complete returns 401 without a session cookie', async ({ request }) 
   expect(res.status()).toBe(401);
 });
 
+// ──────────────────────── outline tests (Slice D) ────────────────────────
+
+test('outline.completedAt reflects mark-complete for the enrolled caller', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const student = await registerStudent(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const moduleId = await seedModule(courseId);
+
+  // Seed two lessons — lessonA will be marked complete, lessonB will remain incomplete.
+  const { lessonId: lessonAId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+  const { lessonId: lessonBId } = await seedLesson({ courseId, moduleId, videoState: 'READY' });
+  await seedEnrollment({ userId: student.uid, courseId, status: 'ACTIVE' });
+
+  // Mark lesson A complete.
+  const completeRes = await request.post(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonAId}/complete`,
+    { headers: { cookie: student.cookieHeader } },
+  );
+  expect(completeRes.status()).toBe(200);
+
+  // Fetch lesson B's view — the outline must include both lessons with correct completedAt.
+  const viewRes = await request.get(
+    `${API_BASE}/learn/courses/${courseId}/lessons/${lessonBId}`,
+    { headers: { cookie: student.cookieHeader } },
+  );
+  expect(viewRes.status()).toBe(200);
+  const view = (await viewRes.json()) as {
+    outline: { modules: Array<{ lessons: Array<{ id: string; completedAt: string | null }> }> };
+  };
+
+  expect(view.outline).toBeDefined();
+  const rows = view.outline.modules.flatMap((m) => m.lessons);
+  const rowA = rows.find((r) => r.id === lessonAId);
+  const rowB = rows.find((r) => r.id === lessonBId);
+
+  // Lesson A was marked complete — completedAt must be a date string in 2026 or later.
+  expect(rowA?.completedAt).toMatch(/2026|2027/);
+  // Lesson B was never marked complete — completedAt must be null.
+  expect(rowB?.completedAt).toBeNull();
+});
+
 // ──────────────────────── POST /position tests (Slice C) ────────────────────────
 
 test.describe('POST /api/learn/courses/:cid/lessons/:lid/position', () => {

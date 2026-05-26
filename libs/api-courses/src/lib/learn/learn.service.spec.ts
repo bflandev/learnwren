@@ -3,14 +3,17 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   Course,
   CourseId,
+  CourseOutline,
   Lesson,
   LessonId,
   ModuleId,
   UserId,
   Video,
   VideoId,
+  VideoState,
 } from '@learnwren/shared-data-models';
 
+import type { CoursesRepository } from '../courses.repository';
 import type { EnrollmentRepository } from '../enrollment/enrollment.repository';
 import type { VideoRepository } from '../video/video.repository';
 import { LearnService } from './learn.service';
@@ -56,6 +59,49 @@ function makeVideoRepo(overrides: Partial<{ getVideo: Video | null }> = {}) {
     getVideo: vi.fn().mockResolvedValue(
       'getVideo' in overrides ? overrides.getVideo : null,
     ),
+    listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map<LessonId, VideoState>()),
+  } as unknown as VideoRepository;
+}
+
+function makeCoursesRepo(args: {
+  modules: Array<{ id: string; title: string; order: number }>;
+  lessonsByModule: Record<string, Array<{ id: string; title: string; order: number; videoId?: string }>>;
+}) {
+  return {
+    listModulesByCourse: vi.fn().mockResolvedValue(
+      args.modules.map((m) => ({
+        ...m,
+        courseId: CID,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      })),
+    ),
+    listLessonsByModule: vi.fn().mockImplementation(async (_cid: string, mid: string) =>
+      (args.lessonsByModule[mid] ?? []).map((l) => ({
+        ...l,
+        moduleId: mid,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      })),
+    ),
+  } as unknown as CoursesRepository;
+}
+
+function makeEmptyCoursesRepo(): CoursesRepository {
+  return makeCoursesRepo({ modules: [], lessonsByModule: {} });
+}
+
+function makeVideoRepoWithStates(args: {
+  lessonView?: Video | null;
+  outlineStates?: Record<string, 'READY' | 'TRANSCODING' | 'UPLOADING' | 'FAILED' | null>;
+}) {
+  const outline = new Map<LessonId, 'READY' | 'TRANSCODING' | 'UPLOADING' | 'FAILED'>();
+  for (const [lid, st] of Object.entries(args.outlineStates ?? {})) {
+    if (st !== null) outline.set(lid as LessonId, st);
+  }
+  return {
+    getVideo: vi.fn().mockResolvedValue(args.lessonView ?? null),
+    listVideoStatesForLessons: vi.fn().mockResolvedValue(outline),
   } as unknown as VideoRepository;
 }
 
@@ -64,6 +110,7 @@ function makeEnrollmentRepo(overrides: Partial<{ getEnrollment: unknown }> = {})
     getEnrollment: vi.fn().mockResolvedValue(
       'getEnrollment' in overrides ? overrides.getEnrollment : null,
     ),
+    touchLastAccessed: vi.fn(async () => undefined),
   } as unknown as EnrollmentRepository;
 }
 
@@ -72,7 +119,7 @@ describe('LearnService', () => {
     const video = { id: VID, state: 'READY' } as unknown as Video;
     const videos = makeVideoRepo({ getVideo: video });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment);
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
 
@@ -87,13 +134,14 @@ describe('LearnService', () => {
         videoState: 'READY',
       },
       progress: null,
+      outline: { modules: [] },
     });
   });
 
   it('returns videoId null and videoState null when the lesson has no video', async () => {
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment);
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const lessonWithoutVideo: Lesson = { ...baseLesson, videoId: undefined };
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, lessonWithoutVideo);
@@ -106,7 +154,7 @@ describe('LearnService', () => {
   it('returns videoState null when the video document is missing', async () => {
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment);
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
 
@@ -119,7 +167,7 @@ describe('LearnService', () => {
     const video = { id: VID, state: 'TRANSCODING' } as unknown as Video;
     const videos = makeVideoRepo({ getVideo: video });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment);
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
 
@@ -129,7 +177,7 @@ describe('LearnService', () => {
   it('passes through a non-empty description as-is', async () => {
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment);
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const lessonWithDesc: Lesson = { ...baseLesson, description: 'Hello world' };
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, lessonWithDesc);
@@ -140,7 +188,7 @@ describe('LearnService', () => {
   it('leaves description undefined when the lesson has no description authored', async () => {
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment);
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const lessonNoDesc: Lesson = { ...baseLesson, description: undefined };
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, lessonNoDesc);
@@ -151,7 +199,7 @@ describe('LearnService', () => {
   it('preserves an explicit empty-string description distinct from undefined', async () => {
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment);
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const lessonEmptyDesc: Lesson = { ...baseLesson, description: '' };
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, lessonEmptyDesc);
@@ -162,11 +210,11 @@ describe('LearnService', () => {
 
 describe('getLessonView progress', () => {
   it('returns progress: null when the caller is the course owner', async () => {
-    const videos = { getVideo: vi.fn().mockResolvedValue(null) } as unknown as VideoRepository;
+    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue(null),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment);
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const course = makeCourse({ instructorId: 'owner-1' as UserId });
     const view = await service.getLessonView('owner-1' as UserId, course, makeLesson());
     expect(view.progress).toBeNull();
@@ -174,7 +222,7 @@ describe('getLessonView progress', () => {
   });
 
   it('returns { completedAt: null, lastWatchedSeconds: 0 } when the enrolled student has no LessonProgress row yet', async () => {
-    const videos = { getVideo: vi.fn().mockResolvedValue(null) } as unknown as VideoRepository;
+    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue({
         id: 's__c', userId: 's', courseId: 'c', status: 'ACTIVE',
@@ -182,7 +230,7 @@ describe('getLessonView progress', () => {
       }),
       touchLastAccessed: vi.fn(async () => undefined),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment);
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const view = await service.getLessonView(
       's' as UserId,
       makeCourse({ instructorId: 'owner-1' as UserId }),
@@ -192,7 +240,7 @@ describe('getLessonView progress', () => {
   });
 
   it('returns { completedAt: <iso>, lastWatchedSeconds: 0 } when the LessonProgress row has a prior completion', async () => {
-    const videos = { getVideo: vi.fn().mockResolvedValue(null) } as unknown as VideoRepository;
+    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue({
         id: 's__c', userId: 's', courseId: 'c', status: 'ACTIVE',
@@ -201,7 +249,7 @@ describe('getLessonView progress', () => {
       }),
       touchLastAccessed: vi.fn(async () => undefined),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment);
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const view = await service.getLessonView(
       's' as UserId,
       makeCourse({ instructorId: 'owner-1' as UserId }),
@@ -211,18 +259,19 @@ describe('getLessonView progress', () => {
   });
 
   it('returns progress: null when no enrolment exists (defensive — guard should have blocked)', async () => {
-    const videos = { getVideo: vi.fn().mockResolvedValue(null) } as unknown as VideoRepository;
+    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue(null),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment);
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const view = await service.getLessonView(
       's' as UserId,
       makeCourse({ instructorId: 'owner-1' as UserId }),
       makeLesson({ id: 'l1' as LessonId }),
     );
     expect(view.progress).toBeNull();
-    expect(enrollment.getEnrollment).toHaveBeenCalledOnce();
+    // Called twice: once in resolveProgress, once in projectOutline (non-owner path).
+    expect(enrollment.getEnrollment).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -234,7 +283,7 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
 
   it('calls touchLastAccessed exactly once for an enrolled student', async () => {
     const touchSpy = vi.fn(async () => undefined);
-    const videos = { getVideo: vi.fn().mockResolvedValue(null) } as unknown as VideoRepository;
+    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue({
         id: 's__c', userId: 's', courseId: 'c', status: 'ACTIVE',
@@ -243,7 +292,7 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
       }),
       touchLastAccessed: touchSpy,
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment);
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     await service.getLessonView(STUDENT_UID, COURSE, LESSON);
     expect(touchSpy).toHaveBeenCalledTimes(1);
     expect(touchSpy).toHaveBeenCalledWith(STUDENT_UID, COURSE.id, LESSON.id, expect.any(String));
@@ -251,19 +300,19 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
 
   it('does NOT call touchLastAccessed for the course owner', async () => {
     const touchSpy = vi.fn(async () => undefined);
-    const videos = { getVideo: vi.fn().mockResolvedValue(null) } as unknown as VideoRepository;
+    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue(null),
       touchLastAccessed: touchSpy,
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment);
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     await service.getLessonView(OWNER_UID, COURSE, LESSON);
     expect(touchSpy).not.toHaveBeenCalled();
   });
 
   it('returns the view even when touchLastAccessed throws (best-effort)', async () => {
     const touchSpy = vi.fn(async () => { throw new Error('boom'); });
-    const videos = { getVideo: vi.fn().mockResolvedValue(null) } as unknown as VideoRepository;
+    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue({
         id: 's__c', userId: 's', courseId: 'c', status: 'ACTIVE',
@@ -272,14 +321,14 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
       }),
       touchLastAccessed: touchSpy,
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment);
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const view = await service.getLessonView(STUDENT_UID, COURSE, LESSON);
     expect(view.course.id).toBe(COURSE.id);
     expect(touchSpy).toHaveBeenCalledTimes(1);
   });
 
   it('propagates lastWatchedSeconds from the matching LessonProgress row', async () => {
-    const videos = { getVideo: vi.fn().mockResolvedValue(null) } as unknown as VideoRepository;
+    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue({
         id: 's__c', userId: 's', courseId: 'c', status: 'ACTIVE',
@@ -288,13 +337,13 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
       }),
       touchLastAccessed: vi.fn(async () => undefined),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment);
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const view = await service.getLessonView(STUDENT_UID, COURSE, LESSON);
     expect(view.progress).toEqual({ completedAt: null, lastWatchedSeconds: 87 });
   });
 
   it('defaults lastWatchedSeconds to 0 when no LessonProgress row exists yet', async () => {
-    const videos = { getVideo: vi.fn().mockResolvedValue(null) } as unknown as VideoRepository;
+    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue({
         id: 's__c', userId: 's', courseId: 'c', status: 'ACTIVE',
@@ -303,8 +352,149 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
       }),
       touchLastAccessed: vi.fn(async () => undefined),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment);
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo());
     const view = await service.getLessonView(STUDENT_UID, COURSE, LESSON);
     expect(view.progress).toEqual({ completedAt: null, lastWatchedSeconds: 0 });
+  });
+});
+
+describe('LearnService.getLessonView outline (Slice D)', () => {
+  const course = makeCourse({ status: 'PUBLISHED' });
+  const lesson = makeLesson({ id: 'l1' as LessonId, moduleId: 'm1' as ModuleId });
+
+  it('projects modules and lessons in persisted order', async () => {
+    const courses = makeCoursesRepo({
+      modules: [
+        { id: 'm2', title: 'M2', order: 1 },
+        { id: 'm1', title: 'M1', order: 0 },
+      ],
+      lessonsByModule: {
+        m1: [
+          { id: 'l1', title: 'L1', order: 0, videoId: 'v1' },
+          { id: 'l2', title: 'L2', order: 1, videoId: 'v2' },
+        ],
+        m2: [{ id: 'l3', title: 'L3', order: 0 }],
+      },
+    });
+    const videos = makeVideoRepoWithStates({
+      lessonView: { id: 'v1' as VideoId, state: 'READY' } as Video,
+      outlineStates: { l1: 'READY', l2: 'TRANSCODING', l3: null },
+    });
+    const enrollment = makeEnrollmentRepo({ getEnrollment: null });
+    const svc = new LearnService(videos, enrollment, courses);
+
+    const view = await svc.getLessonView(STUDENT_ID, course, lesson);
+
+    expect(view.outline.modules.map((m) => m.id)).toEqual(['m2', 'm1']);
+    expect(view.outline.modules[1]!.lessons.map((l) => l.id)).toEqual(['l1', 'l2']);
+    expect(view.outline.modules[1]!.lessons[0]!.videoState).toBe('READY');
+    expect(view.outline.modules[1]!.lessons[1]!.videoState).toBe('TRANSCODING');
+    expect(view.outline.modules[0]!.lessons[0]!.videoState).toBeNull();
+  });
+
+  it('joins completedAt from the caller enrolment by lessonId', async () => {
+    const courses = makeCoursesRepo({
+      modules: [{ id: 'm1', title: 'M1', order: 0 }],
+      lessonsByModule: {
+        m1: [
+          { id: 'l1', title: 'L1', order: 0, videoId: 'v1' },
+          { id: 'l2', title: 'L2', order: 1, videoId: 'v2' },
+          { id: 'l3', title: 'L3', order: 2, videoId: 'v3' },
+        ],
+      },
+    });
+    const videos = makeVideoRepoWithStates({
+      lessonView: { id: 'v1' as VideoId, state: 'READY' } as Video,
+      outlineStates: { l1: 'READY', l2: 'READY', l3: 'READY' },
+    });
+    const enrollment = makeEnrollmentRepo({
+      getEnrollment: {
+        id: `${STUDENT_ID}__${CID}`,
+        userId: STUDENT_ID,
+        courseId: CID,
+        status: 'ACTIVE',
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-05-01T00:00:00Z', lastWatchedSeconds: 0 },
+          { lessonId: 'l2' as LessonId, completedAt: null, lastWatchedSeconds: 12 },
+        ],
+        withdrawnAt: null,
+      },
+    });
+    const svc = new LearnService(videos, enrollment, courses);
+
+    const view = await svc.getLessonView(STUDENT_ID, course, lesson);
+    const lessons = view.outline.modules[0]!.lessons;
+    expect(lessons[0]!.completedAt).toBe('2026-05-01T00:00:00Z');
+    expect(lessons[1]!.completedAt).toBeNull();
+    expect(lessons[2]!.completedAt).toBeNull();
+  });
+
+  it('returns every completedAt as null for the course owner', async () => {
+    const owner = course.instructorId;
+    const courses = makeCoursesRepo({
+      modules: [{ id: 'm1', title: 'M1', order: 0 }],
+      lessonsByModule: {
+        m1: [{ id: 'l1', title: 'L1', order: 0, videoId: 'v1' }],
+      },
+    });
+    const videos = makeVideoRepoWithStates({
+      lessonView: { id: 'v1' as VideoId, state: 'READY' } as Video,
+      outlineStates: { l1: 'READY' },
+    });
+    const enrollment = makeEnrollmentRepo({ getEnrollment: null });
+    const svc = new LearnService(videos, enrollment, courses);
+
+    const view = await svc.getLessonView(owner, course, lesson);
+    expect(view.progress).toBeNull();
+    expect(view.outline.modules[0]!.lessons[0]!.completedAt).toBeNull();
+  });
+
+  it('ignores orphan LessonProgress rows whose lesson no longer exists', async () => {
+    const courses = makeCoursesRepo({
+      modules: [{ id: 'm1', title: 'M1', order: 0 }],
+      lessonsByModule: {
+        m1: [{ id: 'l1', title: 'L1', order: 0, videoId: 'v1' }],
+      },
+    });
+    const videos = makeVideoRepoWithStates({
+      lessonView: { id: 'v1' as VideoId, state: 'READY' } as Video,
+      outlineStates: { l1: 'READY' },
+    });
+    const enrollment = makeEnrollmentRepo({
+      getEnrollment: {
+        id: `${STUDENT_ID}__${CID}`,
+        userId: STUDENT_ID,
+        courseId: CID,
+        status: 'ACTIVE',
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-05-01T00:00:00Z', lastWatchedSeconds: 0 },
+          { lessonId: 'l-deleted' as LessonId, completedAt: '2026-05-02T00:00:00Z', lastWatchedSeconds: 99 },
+        ],
+        withdrawnAt: null,
+      },
+    });
+    const svc = new LearnService(videos, enrollment, courses);
+
+    const view = await svc.getLessonView(STUDENT_ID, course, lesson);
+    expect(view.outline.modules[0]!.lessons).toHaveLength(1);
+    expect(view.outline.modules[0]!.lessons[0]!.completedAt).toBe('2026-05-01T00:00:00Z');
+  });
+
+  it('renders videoState: null when a lesson has no videoId', async () => {
+    const courses = makeCoursesRepo({
+      modules: [{ id: 'm1', title: 'M1', order: 0 }],
+      lessonsByModule: {
+        m1: [{ id: 'l1', title: 'L1', order: 0 }],
+      },
+    });
+    const videos = makeVideoRepoWithStates({
+      lessonView: null,
+      outlineStates: { l1: null },
+    });
+    const enrollment = makeEnrollmentRepo({ getEnrollment: null });
+    const svc = new LearnService(videos, enrollment, courses);
+
+    const view = await svc.getLessonView(STUDENT_ID, course, lesson);
+    expect(view.outline.modules[0]!.lessons[0]!.videoState).toBeNull();
   });
 });

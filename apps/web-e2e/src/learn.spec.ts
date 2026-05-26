@@ -100,6 +100,117 @@ async function seedPublishedCourseWithReadyLesson(): Promise<{
   return { courseId, lessonId };
 }
 
+/**
+ * Seed a PUBLISHED course with one module and TWO READY-video lessons.
+ * Returns the course ID and both lesson IDs.
+ */
+async function seedPublishedCourseWithTwoLessons(): Promise<{
+  courseId: string;
+  lessonAId: string;
+  lessonBId: string;
+}> {
+  const ts = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  const courseId = `web-e2e-learn-two-${ts}`;
+  const moduleId = `web-e2e-learn-mod-${ts}`;
+  const lessonAId = `web-e2e-learn-la-${ts}`;
+  const lessonBId = `web-e2e-learn-lb-${ts}`;
+  const videoAId = `web-e2e-learn-va-${ts}`;
+  const videoBId = `web-e2e-learn-vb-${ts}`;
+  const instructorId = `web-e2e-learn-inst-${ts}`;
+  const now = new Date().toISOString();
+
+  const db = admin.firestore();
+
+  // 1. Seed the course
+  await db.collection('courses').doc(courseId).set({
+    id: courseId,
+    title: 'Learn Wren E2E Two-Lesson Course',
+    description: 'A course with two lessons for outline navigation e2e test.',
+    instructorId,
+    status: 'PUBLISHED',
+    enrollmentCount: 0,
+    publishedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // 2. Seed the module
+  await db.doc(`courses/${courseId}/modules/${moduleId}`).set({
+    id: moduleId,
+    courseId,
+    title: 'Module 1',
+    order: 0,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // 3. Seed lesson A
+  await db.doc(`courses/${courseId}/modules/${moduleId}/lessons/${lessonAId}`).set({
+    id: lessonAId,
+    moduleId,
+    title: 'Lesson A',
+    order: 0,
+    videoId: videoAId,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // 4. Seed lesson B
+  await db.doc(`courses/${courseId}/modules/${moduleId}/lessons/${lessonBId}`).set({
+    id: lessonBId,
+    moduleId,
+    title: 'Lesson B',
+    order: 1,
+    videoId: videoBId,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // 5. Seed video A in READY state
+  await db.collection('videos').doc(videoAId).set({
+    id: videoAId,
+    ownerInstructorId: instructorId,
+    courseId,
+    lessonId: lessonAId,
+    state: 'READY',
+    source: {
+      bucket: 'fake-source-bucket',
+      path: `uploads/${videoAId}/original.mp4`,
+      sizeBytes: 1024,
+    },
+    output: {
+      bucket: 'fake-output-bucket',
+      manifestPath: `videos/${videoAId}/manifest.m3u8`,
+      durationSec: 30,
+    },
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // 6. Seed video B in READY state
+  await db.collection('videos').doc(videoBId).set({
+    id: videoBId,
+    ownerInstructorId: instructorId,
+    courseId,
+    lessonId: lessonBId,
+    state: 'READY',
+    source: {
+      bucket: 'fake-source-bucket',
+      path: `uploads/${videoBId}/original.mp4`,
+      sizeBytes: 1024,
+    },
+    output: {
+      bucket: 'fake-output-bucket',
+      manifestPath: `videos/${videoBId}/manifest.m3u8`,
+      durationSec: 30,
+    },
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  return { courseId, lessonAId, lessonBId };
+}
+
 test('enrolled student can Start Learning from the course detail page', async ({ page }) => {
   const { email, password } = await registerVerifiedStudent();
   const { courseId, lessonId } = await seedPublishedCourseWithReadyLesson();
@@ -128,7 +239,7 @@ test('unauthenticated visit to /learn/:cid/:lid redirects to /login with redirec
 }) => {
   await page.goto('/learn/some-course/some-lesson');
   await page.waitForURL(/\/login(\?|$)/);
-  await expect(page.url()).toMatch(/redirect=/);
+  expect(page.url()).toMatch(/redirect=/);
 });
 
 /** Register an INSTRUCTOR, mark them email-verified, and promote their role. */
@@ -345,4 +456,52 @@ test('the lesson player resumes from a non-zero saved position on reload', async
     },
     { timeout: 10_000 },
   );
+});
+
+test('clicking a different lesson in the outline navigates and preserves checkmarks', async ({
+  page,
+}) => {
+  const { email, password } = await registerVerifiedStudent();
+  const { courseId, lessonAId, lessonBId } = await seedPublishedCourseWithTwoLessons();
+
+  // Sign in
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+
+  // Enrol and navigate to lesson A
+  await page.goto(`/catalog/${courseId}`);
+  await page.getByRole('button', { name: 'Enroll' }).click();
+  await expect(page.getByTestId('start-learning')).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId('start-learning').click();
+  await expect(page).toHaveURL(`/learn/${courseId}/${lessonAId}`);
+
+  // Mark lesson A as complete
+  await expect(page.getByTestId('mark-complete')).toBeVisible();
+  await page.getByTestId('mark-complete').click();
+
+  // Pill is visible
+  const pill = page.getByTestId('completed-pill');
+  await expect(pill).toBeVisible();
+  await expect(pill).toContainText(/Completed on/);
+
+  // Click lesson B in the outline
+  const lessonBButton = page
+    .locator('lib-course-outline-panel')
+    .locator('[data-testid="outline-row"]')
+    .filter({ hasText: 'Lesson B' });
+  await lessonBButton.click();
+
+  // Navigation to lesson B succeeded
+  await expect(page).toHaveURL(new RegExp(`/learn/${courseId}/${lessonBId}$`));
+
+  // Outline still shows the checkmark on lesson A
+  const lessonACheckmark = page
+    .locator('lib-course-outline-panel')
+    .locator('[data-testid="outline-row"]')
+    .filter({ hasText: 'Lesson A' })
+    .locator('[aria-label="Completed"]');
+  await expect(lessonACheckmark).toBeVisible();
 });

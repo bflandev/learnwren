@@ -11,6 +11,7 @@ import type {
   VideoId,
   VideoKey,
   VideoKeyId,
+  VideoState,
 } from '@learnwren/shared-data-models';
 
 import { VideoRepository } from './video.repository';
@@ -363,5 +364,34 @@ describe('VideoRepository.deleteVideoAndDetach', () => {
       repo.deleteVideoAndDetach('v1' as VideoId, 'l1' as LessonId, NOW_ISO),
     ).resolves.toBeUndefined();
     expect(fake.__store.has('videos/v1')).toBe(false);
+  });
+});
+
+describe('VideoRepository.listVideoStatesForLessons', () => {
+  it('listVideoStatesForLessons returns a Map keyed by lessonId with the latest VideoState for each', async () => {
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({ id: 'v1' as VideoId, lessonId: 'l1' as LessonId, state: 'READY' as VideoState }),
+      'videos/v2': makeVideo({ id: 'v2' as VideoId, lessonId: 'l2' as LessonId, state: 'TRANSCODING' as VideoState }),
+    });
+    const repo = await buildRepo(fake);
+
+    const states = await repo.listVideoStatesForLessons([
+      'l1' as LessonId,
+      'l2' as LessonId,
+      'l3' as LessonId,
+    ]);
+
+    expect(states.get('l1' as LessonId)).toBe('READY');
+    expect(states.get('l2' as LessonId)).toBe('TRANSCODING');
+    expect(states.get('l3' as LessonId) ?? null).toBeNull();
+  });
+
+  it('listVideoStatesForLessons returns an empty Map for an empty input', async () => {
+    const fake = createFakeFirestore();
+    const repo = await buildRepo(fake);
+
+    const states = await repo.listVideoStatesForLessons([]);
+
+    expect(states.size).toBe(0);
   });
 });

@@ -10,11 +10,12 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
-import type { ISODateString, LessonView } from '@learnwren/shared-data-models';
+import type { CourseId, CourseOutline, ISODateString, LessonId, LessonView } from '@learnwren/shared-data-models';
 import { VideoPlayerComponent } from '@learnwren/web-video';
 
+import { CourseOutlinePanelComponent } from '../course-outline-panel/course-outline-panel.component';
 import { LearnService } from '../learn.service';
 import { PositionSaver } from '../position-saver';
 
@@ -24,15 +25,16 @@ type PageState = 'LOADING' | 'READY' | 'PROCESSING' | 'NOT_ENROLLED' | 'NOT_FOUN
   selector: 'lib-lesson-player-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, VideoPlayerComponent, DatePipe],
+  imports: [RouterLink, VideoPlayerComponent, DatePipe, CourseOutlinePanelComponent],
   templateUrl: './lesson-player-page.component.html',
 })
 export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly learn = inject(LearnService);
 
-  courseId = '';
-  lessonId = '';
+  courseId: CourseId = '' as CourseId;
+  lessonId: LessonId = '' as LessonId;
 
   @ViewChild(VideoPlayerComponent) private playerRef?: VideoPlayerComponent;
 
@@ -48,6 +50,18 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   readonly isOwnerPreview = computed<boolean>(() => this.view()?.progress === null);
   readonly markBusy = signal<boolean>(false);
   readonly markError = signal<null | 'revoked' | 'other'>(null);
+
+  readonly outline = computed<CourseOutline | null>(() => this.view()?.outline ?? null);
+  readonly outlineOpen = signal<boolean>(
+    typeof window !== 'undefined'
+      ? window.matchMedia('(min-width: 1024px)').matches
+      : true,
+  );
+  readonly outlineMode = computed<'sidebar' | 'drawer'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+      ? 'sidebar'
+      : 'drawer',
+  );
 
   private saver: PositionSaver | null = null;
   private hasResumed = false;
@@ -65,8 +79,8 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
       this.state.set('NOT_FOUND');
       return;
     }
-    this.courseId = courseId;
-    this.lessonId = lessonId;
+    this.courseId = courseId as CourseId;
+    this.lessonId = lessonId as LessonId;
     await this.load();
     if (typeof window !== 'undefined') {
       window.addEventListener('pagehide', this.onPageHide);
@@ -116,6 +130,19 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
 
   retry(): void {
     void this.load();
+  }
+
+  toggleOutline(): void {
+    this.outlineOpen.update((v) => !v);
+  }
+
+  async onLessonSelected(nextLessonId: LessonId): Promise<void> {
+    try {
+      await this.saver?.flush();
+    } catch (err) {
+      console.warn('[learn] flushPosition rejected during outline nav', err);
+    }
+    await this.router.navigateByUrl(`/learn/${this.courseId}/${nextLessonId}`);
   }
 
   /**

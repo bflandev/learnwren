@@ -1,0 +1,44 @@
+@if (mode === 'drawer' && outlineOpen) {
+  <div data-testid="outline-backdrop" class="outline-backdrop" role="button" tabindex="0" (click)="onBackdropClick()" (keydown.escape)="onBackdropClick()"></div>
+}
+<aside
+  aria-label="Course outline"
+  class="course-outline"
+  [class.is-drawer]="mode === 'drawer'"
+  [class.is-open]="outlineOpen"
+  [attr.hidden]="mode === 'sidebar' && !outlineOpen ? '' : null"
+  [cdkTrapFocus]="mode === 'drawer' && outlineOpen"
+  [cdkTrapFocusAutoCapture]="mode === 'drawer' && outlineOpen"
+>
+  @for (m of outline.modules; track m.id) {
+    <section>
+      <h3>{{ m.title }}</h3>
+      <ol>
+        @for (l of m.lessons; track l.id) {
+          <li>
+            <button
+              type="button"
+              data-testid="outline-row"
+              [attr.aria-current]="l.id === activeLessonId ? 'page' : null"
+              [attr.aria-disabled]="l.videoState !== 'READY' ? 'true' : null"
+              [class.is-active]="l.id === activeLessonId"
+              [class.is-processing]="l.videoState !== 'READY'"
+              (click)="onRowClick(l.id, l.videoState)"
+            >
+              @if (l.completedAt) {
+                <span aria-label="Completed">&#10003;</span>
+              }
+              <span>{{ l.title }}</span>
+              @if (l.videoState !== 'READY') {
+                <span> (processing)</span>
+              }
+            </button>
+            @if (processingNoticeFor() === l.id) {
+              <p data-testid="processing-notice">This lesson's video is still being processed.</p>
+            }
+          </li>
+        }
+      </ol>
+    </section>
+  }
+</aside>

@@ -10,6 +10,7 @@ import type {
   VideoId,
   VideoKey,
   VideoKeyId,
+  VideoState,
 } from '@learnwren/shared-data-models';
 
 @Injectable()
@@ -52,6 +53,21 @@ export class VideoRepository {
       .limit(1)
       .get();
     return q.empty ? null : (q.docs[0]!.data() as Video);
+  }
+
+  async listVideoStatesForLessons(
+    lessonIds: LessonId[],
+  ): Promise<Map<LessonId, VideoState>> {
+    const out = new Map<LessonId, VideoState>();
+    const unique = [...new Set(lessonIds)];
+    if (unique.length === 0) return out;
+    const results = await Promise.all(
+      unique.map((lid) => this.getVideoByLesson(lid)),
+    );
+    results.forEach((video, i) => {
+      if (video) out.set(unique[i]!, video.state);
+    });
+    return out;
   }
 
   async getVideoKey(kid: VideoKeyId): Promise<VideoKey | null> {

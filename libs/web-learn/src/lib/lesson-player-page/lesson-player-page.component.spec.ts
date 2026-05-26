@@ -1,18 +1,36 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ISODateString, LessonView } from '@learnwren/shared-data-models';
+import type { ISODateString, LessonId, LessonView } from '@learnwren/shared-data-models';
 import { VideoPlayerComponent } from '@learnwren/web-video';
 
 import { LessonPlayerPageComponent } from './lesson-player-page.component';
 
+// jsdom does not implement window.matchMedia; polyfill it once for all tests in this file.
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}
+
 function makeView(
   overrides: Partial<LessonView['lesson']> = {},
   progress: LessonView['progress'] = { completedAt: null, lastWatchedSeconds: 0 },
+  outlineModules: LessonView['outline']['modules'] = [],
 ): LessonView {
   return {
     course: { id: 'c-1' as LessonView['course']['id'], title: 'Test Course', status: 'PUBLISHED' },
@@ -26,6 +44,7 @@ function makeView(
       ...overrides,
     },
     progress,
+    outline: { modules: outlineModules },
   };
 }
 
@@ -387,5 +406,90 @@ describe('LessonPlayerPageComponent', () => {
       fixture.componentInstance.onSaverRevoked();
       expect(fixture.componentInstance.state()).toBe('NOT_ENROLLED');
     });
+  });
+});
+
+describe('LessonPlayerPageComponent outline integration (Slice D)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('passes outline through to CourseOutlinePanelComponent on load', async () => {
+    configure();
+    const { fixture, http } = create();
+    const outlineModules: LessonView['outline']['modules'] = [
+      {
+        id: 'm-1' as LessonView['lesson']['moduleId'],
+        title: 'Module 1',
+        lessons: [
+          { id: 'l-1' as LessonId, title: 'Lesson 1', videoState: 'READY', completedAt: null },
+          { id: 'l-2' as LessonId, title: 'Lesson 2', videoState: 'READY', completedAt: null },
+        ],
+      },
+    ];
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }, outlineModules));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const panel = fixture.nativeElement.querySelector('lib-course-outline-panel');
+    expect(panel).toBeTruthy();
+    const rows = panel.querySelectorAll('button[data-testid="outline-row"]');
+    expect(rows).toHaveLength(2);
+  });
+
+  it('toggles outlineOpen when the header button is clicked', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const before = fixture.componentInstance.outlineOpen();
+    (fixture.nativeElement.querySelector('[data-testid="outline-toggle"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.outlineOpen()).toBe(!before);
+  });
+
+  it('flushes the saver, then navigates, when lessonSelected fires', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const router = TestBed.inject(Router);
+    const navSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const flushSpy = vi.fn().mockResolvedValue(undefined);
+    (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
+      flush: flushSpy,
+      stop: () => undefined,
+    };
+
+    await fixture.componentInstance.onLessonSelected('lnext' as LessonId);
+
+    expect(flushSpy).toHaveBeenCalledTimes(1);
+    expect(navSpy).toHaveBeenCalledWith('/learn/c-1/lnext');
+    expect(flushSpy.mock.invocationCallOrder[0]).toBeLessThan(navSpy.mock.invocationCallOrder[0]);
+  });
+
+  it('still navigates if the flush rejects, and logs a warning', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const router = TestBed.inject(Router);
+    const navSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
+      flush: vi.fn().mockRejectedValue(new Error('network')),
+      stop: () => undefined,
+    };
+
+    await fixture.componentInstance.onLessonSelected('lnext' as LessonId);
+
+    expect(navSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalled();
   });
 });

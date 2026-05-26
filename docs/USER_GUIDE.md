@@ -41,7 +41,8 @@ This guide covers **every feature wired up so far** from two angles:
 | Discovery | Guest auto-enroll after login | Built |
 | Learning | Student lesson playback (`/learn/:cid/:lid`) | Built |
 | Learning | Mark lesson complete + persistent completed pill | Built |
-| Learning | Resume / last-watched, course-outline panel, completion rollups | Not built |
+| Learning | Resume / last-watched and course-outline panel | Built |
+| Learning | Completion rollups (module / course level) | Not built |
 | Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
 | Cover images | Course cover image upload | Not built |
 
@@ -119,7 +120,7 @@ registered user) and an **instructor** (a student promoted to author courses).
 
 > Today, students can browse and enroll in published courses, watch any lesson in an
 > enrolled course (`/learn/:cid/:lid`), and mark lessons complete. Resume / last-watched
-> tracking and the course-outline panel ship with later EP-06 slices.
+> tracking and the course-outline panel are shipped with EP-06 Slices C & D.
 
 ## 2.1 Creating an account
 
@@ -359,15 +360,16 @@ An enrolled student can leave any course they are enrolled in:
 Re-enrolling within the 90-day window restores the same enrollment record (including
 any progress data written by EP-06).
 
-> **Note — what is deferred.** The **Continue Learning** / resume button, mark-complete,
-> progress tracking, and the course-outline panel still ship with later EP-06 slices.
-> The **Start Learning** button and a minimal lesson player page DO ship now (see 2.14
-> below). The 90-day hard-delete of withdrawn enrollment records remains deferred
-> (soft-delete and restore on re-enroll are live; the scheduled purge is not). Access
-> IS revoked when an instructor unpublishes a course — the lesson endpoint and the
-> manifest endpoint both require `course.status === 'PUBLISHED'` for non-owner callers,
-> so a previously enrolled student starts seeing 403s on the next manifest refresh
-> after an unpublish.
+> **Note — what is deferred.** Module-completion and course-completion rollups,
+> the "Course Completed" badge, and per-lesson progress indicators on the catalog
+> detail page ship with later EP-06 slices. The **Start Learning** button, lesson
+> player, **Continue Learning** resume tracking, mark-complete, and the course-outline
+> panel are all live now (see 2.14–2.16 below). The 90-day hard-delete of withdrawn
+> enrollment records remains deferred (soft-delete and restore on re-enroll are live;
+> the scheduled purge is not). Access IS revoked when an instructor unpublishes a
+> course — the lesson endpoint and the manifest endpoint both require
+> `course.status === 'PUBLISHED'` for non-owner callers, so a previously enrolled
+> student starts seeing 403s on the next manifest refresh after an unpublish.
 
 ## 2.14 Watching a lesson as an enrolled student (EP-06 Slice A)
 
@@ -397,9 +399,9 @@ Edge cases:
 - **Lesson missing or in the wrong course** — the page renders a "Lesson not available"
   panel.
 
-**Deferred to later EP-06 slices:** progress / last-watched tracking, the
-**Continue Learning** resume button, and the collapsible course-outline panel with
-completion checkmarks.
+**Shipped in later EP-06 slices:** progress / last-watched tracking (Slice C),
+the **Continue Learning** resume button (Slice C), and the collapsible course-outline
+panel with completion checkmarks (Slice D).
 
 ---
 
@@ -434,6 +436,40 @@ enrolment is no longer active" with a link back to `/catalog/:cid`.
 **Deferred to later EP-06 slices:** module-completion and course-completion
 rollups, the "Course Completed" badge, and per-lesson progress indicators on the
 catalog detail page.
+
+---
+
+## 2.16 Resume Learning and navigating the course (EP-06 Slice C)
+
+When you re-open a course you are enrolled in, the course detail page shows a
+**Continue Learning** button (falling back to **Start Learning** for new
+enrolments). Clicking it takes you back to the last lesson you watched. The lesson
+player also auto-saves your playback position every ~15 seconds — when you return
+to that lesson, the video resumes from where you left off.
+
+### Course outline
+
+The lesson player includes a collapsible **course outline** panel that lists every
+module and lesson in the course, in the order the instructor set in the course
+editor. Use it to navigate between lessons without returning to the course detail
+page.
+
+**Visual indicators:**
+
+- The **currently active lesson** is highlighted so you always know where you are.
+- Lessons you've **completed** display a checkmark (✓).
+- Lessons whose **video is still processing** (`UPLOADING` / `TRANSCODING`) appear
+  dimmed with a `(processing)` suffix and cannot be clicked. Attempting to click
+  one surfaces an inline notice.
+
+**Navigation:**
+
+- A **Course outline** toggle button at the top of the lesson page shows or hides
+  the panel.
+- On **wider screens** (≥ 1024 px) the panel appears as a **left sidebar**.
+- On **narrower screens** it appears as a **drawer** that slides in from the left.
+  It closes automatically when you select a lesson, on backdrop click, or when you
+  press `Escape`.
 
 ---
 
@@ -746,11 +782,11 @@ Target a single project by invoking Nx directly, e.g. `pnpm nx test api-courses`
 
 These are specified in `docs/epics/` and `docs/use-cases/` but **not yet implemented**:
 
-- **EP-06 Slice C and later — Resume Learning & course-outline panel.** Resume /
-  `lastWatchedSeconds`, the **Continue Learning** button, the collapsible course-outline
-  panel with per-lesson checkmarks, module-completion and course-completion rollups, and
-  the "Course Completed" badge on the dashboard are deferred. Per-lesson playback (Slice A)
-  and mark-complete (Slice B) are shipped.
+- **EP-06 module / course completion rollups & badges.** Module-completion and
+  course-completion rollups, the "Course Completed" badge on the dashboard, and
+  per-lesson progress indicators on the catalog detail page are deferred. Per-lesson
+  playback (Slice A), mark-complete (Slice B), resume tracking (Slice C), and the
+  course-outline panel (Slice D) are shipped.
 - **Student-facing materials browser** — `MaterialAccessGuard` already grants enrolled
   students download access, but the lesson player does not yet surface a materials panel.
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll are
