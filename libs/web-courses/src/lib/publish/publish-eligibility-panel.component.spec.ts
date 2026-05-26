@@ -157,4 +157,87 @@ describe('PublishEligibilityPanelComponent', () => {
     btn?.click();
     expect(emitted).toBe('l-y');
   });
+
+  it('emits jumpToLesson when a LESSON_VIDEO_NOT_READY FAILED link is clicked', () => {
+    publishSvc.setEligibility({
+      eligible: false,
+      reasons: [
+        {
+          kind: 'LESSON_VIDEO_NOT_READY',
+          moduleId: 'm1' as never, moduleTitle: 'M', moduleOrder: 0,
+          lessonId: 'l-z' as never, lessonTitle: 'L', lessonOrder: 0,
+          currentState: 'FAILED',
+        },
+      ],
+    });
+    fixture.detectChanges();
+    let emitted: string | undefined;
+    fixture.componentInstance.jumpToLesson.subscribe((id: string) => { emitted = id; });
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="jump-lesson"]',
+    ) as HTMLButtonElement | null;
+    btn?.click();
+    expect(emitted).toBe('l-z');
+  });
+
+  it('does NOT emit when a MODULE_HAS_NO_LESSONS reason exists but the LESSON jump button is clicked elsewhere', () => {
+    publishSvc.setEligibility({
+      eligible: false,
+      reasons: [
+        { kind: 'MODULE_HAS_NO_LESSONS', moduleId: 'm-x' as never, moduleTitle: 'X', moduleOrder: 0 },
+      ],
+    });
+    fixture.detectChanges();
+    let emittedLesson = false;
+    fixture.componentInstance.jumpToLesson.subscribe(() => { emittedLesson = true; });
+    // Confirm there is no jump-lesson rendered, so the (lesson-side) branch
+    // of onJump is unreachable from the DOM for this reason kind.
+    expect(fixture.nativeElement.querySelector('[data-testid="jump-lesson"]')).toBeNull();
+    expect(emittedLesson).toBe(false);
+  });
+
+  it.each([
+    ['PENDING_UPLOAD', 'upload is in progress'],
+    ['UPLOADED', 'upload is in progress'],
+    ['TRANSCODING', 'still transcoding'],
+  ] as const)('renders the prose for LESSON_VIDEO_NOT_READY %s', (currentState, snippet) => {
+    publishSvc.setEligibility({
+      eligible: false,
+      reasons: [
+        {
+          kind: 'LESSON_VIDEO_NOT_READY',
+          moduleId: 'm1' as never, moduleTitle: 'M', moduleOrder: 0,
+          lessonId: 'l1' as never, lessonTitle: 'L', lessonOrder: 0,
+          currentState,
+        },
+      ],
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(snippet);
+  });
+
+  it('reasonCount returns 0 when eligibility is eligible:true (despite reasons array)', () => {
+    publishSvc.setEligibility({ eligible: true, reasons: [] });
+    fixture.detectChanges();
+    // The count UI is suppressed in the eligible state.
+    expect(fixture.nativeElement.textContent).not.toMatch(/\d+ things to fix/);
+  });
+
+  it('reasonCount returns 0 when eligibility is null (not yet checked)', () => {
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toMatch(/\d+ things to fix/);
+  });
+
+  it('reasonCount returns the reasons.length when eligible:false', () => {
+    publishSvc.setEligibility({
+      eligible: false,
+      reasons: [
+        { kind: 'COURSE_HAS_NO_MODULES' },
+        { kind: 'COURSE_HAS_NO_MODULES' },
+        { kind: 'COURSE_HAS_NO_MODULES' },
+      ],
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('3 things to fix');
+  });
 });

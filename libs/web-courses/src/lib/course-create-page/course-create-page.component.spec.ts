@@ -186,4 +186,127 @@ describe('CourseCreatePageComponent', () => {
     fixture.detectChanges();
     expect(cmp.genericError()).toBe('Failed to create course.');
   });
+
+  describe('form validators', () => {
+    it('title is required (empty title → form invalid, required error)', () => {
+      const fixture = TestBed.createComponent(CourseCreatePageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      cmp.form.controls.title.setValue('');
+      cmp.form.controls.description.setValue('valid desc');
+      expect(cmp.form.controls.title.valid).toBe(false);
+      expect(cmp.form.controls.title.hasError('required')).toBe(true);
+    });
+
+    it('title rejects strings longer than 100 chars (maxLength)', () => {
+      const fixture = TestBed.createComponent(CourseCreatePageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      cmp.form.controls.title.setValue('x'.repeat(101));
+      cmp.form.controls.description.setValue('valid desc');
+      expect(cmp.form.controls.title.valid).toBe(false);
+      expect(cmp.form.controls.title.hasError('maxlength')).toBe(true);
+    });
+
+    it('title at exactly 100 chars is valid (boundary)', () => {
+      const fixture = TestBed.createComponent(CourseCreatePageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      cmp.form.controls.title.setValue('x'.repeat(100));
+      cmp.form.controls.description.setValue('valid desc');
+      expect(cmp.form.controls.title.valid).toBe(true);
+    });
+
+    it('description is required', () => {
+      const fixture = TestBed.createComponent(CourseCreatePageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      cmp.form.controls.title.setValue('valid');
+      cmp.form.controls.description.setValue('');
+      expect(cmp.form.controls.description.valid).toBe(false);
+      expect(cmp.form.controls.description.hasError('required')).toBe(true);
+    });
+
+    it('description rejects strings longer than 500 chars (maxLength)', () => {
+      const fixture = TestBed.createComponent(CourseCreatePageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      cmp.form.controls.title.setValue('valid');
+      cmp.form.controls.description.setValue('x'.repeat(501));
+      expect(cmp.form.controls.description.valid).toBe(false);
+      expect(cmp.form.controls.description.hasError('maxlength')).toBe(true);
+    });
+
+  });
+
+  describe('submit() guards and finally', () => {
+    it('does nothing when the form is invalid (no HTTP request)', async () => {
+      const fixture = TestBed.createComponent(CourseCreatePageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      // form is invalid by default (required title + description)
+      await cmp.submit();
+      http.expectNone('/api/courses');
+      expect(cmp.busy()).toBe(false);
+    });
+
+    it('does nothing when already busy (no second HTTP request)', async () => {
+      const fixture = TestBed.createComponent(CourseCreatePageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      cmp.form.controls.title.setValue('valid');
+      cmp.form.controls.description.setValue('valid desc');
+      cmp.busy.set(true);
+      await cmp.submit();
+      http.expectNone('/api/courses');
+    });
+
+    it('busy resets to false after a successful create (finally block)', async () => {
+      const router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      const fixture = TestBed.createComponent(CourseCreatePageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      cmp.form.controls.title.setValue('T');
+      cmp.form.controls.description.setValue('D');
+
+      const p = cmp.submit();
+      expect(cmp.busy()).toBe(true);
+      http.expectOne('/api/courses').flush({ id: 'cid' });
+      await p;
+      expect(cmp.busy()).toBe(false);
+    });
+
+    it('busy resets to false after an HTTP error (finally block)', async () => {
+      const fixture = TestBed.createComponent(CourseCreatePageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      cmp.form.controls.title.setValue('T');
+      cmp.form.controls.description.setValue('D');
+
+      const p = cmp.submit();
+      http.expectOne('/api/courses').flush(null, { status: 500, statusText: 'Err' });
+      await p;
+      expect(cmp.busy()).toBe(false);
+    });
+  });
+
+  describe('buildPayload trims whitespace', () => {
+    it('strips leading/trailing whitespace from title and description before POST', async () => {
+      const router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      const fixture = TestBed.createComponent(CourseCreatePageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      cmp.form.controls.title.setValue('  spaced title  ');
+      cmp.form.controls.description.setValue('\tspaced desc\n');
+
+      const p = cmp.submit();
+      const req = http.expectOne('/api/courses');
+      expect(req.request.body.title).toBe('spaced title');
+      expect(req.request.body.description).toBe('spaced desc');
+      req.flush({ id: 'cid' });
+      await p;
+    });
+  });
 });

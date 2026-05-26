@@ -200,6 +200,92 @@ describe('MaterialUploadService', () => {
     expect(svc.failures()).toEqual([]);
   });
 
+  it('XHR is opened with PUT, the uploadUrl, and async=true; sets Content-Type for the extension', async () => {
+    const xhr = fakeXhr(200);
+    TestBed.configureTestingModule({
+      providers: [
+        MaterialUploadService,
+        {
+          provide: MaterialsService,
+          useValue: {
+            createUploadUrl: vi.fn().mockReturnValue(
+              of({ materialId: 'm', uploadUrl: '/signed-url-here', expiresAt: 'T' }),
+            ),
+            complete: vi.fn().mockReturnValue(of({})),
+            remove: vi.fn().mockReturnValue(of(undefined)),
+          },
+        },
+        { provide: MATERIAL_XHR_FACTORY, useValue: () => xhr },
+      ],
+    });
+    const svc = TestBed.inject(MaterialUploadService);
+    await svc.uploadFiles(ctx, [makeFile('notes.pdf')]);
+
+    expect(xhr.open).toHaveBeenCalledWith('PUT', '/signed-url-here', true);
+    expect(xhr.setRequestHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+  });
+
+  it('accepts a file at exactly the 50 MB size boundary (kills > vs >= mutant)', async () => {
+    const { svc } = setup();
+    const completed = await svc.uploadFiles(ctx, [
+      makeFile('big.pdf', MATERIAL_MAX_SIZE_BYTES),
+    ]);
+    expect(completed).toBe(1);
+    expect(svc.failures()).toEqual([]);
+  });
+
+  it('treats a leading-dot filename like ".pdf" as supported (kills dot >= 0 vs > 0 mutant)', async () => {
+    const { svc } = setup();
+    const completed = await svc.uploadFiles(ctx, [makeFile('.pdf')]);
+    expect(completed).toBe(1);
+    expect(svc.failures()).toEqual([]);
+  });
+
+  it('progress events update inFlight with the latest percent (replaces, not appends)', async () => {
+    const xhr = fakeXhr(200);
+    let progressFn: ((pct: number) => void) | undefined;
+    let captured: number[] = [];
+    TestBed.configureTestingModule({
+      providers: [
+        MaterialUploadService,
+        {
+          provide: MaterialsService,
+          useValue: {
+            createUploadUrl: vi.fn().mockReturnValue(
+              of({ materialId: 'm', uploadUrl: '/u', expiresAt: 'T' }),
+            ),
+            complete: vi.fn().mockReturnValue(of({})),
+            remove: vi.fn().mockReturnValue(of(undefined)),
+          },
+        },
+        { provide: MATERIAL_XHR_FACTORY, useValue: () => xhr },
+      ],
+    });
+    const svc = TestBed.inject(MaterialUploadService);
+
+    const realSend = xhr.send;
+    xhr.send = vi.fn(function (this: typeof xhr) {
+      // Fire three progress events mid-upload and snapshot the signal after each.
+      this.upload.onprogress?.({ lengthComputable: true, loaded: 25, total: 100 } as ProgressEvent);
+      captured.push(svc.inFlight()[0]?.percent ?? -1);
+      captured.push(svc.inFlight().length);
+      this.upload.onprogress?.({ lengthComputable: true, loaded: 50, total: 100 } as ProgressEvent);
+      captured.push(svc.inFlight()[0]?.percent ?? -1);
+      captured.push(svc.inFlight().length);
+      this.upload.onprogress?.({ lengthComputable: true, loaded: 100, total: 100 } as ProgressEvent);
+      captured.push(svc.inFlight()[0]?.percent ?? -1);
+      captured.push(svc.inFlight().length);
+      realSend.call(this);
+    }) as never;
+    void progressFn;
+
+    await svc.uploadFiles(ctx, [makeFile('notes.pdf')]);
+
+    // After each progress event the signal has EXACTLY one entry (no duplicates
+    // because setProgress filters by filename), and percent equals the latest value.
+    expect(captured).toEqual([25, 1, 50, 1, 100, 1]);
+  });
+
   it('records a failure when the XHR fires onerror (network failure → status 0)', async () => {
     const xhr = {
       open: vi.fn(),
