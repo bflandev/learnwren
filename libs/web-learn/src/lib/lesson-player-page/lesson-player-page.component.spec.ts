@@ -376,6 +376,77 @@ describe('LessonPlayerPageComponent', () => {
       fixture.componentInstance.onMetadata(60);
       expect(seek).not.toHaveBeenCalled();
     });
+
+    it('a second onMetadata call is a no-op (hasResumed guard)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 30 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const seek = vi
+        .spyOn(fixture.componentInstance, 'seekVideoTo')
+        .mockImplementation(() => undefined);
+
+      fixture.componentInstance.onMetadata(60);
+      fixture.componentInstance.onMetadata(60);
+      // Two metadata events should still yield exactly one seek — the first
+      // call sets hasResumed=true and the second early-returns.
+      expect(seek).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not seek when duration is 0', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 30 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const seek = vi
+        .spyOn(fixture.componentInstance, 'seekVideoTo')
+        .mockImplementation(() => undefined);
+
+      fixture.componentInstance.onMetadata(0);
+      expect(seek).not.toHaveBeenCalled();
+    });
+
+    it('does not seek when duration is non-finite (Infinity)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 30 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const seek = vi
+        .spyOn(fixture.componentInstance, 'seekVideoTo')
+        .mockImplementation(() => undefined);
+
+      fixture.componentInstance.onMetadata(Number.POSITIVE_INFINITY);
+      expect(seek).not.toHaveBeenCalled();
+    });
+
+    it('does not seek when duration is NaN', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 30 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const seek = vi
+        .spyOn(fixture.componentInstance, 'seekVideoTo')
+        .mockImplementation(() => undefined);
+
+      fixture.componentInstance.onMetadata(Number.NaN);
+      expect(seek).not.toHaveBeenCalled();
+    });
   });
 
   describe('position saver wiring', () => {
@@ -406,6 +477,394 @@ describe('LessonPlayerPageComponent', () => {
       fixture.componentInstance.onSaverRevoked();
       expect(fixture.componentInstance.state()).toBe('NOT_ENROLLED');
     });
+  });
+});
+
+describe('LessonPlayerPageComponent initial state defaults', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('state() defaults to LOADING before the HTTP request resolves', () => {
+    configure();
+    const { fixture } = create();
+    expect(fixture.componentInstance.state()).toBe('LOADING');
+  });
+
+  it('view() defaults to null before the HTTP request resolves', () => {
+    configure();
+    const { fixture } = create();
+    expect(fixture.componentInstance.view()).toBeNull();
+  });
+
+  it('completedAt() returns null when view is null', () => {
+    configure();
+    const { fixture } = create();
+    expect(fixture.componentInstance.completedAt()).toBeNull();
+  });
+
+  it('lastWatchedSeconds() returns 0 when view is null', () => {
+    configure();
+    const { fixture } = create();
+    expect(fixture.componentInstance.lastWatchedSeconds()).toBe(0);
+  });
+
+  it('isOwnerPreview() returns false when view is null (not yet loaded)', () => {
+    configure();
+    const { fixture } = create();
+    expect(fixture.componentInstance.isOwnerPreview()).toBe(false);
+  });
+
+  it('outline() returns null when view is null', () => {
+    configure();
+    const { fixture } = create();
+    expect(fixture.componentInstance.outline()).toBeNull();
+  });
+
+  it('markBusy() defaults to false and markError() defaults to null', () => {
+    configure();
+    const { fixture } = create();
+    expect(fixture.componentInstance.markBusy()).toBe(false);
+    expect(fixture.componentInstance.markError()).toBeNull();
+  });
+
+  it('outlineMode() returns "drawer" when matchMedia min-width 1024px does NOT match', () => {
+    // The top-level polyfill returns matches:false, so we expect drawer mode.
+    configure();
+    const { fixture } = create();
+    expect(fixture.componentInstance.outlineMode()).toBe('drawer');
+  });
+
+  it('outlineOpen() defaults to false in drawer mode (matchMedia matches=false)', () => {
+    configure();
+    const { fixture } = create();
+    expect(fixture.componentInstance.outlineOpen()).toBe(false);
+  });
+});
+
+describe('LessonPlayerPageComponent computed values after load', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('completedAt() returns the served progress.completedAt after load', async () => {
+    configure();
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({}, { completedAt: '2026-05-20T00:00:00.000Z' as ISODateString, lastWatchedSeconds: 0 }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.completedAt()).toBe('2026-05-20T00:00:00.000Z');
+  });
+
+  it('lastWatchedSeconds() returns the served value after load', async () => {
+    configure();
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 73 }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.lastWatchedSeconds()).toBe(73);
+  });
+
+  it('isOwnerPreview() returns true after load when progress is null', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, null));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isOwnerPreview()).toBe(true);
+  });
+
+  it('isOwnerPreview() returns false after load when progress is an object (even if values are zero/null)', async () => {
+    configure();
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isOwnerPreview()).toBe(false);
+  });
+
+  it('outline() returns the served outline object after load', async () => {
+    configure();
+    const { fixture, http } = create();
+    const outlineModules: LessonView['outline']['modules'] = [
+      {
+        id: 'm-1' as LessonView['lesson']['moduleId'],
+        title: 'Module 1',
+        lessons: [{ id: 'l-1' as LessonId, title: 'Lesson 1', videoState: 'READY', completedAt: null }],
+      },
+    ];
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }, outlineModules));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const outline = fixture.componentInstance.outline();
+    expect(outline).not.toBeNull();
+    expect(outline?.modules).toHaveLength(1);
+    expect(outline?.modules[0].id).toBe('m-1');
+  });
+});
+
+describe('LessonPlayerPageComponent pagehide / visibilitychange wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('onPageHide arrow handler calls saver.flushBeacon when saver exists', () => {
+    configure();
+    const { fixture } = create();
+    const flushBeacon = vi.fn();
+    type WithPrivates = { saver: { flushBeacon: () => void; stop: () => void } | null; onPageHide: () => void };
+    const withPrivates = fixture.componentInstance as unknown as WithPrivates;
+    withPrivates.saver = { flushBeacon, stop: () => undefined };
+    withPrivates.onPageHide();
+    expect(flushBeacon).toHaveBeenCalledTimes(1);
+  });
+
+  it('onPageHide arrow handler is a no-op when saver is null', () => {
+    configure();
+    const { fixture } = create();
+    type WithPrivates = { saver: unknown; onPageHide: () => void };
+    (fixture.componentInstance as unknown as WithPrivates).saver = null;
+    expect(() => (fixture.componentInstance as unknown as WithPrivates).onPageHide()).not.toThrow();
+  });
+
+  it('onVisibilityChange arrow handler calls saver.flushBeacon when document.visibilityState is hidden', () => {
+    configure();
+    const { fixture } = create();
+    const flushBeacon = vi.fn();
+    type WithPrivates = { saver: { flushBeacon: () => void; stop: () => void } | null; onVisibilityChange: () => void };
+    const withPrivates = fixture.componentInstance as unknown as WithPrivates;
+    withPrivates.saver = { flushBeacon, stop: () => undefined };
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    withPrivates.onVisibilityChange();
+    expect(flushBeacon).toHaveBeenCalledTimes(1);
+  });
+
+  it('onVisibilityChange arrow handler does NOT call saver.flushBeacon when document.visibilityState is visible', () => {
+    configure();
+    const { fixture } = create();
+    const flushBeacon = vi.fn();
+    type WithPrivates = { saver: { flushBeacon: () => void; stop: () => void } | null; onVisibilityChange: () => void };
+    const withPrivates = fixture.componentInstance as unknown as WithPrivates;
+    withPrivates.saver = { flushBeacon, stop: () => undefined };
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    withPrivates.onVisibilityChange();
+    expect(flushBeacon).not.toHaveBeenCalled();
+  });
+
+  it('ngOnInit registers pagehide + visibilitychange listeners after the view loads', async () => {
+    const winSpy = vi.spyOn(window, 'addEventListener');
+    const docSpy = vi.spyOn(document, 'addEventListener');
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const pagehideCall = winSpy.mock.calls.find((c) => c[0] === 'pagehide');
+    expect(pagehideCall).toBeDefined();
+    const visibilityCall = docSpy.mock.calls.find((c) => c[0] === 'visibilitychange');
+    expect(visibilityCall).toBeDefined();
+  });
+
+  it('ngOnDestroy removes both pagehide and visibilitychange listeners', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const winRemove = vi.spyOn(window, 'removeEventListener');
+    const docRemove = vi.spyOn(document, 'removeEventListener');
+    fixture.componentInstance.ngOnDestroy();
+    expect(winRemove.mock.calls.some((c) => c[0] === 'pagehide')).toBe(true);
+    expect(docRemove.mock.calls.some((c) => c[0] === 'visibilitychange')).toBe(true);
+  });
+
+  it('ngOnDestroy stops the saver and nulls it out', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const stop = vi.fn();
+    (fixture.componentInstance as unknown as { saver: { flushBeacon: () => void; stop: () => void } | null }).saver = {
+      flushBeacon: () => undefined, stop,
+    };
+    fixture.componentInstance.ngOnDestroy();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect((fixture.componentInstance as unknown as { saver: unknown }).saver).toBeNull();
+  });
+});
+
+describe('LessonPlayerPageComponent onMarkComplete state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('markBusy() transitions false → true → false across a successful complete', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.markBusy()).toBe(false);
+    const p = fixture.componentInstance.onMarkComplete();
+    expect(fixture.componentInstance.markBusy()).toBe(true);
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1/complete')
+      .flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+    await p;
+    expect(fixture.componentInstance.markBusy()).toBe(false);
+  });
+
+  it('markBusy() returns to false after a 403 failure (finally block executes)', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const p = fixture.componentInstance.onMarkComplete();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1/complete')
+      .flush({}, { status: 403, statusText: 'Forbidden' });
+    await p;
+    expect(fixture.componentInstance.markBusy()).toBe(false);
+    expect(fixture.componentInstance.markError()).toBe('revoked');
+  });
+
+  it('markBusy() returns to false after a 500 failure (finally block executes)', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const p = fixture.componentInstance.onMarkComplete();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1/complete')
+      .flush({}, { status: 500, statusText: 'Server Error' });
+    await p;
+    expect(fixture.componentInstance.markBusy()).toBe(false);
+    expect(fixture.componentInstance.markError()).toBe('other');
+  });
+
+  it('preserves prior lastWatchedSeconds in view().progress after successful complete', async () => {
+    configure();
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 45 }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const p = fixture.componentInstance.onMarkComplete();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1/complete')
+      .flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+    await p;
+    expect(fixture.componentInstance.view()?.progress?.lastWatchedSeconds).toBe(45);
+  });
+
+  it('uses lastWatchedSeconds=0 when prior progress.lastWatchedSeconds is missing (defensive fallback)', async () => {
+    configure();
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1')
+      .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Wipe out lastWatchedSeconds to exercise the `?? 0` branch deterministically.
+    fixture.componentInstance.view.update((v) =>
+      v ? { ...v, progress: { completedAt: null, lastWatchedSeconds: undefined as unknown as number } } : v,
+    );
+
+    const p = fixture.componentInstance.onMarkComplete();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1/complete')
+      .flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+    await p;
+    expect(fixture.componentInstance.view()?.progress?.lastWatchedSeconds).toBe(0);
+  });
+});
+
+describe('LessonPlayerPageComponent onPlayed wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('onPlayed creates a saver after load (when not in owner-preview)', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Wipe the saver that ensureSaver() may have already created during load().
+    (fixture.componentInstance as unknown as { saver: unknown }).saver = null;
+    fixture.componentInstance.onPlayed();
+    expect((fixture.componentInstance as unknown as { saver: unknown }).saver).not.toBeNull();
+  });
+
+  it('onPaused calls saver.flush when saver exists, and is a no-op otherwise', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const flush = vi.fn().mockResolvedValue(undefined);
+    (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
+      flush, stop: () => undefined,
+    };
+    fixture.componentInstance.onPaused();
+    expect(flush).toHaveBeenCalledTimes(1);
+
+    (fixture.componentInstance as unknown as { saver: unknown }).saver = null;
+    expect(() => fixture.componentInstance.onPaused()).not.toThrow();
+  });
+
+  it('onEnded calls saver.flush when saver exists', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const flush = vi.fn().mockResolvedValue(undefined);
+    (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
+      flush, stop: () => undefined,
+    };
+    fixture.componentInstance.onEnded();
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it('onSaverRevoked stops the saver and nulls it', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const stop = vi.fn();
+    (fixture.componentInstance as unknown as { saver: { flushBeacon: () => void; stop: () => void } | null }).saver = {
+      flushBeacon: () => undefined, stop,
+    };
+    fixture.componentInstance.onSaverRevoked();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect((fixture.componentInstance as unknown as { saver: unknown }).saver).toBeNull();
+    expect(fixture.componentInstance.state()).toBe('NOT_ENROLLED');
   });
 });
 

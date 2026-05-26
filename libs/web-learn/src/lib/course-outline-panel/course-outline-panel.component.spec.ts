@@ -155,3 +155,71 @@ describe('CourseOutlinePanelComponent (drawer mode)', () => {
     expect(opens).toEqual([false]);
   });
 });
+
+describe('CourseOutlinePanelComponent (sidebar-mode guards)', () => {
+  function buildSidebar(): ComponentFixture<CourseOutlinePanelComponent> {
+    TestBed.configureTestingModule({ imports: [CourseOutlinePanelComponent] });
+    const fixture = TestBed.createComponent(CourseOutlinePanelComponent);
+    fixture.componentRef.setInput('outline', outline());
+    fixture.componentRef.setInput('activeLessonId', 'l2' as LessonId);
+    fixture.componentRef.setInput('courseId', CID);
+    fixture.componentRef.setInput('mode', 'sidebar');
+    fixture.componentRef.setInput('outlineOpen', true);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('does NOT emit outlineOpenChange after selecting a lesson in sidebar mode', () => {
+    const fixture = buildSidebar();
+    const opens: boolean[] = [];
+    fixture.componentInstance.outlineOpenChange.subscribe((v) => opens.push(v));
+
+    fixture.nativeElement.querySelectorAll('button[data-testid="outline-row"]')[0].click();
+    expect(opens).toEqual([]);
+  });
+
+  it('does NOT emit outlineOpenChange when onBackdropClick fires in sidebar mode', () => {
+    const fixture = buildSidebar();
+    const opens: boolean[] = [];
+    fixture.componentInstance.outlineOpenChange.subscribe((v) => opens.push(v));
+    fixture.componentInstance.onBackdropClick();
+    expect(opens).toEqual([]);
+  });
+
+  it('does NOT emit outlineOpenChange on Escape in sidebar mode', () => {
+    const fixture = buildSidebar();
+    const opens: boolean[] = [];
+    fixture.componentInstance.outlineOpenChange.subscribe((v) => opens.push(v));
+    fixture.componentInstance.onEscape();
+    expect(opens).toEqual([]);
+  });
+
+  it('does NOT emit outlineOpenChange on Escape in drawer mode when outlineOpen is already false', () => {
+    TestBed.configureTestingModule({ imports: [CourseOutlinePanelComponent] });
+    const fixture = TestBed.createComponent(CourseOutlinePanelComponent);
+    fixture.componentRef.setInput('outline', outline());
+    fixture.componentRef.setInput('activeLessonId', 'l2' as LessonId);
+    fixture.componentRef.setInput('courseId', CID);
+    fixture.componentRef.setInput('mode', 'drawer');
+    fixture.componentRef.setInput('outlineOpen', false);
+    fixture.detectChanges();
+
+    const opens: boolean[] = [];
+    fixture.componentInstance.outlineOpenChange.subscribe((v) => opens.push(v));
+    fixture.componentInstance.onEscape();
+    expect(opens).toEqual([]);
+  });
+});
+
+describe('CourseOutlinePanelComponent (default Input values)', () => {
+  it('outlineOpen defaults to true when no value is provided', () => {
+    TestBed.configureTestingModule({ imports: [CourseOutlinePanelComponent] });
+    const fixture = TestBed.createComponent(CourseOutlinePanelComponent);
+    fixture.componentRef.setInput('outline', outline());
+    fixture.componentRef.setInput('activeLessonId', 'l2' as LessonId);
+    fixture.componentRef.setInput('courseId', CID);
+    fixture.componentRef.setInput('mode', 'sidebar');
+    // intentionally omit setInput('outlineOpen', ...) — assert default
+    expect(fixture.componentInstance.outlineOpen).toBe(true);
+  });
+});
