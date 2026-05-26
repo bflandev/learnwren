@@ -183,4 +183,48 @@ describe('VideoPlayerComponent — Slice C event surface', () => {
     fixture.componentInstance.seekTo(33);
     expect(stored).toBe(33);
   });
+
+  it('attachListeners is idempotent — calling twice does not double-register', () => {
+    const { fixture, el } = harness();
+    // Listeners are already attached by ngAfterViewInit. Spying now, then calling
+    // the private attachListeners() again, must observe NO new addEventListener calls
+    // because the `if (this.listenersAttached) return` guard blocks the second pass.
+    const addSpy = vi.spyOn(el, 'addEventListener');
+    (fixture.componentInstance as unknown as { attachListeners: () => void }).attachListeners?.();
+    expect(addSpy).not.toHaveBeenCalled();
+  });
+
+  it('ngOnDestroy is a no-op when handle is null (defensive ?.)', () => {
+    const { fixture } = harness();
+    (fixture.componentInstance as unknown as { handle: unknown }).handle = null;
+    expect(() => fixture.componentInstance.ngOnDestroy()).not.toThrow();
+  });
+
+  it('ngOnDestroy removes each event listener exactly once', () => {
+    const { fixture, el } = harness();
+    const removeSpy = vi.spyOn(el, 'removeEventListener');
+    fixture.componentInstance.ngOnDestroy();
+    const events = removeSpy.mock.calls.map((c) => c[0]);
+    expect(events).toEqual(expect.arrayContaining(['loadedmetadata', 'play', 'pause', 'ended']));
+    expect(events.filter((e) => e === 'loadedmetadata')).toHaveLength(1);
+  });
+
+  it('detachListeners is idempotent — second ngOnDestroy does not re-remove listeners', () => {
+    const { fixture, el } = harness();
+    fixture.componentInstance.ngOnDestroy();
+    const removeSpy = vi.spyOn(el, 'removeEventListener');
+    fixture.componentInstance.ngOnDestroy();
+    expect(removeSpy).not.toHaveBeenCalled();
+  });
+
+  it('emitted (played) listener is wired to the same arrow that was registered', () => {
+    const { fixture, el } = harness();
+    const spy = vi.fn();
+    fixture.componentInstance.played.subscribe(spy);
+    el.dispatchEvent(new Event('play'));
+    fixture.componentInstance.ngOnDestroy();
+    // After destroy, the same event should not re-trigger.
+    el.dispatchEvent(new Event('play'));
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
 });
