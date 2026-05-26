@@ -9,7 +9,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > - **EP-01 Identity & access** — register, email-verification gate, login, logout, brute-force lockout + email unlock, logged-out password reset, session cookie, protected routes.
 > - **EP-02 Course authoring** — instructor role promotion (CLI), REST course CRUD, modules and lessons, drag-and-drop reorder.
 > - **EP-03 Video & DRM** — resumable upload (MP4 / MOV / MKV ≤ 10 GB), GCP Transcoder → AES-128 HLS, owner playback in the lesson editor (hls.js, native HLS on Safari/iOS), publish / unpublish / archive / restore gate with structured eligibility feedback.
-> - **EP-04 Lesson materials** — attach / rename / remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB each); owner downloads via short-lived signed URL.
+> - **EP-04 Lesson materials** — attach / rename / remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB each); owners **and enrolled students on PUBLISHED courses** download via short-lived signed URL; the learn page surfaces a materials list with per-row Download buttons.
 > - **EP-05 Course discovery & enrollment** — public catalogue with category/difficulty filters, Newest / Alphabetical / Most Popular sort, pagination, keyword search; public course-detail page; logged-in students enroll and leave; guests who click Enroll are auto-enrolled after login.
 > - **EP-06 Slice A: Student lesson playback** — enrolled students (and the course owner) navigate from the course detail page via **Start Learning** to `/learn/:cid/:lid` and watch the lesson video in the existing hls.js player.
 > - **EP-06 Slice B: Mark a lesson complete** — enrolled students click **Mark as Complete** on the lesson page; the API persists `completedAt` on their per-lesson progress; the button swaps to a "✓ Completed" pill that persists across reload and across a `WITHDRAWN → ACTIVE` re-enrolment. Per-lesson only; module / course rollups and the course-outline panel are deferred.
@@ -168,7 +168,7 @@ The API endpoints exposed by EP-04 (lesson materials):
 | `GET`  | `/api/courses/:cid/modules/:mid/lessons/:lid/materials` | List the lesson's `READY` materials. |
 | `PATCH`| `/api/materials/:matId` | Rename a material's display name. |
 | `DELETE` | `/api/materials/:matId` | Remove a material (storage object + metadata). |
-| `GET`  | `/api/materials/:matId/download-url` | Mint a 15-minute signed download URL (owner-gated; enrolled students in EP-06). |
+| `GET`  | `/api/materials/:matId/download-url` | Mint a 15-minute signed download URL. Owner OR active enrollee on a PUBLISHED course. |
 
 The API endpoints exposed by EP-05 Slice A (course discovery — all public, no session cookie):
 
@@ -190,7 +190,7 @@ The API endpoints exposed by EP-06 Slices A & B (student lesson playback + mark-
 
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
-| `GET` | `/api/learn/courses/:cid/lessons/:lid` | The caller's lesson view (course + lesson + video state + per-lesson progress); 403 unless owner or active enrollee on a PUBLISHED course; 404 if the lesson does not belong to the course. |
+| `GET` | `/api/learn/courses/:cid/lessons/:lid` | The caller's lesson view (course + lesson + video state + per-lesson progress + course outline + lesson materials); 403 unless owner or active enrollee on a PUBLISHED course; 404 if the lesson does not belong to the course. |
 | `POST` | `/api/learn/courses/:cid/lessons/:lid/complete` | Mark the lesson complete for the caller. Idempotent (returns 200 with the same `completedAt` on repeat calls). 403 `NOT_ENROLLED_LESSON` for owners and for non-active enrolments. |
 
 For the full auth dev workflow, the deferred items, and error-code → prose mappings, see [`docs/development.md`](./docs/development.md#auth-dev-workflow) and the design specs at [`docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`](./docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md) and [`docs/superpowers/specs/2026-05-06-auth-hardening-design.md`](./docs/superpowers/specs/2026-05-06-auth-hardening-design.md).
@@ -295,6 +295,7 @@ Each shipped slice has a post-implementation summary in [`docs/superpowers/summa
 ### EP-04 — Lesson Materials
 
 - [Lesson Materials](./docs/superpowers/summaries/2026-05-21-lesson-materials-summary.md) — 2026-05-21
+- [UC-04-02: Student Material Download](./docs/superpowers/summaries/2026-05-26-lesson-materials-student-download-summary.md) — 2026-05-26
 
 ### EP-05 — Course Discovery and Enrollment
 

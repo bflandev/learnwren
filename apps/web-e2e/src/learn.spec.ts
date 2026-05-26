@@ -101,6 +101,40 @@ async function seedPublishedCourseWithReadyLesson(): Promise<{
 }
 
 /**
+ * Seed a READY material attached to the given lesson, returning the material id.
+ * Mirrors the Firestore document shape produced by the materials service in
+ * fake mode (matches Material in shared-data-models).
+ */
+async function seedReadyMaterialForLesson(args: {
+  courseId: string;
+  lessonId: string;
+}): Promise<{ materialId: string }> {
+  const ts = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  const materialId = `web-e2e-learn-mat-${ts}`;
+  const instructorId = `web-e2e-learn-mat-inst-${ts}`;
+  const now = new Date().toISOString();
+  await admin.firestore().collection('materials').doc(materialId).set({
+    id: materialId,
+    ownerInstructorId: instructorId,
+    courseId: args.courseId,
+    lessonId: args.lessonId,
+    displayName: 'study-guide.pdf',
+    originalFilename: 'study-guide.pdf',
+    extension: 'pdf',
+    contentType: 'application/pdf',
+    sizeBytes: 1234,
+    state: 'READY',
+    storage: {
+      bucket: 'fake-materials-bucket',
+      path: `materials/${materialId}/study-guide.pdf`,
+    },
+    createdAt: now,
+    updatedAt: now,
+  });
+  return { materialId };
+}
+
+/**
  * Seed a PUBLISHED course with one module and TWO READY-video lessons.
  * Returns the course ID and both lesson IDs.
  */
@@ -504,4 +538,64 @@ test('clicking a different lesson in the outline navigates and preserves checkma
     .filter({ hasText: 'Lesson A' })
     .locator('[aria-label="Completed"]');
   await expect(lessonACheckmark).toBeVisible();
+});
+
+test('UC-04-02 student sees the lesson materials section and Download opens a popup with a URL', async ({
+  page,
+  context,
+}) => {
+  const { email, password } = await registerVerifiedStudent();
+  const { courseId, lessonId } = await seedPublishedCourseWithReadyLesson();
+  const { materialId } = await seedReadyMaterialForLesson({ courseId, lessonId });
+
+  // Sign in
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+
+  // Enrol and open the lesson
+  await page.goto(`/catalog/${courseId}`);
+  await page.getByRole('button', { name: 'Enroll' }).click();
+  await expect(page.getByTestId('start-learning')).toBeVisible({ timeout: 10_000 });
+  await page.goto(`/learn/${courseId}/${lessonId}`);
+
+  // Materials section + Download button are visible
+  await expect(page.getByTestId('lesson-materials')).toBeVisible();
+  const downloadButton = page.getByTestId(`material-download-${materialId}`);
+  await expect(downloadButton).toBeVisible();
+
+  // Click Download — assert a popup opens with a URL targeting THIS material
+  // (fake storage adapter returns /api/internal/fake-materials/<materialId>)
+  const popupPromise = context.waitForEvent('page');
+  await downloadButton.click();
+  const popup = await popupPromise;
+  expect(popup.url()).not.toBe('about:blank');
+  expect(popup.url()).toMatch(/\/fake-materials\//);
+  expect(popup.url()).toContain(materialId);
+});
+
+test('UC-04-02 lesson-materials section is absent when the lesson has no materials', async ({
+  page,
+}) => {
+  const { email, password } = await registerVerifiedStudent();
+  const { courseId, lessonId } = await seedPublishedCourseWithReadyLesson();
+
+  // Sign in
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+
+  // Enrol and open the lesson
+  await page.goto(`/catalog/${courseId}`);
+  await page.getByRole('button', { name: 'Enroll' }).click();
+  await expect(page.getByTestId('start-learning')).toBeVisible({ timeout: 10_000 });
+  await page.goto(`/learn/${courseId}/${lessonId}`);
+
+  // No materials → no section
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Lesson 1/);
+  await expect(page.getByTestId('lesson-materials')).toHaveCount(0);
 });

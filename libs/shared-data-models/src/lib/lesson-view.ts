@@ -1,6 +1,21 @@
-import type { CourseId, ISODateString, LessonId, ModuleId, VideoId } from './common';
+import type { CourseId, ISODateString, LessonId, MaterialId, ModuleId, VideoId } from './common';
 import type { CourseStatus } from './course';
+import type { SupportedMaterialExtension } from './material';
 import type { VideoState } from './video';
+
+/**
+ * Subset of a Material projected into LessonView for the student player.
+ * Owner-only fields (originalFilename, contentType, storage, state,
+ * createdAt, updatedAt, ownerInstructorId, lessonId, courseId) are
+ * deliberately omitted — students don't need them; the signed download URL
+ * carries the original filename via Content-Disposition.
+ */
+export interface LessonMaterialSummary {
+  id: MaterialId;
+  displayName: string;
+  extension: SupportedMaterialExtension;
+  sizeBytes: number;
+}
 
 /**
  * Response shape of GET /api/learn/courses/:cid/lessons/:lid.
@@ -38,6 +53,12 @@ export interface LessonView {
     lastWatchedSeconds: number;
   } | null;
   outline: CourseOutline;
+  /**
+   * READY supplementary materials for this lesson, ordered by createdAt asc.
+   * Empty array when the lesson has none. Same projection for owners and
+   * enrolled students (UC-04-02).
+   */
+  materials: LessonMaterialSummary[];
 }
 
 /**

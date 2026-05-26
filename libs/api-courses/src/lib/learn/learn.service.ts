@@ -6,13 +6,16 @@ import type {
   ISODateString,
   Lesson,
   LessonId,
+  LessonMaterialSummary,
   LessonView,
+  Material,
   UserId,
   VideoState,
 } from '@learnwren/shared-data-models';
 
 import { CoursesRepository } from '../courses.repository';
 import { EnrollmentRepository } from '../enrollment/enrollment.repository';
+import { MaterialsService } from '../materials/materials.service';
 import { VideoRepository } from '../video/video.repository';
 
 @Injectable()
@@ -23,6 +26,7 @@ export class LearnService {
     private readonly videos: VideoRepository,
     private readonly enrollment: EnrollmentRepository,
     private readonly courses: CoursesRepository,
+    private readonly materials: MaterialsService,
   ) {}
 
   async getLessonView(userId: UserId, course: Course, lesson: Lesson): Promise<LessonView> {
@@ -52,6 +56,14 @@ export class LearnService {
 
     const outline = await this.projectOutline(userId, course);
 
+    const materialRows = await this.materials.listForLesson(lesson.id);
+    const materials: LessonMaterialSummary[] = materialRows.map((m: Material) => ({
+      id: m.id,
+      displayName: m.displayName,
+      extension: m.extension,
+      sizeBytes: m.sizeBytes,
+    }));
+
     return {
       course: { id: course.id, title: course.title, status: course.status },
       lesson: {
@@ -64,6 +76,7 @@ export class LearnService {
       },
       progress,
       outline,
+      materials,
     };
   }
 

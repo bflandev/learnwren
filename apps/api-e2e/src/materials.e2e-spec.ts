@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
@@ -228,4 +229,116 @@ test('deleting the lesson cascades to its materials', async ({ request }) => {
   const dl = await request.get(`${API_BASE}/materials/${matId}/download-url`, { headers: hdr });
   expect(dl.status()).toBe(404);
   expect(((await dl.json()) as { error: { code: string } }).error.code).toBe('MATERIAL_NOT_FOUND');
+});
+
+// ──────────────────────── UC-04-02 — student download ────────────────────────
+// The owner-side download path is exercised in the happy-path test above. These
+// cases cover the student/withdrawn/owner-on-DRAFT matrix that the
+// MaterialAccessGuard enforces.
+
+/**
+ * Force the course to PUBLISHED via Firestore admin, bypassing the publish-eligibility
+ * gate (which requires a READY video and the real GCP transcoder path — quarantined in CI).
+ */
+async function publishViaAdmin(courseId: string): Promise<void> {
+  const now = new Date().toISOString();
+  await admin
+    .firestore()
+    .collection('courses')
+    .doc(courseId)
+    .update({ status: 'PUBLISHED', publishedAt: now, updatedAt: now });
+}
+
+/** Seed an enrollment doc directly (composite ID `${userId}__${courseId}`). */
+async function seedEnrollmentDoc(args: {
+  userId: string;
+  courseId: string;
+  status: 'ACTIVE' | 'WITHDRAWN';
+}): Promise<void> {
+  const enrollmentId = `${args.userId}__${args.courseId}`;
+  const now = new Date().toISOString();
+  await admin
+    .firestore()
+    .collection('enrollments')
+    .doc(enrollmentId)
+    .set({
+      id: enrollmentId,
+      userId: args.userId,
+      courseId: args.courseId,
+      status: args.status,
+      progress: [],
+      withdrawnAt: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+}
+
+test.describe('UC-04-02 — student download', () => {
+  test('enrolled student on a PUBLISHED course gets a signed URL', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+    const loc = await createCourseModuleLesson(request, hdr);
+    const matId = await uploadMaterial(request, hdr, loc);
+
+    await publishViaAdmin(loc.courseId);
+
+    const student = await registerStudent(request);
+    await seedEnrollmentDoc({ userId: student.uid, courseId: loc.courseId, status: 'ACTIVE' });
+
+    const dl = await request.get(`${API_BASE}/materials/${matId}/download-url`, {
+      headers: { Cookie: student.cookieHeader },
+    });
+    expect(dl.status()).toBe(200);
+    const body = (await dl.json()) as { downloadUrl: string; expiresAt: string };
+    // Fake-mode URLs are relative; absolute() lifts them. Either way, the resolved
+    // form must be a valid URL.
+    expect(() => new URL(absolute(body.downloadUrl))).not.toThrow();
+    expect(typeof body.expiresAt).toBe('string');
+    expect(body.expiresAt.length).toBeGreaterThan(0);
+  });
+
+  test('withdrawn enrollee gets 403 NOT_MATERIAL_OWNER', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+    const loc = await createCourseModuleLesson(request, hdr);
+    const matId = await uploadMaterial(request, hdr, loc);
+
+    await publishViaAdmin(loc.courseId);
+
+    const student = await registerStudent(request);
+    // Enrol then leave via the real API so enrollmentCount stays consistent.
+    const enrol = await request.post(`${API_BASE}/enrollments`, {
+      headers: { Cookie: student.cookieHeader },
+      data: { courseId: loc.courseId },
+    });
+    expect(enrol.status()).toBe(201);
+    const leave = await request.delete(`${API_BASE}/enrollments/${loc.courseId}`, {
+      headers: { Cookie: student.cookieHeader },
+    });
+    expect(leave.status()).toBe(204);
+
+    const dl = await request.get(`${API_BASE}/materials/${matId}/download-url`, {
+      headers: { Cookie: student.cookieHeader },
+    });
+    expect(dl.status()).toBe(403);
+    expect(((await dl.json()) as { error: { code: string } }).error.code).toBe(
+      'NOT_MATERIAL_OWNER',
+    );
+  });
+
+  test('owner on an unpublished (DRAFT) course can still download', async ({ request }) => {
+    const instructor = await registerAndPromoteInstructor(request);
+    const hdr = { Cookie: instructor.cookieHeader };
+    const loc = await createCourseModuleLesson(request, hdr);
+    const matId = await uploadMaterial(request, hdr, loc);
+    // Course is DRAFT by default — we never call publishViaAdmin here.
+
+    const dl = await request.get(`${API_BASE}/materials/${matId}/download-url`, {
+      headers: hdr,
+    });
+    expect(dl.status()).toBe(200);
+    const body = (await dl.json()) as { downloadUrl: string; expiresAt: string };
+    expect(() => new URL(absolute(body.downloadUrl))).not.toThrow();
+    expect(typeof body.expiresAt).toBe('string');
+  });
 });
