@@ -5,6 +5,7 @@ export type ProfileField = 'displayName' | 'biography';
 export interface ProfileErrorDetails {
   field: ProfileField;
   reason: string;
+  [key: string]: unknown;
 }
 
 export class ProfileException extends Error {
