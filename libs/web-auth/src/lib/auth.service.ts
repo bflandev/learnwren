@@ -36,6 +36,14 @@ export class AuthService {
     this.currentUserSignal.asReadonly();
   readonly isAuthenticated = computed(() => Boolean(this.currentUserSignal()));
 
+  /**
+   * Replace the cached current user — e.g. after a profile edit succeeds and
+   * the server returns the updated MeResponse. Does not hit the network.
+   */
+  setCurrentUser(user: AuthenticatedUser): void {
+    this.currentUserSignal.set(user);
+  }
+
   async register(input: RegisterInput): Promise<LoginResult> {
     return this.authenticateThen('/api/auth/register', input, { resetUserOnError: false });
   }

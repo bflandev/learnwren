@@ -326,3 +326,19 @@ describe('AuthService.refresh', () => {
     await expect(promise).rejects.toBeDefined();
   });
 });
+
+describe('AuthService.setCurrentUser', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+  });
+
+  it('replaces the current user signal value', () => {
+    const svc = TestBed.inject(AuthService);
+    const me = { uid: 'u-1', email: 'a@b.c', displayName: 'New', role: 'STUDENT' as const, emailVerified: true };
+    svc.setCurrentUser(me);
+    expect(svc.currentUser()).toEqual(me);
+    expect(svc.isAuthenticated()).toBe(true);
+  });
+});
