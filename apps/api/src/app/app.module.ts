@@ -4,6 +4,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { FirebaseAdminModule } from '@learnwren/api-firebase';
 import { AuthModule } from '@learnwren/api-auth';
 import { CoursesModule, VideoModule } from '@learnwren/api-courses';
+import { ProfileModule } from '@learnwren/api-profile';
 
 import { AppController } from './app.controller';
 
@@ -21,6 +22,7 @@ import { AppController } from './app.controller';
     AuthModule,
     CoursesModule,
     VideoModule,
+    ProfileModule,
   ],
   controllers: [AppController],
   providers: [
