@@ -153,6 +153,7 @@ export class AuthService {
         id: uid,
         email,
         displayName,
+        biography: '',
         role: 'STUDENT',
         createdAt: now,
         updatedAt: now,
