@@ -28,6 +28,8 @@ This guide covers **every feature wired up so far** from two angles:
 | Identity | Brute-force lockout + email unlock | Built |
 | Identity | Logged-out password reset | Built |
 | Identity | Session cookie + protected routes | Built |
+| Identity | Text profile editing (displayName + biography) | Built (2026-05-27) |
+| Identity | Profile picture upload, email change, password change | Not built |
 | Authoring | Instructor role promotion (CLI tool) | Built |
 | Authoring | Course create / edit / delete | Built |
 | Authoring | Modules & lessons, drag-and-drop reorder | Built |
@@ -202,7 +204,36 @@ See the header comment in `tools/promote-to-instructor.ts`.
 
 Once promoted and re-signed-in, the **`/courses`** area becomes accessible.
 
-## 2.7 Creating and structuring a course
+## 2.7 Editing your profile (UC-01-03 Slice A)
+
+Every logged-in user can update their **display name** and **biography** from the
+profile settings page.
+
+**How to reach it:** click the **initials chip** in the top-right corner of the header
+and select **Profile settings** — or navigate directly to `/settings/profile`.
+
+On the page you will find:
+
+- **Display name** — the name shown on your courses and throughout the platform.
+  Must be between 1 and 80 non-blank characters.
+- **Biography** — a freeform text field (up to 500 characters) describing yourself
+  to students or instructors.
+
+Click **Save** to persist the changes. The header chip updates immediately to reflect
+your new display name.
+
+**What is not yet available:**
+
+- **Profile picture** — no picture upload or crop flow; the initials chip is the
+  current avatar.
+- **Email address change** — contact a platform admin if you need to change your
+  login email.
+- **Password change** — use the **Forgot password?** flow on the login page to
+  reset your password.
+
+These sub-flows (UC-01-03 extensions 3a / 3b / 3c) are deferred to later slices.
+
+## 2.8 Creating and structuring a course
 
 As an instructor, go to **http://localhost:4200/courses**:
 
@@ -244,7 +275,7 @@ attach a real cover at any time.
 Uploads that fail validation (wrong file type, exceeds 10 MB, smaller than
 1280×720) are rejected inline with a message; no change is persisted.
 
-## 2.8 Adding video to a lesson
+## 2.9 Adding video to a lesson
 
 Each lesson holds at most one video. In the lesson editor:
 
@@ -273,7 +304,7 @@ Each lesson holds at most one video. In the lesson editor:
    Because playback is owner-gated, you (the course owner) can preview your own video
    right in the editor.
 
-## 2.9 Lesson materials
+## 2.10 Lesson materials
 
 Below each lesson's video, instructors can attach supplementary files —
 PDF, DOCX, PPTX, XLSX, TXT, or ZIP, up to 50 MB each. Click **Add material**
@@ -289,7 +320,7 @@ At the API layer, `MaterialAccessGuard` already grants `GET
 materials from the lesson player ships with a later EP-06 slice — for now,
 only the instructor course editor surfaces these files.
 
-## 2.10 Publishing a course
+## 2.11 Publishing a course
 
 A course starts as a **`DRAFT`**. Before students could ever see it, it must pass a
 **publish eligibility gate**. The course editor shows a **publish bar** and an
@@ -322,7 +353,7 @@ DRAFT  ──────────►  PUBLISHED  ─────────
 The first publish timestamp is kept on the course (`publishedAt`) and survives
 unpublish and archive.
 
-## 2.11 Browsing and discovering courses
+## 2.12 Browsing and discovering courses
 
 Any visitor — logged in or not — can browse the catalogue at **http://localhost:4200**
 (the root redirects there). The catalogue shows all `PUBLISHED` courses as cards.
@@ -337,7 +368,7 @@ Any visitor — logged in or not — can browse the catalogue at **http://localh
   difficulty, and the complete module/lesson structure (titles only — video content
   requires enrollment).
 
-## 2.12 Enrolling in a course
+## 2.13 Enrolling in a course
 
 Enrollment is open to every logged-in user (including instructors enrolling in courses
 they do not own). To enroll:
@@ -362,7 +393,7 @@ where the enrollment completes automatically — no second click needed. The `?e
 query param drives this round-trip; it is stripped from the URL once the enrollment
 fires so that a page refresh does not re-trigger it.
 
-## 2.13 Leaving a course
+## 2.14 Leaving a course
 
 An enrolled student can leave any course they are enrolled in:
 
@@ -389,7 +420,7 @@ any progress data written by EP-06).
 > `course.status === 'PUBLISHED'` for non-owner callers, so a previously enrolled
 > student starts seeing 403s on the next manifest refresh after an unpublish.
 
-## 2.14 Watching a lesson as an enrolled student (EP-06 Slice A)
+## 2.15 Watching a lesson as an enrolled student (EP-06 Slice A)
 
 Once a student has enrolled in a `PUBLISHED` course, the course detail page
 (`/catalog/:cid`) shows a **Start Learning** button. The course's instructor sees the
@@ -423,7 +454,7 @@ panel with completion checkmarks (Slice D).
 
 ---
 
-## 2.15 Marking a lesson complete (EP-06 Slice B)
+## 2.16 Marking a lesson complete (EP-06 Slice B)
 
 While watching a lesson, the student sees a **Mark as Complete** button below the
 video. Clicking it:
@@ -457,7 +488,7 @@ catalog detail page.
 
 ---
 
-## 2.16 Resume Learning and navigating the course (EP-06 Slice C)
+## 2.17 Resume Learning and navigating the course (EP-06 Slice C)
 
 When you re-open a course you are enrolled in, the course detail page shows a
 **Continue Learning** button (falling back to **Start Learning** for new
@@ -813,7 +844,7 @@ These are specified in `docs/epics/` and `docs/use-cases/` but **not yet impleme
 - **Self-service instructor requests** — promotion is CLI-only; there is no in-app
   "become an instructor" flow.
 - **Instructor dashboard (EP-07)** and **platform administration (EP-08)** — post-MVP.
-- **Profile editing, account deletion, social auth, App Check** — out of scope so far.
+- **Profile picture upload, email change, and password change** — text profile editing (displayName + biography) shipped 2026-05-27 (UC-01-03 Slice A). The picture-upload (ext 3a), email-change (ext 3b), and password-change (ext 3c) sub-flows are deferred. Account deletion, social auth, and App Check are also out of scope so far.
 
 ## Further reading
 
