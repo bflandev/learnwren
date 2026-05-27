@@ -13,5 +13,16 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "references": [
+    {
+      "path": "../api-firebase/tsconfig.lib.json"
+    },
+    {
+      "path": "../api-auth/tsconfig.lib.json"
+    },
+    {
+      "path": "../shared-data-models/tsconfig.lib.json"
+    }
+  ]
 }

@@ -34,6 +34,9 @@
   ],
   "references": [
     {
+      "path": "../../libs/api-profile/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/api-courses/tsconfig.lib.json"
     },
     {
