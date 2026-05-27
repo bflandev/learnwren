@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { AuthService } from '@learnwren/web-auth';
@@ -21,9 +21,9 @@ export class ProfilePageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly profileSvc = inject(ProfileService);
   private readonly authSvc = inject(AuthService);
-  private readonly http = inject(HttpClient);
 
   readonly form = this.fb.nonNullable.group({
+    // `required` is intentionally omitted — empty-string validation is server-authoritative (see PROFILE_INVALID test).
     displayName: ['', [Validators.maxLength(80)]],
     biography: ['', [Validators.maxLength(1000)]],
   });
@@ -31,11 +31,10 @@ export class ProfilePageComponent implements OnInit {
   readonly status = signal<Status>('idle');
   readonly readonly = signal<{ email: string; role: ProfileView['role'] } | null>(null);
 
-  ngOnInit(): void {
-    this.http.get<ProfileView>('/api/profile').subscribe((me) => {
-      this.form.setValue({ displayName: me.displayName, biography: me.biography });
-      this.readonly.set({ email: me.email, role: me.role });
-    });
+  async ngOnInit(): Promise<void> {
+    const me = await this.profileSvc.getProfile();
+    this.form.setValue({ displayName: me.displayName, biography: me.biography });
+    this.readonly.set({ email: me.email, role: me.role });
   }
 
   async save(): Promise<void> {

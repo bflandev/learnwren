@@ -31,28 +31,29 @@ describe('ProfilePageComponent', () => {
     auth = TestBed.inject(AuthService);
   });
 
-  function flushGet() {
-    fixture.detectChanges();
-    http.expectOne('/api/profile').flush(MOCK_PROFILE);
-    fixture.detectChanges();
+  async function flushGet() {
+    fixture.detectChanges();                 // triggers ngOnInit → awaits getProfile()
+    http.expectOne('/api/profile').flush(MOCK_PROFILE);  // resolves the awaited Promise
+    await fixture.whenStable();              // wait for the microtask continuation in ngOnInit
+    fixture.detectChanges();                 // pick up the form-setValue + readonly() change
   }
 
-  it('populates the form from GET /api/profile', () => {
-    flushGet();
+  it('populates the form from GET /api/profile', async () => {
+    await flushGet();
     const cmp = fixture.componentInstance;
     expect(cmp.form.value).toEqual({ displayName: 'Etta', biography: 'hi' });
     const el = fixture.nativeElement as HTMLElement;
     expect(el.textContent).toContain('a@b.c');
   });
 
-  it('renders read-only email and role', () => {
-    flushGet();
+  it('renders read-only email and role', async () => {
+    await flushGet();
     const el = fixture.nativeElement as HTMLElement;
     expect(el.textContent).toContain('STUDENT');
   });
 
   it('saves and updates AuthService on 200', async () => {
-    flushGet();
+    await flushGet();
     const cmp = fixture.componentInstance;
     cmp.form.setValue({ displayName: 'New', biography: 'bio' });
     const saved = cmp.save();
@@ -65,7 +66,7 @@ describe('ProfilePageComponent', () => {
   });
 
   it('surfaces PROFILE_INVALID errors against the right control', async () => {
-    flushGet();
+    await flushGet();
     const cmp = fixture.componentInstance;
     cmp.form.setValue({ displayName: '', biography: '' });
     const saved = cmp.save();
@@ -80,7 +81,7 @@ describe('ProfilePageComponent', () => {
   });
 
   it('blocks save when client-side validators fail (over-length biography)', async () => {
-    flushGet();
+    await flushGet();
     const cmp = fixture.componentInstance;
     cmp.form.setValue({ displayName: 'A', biography: 'x'.repeat(1001) });
     await cmp.save();
