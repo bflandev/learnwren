@@ -47,6 +47,12 @@ export default defineConfig({
       // still required to satisfy readCoverConfigFromEnv at boot.
       LEARNWREN_COVER_BUCKET: 'learnwren-e2e-covers',
       LEARNWREN_COVER_PUBLIC_BASE_URL: 'http://localhost:9199/v0/b/learnwren-e2e-covers/o',
+      // Profile picture storage mirrors the cover pattern: defaults to fake
+      // (in-memory) when LEARNWREN_PICTURE_STORAGE is unset, but bucket +
+      // public base URL are still required at boot.
+      LEARNWREN_PICTURE_BUCKET: 'learnwren-e2e-pictures',
+      LEARNWREN_PICTURE_PUBLIC_BASE_URL:
+        'http://localhost:9199/v0/b/learnwren-e2e-pictures/o',
       // FakeMaterialsController is now gated on the storage-impl flag (not
       // NODE_ENV), so the dev-only passthrough must be enabled explicitly
       // for the materials suite. The adapter already defaults to fake when

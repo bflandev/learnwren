@@ -1,0 +1,36 @@
+@if (currentUser(); as me) {
+  <div class="flex items-center gap-4">
+    <lw-avatar
+      [photoUrl]="me.photoUrl"
+      [displayName]="me.displayName"
+      [userId]="me.uid"
+      size="lg"
+    />
+
+    <div class="flex flex-col gap-2">
+      @switch (state()) {
+        @case ('idle') {
+          <label class="cursor-pointer underline">
+            <input
+              hidden
+              type="file"
+              accept="image/jpeg,image/png"
+              (change)="onFileSelected($any($event.target).files[0])"
+            />
+            {{ me.photoUrl ? 'Replace picture' : 'Upload picture' }}
+          </label>
+          @if (me.photoUrl) {
+            <button type="button" class="underline text-left" (click)="onRemove()">Remove picture</button>
+          }
+        }
+        @case ('uploading') {
+          <p>Uploading…</p>
+        }
+        @case ('failed') {
+          <p class="text-error">{{ errorReason() }}</p>
+          <button type="button" class="underline text-left" (click)="dismissError()">Dismiss</button>
+        }
+      }
+    </div>
+  </div>
+}

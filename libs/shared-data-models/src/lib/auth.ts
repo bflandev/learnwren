@@ -6,6 +6,7 @@ export interface MeResponse {
   uid: UserId;
   email: string;
   displayName: string;
+  photoUrl?: string;
   role: UserRole;
   emailVerified: boolean;
 }

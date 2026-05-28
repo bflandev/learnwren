@@ -452,6 +452,45 @@ describe('AuthService.getMe', () => {
       service.getMe('uid-missing', { email: 'x@y.z', emailVerified: false }),
     ).rejects.toMatchObject({ code: 'INTERNAL' });
   });
+
+  it('includes photoUrl in MeResponse when the user doc carries one', async () => {
+    const docData = {
+      id: 'u1',
+      email: 'a@b.com',
+      displayName: 'Ada',
+      role: 'STUDENT',
+      photoUrl: 'https://example.com/p/u1/avatar.jpg?v=2026-05-28T00:00:00.000Z',
+    };
+    const get = vi.fn(async () => ({ exists: true, data: () => docData }));
+    const docFn = vi.fn(() => ({ get }));
+    const collectionFn = vi.fn(() => ({ doc: docFn }));
+    const firestore = { collection: collectionFn, _set: vi.fn() } as unknown as FakeFirestore;
+    const auth = buildFakeAuth();
+    const service = await buildModule(auth, firestore);
+
+    const me = await service.getMe('u1', { email: 'a@b.com', emailVerified: true });
+
+    expect(me.photoUrl).toBe('https://example.com/p/u1/avatar.jpg?v=2026-05-28T00:00:00.000Z');
+  });
+
+  it('omits photoUrl in MeResponse when the user doc has none', async () => {
+    const docData = {
+      id: 'u1',
+      email: 'a@b.com',
+      displayName: 'Ada',
+      role: 'STUDENT',
+    };
+    const get = vi.fn(async () => ({ exists: true, data: () => docData }));
+    const docFn = vi.fn(() => ({ get }));
+    const collectionFn = vi.fn(() => ({ doc: docFn }));
+    const firestore = { collection: collectionFn, _set: vi.fn() } as unknown as FakeFirestore;
+    const auth = buildFakeAuth();
+    const service = await buildModule(auth, firestore);
+
+    const me = await service.getMe('u1', { email: 'a@b.com', emailVerified: true });
+
+    expect(me.photoUrl).toBeUndefined();
+  });
 });
 
 function buildAttemptsMock(): {

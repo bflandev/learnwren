@@ -16,7 +16,7 @@ import {
 
 import { CoursesRepository } from '../courses.repository';
 import { CourseNotFoundException } from '../errors/courses.exception';
-import { InstructorDirectory } from './instructor-directory';
+import { InstructorDirectory, type InstructorRef } from './instructor-directory';
 
 export interface CatalogQuery {
   page?: number;
@@ -76,7 +76,8 @@ export class CatalogService {
       })),
     );
     const lessonCount = outline.reduce((n, m) => n + m.lessons.length, 0);
-    const names = await this.instructors.displayNamesFor([course.instructorId]);
+    const refs = await this.instructors.instructorRefsFor([course.instructorId]);
+    const ref = refs.get(course.instructorId);
     return {
       id: course.id,
       title: course.title,
@@ -84,7 +85,10 @@ export class CatalogService {
       longDescription: course.longDescription,
       category: course.category,
       difficulty: course.difficulty,
-      instructorDisplayName: names.get(course.instructorId) ?? 'Instructor',
+      instructorId: course.instructorId,
+      instructorDisplayName: ref?.displayName ?? 'Instructor',
+      ...(ref?.photoUrl ? { instructorPhotoUrl: ref.photoUrl } : {}),
+      ...(ref?.biography ? { instructorBiography: ref.biography } : {}),
       lessonCount,
       modules: outline,
       publishedAt: publishedAt(course),
@@ -97,9 +101,9 @@ export class CatalogService {
     const totalPages = Math.ceil(total / CATALOG_PAGE_SIZE);
     const start = (page - 1) * CATALOG_PAGE_SIZE;
     const slice = courses.slice(start, start + CATALOG_PAGE_SIZE);
-    const names = await this.instructors.displayNamesFor(slice.map((c) => c.instructorId));
+    const refs = await this.instructors.instructorRefsFor(slice.map((c) => c.instructorId));
     return {
-      items: slice.map((c) => toSummary(c, names)),
+      items: slice.map((c) => toSummary(c, refs)),
       page,
       pageSize: CATALOG_PAGE_SIZE,
       total,
@@ -138,14 +142,17 @@ function relevanceScore(course: Course, q: string): number {
   return 0;
 }
 
-function toSummary(course: Course, names: Map<UserId, string>): CourseSummary {
+function toSummary(course: Course, refs: Map<UserId, InstructorRef>): CourseSummary {
+  const ref = refs.get(course.instructorId);
   return {
     id: course.id,
     title: course.title,
     description: course.description,
     category: course.category,
     difficulty: course.difficulty,
-    instructorDisplayName: names.get(course.instructorId) ?? 'Instructor',
+    instructorId: course.instructorId,
+    instructorDisplayName: ref?.displayName ?? 'Instructor',
+    ...(ref?.photoUrl ? { instructorPhotoUrl: ref.photoUrl } : {}),
     publishedAt: publishedAt(course),
     coverImageUrl: course.coverImageUrl,
   };

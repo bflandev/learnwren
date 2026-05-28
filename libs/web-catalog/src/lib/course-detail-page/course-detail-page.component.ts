@@ -4,7 +4,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, RouterLink, type ParamMap } from '@angular/router';
 
 import type { CourseCatalogDetail, EnrollmentStatusView } from '@learnwren/shared-data-models';
-import { LwCoverComponent, LwPillComponent, coverToneForId } from '@learnwren/web-ui';
+import {
+  LwAvatarComponent,
+  LwCardComponent,
+  LwCoverComponent,
+  LwPillComponent,
+  coverToneForId,
+} from '@learnwren/web-ui';
 import { CourseEnrollmentPanelComponent, EnrollmentService } from '@learnwren/web-enrollment';
 import { AuthService } from '@learnwren/web-auth';
 
@@ -15,7 +21,15 @@ import { ModuleOutlineComponent } from '../components/module-outline/module-outl
   selector: 'lib-course-detail-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LwCoverComponent, LwPillComponent, ModuleOutlineComponent, CourseEnrollmentPanelComponent, RouterLink],
+  imports: [
+    LwAvatarComponent,
+    LwCardComponent,
+    LwCoverComponent,
+    LwPillComponent,
+    ModuleOutlineComponent,
+    CourseEnrollmentPanelComponent,
+    RouterLink,
+  ],
   templateUrl: './course-detail-page.component.html',
 })
 export class CourseDetailPageComponent {

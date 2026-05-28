@@ -6,6 +6,11 @@ service firebase.storage {
       allow read: if true;
       allow write: if false;
     }
+    // Public-read profile pictures. Writes happen only via the Admin SDK in the API.
+    match /profile-pictures/{uid}/{file=**} {
+      allow read: if true;
+      allow write: if false;
+    }
     // Default-deny everything else.
     match /{allPaths=**} {
       allow read, write: if false;

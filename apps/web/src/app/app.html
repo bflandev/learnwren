@@ -17,10 +17,17 @@
       <a
         role="img"
         routerLink="/settings/profile"
-        class="grid h-8 w-8 place-items-center rounded-full bg-ochre font-serif text-sm italic text-ochre-ink"
+        class="flex items-center gap-2"
         [attr.aria-label]="'Profile settings for ' + (auth.currentUser()?.displayName ?? '')"
-        >{{ initials() }}</a
       >
+        <lw-avatar
+          [photoUrl]="auth.currentUser()?.photoUrl"
+          [displayName]="auth.currentUser()?.displayName ?? ''"
+          [userId]="auth.currentUser()?.uid ?? ''"
+          size="sm"
+        />
+        <span class="user-chip-name text-sm">{{ auth.currentUser()?.displayName }}</span>
+      </a>
     } @else {
       <a routerLink="/login" class="lw-btn lw-btn-ghost">Log in</a>
       <a routerLink="/register" class="lw-btn lw-btn-primary">Register</a>

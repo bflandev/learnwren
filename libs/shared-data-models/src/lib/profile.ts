@@ -7,6 +7,7 @@ export interface ProfileView {
   email: string;
   displayName: string;
   biography: string;
+  photoUrl?: string;
   role: UserRole;
   emailVerified: boolean;
 }
@@ -29,3 +30,22 @@ export interface ProfileInvalidErrorBody {
     details?: { field: 'displayName' | 'biography'; reason: string };
   };
 }
+
+/** Wire error codes returned by `PUT /api/profile/picture` on validation/processing failure. */
+export const PROFILE_PICTURE_DIMENSIONS_TOO_SMALL = 'PROFILE_PICTURE_DIMENSIONS_TOO_SMALL';
+export type ProfilePictureDimensionsTooSmallCode = typeof PROFILE_PICTURE_DIMENSIONS_TOO_SMALL;
+
+export const PROFILE_PICTURE_DECODE_FAILED = 'PROFILE_PICTURE_DECODE_FAILED';
+export type ProfilePictureDecodeFailedCode = typeof PROFILE_PICTURE_DECODE_FAILED;
+
+export const PROFILE_PICTURE_TOO_LARGE = 'PROFILE_PICTURE_TOO_LARGE';
+export type ProfilePictureTooLargeCode = typeof PROFILE_PICTURE_TOO_LARGE;
+
+export const UNSUPPORTED_PROFILE_PICTURE_FORMAT = 'UNSUPPORTED_PROFILE_PICTURE_FORMAT';
+export type UnsupportedProfilePictureFormatCode = typeof UNSUPPORTED_PROFILE_PICTURE_FORMAT;
+
+export type ProfilePictureErrorCode =
+  | ProfilePictureDimensionsTooSmallCode
+  | ProfilePictureDecodeFailedCode
+  | ProfilePictureTooLargeCode
+  | UnsupportedProfilePictureFormatCode;

@@ -298,12 +298,14 @@ export class AuthService {
     const data = snap.data() as {
       displayName: string;
       role: UserRole;
+      photoUrl?: string;
     };
     return {
       uid,
       email: fromCookie.email,
       displayName: data.displayName,
       role: data.role,
+      ...(data.photoUrl ? { photoUrl: data.photoUrl } : {}),
       emailVerified: fromCookie.emailVerified,
     };
   }

@@ -8,7 +8,14 @@
       [alt]="course().title" />
     <div class="flex flex-col items-start gap-2 p-4">
       <h3 class="text-base text-ink">{{ course().title }}</h3>
-      <p class="text-sm text-ink-2">{{ course().instructorDisplayName }}</p>
+      <div class="byline flex items-center gap-2">
+        <lw-avatar
+          [photoUrl]="course().instructorPhotoUrl"
+          [displayName]="course().instructorDisplayName"
+          [userId]="course().instructorId"
+          size="sm" />
+        <p class="text-sm text-ink-2">{{ course().instructorDisplayName }}</p>
+      </div>
       @if (course().difficulty) {
         <lw-pill tone="default">{{ course().difficulty }}</lw-pill>
       }

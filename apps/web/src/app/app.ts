@@ -5,7 +5,7 @@ import { filter, map, startWith } from 'rxjs';
 
 import { AuthService } from '@learnwren/web-auth';
 import { CourseSearchBarComponent } from '@learnwren/web-catalog';
-import { LwWordmarkComponent, ThemeToggleComponent } from '@learnwren/web-ui';
+import { LwAvatarComponent, LwWordmarkComponent, ThemeToggleComponent } from '@learnwren/web-ui';
 
 import { isAuthRoute } from './shell/is-auth-route';
 
@@ -16,6 +16,7 @@ import { isAuthRoute } from './shell/is-auth-route';
   imports: [
     RouterOutlet,
     RouterLink,
+    LwAvatarComponent,
     LwWordmarkComponent,
     ThemeToggleComponent,
     CourseSearchBarComponent,
@@ -37,15 +38,4 @@ export class App {
   );
 
   protected readonly showHeader = computed(() => !isAuthRoute(this.url()));
-
-  protected readonly initials = computed(() => {
-    const name = this.auth.currentUser()?.displayName ?? '';
-    return name
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase();
-  });
 }

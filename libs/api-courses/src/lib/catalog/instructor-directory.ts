@@ -6,28 +6,44 @@ import type { User, UserId } from '@learnwren/shared-data-models';
 const USERS = 'users';
 const FALLBACK_NAME = 'Instructor';
 
+export interface InstructorRef {
+  displayName: string;
+  photoUrl?: string;
+  biography?: string;
+}
+
 /**
- * Read-only lookup of instructor display names from the `users` collection.
- * The only place the catalogue reaches outside the `courses` collection.
+ * Read-only lookup of instructor refs (display name + optional photo + optional bio)
+ * from the `users` collection. The only place the catalogue reaches outside the
+ * `courses` collection.
  */
 @Injectable()
 export class InstructorDirectory {
   constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
 
   /**
-   * Resolve a display name for each id. Deduplicates ids, reads the matching
-   * `users/{uid}` documents in parallel, and falls back to "Instructor" for
-   * any id with no user document.
+   * Resolve a display name + optional photo URL + optional biography for each id.
+   * Deduplicates ids and reads `users/{uid}` documents in parallel.
+   * Falls back to `{ displayName: 'Instructor' }` when the user document does not exist.
    */
-  async displayNamesFor(uids: UserId[]): Promise<Map<UserId, string>> {
+  async instructorRefsFor(uids: UserId[]): Promise<Map<UserId, InstructorRef>> {
     const unique = [...new Set(uids)];
     const entries = await Promise.all(
-      unique.map(async (uid): Promise<[UserId, string]> => {
+      unique.map(async (uid): Promise<[UserId, InstructorRef]> => {
         const snap = await this.firestore.collection(USERS).doc(uid).get();
         const data = snap.exists ? (snap.data() as User) : undefined;
-        return [uid, data?.displayName ?? FALLBACK_NAME];
+        const ref: InstructorRef = { displayName: data?.displayName ?? FALLBACK_NAME };
+        if (data?.photoUrl) ref.photoUrl = data.photoUrl;
+        if (data?.biography) ref.biography = data.biography;
+        return [uid, ref];
       }),
     );
     return new Map(entries);
+  }
+
+  /** @deprecated Prefer `instructorRefsFor`. Retained as a thin shim for now. */
+  async displayNamesFor(uids: UserId[]): Promise<Map<UserId, string>> {
+    const refs = await this.instructorRefsFor(uids);
+    return new Map([...refs].map(([uid, ref]) => [uid, ref.displayName]));
   }
 }

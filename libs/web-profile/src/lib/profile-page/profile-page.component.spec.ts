@@ -88,4 +88,10 @@ describe('ProfilePageComponent', () => {
     http.expectNone('/api/profile');         // no PATCH made
     expect(cmp.form.controls.biography.invalid).toBe(true);
   });
+
+  it('renders the profile picture uploader', async () => {
+    await flushGet();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('lib-profile-picture-uploader')).toBeTruthy();
+  });
 });

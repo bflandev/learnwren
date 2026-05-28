@@ -22,6 +22,7 @@ const COURSE_WITH_LESSONS = {
   title: 'Learn Rust',
   description: 'short',
   longDescription: 'the long description',
+  instructorId: 'u-1',
   instructorDisplayName: 'Ada Lovelace',
   difficulty: 'BEGINNER',
   lessonCount: 2,
@@ -125,6 +126,7 @@ describe('CourseDetailPageComponent', () => {
       title: 'Learn Rust',
       description: 'short',
       longDescription: 'the long description',
+      instructorId: 'u-1',
       instructorDisplayName: 'Ada Lovelace',
       difficulty: 'BEGINNER',
       lessonCount: 2,
@@ -179,6 +181,47 @@ describe('CourseDetailPageComponent', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Something went wrong');
     expect(text).not.toContain('Course not found');
+  });
+
+  // -------------------------------------------------------------------------
+  // Instructor card (UC-01-03 Slice B — biography surface)
+  // -------------------------------------------------------------------------
+
+  it('renders the instructor card with avatar and biography', async () => {
+    const { http } = setup({ id: 'c-1' });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush({
+      ...COURSE_WITH_LESSONS,
+      instructorPhotoUrl: 'https://example.com/u-1.jpg',
+      instructorBiography: 'Mathematician.',
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const card = el.querySelector('[data-test="instructor-card"]');
+    expect(card).not.toBeNull();
+    expect(card!.querySelector('lw-avatar img')).not.toBeNull();
+    expect(card!.textContent).toContain('Ada Lovelace');
+    expect(card!.textContent).toContain('Mathematician.');
+    expect(el.querySelector('[data-test="instructor-bio"]')).not.toBeNull();
+  });
+
+  it('hides the biography paragraph when instructorBiography is undefined', async () => {
+    const { http } = setup({ id: 'c-1' });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush({
+      ...COURSE_WITH_LESSONS,
+      // no instructorBiography, no instructorPhotoUrl
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-test="instructor-card"]')).not.toBeNull();
+    expect(el.querySelector('[data-test="instructor-bio"]')).toBeNull();
   });
 
   // -------------------------------------------------------------------------
