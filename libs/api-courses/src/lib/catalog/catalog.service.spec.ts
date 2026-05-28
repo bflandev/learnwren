@@ -272,6 +272,159 @@ describe('CatalogService.listCatalogue — POPULAR sort', () => {
   });
 });
 
+describe('CatalogService — instructor avatar projection', () => {
+  it('getCatalogPage includes instructorId and instructorPhotoUrl on each summary', async () => {
+    const svc = makeService(
+      [
+        course({ id: 'c-1' as CourseId, instructorId: 'u-1' as UserId }),
+        course({ id: 'c-2' as CourseId, instructorId: 'u-2' as UserId }),
+      ],
+      {
+        'users/u-1': {
+          id: 'u-1',
+          displayName: 'Ada Lovelace',
+          photoUrl: 'https://example.com/p/u-1/avatar.jpg?v=1',
+        },
+        'users/u-2': { id: 'u-2', displayName: 'Grace Hopper' },
+      },
+    );
+
+    const page = await svc.listCatalogue({});
+    const byId = new Map(page.items.map((i) => [i.id, i]));
+
+    expect(byId.get('c-1' as CourseId)?.instructorId).toBe('u-1');
+    expect(byId.get('c-1' as CourseId)?.instructorPhotoUrl).toBe(
+      'https://example.com/p/u-1/avatar.jpg?v=1',
+    );
+    expect(byId.get('c-2' as CourseId)?.instructorId).toBe('u-2');
+    expect(byId.get('c-2' as CourseId)?.instructorPhotoUrl).toBeUndefined();
+  });
+
+  it('dedupes instructor reads across N courses on a page', async () => {
+    // Build the firestore directly so we can wrap doc().get() with a counting
+    // proxy — same pattern as instructor-directory.spec.ts.
+    const baseFirestore = createFakeFirestore({
+      'courses/c-1': {
+        id: 'c-1',
+        title: 'c-1',
+        description: 'd',
+        instructorId: 'u-1',
+        status: 'PUBLISHED',
+        publishedAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      'courses/c-2': {
+        id: 'c-2',
+        title: 'c-2',
+        description: 'd',
+        instructorId: 'u-1',
+        status: 'PUBLISHED',
+        publishedAt: '2026-01-02T00:00:00.000Z',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+      },
+      'courses/c-3': {
+        id: 'c-3',
+        title: 'c-3',
+        description: 'd',
+        instructorId: 'u-1',
+        status: 'PUBLISHED',
+        publishedAt: '2026-01-03T00:00:00.000Z',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+      },
+      'users/u-1': { id: 'u-1', displayName: 'Ada' },
+    });
+
+    const getCounts = new Map<string, number>();
+    const countingFirestore = {
+      ...baseFirestore,
+      collection(name: string) {
+        const col = baseFirestore.collection(name);
+        return {
+          ...col,
+          doc(id?: string) {
+            const docRef = col.doc(id);
+            return {
+              ...docRef,
+              async get() {
+                getCounts.set(docRef.path, (getCounts.get(docRef.path) ?? 0) + 1);
+                return docRef.get();
+              },
+            };
+          },
+        };
+      },
+    };
+
+    const svc = new CatalogService(
+      new CoursesRepository(countingFirestore as never),
+      new InstructorDirectory(countingFirestore as never),
+    );
+
+    const page = await svc.listCatalogue({});
+
+    expect(page.items).toHaveLength(3);
+    expect(getCounts.get('users/u-1')).toBe(1);
+  });
+
+  it('getCourseDetail includes instructorId, instructorPhotoUrl, instructorBiography', async () => {
+    const firestore = createFakeFirestore({
+      'courses/c-1': {
+        id: 'c-1',
+        title: 'Course One',
+        description: 'short',
+        instructorId: 'u-1',
+        status: 'PUBLISHED',
+        publishedAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      'users/u-1': {
+        id: 'u-1',
+        displayName: 'Ada Lovelace',
+        photoUrl: 'https://example.com/p/u-1/avatar.jpg?v=1',
+        biography: 'Mathematician.',
+      },
+    });
+    const svc = new CatalogService(
+      new CoursesRepository(firestore as never),
+      new InstructorDirectory(firestore as never),
+    );
+
+    const detail = await svc.getCourseDetail('c-1' as CourseId);
+
+    expect(detail.instructorId).toBe('u-1');
+    expect(detail.instructorPhotoUrl).toBe('https://example.com/p/u-1/avatar.jpg?v=1');
+    expect(detail.instructorBiography).toBe('Mathematician.');
+  });
+
+  it('getCourseDetail normalises empty/absent biography to undefined', async () => {
+    const firestore = createFakeFirestore({
+      'courses/c-1': {
+        id: 'c-1',
+        title: 'Course One',
+        description: 'short',
+        instructorId: 'u-1',
+        status: 'PUBLISHED',
+        publishedAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      'users/u-1': { id: 'u-1', displayName: 'Ada Lovelace', biography: '' },
+    });
+    const svc = new CatalogService(
+      new CoursesRepository(firestore as never),
+      new InstructorDirectory(firestore as never),
+    );
+
+    const detail = await svc.getCourseDetail('c-1' as CourseId);
+
+    expect(detail.instructorBiography).toBeUndefined();
+  });
+});
+
 describe('CatalogService — cover image projection', () => {
   it('includes coverImageUrl in CourseSummary when present on Course', async () => {
     const svc = makeService([

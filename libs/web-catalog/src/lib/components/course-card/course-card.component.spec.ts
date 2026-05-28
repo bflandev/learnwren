@@ -11,6 +11,7 @@ const summary: CourseSummary = {
   title: 'Learn Rust',
   description: 'A short course',
   difficulty: 'BEGINNER',
+  instructorId: 'u-1' as CourseSummary['instructorId'],
   instructorDisplayName: 'Ada Lovelace',
   publishedAt: '2026-01-01T00:00:00.000Z' as CourseSummary['publishedAt'],
 };
@@ -46,6 +47,7 @@ describe('CourseCardComponent', () => {
       id: 'c-2',
       title: 'Learn Go',
       description: 'A short course on Go',
+      instructorId: 'u-2' as CourseSummary['instructorId'],
       instructorDisplayName: 'Grace Hopper',
       publishedAt: '2026-01-01T00:00:00.000Z' as CourseSummary['publishedAt'],
     };
