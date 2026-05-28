@@ -137,3 +137,16 @@ describe('ConsoleEmailTransport.lastSentTo (outbox)', () => {
     expect(t.lastSentTo('user100@x.com', 'verification')?.url).toBe('v100');
   });
 });
+
+describe('ConsoleEmailTransport email-change', () => {
+  it('records an email-change verification in the outbox', async () => {
+    const t = new ConsoleEmailTransport();
+    await t.sendEmailChangeVerificationEmail({
+      to: 'new@example.com',
+      verificationUrl: 'https://app/verify?oobCode=abc',
+    });
+    const entry = t.lastSentTo('new@example.com', 'email-change');
+    expect(entry?.url).toBe('https://app/verify?oobCode=abc');
+    expect(entry?.kind).toBe('email-change');
+  });
+});

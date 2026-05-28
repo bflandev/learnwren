@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { createTransport, type Transporter } from 'nodemailer';
 
 import type {
+  EmailChangeVerificationEmailInput,
   EmailTransport,
   PasswordResetEmailInput,
   UnlockEmailInput,
@@ -93,6 +94,30 @@ export class SmtpEmailTransport implements EmailTransport {
       this.logger.error(
         `[password-reset-email] send failed to=${input.to}: ${String(err)}`,
       );
+      throw err;
+    }
+  }
+
+  async sendEmailChangeVerificationEmail(
+    input: EmailChangeVerificationEmailInput,
+  ): Promise<void> {
+    const text =
+      `You asked to change the email address on your Learn Wren account.\n\n` +
+      `Confirm this new address by clicking the link below:\n\n` +
+      `${input.verificationUrl}\n\n` +
+      `Your current address stays active until you confirm. ` +
+      `If you didn't request this, you can safely ignore this email.`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.config.from,
+        to: input.to,
+        subject: 'Confirm your new Learn Wren email address',
+        text,
+      });
+      this.logger.log(`[email-change-email] sent to=${input.to}`);
+    } catch (err) {
+      this.logger.error(`[email-change-email] send failed to=${input.to}: ${String(err)}`);
       throw err;
     }
   }
