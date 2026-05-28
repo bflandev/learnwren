@@ -7,6 +7,7 @@ import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
 import type { ProfileView, ProfileInvalidErrorBody } from '@learnwren/shared-data-models';
 
 import { ProfileService } from '../profile.service';
+import { ProfilePictureUploaderComponent } from '../picture/profile-picture-uploader.component';
 
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -14,7 +15,7 @@ type Status = 'idle' | 'saving' | 'saved' | 'error';
   selector: 'lib-profile-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, LwInputDirective, LwButtonDirective],
+  imports: [ReactiveFormsModule, LwInputDirective, LwButtonDirective, ProfilePictureUploaderComponent],
   templateUrl: './profile-page.component.html',
 })
 export class ProfilePageComponent implements OnInit {
