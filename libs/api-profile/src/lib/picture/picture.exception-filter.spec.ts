@@ -42,34 +42,34 @@ describe('PictureExceptionFilter', () => {
     const { host, status, json } = makeHost();
     new PictureExceptionFilter().catch(new PictureDecodeFailedException(), host);
     expect(status).toHaveBeenCalledWith(400);
-    expect(json.mock.calls[0][0].error.code).toBe('PROFILE_PICTURE_DECODE_FAILED');
+    expect(json.mock.calls[0]![0].error.code).toBe('PROFILE_PICTURE_DECODE_FAILED');
   });
 
   it('maps PictureTooLargeException → 413', () => {
     const { host, status, json } = makeHost();
     new PictureExceptionFilter().catch(new PictureTooLargeException(), host);
     expect(status).toHaveBeenCalledWith(413);
-    expect(json.mock.calls[0][0].error.code).toBe('PROFILE_PICTURE_TOO_LARGE');
+    expect(json.mock.calls[0]![0].error.code).toBe('PROFILE_PICTURE_TOO_LARGE');
   });
 
   it('maps UnsupportedPictureFormatException → 415', () => {
     const { host, status, json } = makeHost();
     new PictureExceptionFilter().catch(new UnsupportedPictureFormatException(), host);
     expect(status).toHaveBeenCalledWith(415);
-    expect(json.mock.calls[0][0].error.code).toBe('UNSUPPORTED_PROFILE_PICTURE_FORMAT');
+    expect(json.mock.calls[0]![0].error.code).toBe('UNSUPPORTED_PROFILE_PICTURE_FORMAT');
   });
 
   it('falls back to 500 INTERNAL for unknown exceptions', () => {
     const { host, status, json } = makeHost();
     new PictureExceptionFilter().catch(new Error('boom'), host);
     expect(status).toHaveBeenCalledWith(500);
-    expect(json.mock.calls[0][0].error.code).toBe('INTERNAL');
+    expect(json.mock.calls[0]![0].error.code).toBe('INTERNAL');
   });
 
   it('maps a generic HttpException (e.g. 401 from guards) through the status table', () => {
     const { host, status, json } = makeHost();
     new PictureExceptionFilter().catch(new HttpException('nope', 401), host);
     expect(status).toHaveBeenCalledWith(401);
-    expect(json.mock.calls[0][0].error.code).toBe('UNAUTHORIZED');
+    expect(json.mock.calls[0]![0].error.code).toBe('UNAUTHORIZED');
   });
 });
