@@ -25,9 +25,33 @@ async function registerVerifiedStudent(): Promise<{ email: string; password: str
 }
 
 /** Seed a PUBLISHED course straight into Firestore and return its id. */
-async function seedPublishedCourse(): Promise<string> {
+async function seedPublishedCourse(
+  opts: { instructor?: { uid: string; displayName: string; photoUrl?: string } } = {},
+): Promise<string> {
   const id = `web-e2e-enr-course-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const now = new Date().toISOString();
+  const instructorId = opts.instructor?.uid ?? 'web-e2e-enr-instructor';
+
+  // If an instructor profile was specified, seed the users/{uid} doc so that
+  // the catalog hydration picks up the displayName + photoUrl on the course
+  // detail page (the only place the catalog reads outside the courses
+  // collection — see InstructorDirectory).
+  if (opts.instructor) {
+    await admin
+      .firestore()
+      .collection('users')
+      .doc(opts.instructor.uid)
+      .set(
+        {
+          id: opts.instructor.uid,
+          displayName: opts.instructor.displayName,
+          ...(opts.instructor.photoUrl ? { photoUrl: opts.instructor.photoUrl } : {}),
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+  }
+
   await admin
     .firestore()
     .collection('courses')
@@ -36,7 +60,7 @@ async function seedPublishedCourse(): Promise<string> {
       id,
       title: 'Enrollment Journey Course',
       description: 'A course to enroll in.',
-      instructorId: 'web-e2e-enr-instructor',
+      instructorId,
       status: 'PUBLISHED',
       enrollmentCount: 0,
       publishedAt: now,
@@ -48,7 +72,18 @@ async function seedPublishedCourse(): Promise<string> {
 
 test('a logged-in student can enroll and then leave a course', async ({ page }) => {
   const { email, password } = await registerVerifiedStudent();
-  const courseId = await seedPublishedCourse();
+  // Seed an instructor with a photoUrl so the course detail page renders the
+  // <img> avatar branch of lw-avatar. We use a stable data: URL — no upload
+  // round-trip needed, and the catalog API echoes the raw photoUrl through.
+  const instructorUid = `web-e2e-enr-instructor-${Date.now()}`;
+  const photoUrl =
+    'data:image/svg+xml;base64,' +
+    Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#0af"/></svg>',
+    ).toString('base64');
+  const courseId = await seedPublishedCourse({
+    instructor: { uid: instructorUid, displayName: 'Ada Lovelace', photoUrl },
+  });
 
   // Log in via the web login page.
   await page.goto('/login');
@@ -59,6 +94,15 @@ test('a logged-in student can enroll and then leave a course', async ({ page }) 
 
   // Open the course and enroll.
   await page.goto(`/catalog/${courseId}`);
+
+  // UC-01-03 Slice B avatar render: the instructor card on the course detail
+  // page renders an lw-avatar. With a photoUrl seeded above, the <img> branch
+  // should win over the initials span.
+  const instructorAvatar = page.locator('[data-test="instructor-card"] lw-avatar');
+  await expect(instructorAvatar).toBeVisible();
+  await expect(instructorAvatar.locator('img.lw-avatar-image')).toBeVisible();
+  await expect(instructorAvatar.locator('span.lw-avatar-initials')).toHaveCount(0);
+
   await page.getByRole('button', { name: 'Enroll' }).click();
   await expect(page.getByText('Enrolled', { exact: false })).toBeVisible({ timeout: 10_000 });
 
@@ -77,6 +121,15 @@ test('a guest who clicks Enroll is sent to login and auto-enrolled on return', a
 
   // Visit the course as a guest and click Enroll.
   await page.goto(`/catalog/${courseId}`);
+
+  // UC-01-03 Slice B avatar render — initials fallback path: no users/{uid}
+  // doc is seeded for this test's instructorId, so InstructorDirectory falls
+  // back to displayName "Instructor" and lw-avatar renders the initials span.
+  const instructorAvatar = page.locator('[data-test="instructor-card"] lw-avatar');
+  await expect(instructorAvatar).toBeVisible();
+  await expect(instructorAvatar.locator('span.lw-avatar-initials')).toBeVisible();
+  await expect(instructorAvatar.locator('img.lw-avatar-image')).toHaveCount(0);
+
   await page.getByRole('button', { name: 'Enroll' }).click();
   await page.waitForURL(/\/login/, { timeout: 10_000 });
 
