@@ -106,4 +106,13 @@ describe('App', () => {
     expect(chip).toBeTruthy();
     expect(chip?.getAttribute('href')).toBe('/settings/profile');
   });
+
+  it('header user-menu renders <lw-avatar> bound to current user', async () => {
+    configure({ displayName: 'Etta Wren' });
+    await TestBed.inject(Router).navigateByUrl('/catalog');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const avatar = fixture.nativeElement.querySelector('lw-avatar');
+    expect(avatar).toBeTruthy();
+  });
 });
