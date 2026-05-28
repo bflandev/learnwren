@@ -29,7 +29,8 @@ This guide covers **every feature wired up so far** from two angles:
 | Identity | Logged-out password reset | Built |
 | Identity | Session cookie + protected routes | Built |
 | Identity | Text profile editing (displayName + biography) | Built (2026-05-27) |
-| Identity | Profile picture upload, email change, password change | Not built |
+| Identity | Profile picture upload / replace / remove | Built (2026-05-28) |
+| Identity | Email change, password change | Not built |
 | Authoring | Instructor role promotion (CLI tool) | Built |
 | Authoring | Course create / edit / delete | Built |
 | Authoring | Modules & lessons, drag-and-drop reorder | Built |
@@ -204,12 +205,12 @@ See the header comment in `tools/promote-to-instructor.ts`.
 
 Once promoted and re-signed-in, the **`/courses`** area becomes accessible.
 
-## 2.7 Editing your profile (UC-01-03 Slice A)
+## 2.7 Editing your profile (UC-01-03 Slices A + B)
 
-Every logged-in user can update their **display name** and **biography** from the
-profile settings page.
+Every logged-in user can update their **display name**, **biography**, and
+**profile picture** from the profile settings page.
 
-**How to reach it:** click the **initials chip** in the top-right corner of the header
+**How to reach it:** click the **avatar chip** in the top-right corner of the header
 and select **Profile settings** — or navigate directly to `/settings/profile`.
 
 On the page you will find:
@@ -222,16 +223,31 @@ On the page you will find:
 Click **Save** to persist the changes. The header chip updates immediately to reflect
 your new display name.
 
+### Profile picture
+
+From the same `/settings/profile` page you can manage your avatar:
+
+- **Upload** — select a **JPEG** or **PNG** file that is **≤ 2 MB** and at least
+  **256×256 pixels**. The server re-encodes the image to a canonical 512×512 JPEG so
+  every avatar surface renders consistently.
+- **Replace** — uploading a new file from the same control overwrites the previous
+  picture.
+- **Remove** — once a picture is set, a **Remove** button appears and clears it.
+- **Fallback** — when no picture is set, the platform renders your initials on a
+  coloured tile. The colour is derived deterministically from your user id, so your
+  initials chip stays the same colour across sessions.
+- **Surfaces** — the header avatar updates immediately after upload or removal; your
+  avatar also appears next to your courses on the public catalogue cards and on the
+  course-detail instructor card (which renders alongside your biography).
+
 **What is not yet available:**
 
-- **Profile picture** — no picture upload or crop flow; the initials chip is the
-  current avatar.
 - **Email address change** — contact a platform admin if you need to change your
   login email.
 - **Password change** — use the **Forgot password?** flow on the login page to
   reset your password.
 
-These sub-flows (UC-01-03 extensions 3a / 3b / 3c) are deferred to later slices.
+These sub-flows (UC-01-03 extensions 3b / 3c) are deferred to later slices.
 
 ## 2.8 Creating and structuring a course
 
@@ -844,7 +860,7 @@ These are specified in `docs/epics/` and `docs/use-cases/` but **not yet impleme
 - **Self-service instructor requests** — promotion is CLI-only; there is no in-app
   "become an instructor" flow.
 - **Instructor dashboard (EP-07)** and **platform administration (EP-08)** — post-MVP.
-- **Profile picture upload, email change, and password change** — text profile editing (displayName + biography) shipped 2026-05-27 (UC-01-03 Slice A). The picture-upload (ext 3a), email-change (ext 3b), and password-change (ext 3c) sub-flows are deferred. Account deletion, social auth, and App Check are also out of scope so far.
+- **Email change and password change** — text profile editing (displayName + biography) shipped 2026-05-27 (UC-01-03 Slice A) and profile picture upload/replace/remove shipped 2026-05-28 (UC-01-03 Slice B). The email-change (ext 3b) and password-change (ext 3c) sub-flows are deferred. Account deletion, social auth, and App Check are also out of scope so far.
 
 ## Further reading
 
