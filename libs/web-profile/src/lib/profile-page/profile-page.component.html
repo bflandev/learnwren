@@ -70,4 +70,76 @@
       }
     </div>
   </form>
+
+  @if (readonly()) {
+    <section class="mt-8 flex flex-col gap-3 border-t border-line pt-6">
+      <h2 class="text-lg font-serif">Email address</h2>
+
+      @if (emailStatus() === 'sent' && pendingEmail(); as pending) {
+        <p class="text-sm text-good" data-testid="email-change-sent">
+          We've sent a verification link to {{ pending }}. Click it to finish changing your
+          email — your current address stays active until you do.
+        </p>
+      } @else {
+        <div>
+          <button
+            lwButton
+            variant="ghost"
+            type="button"
+            data-testid="toggle-email-change"
+            [attr.aria-expanded]="emailFormOpen()"
+            (click)="toggleEmailForm()"
+          >
+            Change email
+          </button>
+        </div>
+      }
+
+      @if (emailFormOpen()) {
+        <form
+          [formGroup]="emailForm"
+          (ngSubmit)="submitEmailChange()"
+          class="flex flex-col gap-3 border border-line rounded p-4"
+        >
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink-2">New email address</span>
+            <input lwInput type="email" formControlName="newEmail" aria-describedby="newEmail-err" />
+            @if (emailForm.controls.newEmail.touched && emailForm.controls.newEmail.invalid) {
+              <span id="newEmail-err" class="text-sm text-bad">
+                @if (emailForm.controls.newEmail.errors?.['server']) {
+                  {{ emailForm.controls.newEmail.errors?.['server'] }}
+                } @else {
+                  Enter a valid email address.
+                }
+              </span>
+            }
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink-2">Current password</span>
+            <input lwInput type="password" formControlName="currentPassword" aria-describedby="curpw-err" />
+            @if (emailForm.controls.currentPassword.touched && emailForm.controls.currentPassword.invalid) {
+              <span id="curpw-err" class="text-sm text-bad">
+                @if (emailForm.controls.currentPassword.errors?.['server']) {
+                  {{ emailForm.controls.currentPassword.errors?.['server'] }}
+                } @else {
+                  Your current password is required.
+                }
+              </span>
+            }
+          </label>
+          <div>
+            <button
+              lwButton
+              variant="primary"
+              type="submit"
+              data-testid="submit-email-change"
+              [disabled]="emailStatus() === 'sending'"
+            >
+              Send verification
+            </button>
+          </div>
+        </form>
+      }
+    </section>
+  }
 </section>
