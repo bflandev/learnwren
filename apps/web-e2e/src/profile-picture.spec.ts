@@ -72,9 +72,10 @@ test('UC-01-03 Slice B — user uploads profile picture, it persists across relo
   await expect(headerChip.locator('img.lw-avatar-image')).toBeVisible({ timeout: 10_000 });
   await expect(headerChip.locator('.lw-avatar-initials')).toHaveCount(0);
 
-  // Grab the src so we can assert it survives reload.
+  // Grab the src so we can assert it survives reload. The preceding
+  // toHaveAttribute('src', /.+/) guarantees the attribute is a non-empty string.
+  await expect(headerChip.locator('img.lw-avatar-image')).toHaveAttribute('src', /.+/);
   const uploadedSrc = await headerChip.locator('img.lw-avatar-image').getAttribute('src');
-  expect(uploadedSrc).toBeTruthy();
 
   // The uploader's own preview should also be an image now.
   await expect(
