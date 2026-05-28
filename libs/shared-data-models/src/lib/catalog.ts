@@ -1,4 +1,4 @@
-import type { CourseId, ISODateString, LessonId } from './common';
+import type { CourseId, ISODateString, LessonId, UserId } from './common';
 import type { CourseCategory, CourseDifficulty } from './course';
 
 /**
@@ -13,7 +13,9 @@ export interface CourseSummary {
   description: string;
   category?: CourseCategory;
   difficulty?: CourseDifficulty;
+  instructorId: UserId;
   instructorDisplayName: string;
+  instructorPhotoUrl?: string;
   publishedAt: ISODateString;
   coverImageUrl?: string;
 }
@@ -48,7 +50,10 @@ export interface CourseCatalogDetail {
   longDescription?: string;
   category?: CourseCategory;
   difficulty?: CourseDifficulty;
+  instructorId: UserId;
   instructorDisplayName: string;
+  instructorPhotoUrl?: string;
+  instructorBiography?: string;
   lessonCount: number;
   modules: CatalogModuleOutline[];
   publishedAt: ISODateString;
