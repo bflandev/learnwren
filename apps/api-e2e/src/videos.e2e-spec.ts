@@ -40,10 +40,10 @@ async function createCourseModuleLesson(
   return { course, mod, lesson };
 }
 
-// Quarantined (test.fixme): the tests below exercise the real video upload /
-// ffprobe / Cloud Storage path, which needs GCP credentials and real buckets
-// and so cannot run in the credential-free CI. Restore them once a fake
-// source-storage seam exists — the playback path already has one.
+// The video upload / transcode path runs credential-free in CI: the fake
+// source-probe seam (LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE) and the
+// in-memory fake transcoder stand in for GCP. The fake-transcoder webhook
+// drives TRANSCODING → READY/FAILED via the production event handler.
 test('video upload happy path', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };
@@ -173,12 +173,7 @@ test('422 upload-object-missing when complete called before any bytes', async ({
   expect(((await r.json()) as { error: { code: string } }).error.code).toBe('UPLOAD_OBJECT_MISSING');
 });
 
-// FOLLOWUP(fake-transcoder-ready-chain): the fake source-probe seam lets the
-// upload reach TRANSCODING, but the fake-transcoder/complete chain does NOT
-// then transition TRANSCODING -> READY in this env (the test expects
-// state=READY, gets TRANSCODING). Needs a separate look at how
-// TranscoderEventsController applies the synthesized SUCCEEDED envelope.
-test.fixme('upload → transcoding → READY via fake completer', async ({ request }) => {
+test('upload → transcoding → READY via fake completer', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };
   const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
@@ -204,7 +199,9 @@ test.fixme('upload → transcoding → READY via fake completer', async ({ reque
   expect(afterComplete.transcoderJobName).toBeTruthy();
 
   const completeRes = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
-  expect(completeRes.status()).toBe(200);
+  // 204 — the event handler ACTED on the transition (TRANSCODING → READY).
+  // A 200 would signal a no-op (e.g. JOB_NAME_MISMATCH / ALREADY_APPLIED).
+  expect(completeRes.status()).toBe(204);
 
   const get = await request.get(`${API_BASE}/videos/${videoId}`, { headers: hdr });
   const ready = (await get.json()) as { state: string; output?: { manifestPath: string; durationSec: number } };
@@ -213,12 +210,7 @@ test.fixme('upload → transcoding → READY via fake completer', async ({ reque
   expect(ready.output?.durationSec).toBeGreaterThan(0);
 });
 
-// FOLLOWUP(fake-transcoder-ready-chain): the fake-transcoder /fail/:vid
-// endpoint posts a synthesized Pub/Sub envelope at the production-style
-// webhook route, but the video stays in TRANSCODING — the envelope path
-// through the auth + dispatch chain is not transitioning the video to FAILED
-// in this local env. Same TranscoderEventsController bug as the READY path.
-test.fixme('fake-transcoder fail path → FAILED with reason', async ({ request }) => {
+test('fake-transcoder fail path → FAILED with reason', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };
   const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
@@ -244,10 +236,7 @@ test.fixme('fake-transcoder fail path → FAILED with reason', async ({ request 
   expect(failed.failureReason).toMatch(/TRANSCODE_FAILED.*unsupported codec/);
 });
 
-// FOLLOWUP(fake-transcoder-ready-chain): same root cause as the
-// upload→transcoding→READY test above — the second call's idempotency code
-// (ALREADY_APPLIED) is gated on a state that the first call doesn't reach.
-test.fixme('fake-completer is idempotent — second call is a no-op', async ({ request }) => {
+test('fake-completer is idempotent — second call is a no-op', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };
   const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
@@ -264,8 +253,10 @@ test.fixme('fake-completer is idempotent — second call is a no-op', async ({ r
   await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
 
   const first = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
-  expect(first.status()).toBe(200);
+  // First call acts on TRANSCODING → READY (204).
+  expect(first.status()).toBe(204);
 
+  // Second call is a no-op: the video is already READY (200 + ALREADY_APPLIED).
   const second = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
   expect(second.status()).toBe(200);
   const body = (await second.json()) as { acked: boolean; reason: string };

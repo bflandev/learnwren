@@ -40,11 +40,11 @@ async function createCourseModuleLesson(
   return { course, mod, lesson };
 }
 
-// Quarantined (test.fixme): a few tests in this file drive a video to READY,
-// which needs the real video upload / transcoder / Cloud Storage path with
-// GCP credentials and so cannot run in the credential-free CI. Restore them
-// once a fake source-storage seam exists — the playback path already has one.
-test.fixme(
+// These tests drive a video to READY through the real upload/transcode
+// pipeline, which runs credential-free in CI via the fake source-probe seam
+// and the in-memory fake transcoder (the fake-transcoder webhook applies the
+// TRANSCODING → READY transition).
+test(
   'publish gate happy path: round-trips DRAFT → PUBLISHED → DRAFT → ARCHIVED → DRAFT',
   async ({ request }) => {
     // 1. Register + promote instructor
@@ -268,7 +268,7 @@ test.describe('Course publish gate — eligibility branches', () => {
     ]);
   });
 
-  test.fixme('LESSON_VIDEO_NOT_READY — upload completes but transcoder has not finished', async ({
+  test('LESSON_VIDEO_NOT_READY — upload completes but transcoder has not finished', async ({
     request,
   }) => {
     const instructor = await registerAndPromoteInstructor(request);
@@ -417,7 +417,7 @@ test.describe('Course publish gate — auth + state-machine errors', () => {
     expect(body.error.code).toBe('COURSE_ARCHIVED');
   });
 
-  test.fixme('409 INVALID_TRANSITION when publishing an already-PUBLISHED course', async ({ request }) => {
+  test('409 INVALID_TRANSITION when publishing an already-PUBLISHED course', async ({ request }) => {
     const instructor = await registerAndPromoteInstructor(request);
     const hdr = { Cookie: instructor.cookieHeader };
 
@@ -506,7 +506,7 @@ test.describe('Course publish gate — auth + state-machine errors', () => {
     expect(body.error.details?.reasons).toEqual([{ kind: 'COURSE_HAS_NO_MODULES' }]);
   });
 
-  test.fixme('serializes concurrent publish calls — one 200, one 409', async ({ request }) => {
+  test('serializes concurrent publish calls — one 200, one 409', async ({ request }) => {
     const instructor = await registerAndPromoteInstructor(request);
     const hdr = { Cookie: instructor.cookieHeader };
 

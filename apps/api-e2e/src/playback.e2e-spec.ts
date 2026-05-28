@@ -13,10 +13,11 @@ import {
 initAdmin();
 
 // ──────────────────────── Firestore seed helpers ────────────────────────
-// These helpers write directly to Firestore (via the Admin SDK) so the tests
-// do not depend on the upload/transcode pipeline that is still broken in the
-// local emulator environment (TRANSCODING → READY transition not wired up for
-// the fake transcoder). They mirror the pattern used in learn.e2e-spec.ts.
+// These helpers write a READY video straight into Firestore (via the Admin
+// SDK) so the access-control tests can seed a fixed state without running the
+// full upload/transcode pipeline each time. They mirror the pattern used in
+// learn.e2e-spec.ts. (The pipeline itself works end-to-end in the emulator —
+// see the uploadAndTranscode-driven tests further down.)
 
 /** Seed a course document straight into Firestore. */
 async function seedCourse(args: {
@@ -144,19 +145,16 @@ async function uploadAndTranscode(
   const fake = await request.post(
     `${API_BASE}/internal/fake-transcoder/complete/${sess.videoId}`,
   );
-  expect(fake.status()).toBe(200);
+  // 204 — the event handler acted on the TRANSCODING → READY transition.
+  expect(fake.status()).toBe(204);
 
   return { courseId: c.id, moduleId: m.id, lessonId: l.id, videoId: sess.videoId };
 }
 
-// FOLLOWUP(fake-transcoder-ready-chain): the 2026-05-23 fake source-probe
-// seam fixed the upload-complete probe (videos can now reach TRANSCODING in
-// emulator mode), but the fake-transcoder/complete chain does NOT then
-// transition TRANSCODING -> READY in this env. The playback tests below all
-// require a READY video, so they still fail (the access guards return 409
-// VIDEO_NOT_READY). Needs a separate look at TranscoderEventsController ->
-// VideoService.applyTranscoderResult under the fake transcoder envelope.
-test.fixme('owner can fetch master, rendition, and key', async ({ request }) => {
+// These tests drive a video to READY through the real upload/transcode
+// pipeline (uploadAndTranscode → fake source-probe seam + fake transcoder),
+// then exercise the playback endpoints against the fake playback storage.
+test('owner can fetch master, rendition, and key', async ({ request }) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };
   const { videoId } = await uploadAndTranscode(request, hdr);
@@ -191,6 +189,12 @@ test.fixme('owner can fetch master, rendition, and key', async ({ request }) => 
   expect(keyBody.length).toBe(16);
 });
 
+// Quarantined (cookie carryover, NOT the ready-chain): uploadAndTranscode
+// logs in through the shared Playwright `request` fixture, whose cookie jar
+// then retains __session. The header-less GETs below therefore travel
+// authenticated-as-owner and return 200 instead of 401. Needs a fresh request
+// context (or storageState reset) for the unauthenticated probes — same fix as
+// the videos.e2e-spec.ts 401/403 matrix test.
 test.fixme('401 unauthenticated for every playback endpoint', async ({ request }) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };
@@ -206,7 +210,7 @@ test.fixme('401 unauthenticated for every playback endpoint', async ({ request }
   }
 });
 
-test.fixme('403 NOT_VIDEO_OWNER for a different instructor', async ({ request }) => {
+test('403 NOT_VIDEO_OWNER for a different instructor', async ({ request }) => {
   const owner = await registerAndPromoteInstructor(request);
   const ownerHdr = { Cookie: owner.cookieHeader };
   const { videoId } = await uploadAndTranscode(request, ownerHdr);
@@ -295,7 +299,7 @@ test('404 VIDEO_NOT_FOUND for a missing :vid', async ({ request }) => {
   expect(((await r.json()) as { error: { code: string } }).error.code).toBe('VIDEO_NOT_FOUND');
 });
 
-test.fixme('404 RENDITION_NOT_FOUND for an unknown rendition', async ({ request }) => {
+test('404 RENDITION_NOT_FOUND for an unknown rendition', async ({ request }) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };
   const { videoId } = await uploadAndTranscode(request, hdr);
