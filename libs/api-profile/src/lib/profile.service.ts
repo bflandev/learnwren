@@ -14,6 +14,7 @@ import { ProfileInvalidException } from './errors/profile.exception';
 interface UserDoc {
   displayName: string;
   biography?: string;
+  photoUrl?: string;
   role: UserRole;
 }
 
@@ -33,6 +34,7 @@ export class ProfileService {
       email: fromCookie.email,
       displayName: data.displayName,
       biography: data.biography ?? '',
+      ...(data.photoUrl ? { photoUrl: data.photoUrl } : {}),
       role: data.role,
       emailVerified: fromCookie.emailVerified,
     };
@@ -64,6 +66,7 @@ export class ProfileService {
       uid,
       email: fromCookie.email,
       displayName: data.displayName,
+      ...(data.photoUrl ? { photoUrl: data.photoUrl } : {}),
       role: data.role,
       emailVerified: fromCookie.emailVerified,
     };

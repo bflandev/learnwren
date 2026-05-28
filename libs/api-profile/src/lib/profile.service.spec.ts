@@ -121,4 +121,38 @@ describe('ProfileService', () => {
     const svc = new ProfileService(firestore);
     await expect(svc.getProfile(UID, FROM_COOKIE)).rejects.toThrow();
   });
+
+  it('getProfile returns photoUrl when the user doc carries one', async () => {
+    const { firestore } = makeFirestore({
+      exists: true,
+      data: {
+        displayName: 'Ada',
+        biography: '',
+        role: 'STUDENT',
+        photoUrl: 'https://cdn.example.com/avatar.jpg',
+      },
+    });
+    const svc = new ProfileService(firestore);
+    const view = await svc.getProfile(UID, FROM_COOKIE);
+    expect(view.photoUrl).toContain('avatar.jpg');
+  });
+
+  it('updateProfile returns MeResponse including photoUrl when stored', async () => {
+    const { firestore } = makeFirestore({
+      exists: true,
+      data: {
+        displayName: 'Old',
+        biography: '',
+        role: 'STUDENT',
+        photoUrl: 'https://cdn.example.com/avatar.jpg',
+      },
+    });
+    const svc = new ProfileService(firestore);
+    const me = await svc.updateProfile(
+      UID,
+      { displayName: 'Ada Lovelace', biography: 'Mathematician.' },
+      FROM_COOKIE,
+    );
+    expect(me.photoUrl).toContain('avatar.jpg');
+  });
 });
