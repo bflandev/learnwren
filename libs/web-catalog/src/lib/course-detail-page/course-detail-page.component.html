@@ -21,7 +21,6 @@
 
       <header class="flex flex-col gap-3">
         <h1 class="text-3xl text-ink">{{ course()!.title }}</h1>
-        <p class="text-ink-2">By {{ course()!.instructorDisplayName }}</p>
         <div class="flex flex-wrap gap-2">
           @if (course()!.difficulty) {
             <lw-pill tone="default">{{ course()!.difficulty }}</lw-pill>
@@ -47,6 +46,20 @@
           </span>
         }
       </header>
+
+      <lw-card data-test="instructor-card" class="flex items-start gap-4 p-4">
+        <lw-avatar
+          [photoUrl]="course()!.instructorPhotoUrl"
+          [displayName]="course()!.instructorDisplayName"
+          [userId]="course()!.instructorId"
+          size="md" />
+        <div>
+          <p class="font-medium text-ink">{{ course()!.instructorDisplayName }}</p>
+          @if (course()!.instructorBiography) {
+            <p data-test="instructor-bio" class="text-ink-2 mt-1">{{ course()!.instructorBiography }}</p>
+          }
+        </div>
+      </lw-card>
 
       <p class="text-ink">{{ course()!.description }}</p>
       @if (course()!.longDescription) {
