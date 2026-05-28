@@ -7,6 +7,7 @@ export interface User {
   email: string;
   displayName: string;
   biography: string;
+  photoUrl?: string;
   role: UserRole;
   createdAt: ISODateString;
   updatedAt: ISODateString;
