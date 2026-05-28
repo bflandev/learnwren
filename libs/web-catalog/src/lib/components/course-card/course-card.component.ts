@@ -2,13 +2,19 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { RouterLink } from '@angular/router';
 
 import type { CourseSummary } from '@learnwren/shared-data-models';
-import { LwCardComponent, LwCoverComponent, LwPillComponent, coverToneForId } from '@learnwren/web-ui';
+import {
+  LwAvatarComponent,
+  LwCardComponent,
+  LwCoverComponent,
+  LwPillComponent,
+  coverToneForId,
+} from '@learnwren/web-ui';
 
 @Component({
   selector: 'lib-course-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, LwCardComponent, LwCoverComponent, LwPillComponent],
+  imports: [RouterLink, LwAvatarComponent, LwCardComponent, LwCoverComponent, LwPillComponent],
   templateUrl: './course-card.component.html',
 })
 export class CourseCardComponent {

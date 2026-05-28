@@ -54,4 +54,35 @@ describe('CourseCardComponent', () => {
     const el = render(summaryWithoutDifficulty);
     expect(el.querySelector('lw-pill')).toBeNull();
   });
+
+  it('renders <lw-avatar> bound to instructorPhotoUrl + instructorId', () => {
+    const summaryWithPhoto: CourseSummary = {
+      id: 'c-1' as CourseSummary['id'],
+      title: 'Intro',
+      description: 'd',
+      instructorId: 'u-1' as CourseSummary['instructorId'],
+      instructorDisplayName: 'Ada',
+      instructorPhotoUrl: 'https://x/avatar.jpg?v=1',
+      publishedAt: '2026-05-28T00:00:00.000Z' as CourseSummary['publishedAt'],
+    };
+    const el = render(summaryWithPhoto);
+    const avatar = el.querySelector('lw-avatar');
+    expect(avatar).toBeTruthy();
+    const img = avatar?.querySelector('img');
+    expect(img?.getAttribute('src')).toContain('avatar.jpg');
+  });
+
+  it('renders initials fallback when instructorPhotoUrl is absent', () => {
+    const summaryNoPhoto: CourseSummary = {
+      id: 'c-1' as CourseSummary['id'],
+      title: 'Intro',
+      description: 'd',
+      instructorId: 'u-1' as CourseSummary['instructorId'],
+      instructorDisplayName: 'Ada',
+      publishedAt: '2026-05-28T00:00:00.000Z' as CourseSummary['publishedAt'],
+    };
+    const el = render(summaryNoPhoto);
+    expect(el.querySelector('lw-avatar img')).toBeNull();
+    expect(el.querySelector('lw-avatar .lw-avatar-initials')?.textContent?.trim()).toBe('AD');
+  });
 });
