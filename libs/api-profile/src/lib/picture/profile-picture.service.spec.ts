@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
+import type { FirestoreHandle } from '@learnwren/api-firebase';
+import type { UserId } from '@learnwren/shared-data-models';
 import { FakePictureStorageAdapter } from './fake-picture-storage.adapter';
 import {
   PictureDecodeFailedException,
@@ -65,7 +67,7 @@ describe('ProfilePictureService', () => {
     firestore.store.set('users/u1', { displayName: 'Ada', biography: '', role: 'STUDENT' });
     service = new ProfilePictureService(
       storage,
-      firestore as never,
+      firestore as unknown as FirestoreHandle,
       cfg,
       // delete-sentinel injection (see impl note): allow the service to ask the fake for its delete sentinel
       DELETE_SENTINEL as never,
@@ -74,7 +76,7 @@ describe('ProfilePictureService', () => {
 
   it('happy path: 256x256 JPEG → stores a 512x512 JPEG (or smaller — 256x256 not upscaled) and returns MeResponse with photoUrl', async () => {
     const me = await service.uploadPicture(
-      'u1' as never,
+      'u1' as UserId,
       await jpeg(256, 256),
       'image/jpeg',
       { email: 'a@b.com', emailVerified: true },
@@ -93,7 +95,7 @@ describe('ProfilePictureService', () => {
 
   it('1024x768 JPEG → centre-cropped to a square (768x768) then downscaled to 512x512', async () => {
     await service.uploadPicture(
-      'u1' as never,
+      'u1' as UserId,
       await jpeg(1024, 768),
       'image/jpeg',
       { email: 'a@b.com', emailVerified: true },
@@ -106,7 +108,7 @@ describe('ProfilePictureService', () => {
 
   it('200x800 PNG → PictureDimensionsTooSmallException with the actual dims', async () => {
     await expect(
-      service.uploadPicture('u1' as never, await png(200, 800), 'image/png', { email: 'a@b.com', emailVerified: true }),
+      service.uploadPicture('u1' as UserId, await png(200, 800), 'image/png', { email: 'a@b.com', emailVerified: true }),
     ).rejects.toMatchObject({
       code: 'PROFILE_PICTURE_DIMENSIONS_TOO_SMALL',
       details: { width: 200, height: 800 },
@@ -115,13 +117,13 @@ describe('ProfilePictureService', () => {
 
   it('corrupt buffer → PictureDecodeFailedException', async () => {
     await expect(
-      service.uploadPicture('u1' as never, Buffer.from('not an image'), 'image/jpeg', { email: 'a@b.com', emailVerified: true }),
+      service.uploadPicture('u1' as UserId, Buffer.from('not an image'), 'image/jpeg', { email: 'a@b.com', emailVerified: true }),
     ).rejects.toBeInstanceOf(PictureDecodeFailedException);
   });
 
   it('writes photoUrl and updatedAt onto the user doc with the same ?v= timestamp', async () => {
     const me = await service.uploadPicture(
-      'u1' as never,
+      'u1' as UserId,
       await jpeg(256, 256),
       'image/jpeg',
       { email: 'a@b.com', emailVerified: true },
@@ -133,8 +135,8 @@ describe('ProfilePictureService', () => {
   });
 
   it('removePicture deletes the blob, unsets photoUrl, bumps updatedAt, returns MeResponse without photoUrl', async () => {
-    await service.uploadPicture('u1' as never, await jpeg(256, 256), 'image/jpeg', { email: 'a@b.com', emailVerified: true });
-    const me = await service.removePicture('u1' as never, { email: 'a@b.com', emailVerified: true });
+    await service.uploadPicture('u1' as UserId, await jpeg(256, 256), 'image/jpeg', { email: 'a@b.com', emailVerified: true });
+    const me = await service.removePicture('u1' as UserId, { email: 'a@b.com', emailVerified: true });
     expect(me.photoUrl).toBeUndefined();
     expect(storage.has('profile-pictures/u1/avatar.jpg')).toBe(false);
     const doc = firestore.store.get('users/u1') as Record<string, unknown>;

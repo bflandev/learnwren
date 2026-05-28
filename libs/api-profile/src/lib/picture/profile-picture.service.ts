@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import sharp from 'sharp';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -23,20 +23,16 @@ interface UserDoc {
 
 @Injectable()
 export class ProfilePictureService {
-  private readonly fieldDeleteValue: unknown;
-
   constructor(
     @Inject(PICTURE_STORAGE) private readonly storage: PictureStoragePort,
     @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
     @Inject(PICTURE_CONFIG) private readonly cfg: PictureConfig,
-    // Production default uses FieldValue.delete(); tests inject a sentinel.
-    // The 4th arg is positional (not @Inject'd) so Nest's DI ignores it; the
-    // controller wiring constructs the service via Nest with 3 args and gets
-    // the default. Tests construct it directly with 4 args.
-    @Optional() fieldDeleteValue?: unknown,
-  ) {
-    this.fieldDeleteValue =
-      fieldDeleteValue !== undefined ? fieldDeleteValue : FieldValue.delete();
+    /** @internal test-only seam for the Firestore `FieldValue.delete()` sentinel. */
+    private readonly fieldDeleteValue: unknown = FieldValue.delete(),
+  ) {}
+
+  private pathFor(uid: UserId): string {
+    return `profile-pictures/${uid}/avatar.jpg`;
   }
 
   async uploadPicture(
@@ -48,14 +44,14 @@ export class ProfilePictureService {
     let meta: sharp.Metadata;
     try {
       meta = await sharp(body, { failOn: 'truncated' }).metadata();
-    } catch {
-      throw new PictureDecodeFailedException();
+    } catch (err) {
+      throw new PictureDecodeFailedException({ cause: err });
     }
     const width = meta.width ?? 0;
     const height = meta.height ?? 0;
     if (!width || !height) throw new PictureDecodeFailedException();
-    const minSide = Math.min(width, height);
-    if (minSide < MIN_SIDE) {
+    const shorterSide = Math.min(width, height);
+    if (shorterSide < MIN_SIDE) {
       throw new PictureDimensionsTooSmallException({ width, height });
     }
 
@@ -63,7 +59,7 @@ export class ProfilePictureService {
     // .resize() call, so we centre-crop to a square in stage 1 and pipe its
     // PNG output into stage 2 which downscales to 512x512 (no upscaling).
     const square = await sharp(body, { failOn: 'truncated' })
-      .resize(minSide, minSide, { fit: 'cover', position: 'centre' })
+      .resize(shorterSide, shorterSide, { fit: 'cover', position: 'centre' })
       .png()
       .toBuffer();
     const jpeg = await sharp(square, { failOn: 'truncated' })
@@ -71,7 +67,7 @@ export class ProfilePictureService {
       .jpeg({ quality: 85, mozjpeg: true })
       .toBuffer();
 
-    const path = `profile-pictures/${uid}/avatar.jpg`;
+    const path = this.pathFor(uid);
     await this.storage.putObject({
       path,
       contentType: 'image/jpeg',
@@ -93,7 +89,7 @@ export class ProfilePictureService {
     uid: UserId,
     fromCookie: { email: string; emailVerified: boolean },
   ): Promise<MeResponse> {
-    const path = `profile-pictures/${uid}/avatar.jpg`;
+    const path = this.pathFor(uid);
     await this.storage.deleteObject({ path });
     const updatedAt = new Date().toISOString();
     await this.firestore.collection('users').doc(uid).update({
