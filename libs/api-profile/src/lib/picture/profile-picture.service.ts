@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import sharp from 'sharp';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -28,7 +28,7 @@ export class ProfilePictureService {
     @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
     @Inject(PICTURE_CONFIG) private readonly cfg: PictureConfig,
     /** @internal test-only seam for the Firestore `FieldValue.delete()` sentinel. */
-    private readonly fieldDeleteValue: unknown = FieldValue.delete(),
+    @Optional() private readonly fieldDeleteValue: unknown = FieldValue.delete(),
   ) {}
 
   private pathFor(uid: UserId): string {
