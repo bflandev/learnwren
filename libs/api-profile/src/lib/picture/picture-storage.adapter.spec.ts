@@ -34,7 +34,7 @@ describe('FirebasePictureStorageAdapter', () => {
     const storage = {
       bucket: () => ({
         file: () => ({
-          delete: async () => { const e: { code?: number } = new Error('not found'); e.code = 404; throw e; },
+          delete: async () => { throw Object.assign(new Error('not found'), { code: 404 }); },
         }),
       }),
     };
