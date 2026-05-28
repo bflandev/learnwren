@@ -90,3 +90,36 @@ describe('EmailChangeService.requestChange', () => {
     });
   });
 });
+
+describe('EmailChangeService.confirmChange', () => {
+  it('returns changed:false and does nothing when the email has not swapped', async () => {
+    const { svc, auth } = makeService();
+    auth.getUser = vi.fn().mockResolvedValue({ email: 'old@example.com', emailVerified: true });
+    const res = await svc.confirmChange(UID, 'old@example.com');
+    expect(res).toEqual({ changed: false });
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+  });
+
+  it('returns changed:false when the new email is not yet verified', async () => {
+    const { svc, auth } = makeService();
+    auth.getUser = vi.fn().mockResolvedValue({ email: 'new@example.com', emailVerified: false });
+    const res = await svc.confirmChange(UID, 'old@example.com');
+    expect(res).toEqual({ changed: false });
+  });
+
+  it('syncs Firestore, revokes tokens, and returns changed:true on a verified swap', async () => {
+    const { svc, auth } = makeService();
+    const update = vi.fn().mockResolvedValue(undefined);
+    auth.getUser = vi.fn().mockResolvedValue({ email: 'new@example.com', emailVerified: true });
+    // Re-point firestore so we can assert the update payload.
+    (svc as unknown as { firestore: unknown }).firestore = {
+      collection: () => ({ doc: () => ({ update }) }),
+    };
+    const res = await svc.confirmChange(UID, 'old@example.com');
+    expect(res).toEqual({ changed: true, email: 'new@example.com' });
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'new@example.com', updatedAt: expect.any(String) }),
+    );
+    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith(UID);
+  });
+});

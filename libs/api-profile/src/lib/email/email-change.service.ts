@@ -12,7 +12,7 @@ import {
   FIRESTORE,
   type FirestoreHandle,
 } from '@learnwren/api-firebase';
-import type { UserId } from '@learnwren/shared-data-models';
+import type { ConfirmEmailChangeResponse, UserId } from '@learnwren/shared-data-models';
 
 import {
   CurrentPasswordInvalidException,
@@ -62,6 +62,27 @@ export class EmailChangeService {
       throw new EmailChangeFailedException(err instanceof Error ? { cause: err } : undefined);
     }
     this.logger.log(`[profile] email-change requested uid=${uid}`);
+  }
+
+  async confirmChange(uid: UserId, cookieEmail: string): Promise<ConfirmEmailChangeResponse> {
+    const user = await this.auth.getUser(uid);
+    const swapped =
+      !!user.email &&
+      user.email.toLowerCase() !== cookieEmail.trim().toLowerCase() &&
+      user.emailVerified === true;
+
+    if (!swapped) {
+      return { changed: false };
+    }
+
+    await this.firestore.collection('users').doc(uid).update({
+      email: user.email,
+      updatedAt: new Date().toISOString(),
+    });
+    await this.auth.revokeRefreshTokens(uid);
+
+    this.logger.log(`[profile] email-change confirmed uid=${uid}`);
+    return { changed: true, email: user.email };
   }
 
   private async verifyCurrentPassword(email: string, password: string): Promise<void> {
