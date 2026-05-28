@@ -7,6 +7,7 @@ describe('shared-data-models barrel', () => {
       id: 'u_123' as UserId,
       email: 'instructor@example.com',
       displayName: 'Ada Lovelace',
+      biography: '',
       role: 'INSTRUCTOR',
       createdAt: '2026-04-29T12:00:00.000Z' as ISODateString,
       updatedAt: '2026-04-29T12:00:00.000Z' as ISODateString,

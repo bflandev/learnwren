@@ -6,7 +6,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > **PROJECT STATUS: ACTIVE DEVELOPMENT**
 > Built in vertical slices. What is wired up today, end to end:
 >
-> - **EP-01 Identity & access** — register, email-verification gate, login, logout, brute-force lockout + email unlock, logged-out password reset, session cookie, protected routes.
+> - **EP-01 Identity & access** — register, email-verification gate, login, logout, brute-force lockout + email unlock, logged-out password reset, session cookie, protected routes. **Text profile editing** (displayName + biography) via `/settings/profile` shipped 2026-05-27 (UC-01-03 Slice A); picture upload, email change, and password change remain deferred.
 > - **EP-02 Course authoring** — instructor role promotion (CLI), REST course CRUD, modules and lessons, drag-and-drop reorder.
 > - **EP-03 Video & DRM** — resumable upload (MP4 / MOV / MKV ≤ 10 GB), GCP Transcoder → AES-128 HLS, owner playback in the lesson editor (hls.js, native HLS on Safari/iOS), publish / unpublish / archive / restore gate with structured eligibility feedback.
 > - **EP-04 Lesson materials** — attach / rename / remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB each); owners **and enrolled students on PUBLISHED courses** download via short-lived signed URL; the learn page surfaces a materials list with per-row Download buttons.

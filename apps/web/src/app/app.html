@@ -14,11 +14,12 @@
     <lib-course-search-bar />
     <lw-theme-toggle />
     @if (auth.isAuthenticated()) {
-      <span
+      <a
         role="img"
+        routerLink="/settings/profile"
         class="grid h-8 w-8 place-items-center rounded-full bg-ochre font-serif text-sm italic text-ochre-ink"
-        [attr.aria-label]="'Signed in as ' + (auth.currentUser()?.displayName ?? '')"
-        >{{ initials() }}</span
+        [attr.aria-label]="'Profile settings for ' + (auth.currentUser()?.displayName ?? '')"
+        >{{ initials() }}</a
       >
     } @else {
       <a routerLink="/login" class="lw-btn lw-btn-ghost">Log in</a>

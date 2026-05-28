@@ -325,6 +325,7 @@ describe('AuthService.register', () => {
         id: 'uid-123',
         email: validInput.email,
         displayName: validInput.displayName,
+        biography: '',
         role: 'STUDENT',
       }),
     );

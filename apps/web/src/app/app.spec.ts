@@ -96,4 +96,14 @@ describe('App', () => {
       (fixture.nativeElement as HTMLElement).querySelector('a[routerLink="/courses"]'),
     ).toBeNull();
   });
+
+  it('initials chip links to /settings/profile', async () => {
+    configure({ displayName: 'Etta Wren' });
+    await TestBed.inject(Router).navigateByUrl('/catalog');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const chip = fixture.nativeElement.querySelector('a[role="img"]') as HTMLAnchorElement | null;
+    expect(chip).toBeTruthy();
+    expect(chip?.getAttribute('href')).toBe('/settings/profile');
+  });
 });

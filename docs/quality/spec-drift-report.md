@@ -31,7 +31,7 @@ carries at least minor drift.
 
 | Epic | Use cases | Drift level | Headline |
 |---|---|---|---|
-| EP-01 — User Identity & Access | 4 | **Partial (2026-05-26)** | UC-01-01/02 built; UC-01-03/04 unbuilt; 2 minor behavioral divergences on shipped UCs |
+| EP-01 — User Identity & Access | 4 | **Partial (2026-05-27)** | UC-01-01/02 built; UC-01-03 Slice A (text profile) shipped 2026-05-27, picture/email/password deferred; UC-01-04 unbuilt; 2 minor behavioral divergences on shipped UCs |
 | EP-02 — Course Authoring | 5 | **Reconciled (2026-05-26)** | UC-02-01..05 all built; UC-02-05 (cover image) added; divergences are documented design choices |
 | EP-03 — Video Management & DRM | 5 | **Reconciled (2026-05-26)** | UC-03-01..04 built as scoped-down HLS + AES-128 (intentional); UC-03-05 unbuilt (admin scope → EP-08) |
 | EP-04 — Lesson Materials | 2 | **Reconciled (2026-05-26)** | UC-04-01/02 both built; UC-04-02 student download landed in `af5a928` |
@@ -100,10 +100,18 @@ cases each carry a high-severity behavioral contradiction.
 
 ### UC-01-03 — Manage User Profile
 
-- **NOT IMPLEMENTED** · High — The entire use case is unbuilt: no profile page or
-  route, no update endpoint (`/auth/me` is read-only), no profile-picture upload,
-  no change-email/change-password flow. The `users/{uid}` document has no
-  `biography` or `profilePicture` fields. `auth.service.ts:127-134`.
+- **PARTIAL — Slice A shipped 2026-05-27.** The main success scenario (steps 1–6)
+  is implemented for **text fields only** (displayName + biography). The
+  `/settings/profile` page is live; `PATCH /api/auth/profile` persists both fields;
+  `GET /api/auth/me` now returns `biography`. See
+  `docs/superpowers/specs/2026-05-27-uc-01-03-slice-a-text-profile-design.md`.
+- **NOT IMPLEMENTED** · High — Extension 3a (profile picture upload) remains
+  unbuilt: no picture upload endpoint, no `profilePicture` field on the
+  `users/{uid}` document.
+- **NOT IMPLEMENTED** · High — Extension 3b (email-address change with
+  re-verification flow) remains unbuilt.
+- **NOT IMPLEMENTED** · High — Extensions 3c / 3c-3a / 3c-4a (password change
+  with current-password verification) remain unbuilt.
 
 ### UC-01-04 — Request Instructor Role
 
@@ -336,10 +344,12 @@ stale and resolved.
    auths pre-verification; suspended-account error code; module-title prompt; lesson-
    delete cascade; publish-gate eligibility-preview + restore). The 5% upload-size
    tolerance (`SIZE_TOLERANCE = 1.05`) is still undocumented in the UCs.
-3. **Mark unbuilt use cases.** ✅ Addressed 2026-05-26 — only **UC-01-03 (Manage
-   Profile)**, **UC-01-04 (Request Instructor Role)**, and **UC-03-05 (Manage Video
-   Storage)** remain unbuilt in MVP scope; each is called out in the relevant
-   epic's DRIFT note. EP-05 and EP-06 are fully built.
+3. **Mark unbuilt use cases.** ✅ Addressed 2026-05-26; partially updated 2026-05-27 —
+   **UC-01-03 (Manage Profile) Slice A** shipped 2026-05-27 (text fields); the
+   picture/email/password sub-flows (exts 3a/3b/3c) remain unbuilt. **UC-01-04
+   (Request Instructor Role)** and **UC-03-05 (Manage Video Storage)** remain
+   entirely unbuilt; each is called out in the relevant epic's DRIFT note. EP-05
+   and EP-06 are fully built.
 4. **Re-label the publish gate** consistently — it is UC-02-04 (EP-02), not
    "EP-03 slice D". Two references remain in this report (above); historical plan
    docs under `docs/superpowers/plans/` are post-implementation summaries and need
