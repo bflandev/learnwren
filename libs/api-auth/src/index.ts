@@ -6,3 +6,10 @@ export type {
   AuthenticatedRequest,
   AuthenticatedUser,
 } from './lib/types/authenticated-request';
+export { FirebaseAuthRestClient } from './lib/firebase-auth-rest-client';
+export { SessionCookieHelper } from './lib/session-cookie.helper';
+export {
+  EMAIL_TRANSPORT,
+  type EmailTransport,
+  type EmailChangeVerificationEmailInput,
+} from './lib/email-transport/email-transport';
