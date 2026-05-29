@@ -4,6 +4,8 @@ import { createTransport, type Transporter } from 'nodemailer';
 import type {
   EmailChangeVerificationEmailInput,
   EmailTransport,
+  InstructorApplicationApprovedEmailInput,
+  InstructorApplicationDeclinedEmailInput,
   PasswordChangedEmailInput,
   PasswordResetEmailInput,
   UnlockEmailInput,
@@ -141,6 +143,47 @@ export class SmtpEmailTransport implements EmailTransport {
       this.logger.log(`[password-changed-email] sent to=${input.to}`);
     } catch (err) {
       this.logger.error(`[password-changed-email] send failed to=${input.to}: ${String(err)}`);
+      throw err;
+    }
+  }
+
+  async sendInstructorApplicationApprovedEmail(
+    input: InstructorApplicationApprovedEmailInput,
+  ): Promise<void> {
+    const text =
+      `Good news — your application to become a Learn Wren instructor has been approved.\n\n` +
+      `Sign out and sign back in to access instructor tools and start creating courses.`;
+    try {
+      await this.transporter.sendMail({
+        from: this.config.from,
+        to: input.to,
+        subject: 'Your Learn Wren instructor application was approved',
+        text,
+      });
+      this.logger.log(`[instructor-approved-email] sent to=${input.to}`);
+    } catch (err) {
+      this.logger.error(`[instructor-approved-email] send failed to=${input.to}: ${String(err)}`);
+      throw err;
+    }
+  }
+
+  async sendInstructorApplicationDeclinedEmail(
+    input: InstructorApplicationDeclinedEmailInput,
+  ): Promise<void> {
+    const text =
+      `Thank you for your interest in teaching on Learn Wren.\n\n` +
+      `After review, your instructor application was not approved at this time. ` +
+      `You're welcome to apply again from your profile settings.`;
+    try {
+      await this.transporter.sendMail({
+        from: this.config.from,
+        to: input.to,
+        subject: 'Update on your Learn Wren instructor application',
+        text,
+      });
+      this.logger.log(`[instructor-declined-email] sent to=${input.to}`);
+    } catch (err) {
+      this.logger.error(`[instructor-declined-email] send failed to=${input.to}: ${String(err)}`);
       throw err;
     }
   }
