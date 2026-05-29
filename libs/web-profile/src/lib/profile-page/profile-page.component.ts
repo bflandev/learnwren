@@ -13,6 +13,7 @@ import { ProfileService } from '../profile.service';
 import { ProfilePictureUploaderComponent } from '../picture/profile-picture-uploader.component';
 import { EmailChangeService } from '../email/email-change.service';
 import { PasswordChangeService } from '../password/password-change.service';
+import { InstructorApplicationComponent } from '../instructor-application/instructor-application.component';
 
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 type EmailStatus = 'idle' | 'sending' | 'sent' | 'error';
@@ -28,7 +29,7 @@ function confirmMatchesValidator(control: AbstractControl): ValidationErrors | n
   selector: 'lib-profile-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, LwInputDirective, LwButtonDirective, ProfilePictureUploaderComponent],
+  imports: [ReactiveFormsModule, LwInputDirective, LwButtonDirective, ProfilePictureUploaderComponent, InstructorApplicationComponent],
   templateUrl: './profile-page.component.html',
 })
 export class ProfilePageComponent implements OnInit {
