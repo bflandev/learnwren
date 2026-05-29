@@ -50,4 +50,12 @@ describe('adminRoleGuard', () => {
       { queryParams: { redirect: '/admin/instructor-applications' } },
     );
   });
+
+  it('refreshes when currentUser is undefined, then allows ADMIN', async () => {
+    auth.refresh = vi.fn(async () => {
+      auth.currentUser = signal({ role: 'ADMIN' }) as never;
+    });
+    await expect(runGuard()).resolves.toBe(true);
+    expect(auth.refresh).toHaveBeenCalledTimes(1);
+  });
 });
