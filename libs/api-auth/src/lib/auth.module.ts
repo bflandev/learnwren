@@ -40,6 +40,7 @@ import { SessionCookieService } from './session-cookie.service';
     EMAIL_TRANSPORT,
     FirebaseAuthRestClient,
     SessionCookieHelper,
+    PasswordPolicyService,
   ],
 })
 export class AuthModule {}

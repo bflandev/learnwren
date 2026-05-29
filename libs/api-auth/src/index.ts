@@ -13,3 +13,5 @@ export {
   type EmailTransport,
   type EmailChangeVerificationEmailInput,
 } from './lib/email-transport/email-transport';
+export { PasswordPolicyService } from './lib/password-policy.service';
+export type { PolicyRequirement, PasswordPolicyResult } from './lib/password-policy.service';

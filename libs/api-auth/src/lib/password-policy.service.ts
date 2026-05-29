@@ -1,11 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
-export type PolicyRequirement =
-  | 'MIN_LENGTH'
-  | 'UPPERCASE'
-  | 'LOWERCASE'
-  | 'DIGIT'
-  | 'SPECIAL';
+export type { PolicyRequirement } from '@learnwren/shared-data-models';
+import type { PolicyRequirement } from '@learnwren/shared-data-models';
 
 export type PasswordPolicyResult =
   | { valid: true }
