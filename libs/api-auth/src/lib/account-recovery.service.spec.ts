@@ -121,7 +121,7 @@ describe('AccountRecoveryService.resendVerification', () => {
   });
 
   it('generates a verification link when user exists and is unverified', async () => {
-    const { service, auth } = await build({});
+    const { service, auth, emailTransport } = await build({});
     await service.resendVerification('alice@example.com');
     // Pin the exact URL — kills LogicalOperator + StringLiteral mutants on
     // the `process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200'`
@@ -129,6 +129,26 @@ describe('AccountRecoveryService.resendVerification', () => {
     expect(auth.generateEmailVerificationLink).toHaveBeenCalledWith('alice@example.com', {
       url: 'http://localhost:4200/login',
     });
+    // Pin the transport payload — an ObjectLiteral mutant replacing the
+    // `{ to, verificationUrl }` argument with `{}` would otherwise survive
+    // (the test would only know the transport was called, not with what).
+    expect(emailTransport.sendVerificationEmail).toHaveBeenCalledWith({
+      to: 'alice@example.com',
+      verificationUrl: 'https://verify/abc',
+    });
+  });
+
+  it('honours LEARNWREN_PUBLIC_URL when building the continue URL', async () => {
+    // Drives the non-default branch of `process.env['LEARNWREN_PUBLIC_URL'] ??
+    // 'http://localhost:4200'`. Without this, a StringLiteral mutant changing
+    // the env-var KEY to '' survives (env unset → both read undefined → default).
+    const { service, auth } = await build({});
+    process.env['LEARNWREN_PUBLIC_URL'] = 'https://app.learnwren.com';
+    await service.resendVerification('alice@example.com');
+    expect(auth.generateEmailVerificationLink).toHaveBeenCalledWith('alice@example.com', {
+      url: 'https://app.learnwren.com/login',
+    });
+    delete process.env['LEARNWREN_PUBLIC_URL'];
   });
 
   it('propagates a non-user-not-found Firebase error from getUserByEmail (does not silently succeed)', async () => {
@@ -276,5 +296,47 @@ describe('AccountRecoveryService.unlock', () => {
   it('throws UNLOCK_TOKEN_EXPIRED on a token whose lock has elapsed', async () => {
     const service = await build({ status: 'expired' });
     await expect(service.unlock('OLD-TOKEN')).rejects.toBeInstanceOf(UnlockTokenExpiredException);
+  });
+});
+
+describe('AccountRecoveryService.sendInitialVerificationEmail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env['LEARNWREN_PUBLIC_URL'];
+  });
+
+  it('sends the verification email and returns true on success', async () => {
+    const auth = buildFakeAuth();
+    const { repo: attempts } = buildAttemptsMock();
+    const emailTransport = buildEmailTransport();
+    const service = await buildService(auth, attempts, emailTransport);
+
+    const sent = await service.sendInitialVerificationEmail('alice@example.com', 'uid-1' as never);
+
+    expect(sent).toBe(true);
+    expect(auth.generateEmailVerificationLink).toHaveBeenCalledWith('alice@example.com', {
+      url: 'http://localhost:4200/login',
+    });
+    // Pin the transport payload so an ObjectLiteral mutant replacing
+    // `{ to, verificationUrl }` with `{}` is caught.
+    expect(emailTransport.sendVerificationEmail).toHaveBeenCalledWith({
+      to: 'alice@example.com',
+      verificationUrl: 'https://verify/abc',
+    });
+  });
+
+  it('returns false (best-effort) when link generation fails', async () => {
+    const auth = buildFakeAuth();
+    auth.generateEmailVerificationLink = vi.fn(async () => {
+      throw new Error('Admin SDK down');
+    });
+    const { repo: attempts } = buildAttemptsMock();
+    const emailTransport = buildEmailTransport();
+    const service = await buildService(auth, attempts, emailTransport);
+
+    const sent = await service.sendInitialVerificationEmail('alice@example.com', 'uid-1' as never);
+
+    expect(sent).toBe(false);
+    expect(emailTransport.sendVerificationEmail).not.toHaveBeenCalled();
   });
 });

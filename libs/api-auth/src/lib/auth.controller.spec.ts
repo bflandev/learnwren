@@ -319,6 +319,59 @@ describe('AuthController.lastTestEmail', () => {
     expect(out.url).toBe('https://learnwren.com/unlock?token=tok');
     expect(out.sentAt).toMatch(/T/); // ISO format
   });
+
+  it('404s in production even with the flag on, a console transport, and an entry', async () => {
+    // Defence-in-depth gate: with every OTHER condition satisfied, only the
+    // NODE_ENV === 'production' check stands between the caller and the entry.
+    // Kills the ConditionalExpression/StringLiteral/BlockStatement mutants on
+    // that branch (otherwise unexercised — no prior test sets production).
+    const origNodeEnv = process.env['NODE_ENV'];
+    process.env['NODE_ENV'] = 'production';
+    process.env['LEARNWREN_TEST_OUTBOX_ENABLED'] = '1';
+    vi.spyOn(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      require('@nestjs/common').Logger.prototype as any,
+      'log',
+    ).mockImplementation(() => undefined);
+    const transport = new ConsoleEmailTransport();
+    await transport.sendUnlockEmail({
+      to: 'a@x.com',
+      unlockUrl: 'https://learnwren.com/unlock?token=tok',
+      unlockAvailableAt: new Date('2026-05-06T01:00:00.000Z'),
+    });
+    const ctrl = await buildController({} as never, transport);
+    try {
+      await expect(ctrl.lastTestEmail('a@x.com', 'unlock')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    } finally {
+      if (origNodeEnv === undefined) delete process.env['NODE_ENV'];
+      else process.env['NODE_ENV'] = origNodeEnv;
+    }
+  });
+
+  it('404s when the flag is a non-"1" value, even with a console transport + entry', async () => {
+    // Isolates the flag gate: a console transport with a matching entry would
+    // otherwise return it, so a ConditionalExpression mutant skipping the
+    // `!== '1'` check is caught here (the flag-off test above passes through to
+    // the transport gate and so can't pin this branch alone).
+    process.env['LEARNWREN_TEST_OUTBOX_ENABLED'] = '0';
+    vi.spyOn(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      require('@nestjs/common').Logger.prototype as any,
+      'log',
+    ).mockImplementation(() => undefined);
+    const transport = new ConsoleEmailTransport();
+    await transport.sendUnlockEmail({
+      to: 'a@x.com',
+      unlockUrl: 'https://learnwren.com/unlock?token=tok',
+      unlockAvailableAt: new Date('2026-05-06T01:00:00.000Z'),
+    });
+    const ctrl = await buildController({} as never, transport);
+    await expect(ctrl.lastTestEmail('a@x.com', 'unlock')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
 });
 
 describe('AuthController.me', () => {

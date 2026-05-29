@@ -6,6 +6,7 @@ import type { UserId } from '@learnwren/shared-data-models';
 
 import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
+import { isFirebaseError } from './firebase-error.util';
 import {
   InternalAuthException,
   InvalidUnlockTokenException,
@@ -136,7 +137,7 @@ export class AccountRecoveryService {
     try {
       return await this.auth.getUserByEmail(email);
     } catch (err) {
-      if (this.isFirebaseError(err) && err.code === 'auth/user-not-found') return null;
+      if (isFirebaseError(err) && err.code === 'auth/user-not-found') return null;
       throw err;
     }
   }
@@ -164,9 +165,5 @@ export class AccountRecoveryService {
   private continueUrl(path: string): string {
     const base = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
     return `${base}${path}`;
-  }
-
-  private isFirebaseError(err: unknown): err is { code: string } {
-    return typeof err === 'object' && err !== null && 'code' in err;
   }
 }
