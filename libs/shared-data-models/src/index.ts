@@ -12,3 +12,4 @@ export * from './lib/catalog';
 export * from './lib/auth';
 export * from './lib/wire';
 export * from './lib/profile';
+export * from './lib/instructor-application';

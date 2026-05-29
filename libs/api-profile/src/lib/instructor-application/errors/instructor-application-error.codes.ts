@@ -1,0 +1,8 @@
+export const INSTRUCTOR_APPLICATION_ERROR_CODES = [
+  'INSTRUCTOR_APPLICATION_INVALID',
+  'INSTRUCTOR_APPLICATION_EXISTS',
+  'ALREADY_INSTRUCTOR',
+] as const;
+
+export type InstructorApplicationErrorCode =
+  (typeof INSTRUCTOR_APPLICATION_ERROR_CODES)[number];

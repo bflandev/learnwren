@@ -6,7 +6,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > **PROJECT STATUS: ACTIVE DEVELOPMENT**
 > Built in vertical slices. What is wired up today, end to end:
 >
-> - **EP-01 Identity & access** — register, email-verification gate, login, logout, brute-force lockout + email unlock, logged-out password reset, session cookie, protected routes. **Text profile editing** (displayName + biography) via `/settings/profile` shipped 2026-05-27 (UC-01-03 Slice A). **Profile picture upload** (JPEG/PNG, ≤ 2 MB, auto-cropped to 512×512) shipped 2026-05-28 (UC-01-03 Slice B); the avatar surfaces in the header chip, on course cards, and on the course-detail instructor card (which also renders the instructor's biography). **Email address change** shipped 2026-05-28 (UC-01-03 Slice C, ext 3b): `POST /api/profile/email` re-authenticates with the current password, then sends a verification link to the NEW address; `POST /api/profile/email/confirm` (called from the unguarded `/settings/profile/email-changed` landing page after the link is clicked) syncs the Firestore mirror, revokes refresh tokens, and clears the session — the user signs in with the new address. **Password change** shipped 2026-05-29 (UC-01-03 Slice D, ext 3c): `POST /api/profile/password` re-authenticates with the current password, validates the new password against the same complexity policy as registration (12+ chars, upper, lower, digit, special), updates the credential, sends a password-changed notification email, and revokes refresh tokens — the user is signed out of all devices and signs back in with the new password. **UC-01-03 is now fully implemented.**
+> - **EP-01 Identity & access** — register, email-verification gate, login, logout, brute-force lockout + email unlock, logged-out password reset, session cookie, protected routes. **Text profile editing** (displayName + biography) via `/settings/profile` shipped 2026-05-27 (UC-01-03 Slice A). **Profile picture upload** (JPEG/PNG, ≤ 2 MB, auto-cropped to 512×512) shipped 2026-05-28 (UC-01-03 Slice B); the avatar surfaces in the header chip, on course cards, and on the course-detail instructor card (which also renders the instructor's biography). **Email address change** shipped 2026-05-28 (UC-01-03 Slice C, ext 3b): `POST /api/profile/email` re-authenticates with the current password, then sends a verification link to the NEW address; `POST /api/profile/email/confirm` (called from the unguarded `/settings/profile/email-changed` landing page after the link is clicked) syncs the Firestore mirror, revokes refresh tokens, and clears the session — the user signs in with the new address. **Password change** shipped 2026-05-29 (UC-01-03 Slice D, ext 3c): `POST /api/profile/password` re-authenticates with the current password, validates the new password against the same complexity policy as registration (12+ chars, upper, lower, digit, special), updates the credential, sends a password-changed notification email, and revokes refresh tokens — the user is signed out of all devices and signs back in with the new password. **UC-01-03 is now fully implemented.** **Instructor role request (submission) shipped 2026-05-29 (UC-01-04 submission slice)**: a Student on `/settings/profile` sees a "Become an Instructor" section; submitting a statement of intent and areas of expertise (free-text, ≤ 2000 chars) persists a `PENDING` document in `instructorApplications/{uid}` and swaps the form for an "under review" card that persists across reload. Re-submission is blocked (`INSTRUCTOR_APPLICATION_EXISTS`); the `pnpm tools:promote-to-instructor <email>` CLI now resolves the pending application to `APPROVED` (with `resolvedAt`) after flipping the role. Admin review queue UI, approve/decline actions, and decision emails are deferred to EP-08.
 > - **EP-02 Course authoring** — instructor role promotion (CLI), REST course CRUD, modules and lessons, drag-and-drop reorder.
 > - **EP-03 Video & DRM** — resumable upload (MP4 / MOV / MKV ≤ 10 GB), GCP Transcoder → AES-128 HLS, owner playback in the lesson editor (hls.js, native HLS on Safari/iOS), publish / unpublish / archive / restore gate with structured eligibility feedback.
 > - **EP-04 Lesson materials** — attach / rename / remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB each); owners **and enrolled students on PUBLISHED courses** download via short-lived signed URL; the learn page surfaces a materials list with per-row Download buttons.
@@ -148,6 +148,19 @@ The API endpoints exposed by this slice:
 | `POST` | `/api/auth/logout` | Clears the cookie and revokes refresh tokens. Always 204. |
 | `GET` | `/api/auth/me` | Reads the cookie, returns `{uid, email, displayName, role, emailVerified}`. |
 
+The API endpoints exposed by UC-01-03/UC-01-04 (profile management — session cookie required):
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `PATCH` | `/api/profile` | Update `displayName` and/or `biography`. |
+| `PUT` | `/api/profile/picture` | Upload or replace the profile picture (JPEG/PNG ≤ 2 MB; auto-cropped to 512×512). |
+| `DELETE` | `/api/profile/picture` | Remove the profile picture. |
+| `POST` | `/api/profile/email` | Re-authenticate with current password; send a verification link to the new address. |
+| `POST` | `/api/profile/email/confirm` | Sync Firestore email mirror, revoke refresh tokens, clear session (called from the `/settings/profile/email-changed` landing page). |
+| `POST` | `/api/profile/password` | Re-authenticate, validate new password against registration policy, update credential, send notification email, revoke refresh tokens. |
+| `GET` | `/api/profile/instructor-application` | Return the caller's application status: `{ status: 'NONE' \| 'PENDING' \| 'APPROVED' \| 'DECLINED', statement?, expertise?, createdAt? }`. |
+| `POST` | `/api/profile/instructor-application` | Submit `{ statement, expertise }` (both non-empty, ≤ 2000 chars); persists `PENDING` in `instructorApplications/{uid}`; blocked for existing applicants (`INSTRUCTOR_APPLICATION_EXISTS`) and for instructors/admins (`ALREADY_INSTRUCTOR`). |
+
 The API endpoints exposed by slice D (course publish gate):
 
 | Method | Path | Purpose |
@@ -278,6 +291,7 @@ Each shipped slice has a post-implementation summary in [`docs/superpowers/summa
 
 - [Auth: Registration and Login](./docs/superpowers/summaries/2026-05-04-auth-registration-and-login-summary.md) — 2026-05-04
 - [Auth Hardening](./docs/superpowers/summaries/2026-05-06-auth-hardening-summary.md) — 2026-05-06
+- [UC-01-04: Instructor Role Request (submission)](./docs/superpowers/summaries/2026-05-29-uc-01-04-instructor-role-request-summary.md) — 2026-05-29
 
 ### EP-02 — Course Authoring
 

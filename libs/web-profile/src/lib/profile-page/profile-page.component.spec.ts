@@ -7,8 +7,14 @@ import { Router } from '@angular/router';
 import { AuthService } from '@learnwren/web-auth';
 
 import { PasswordChangeService } from '../password/password-change.service';
+import { InstructorApplicationService } from '../instructor-application/instructor-application.service';
 
 import { ProfilePageComponent } from './profile-page.component';
+
+const instructorApplicationServiceStub = {
+  getApplication: vi.fn().mockResolvedValue({ status: 'NONE' }),
+  submit: vi.fn(),
+};
 
 const MOCK_PROFILE = {
   uid: 'u-1',
@@ -25,9 +31,14 @@ describe('ProfilePageComponent', () => {
   let auth: AuthService;
 
   beforeEach(() => {
+    instructorApplicationServiceStub.getApplication.mockResolvedValue({ status: 'NONE' });
     TestBed.configureTestingModule({
       imports: [ProfilePageComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: InstructorApplicationService, useValue: instructorApplicationServiceStub },
+      ],
     });
     fixture = TestBed.createComponent(ProfilePageComponent);
     http = TestBed.inject(HttpTestingController);
@@ -104,9 +115,14 @@ describe('ProfilePageComponent — change email', () => {
   let http: HttpTestingController;
 
   beforeEach(() => {
+    instructorApplicationServiceStub.getApplication.mockResolvedValue({ status: 'NONE' });
     TestBed.configureTestingModule({
       imports: [ProfilePageComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: InstructorApplicationService, useValue: instructorApplicationServiceStub },
+      ],
     });
     fixture = TestBed.createComponent(ProfilePageComponent);
     http = TestBed.inject(HttpTestingController);
@@ -196,6 +212,7 @@ describe('ProfilePageComponent — change password', () => {
   beforeEach(() => {
     change.mockReset();
     navigate.mockReset().mockResolvedValue(true);
+    instructorApplicationServiceStub.getApplication.mockResolvedValue({ status: 'NONE' });
     TestBed.configureTestingModule({
       imports: [ProfilePageComponent],
       providers: [
@@ -203,6 +220,7 @@ describe('ProfilePageComponent — change password', () => {
         provideHttpClientTesting(),
         { provide: PasswordChangeService, useValue: { change } },
         { provide: Router, useValue: { navigate } },
+        { provide: InstructorApplicationService, useValue: instructorApplicationServiceStub },
       ],
     });
     fixture = TestBed.createComponent(ProfilePageComponent);
