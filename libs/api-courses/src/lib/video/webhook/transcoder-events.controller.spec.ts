@@ -81,7 +81,9 @@ describe('TranscoderEventsController.handle', () => {
     const res = makeRes();
     await controller(transcoder, service).handle({}, res as never);
     expect(res.statusCode).toBe(200);
-    expect(res.body).toMatchObject({ acked: true });
+    // Pin the full body — the `reason: 'MALFORMED'` discriminator is what lets
+    // the dead-letter side tell a poison-pill drop apart from a no-op ack.
+    expect(res.body).toEqual({ acked: true, reason: 'MALFORMED' });
     expect(service.handleTranscoderEvent).not.toHaveBeenCalled();
   });
 

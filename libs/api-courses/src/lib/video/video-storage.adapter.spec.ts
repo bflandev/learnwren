@@ -28,15 +28,92 @@ describe('VideoStorageAdapter.probeSource', () => {
     }));
     const file = { getSignedUrl: vi.fn(async () => ['https://signed.example/path']) };
     const adapter = makeAdapterWithRunner(runner, file);
+    const before = Date.now();
     const result = await adapter.probeSource({ bucket: 'b', path: 'videos/v/source.mp4' });
+    const after = Date.now();
     expect(result.height).toBe(720);
     expect(result.durationSec).toBe(42.5);
-    expect(file.getSignedUrl).toHaveBeenCalledWith(expect.objectContaining({ action: 'read' }));
+    // Pin the v4 read sign with a ~60s TTL (not action-only).
+    expect(file.getSignedUrl).toHaveBeenCalledOnce();
+    const signArgs = file.getSignedUrl.mock.calls[0]![0] as {
+      action: string;
+      version: string;
+      expires: number;
+    };
+    expect(signArgs.action).toBe('read');
+    expect(signArgs.version).toBe('v4');
+    expect(signArgs.expires).toBeGreaterThanOrEqual(before + 60_000);
+    expect(signArgs.expires).toBeLessThanOrEqual(after + 60_000);
+    // Pin the exact ffprobe arg vector: the JSON/stream/format flags drive the
+    // parse below, and the signed URL must be the final positional arg. (The
+    // binary path is the @ffprobe-installer resolution, so assert only args.)
+    expect(runner).toHaveBeenCalledOnce();
+    expect(runner.mock.calls[0]![1]).toEqual([
+      '-v', 'error',
+      '-print_format', 'json',
+      '-show_streams',
+      '-show_format',
+      'https://signed.example/path',
+    ]);
+  });
+
+  it('selects the video stream even when it is not first in the list', async () => {
+    // Kills the find-predicate mutant: with `s.codec_type === 'video'` forced
+    // true, find() would return the leading audio stream (no height) and the
+    // probe would throw instead of reporting 480.
+    const runner = vi.fn(async () => ({
+      stdout: JSON.stringify({
+        streams: [
+          { codec_type: 'audio' },
+          { codec_type: 'video', height: 480 },
+        ],
+        format: { duration: '5' },
+      }),
+    }));
+    const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
+    const adapter = makeAdapterWithRunner(runner, file);
+    const result = await adapter.probeSource({ bucket: 'b', path: 'p' });
+    expect(result.height).toBe(480);
+  });
+
+  it('defaults durationSec to 0 when ffprobe reports no format block', async () => {
+    // Kills the `parsed.format?.duration` optional-chaining mutant and the
+    // `?? '0'` fallback: with no `format`, durationSec must be 0, not a throw.
+    const runner = vi.fn(async () => ({
+      stdout: JSON.stringify({ streams: [{ codec_type: 'video', height: 720 }] }),
+    }));
+    const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
+    const adapter = makeAdapterWithRunner(runner, file);
+    const result = await adapter.probeSource({ bucket: 'b', path: 'p' });
+    expect(result).toEqual({ height: 720, durationSec: 0 });
   });
 
   it('throws when no video stream is present', async () => {
     const runner = vi.fn(async () => ({
       stdout: JSON.stringify({ streams: [{ codec_type: 'audio' }], format: { duration: '1' } }),
+    }));
+    const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
+    const adapter = makeAdapterWithRunner(runner, file);
+    await expect(adapter.probeSource({ bucket: 'b', path: 'p' })).rejects.toThrow(/no video stream/i);
+  });
+
+  it('throws when the streams array is absent entirely', async () => {
+    // Kills the `parsed.streams?.find` optional-chaining mutant: removing `?.`
+    // would surface a TypeError; with it, we get our own "no video stream".
+    const runner = vi.fn(async () => ({ stdout: JSON.stringify({ format: { duration: '1' } }) }));
+    const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
+    const adapter = makeAdapterWithRunner(runner, file);
+    await expect(adapter.probeSource({ bucket: 'b', path: 'p' })).rejects.toThrow(/no video stream/i);
+  });
+
+  it('throws when the matched video stream has a non-numeric height', async () => {
+    // Kills the `typeof videoStream.height !== 'number'` half of the guard:
+    // forcing the whole condition false would return a bogus height instead.
+    const runner = vi.fn(async () => ({
+      stdout: JSON.stringify({
+        streams: [{ codec_type: 'video', height: '720' }],
+        format: { duration: '1' },
+      }),
     }));
     const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
     const adapter = makeAdapterWithRunner(runner, file);
@@ -71,6 +148,72 @@ describe('VideoStorageAdapter.probeSource', () => {
     expect(fileSpy).not.toHaveBeenCalled();
     expect(getSignedUrl).not.toHaveBeenCalled();
     expect(runner).not.toHaveBeenCalled();
+  });
+});
+
+describe('VideoStorageAdapter.createResumableSession', () => {
+  function makeAdapter(createResumableUpload: ReturnType<typeof vi.fn>) {
+    const fileSpy = vi.fn(() => ({ createResumableUpload }));
+    const bucketSpy = vi.fn(() => ({ file: fileSpy }));
+    const storage = { bucket: bucketSpy } as unknown as FirebaseStorageHandle;
+    return { adapter: new VideoStorageAdapter(storage, realCfg), bucketSpy, fileSpy };
+  }
+
+  it('creates the upload with content-type + videoId metadata scoped to the app origin', async () => {
+    const createResumableUpload = vi.fn(async () => ['https://resumable.example/session']);
+    const { adapter, bucketSpy, fileSpy } = makeAdapter(createResumableUpload);
+    const prev = process.env['LEARNWREN_PUBLIC_URL'];
+    process.env['LEARNWREN_PUBLIC_URL'] = 'https://app.learnwren.example';
+    try {
+      const before = Date.now();
+      const session = await adapter.createResumableSession({
+        bucket: 'uploads',
+        path: 'videos/v1/source.mp4',
+        contentType: 'video/mp4',
+        videoId: 'v1',
+      });
+      const after = Date.now();
+
+      expect(session.uri).toBe('https://resumable.example/session');
+      expect(bucketSpy).toHaveBeenCalledWith('uploads');
+      expect(fileSpy).toHaveBeenCalledWith('videos/v1/source.mp4');
+      // CORS origin pinned to the configured app URL; metadata carries both the
+      // content-type and the videoId tag the transcoder webhook keys off.
+      expect(createResumableUpload).toHaveBeenCalledWith({
+        metadata: {
+          contentType: 'video/mp4',
+          metadata: { videoId: 'v1' },
+        },
+        origin: 'https://app.learnwren.example',
+      });
+      // expiresAt is now + 7 days, as an ISO string.
+      const expMs = Date.parse(session.expiresAt);
+      expect(expMs).toBeGreaterThanOrEqual(before + 7 * 24 * 3600 * 1000);
+      expect(expMs).toBeLessThanOrEqual(after + 7 * 24 * 3600 * 1000);
+    } finally {
+      if (prev === undefined) delete process.env['LEARNWREN_PUBLIC_URL'];
+      else process.env['LEARNWREN_PUBLIC_URL'] = prev;
+    }
+  });
+
+  it('falls back to the local dev origin when LEARNWREN_PUBLIC_URL is unset', async () => {
+    const createResumableUpload = vi.fn(async () => ['uri']);
+    const { adapter } = makeAdapter(createResumableUpload);
+    const prev = process.env['LEARNWREN_PUBLIC_URL'];
+    delete process.env['LEARNWREN_PUBLIC_URL'];
+    try {
+      await adapter.createResumableSession({
+        bucket: 'b',
+        path: 'p',
+        contentType: 'video/mp4',
+        videoId: 'v1',
+      });
+      expect(createResumableUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ origin: 'http://localhost:4200' }),
+      );
+    } finally {
+      if (prev !== undefined) process.env['LEARNWREN_PUBLIC_URL'] = prev;
+    }
   });
 });
 
@@ -214,11 +357,23 @@ describe('VideoStorageAdapter — playback storage fake mode', () => {
     const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
     const adapter = new VideoStorageAdapter(fakeStorage, cfg);
     const body = await adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/manifest.m3u8' });
-    expect(body).toMatch(/^#EXTM3U/);
-    expect(body).toContain('1080p/playlist.m3u8');
-    expect(body).toContain('720p/playlist.m3u8');
-    expect(body).toContain('480p/playlist.m3u8');
-    expect(body).toContain('360p/playlist.m3u8');
+    // Pin the exact master playlist — every variant line and the newline join
+    // matter to the downstream manifest rewriter, so assert byte-for-byte.
+    expect(body).toBe(
+      [
+        '#EXTM3U',
+        '#EXT-X-VERSION:6',
+        '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080',
+        '1080p/playlist.m3u8',
+        '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720',
+        '720p/playlist.m3u8',
+        '#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480',
+        '480p/playlist.m3u8',
+        '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360',
+        '360p/playlist.m3u8',
+        '',
+      ].join('\n'),
+    );
   });
 
   it('readManifestObject returns a deterministic rendition m3u8 for /playlist.m3u8 paths', async () => {
@@ -226,9 +381,22 @@ describe('VideoStorageAdapter — playback storage fake mode', () => {
     const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
     const adapter = new VideoStorageAdapter(fakeStorage, cfg);
     const body = await adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/720p/playlist.m3u8' });
-    expect(body).toContain('#EXT-X-KEY:METHOD=AES-128,URI="https://example.invalid/k",IV=0xABCDEF0123456789ABCDEF0123456789');
-    expect(body).toContain('segment_001.ts');
-    expect(body).toContain('segment_002.ts');
+    // Pin the exact rendition playlist — the AES-128 key line, segment names,
+    // and #EXT-X-ENDLIST are all load-bearing for the player/key flow.
+    expect(body).toBe(
+      [
+        '#EXTM3U',
+        '#EXT-X-VERSION:6',
+        '#EXT-X-TARGETDURATION:6',
+        '#EXT-X-KEY:METHOD=AES-128,URI="https://example.invalid/k",IV=0xABCDEF0123456789ABCDEF0123456789',
+        '#EXTINF:6.000,',
+        'segment_001.ts',
+        '#EXTINF:6.000,',
+        'segment_002.ts',
+        '#EXT-X-ENDLIST',
+        '',
+      ].join('\n'),
+    );
   });
 
   it('signObjectUrl returns a gs-stub:// URL with bucket, path, and ttl', async () => {
