@@ -10,6 +10,7 @@ import type { Response } from 'express';
 
 import { AuthException } from '@learnwren/api-auth';
 
+import { CoursesException } from '../errors/courses.exception';
 import { VideoException } from './errors/video.exception';
 
 interface VideoErrorBody {
@@ -26,7 +27,10 @@ type VideoShapedException = Error & {
   details?: Record<string, unknown>;
 };
 
-@Catch(VideoException, AuthException, HttpException)
+// CoursesException is included because video routes reuse courses-domain
+// guards (e.g. CourseOwnerGuard on upload-session throws NotCourseOwnerException).
+// Without it those guard failures escape as 500 instead of their 403/404.
+@Catch(VideoException, AuthException, CoursesException, HttpException)
 export class VideoExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('VideoExceptionFilter');
 
@@ -55,7 +59,11 @@ export class VideoExceptionFilter implements ExceptionFilter {
 }
 
 function isVideoShaped(exception: unknown): exception is VideoShapedException {
-  return exception instanceof VideoException || exception instanceof AuthException;
+  return (
+    exception instanceof VideoException ||
+    exception instanceof AuthException ||
+    exception instanceof CoursesException
+  );
 }
 
 function codeForStatus(status: number): string {
