@@ -1,11 +1,17 @@
-import { Body, Controller, Inject, Logger, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Inject, Logger, Post, Res, UseFilters, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 
 import { VIDEO_TRANSCODER, type VideoTranscoder } from '../transcoder/transcoder.port';
+import { VideoExceptionFilter } from '../video.exception-filter';
 import { VideoService } from '../video.service';
 import { PubSubPushGuard } from './pubsub-push.guard';
 
+// Without this filter a PubSubPushGuard rejection (PubSubInvalidToken/WrongAudience/
+// WrongInvoker — all VideoExceptions, not HttpExceptions) escapes to Nest's default
+// handler as a 500 instead of its declared 401/403. The sibling video controllers
+// already carry the same filter.
 @Controller('internal/transcoder-events')
+@UseFilters(VideoExceptionFilter)
 @UseGuards(PubSubPushGuard)
 export class TranscoderEventsController {
   private readonly logger = new Logger('TranscoderEventsController');

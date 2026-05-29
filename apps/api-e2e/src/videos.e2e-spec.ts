@@ -271,13 +271,11 @@ test('fake-completer is idempotent — second call is a no-op', async ({ request
   expect(body.reason).toBe('ALREADY_APPLIED');
 });
 
-// Quarantined: the production-style /internal/transcoder-events webhook
-// returns 500 in this local env (the unsigned-envelope guard is upstream of
-// a verification step that throws without real IAM config), where the test
-// expects 401/403. Needs the dev/no-IAM branch to short-circuit to 401/403.
-// Tracked separately from the fake source-probe seam that un-quarantined
-// this file.
-test.fixme('webhook auth — production-style route rejects unsigned envelopes', async ({ request }) => {
+// The production-style /internal/transcoder-events route is guarded by
+// PubSubPushGuard, which rejects an unsigned envelope with a 401
+// PUBSUB_INVALID_TOKEN (in fake/dev mode the missing invoker config trips the
+// same guard branch). VideoExceptionFilter on the controller maps it to 401.
+test('webhook auth — production-style route rejects unsigned envelopes', async ({ request }) => {
   const r = await request.post(`${API_BASE}/internal/transcoder-events`, {
     data: {
       message: {
