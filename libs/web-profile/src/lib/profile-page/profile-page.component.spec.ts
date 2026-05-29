@@ -267,4 +267,22 @@ describe('ProfilePageComponent — change password', () => {
     await cmp.submitPasswordChange();
     expect(cmp.passwordForm.controls.newPassword.errors?.['server']).toBeTruthy();
   });
+
+  it('maps CURRENT_PASSWORD_INVALID to a server error on the currentPassword control', async () => {
+    change.mockRejectedValue(
+      new HttpErrorResponse({
+        status: 400,
+        error: { error: { code: 'CURRENT_PASSWORD_INVALID', message: 'Current password is incorrect.' } },
+      }),
+    );
+    const cmp = fixture.componentInstance;
+    cmp.passwordForm.setValue({
+      currentPassword: 'WrongPass1!',
+      newPassword: 'Bb2@bbbbbbbb',
+      confirmNewPassword: 'Bb2@bbbbbbbb',
+    });
+
+    await cmp.submitPasswordChange();
+    expect(cmp.passwordForm.controls.currentPassword.errors?.['server']).toBeTruthy();
+  });
 });
