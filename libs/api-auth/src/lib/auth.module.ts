@@ -10,6 +10,7 @@ import { EMAIL_TRANSPORT } from './email-transport/email-transport';
 import { resolveEmailTransport } from './email-transport/email-transport.factory';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { FirebaseSessionGuard } from './firebase-session.guard';
+import { AdminRoleGuard } from './admin-role.guard';
 import { InstructorRoleGuard } from './instructor-role.guard';
 import { PasswordPolicyService } from './password-policy.service';
 import { SessionCookieHelper } from './session-cookie.helper';
@@ -24,6 +25,7 @@ import { SessionCookieService } from './session-cookie.service';
     AuthExceptionFilter,
     ConsoleEmailTransport, // fallback class registration; factory chooses concrete impl
     FirebaseAuthRestClient,
+    AdminRoleGuard,
     FirebaseSessionGuard,
     InstructorRoleGuard,
     PasswordPolicyService,
@@ -35,6 +37,7 @@ import { SessionCookieService } from './session-cookie.service';
     },
   ],
   exports: [
+    AdminRoleGuard,
     FirebaseSessionGuard,
     InstructorRoleGuard,
     EMAIL_TRANSPORT,
