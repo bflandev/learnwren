@@ -95,3 +95,90 @@ describe('ProfilePageComponent', () => {
     expect(el.querySelector('lib-profile-picture-uploader')).toBeTruthy();
   });
 });
+
+describe('ProfilePageComponent — change email', () => {
+  let fixture: ComponentFixture<ProfilePageComponent>;
+  let http: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [ProfilePageComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    fixture = TestBed.createComponent(ProfilePageComponent);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  async function flushGet() {
+    fixture.detectChanges();
+    http.expectOne('/api/profile').flush(MOCK_PROFILE);
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  it('on success shows the "verification sent" state with the new address', async () => {
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.emailForm.setValue({ newEmail: 'new@x.com', currentPassword: 'pw' });
+    const p = cmp.submitEmailChange();
+    const req = http.expectOne('/api/profile/email');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ newEmail: 'new@x.com', currentPassword: 'pw' });
+    req.flush(null, { status: 202, statusText: 'Accepted' });
+    await p;
+    expect(cmp.emailStatus()).toBe('sent');
+    expect(cmp.pendingEmail()).toBe('new@x.com');
+  });
+
+  it('maps a CURRENT_PASSWORD_INVALID error to the password field', async () => {
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.emailForm.setValue({ newEmail: 'new@x.com', currentPassword: 'wrong' });
+    const p = cmp.submitEmailChange();
+    http.expectOne('/api/profile/email').flush(
+      { error: { code: 'CURRENT_PASSWORD_INVALID', message: 'Current password is incorrect.', details: { field: 'currentPassword' } } },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await p;
+    expect(cmp.emailForm.controls.currentPassword.errors?.['server']).toBe('Current password is incorrect.');
+    expect(cmp.emailStatus()).toBe('error');
+  });
+
+  it('maps an EMAIL_ALREADY_IN_USE error (409) to the newEmail field', async () => {
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.emailForm.setValue({ newEmail: 'taken@x.com', currentPassword: 'pw' });
+    const p = cmp.submitEmailChange();
+    http.expectOne('/api/profile/email').flush(
+      { error: { code: 'EMAIL_ALREADY_IN_USE', message: 'That email address is already in use.', details: { field: 'newEmail' } } },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await p;
+    expect(cmp.emailForm.controls.newEmail.errors?.['server']).toBe('That email address is already in use.');
+  });
+
+  it('does not call the API when the email form is invalid', async () => {
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.emailForm.setValue({ newEmail: '', currentPassword: '' });
+    await cmp.submitEmailChange();
+    http.expectNone('/api/profile/email');
+    expect(cmp.emailForm.controls.newEmail.touched).toBe(true);
+    expect(cmp.emailStatus()).not.toBe('sent');
+  });
+
+  it('sets error status without a field error on a non-field failure (EMAIL_CHANGE_FAILED)', async () => {
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.emailForm.setValue({ newEmail: 'new@x.com', currentPassword: 'pw' });
+    const p = cmp.submitEmailChange();
+    http.expectOne('/api/profile/email').flush(
+      { error: { code: 'EMAIL_CHANGE_FAILED', message: 'Server error.' } },
+      { status: 500, statusText: 'Internal Server Error' },
+    );
+    await p;
+    expect(cmp.emailStatus()).toBe('error');
+    expect(cmp.emailForm.controls.newEmail.errors?.['server']).toBeUndefined();
+    expect(cmp.emailForm.controls.currentPassword.errors?.['server']).toBeUndefined();
+  });
+});

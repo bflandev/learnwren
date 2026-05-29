@@ -1,0 +1,9 @@
+export const EMAIL_CHANGE_ERROR_CODES = [
+  'EMAIL_INVALID',
+  'EMAIL_UNCHANGED',
+  'CURRENT_PASSWORD_INVALID',
+  'EMAIL_ALREADY_IN_USE',
+  'EMAIL_CHANGE_FAILED',
+] as const;
+
+export type EmailChangeErrorCode = (typeof EMAIL_CHANGE_ERROR_CODES)[number];

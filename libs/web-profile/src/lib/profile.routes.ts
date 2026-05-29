@@ -9,4 +9,9 @@ export const profileRoutes: Route[] = [
     loadComponent: () =>
       import('./profile-page/profile-page.component').then((m) => m.ProfilePageComponent),
   },
+  {
+    path: 'settings/profile/email-changed',
+    loadComponent: () =>
+      import('./email/email-changed/email-changed.component').then((m) => m.EmailChangedComponent),
+  },
 ];

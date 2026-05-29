@@ -203,7 +203,7 @@ Route `settings/profile/email-changed` added to `profileRoutes` **without `authG
 ```
 
 `ngOnInit` → `emailChangeSvc.confirm()`:
-- `{ changed: true }` or a `401` → `authSvc.setCurrentUser(null)`; `router.navigate(['/login'], { queryParams: { emailChanged: 1 } })`.
+- `{ changed: true }` or a `401` → `authSvc.logout()` (best-effort clears the server cookie and nulls the current-user signal); `router.navigate(['/login'], { queryParams: { emailChanged: 1 } })`.
 - `{ changed: false }` → `router.navigate(['/settings/profile'])`.
 
 The login page reads `?emailChanged=1` to render a one-line notice: *"Your email was changed. Please sign in with your new address."*

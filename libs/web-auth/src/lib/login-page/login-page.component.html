@@ -75,6 +75,12 @@
     </button>
   </form>
 
+  @if (justChangedEmail()) {
+    <p class="mt-4 text-sm text-good" data-testid="email-changed-notice">
+      Your email was changed. Please sign in with your new address.
+    </p>
+  }
+
   <p class="mt-4 text-sm text-ink-2">
     <a routerLink="/forgot-password" class="text-ochre hover:underline">Forgot password?</a>
   </p>

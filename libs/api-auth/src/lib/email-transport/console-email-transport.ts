@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import type {
+  EmailChangeVerificationEmailInput,
   EmailTransport,
   PasswordResetEmailInput,
   UnlockEmailInput,
@@ -8,7 +9,7 @@ import type {
 } from './email-transport';
 
 export interface OutboxEntry {
-  kind: 'unlock' | 'verification' | 'password-reset';
+  kind: 'unlock' | 'verification' | 'password-reset' | 'email-change';
   to: string;
   url: string;
   sentAt: Date;
@@ -53,6 +54,20 @@ export class ConsoleEmailTransport implements EmailTransport {
       kind: 'password-reset',
       to: input.to,
       url: input.resetUrl,
+      sentAt: new Date(),
+    });
+  }
+
+  async sendEmailChangeVerificationEmail(
+    input: EmailChangeVerificationEmailInput,
+  ): Promise<void> {
+    this.logger.log(
+      `[email-change-email] to=${input.to} url=${input.verificationUrl}`,
+    );
+    this.append({
+      kind: 'email-change',
+      to: input.to,
+      url: input.verificationUrl,
       sentAt: new Date(),
     });
   }

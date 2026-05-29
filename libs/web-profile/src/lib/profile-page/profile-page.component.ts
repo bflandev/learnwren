@@ -4,12 +4,14 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { AuthService } from '@learnwren/web-auth';
 import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
-import type { ProfileView, ProfileInvalidErrorBody } from '@learnwren/shared-data-models';
+import type { ProfileView, ProfileInvalidErrorBody, EmailChangeErrorBody } from '@learnwren/shared-data-models';
 
 import { ProfileService } from '../profile.service';
 import { ProfilePictureUploaderComponent } from '../picture/profile-picture-uploader.component';
+import { EmailChangeService } from '../email/email-change.service';
 
 type Status = 'idle' | 'saving' | 'saved' | 'error';
+type EmailStatus = 'idle' | 'sending' | 'sent' | 'error';
 
 @Component({
   selector: 'lib-profile-page',
@@ -22,6 +24,7 @@ export class ProfilePageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly profileSvc = inject(ProfileService);
   private readonly authSvc = inject(AuthService);
+  private readonly emailSvc = inject(EmailChangeService);
 
   readonly form = this.fb.nonNullable.group({
     // `required` is intentionally omitted — empty-string validation is server-authoritative (see PROFILE_INVALID test).
@@ -31,6 +34,49 @@ export class ProfilePageComponent implements OnInit {
 
   readonly status = signal<Status>('idle');
   readonly readonly = signal<{ email: string; role: ProfileView['role'] } | null>(null);
+
+  readonly emailForm = this.fb.nonNullable.group({
+    // server is authoritative; email Validators give fast client feedback only
+    newEmail: ['', [Validators.required, Validators.email]],
+    currentPassword: ['', [Validators.required]],
+  });
+
+  readonly emailStatus = signal<EmailStatus>('idle');
+  readonly emailFormOpen = signal(false);
+  readonly pendingEmail = signal<string | null>(null);
+
+  toggleEmailForm(): void {
+    this.emailFormOpen.update((v) => !v);
+  }
+
+  async submitEmailChange(): Promise<void> {
+    if (this.emailForm.invalid) {
+      this.emailForm.markAllAsTouched();
+      return;
+    }
+    this.emailStatus.set('sending');
+    const newEmail = this.emailForm.controls.newEmail.value;
+    try {
+      await this.emailSvc.requestChange(this.emailForm.getRawValue());
+      this.pendingEmail.set(newEmail);
+      this.emailStatus.set('sent');
+      this.emailFormOpen.set(false);
+      this.emailForm.reset();
+    } catch (err) {
+      this.applyEmailServerError(err);
+      this.emailStatus.set('error');
+    }
+  }
+
+  private applyEmailServerError(err: unknown): void {
+    if (!(err instanceof HttpErrorResponse)) return;
+    const body = err.error as EmailChangeErrorBody | undefined;
+    const field = body?.error?.details?.field;
+    const message = body?.error?.message ?? 'Could not change email.';
+    if (field === 'newEmail' || field === 'currentPassword') {
+      this.emailForm.controls[field].setErrors({ server: message });
+    }
+  }
 
   async ngOnInit(): Promise<void> {
     const me = await this.profileSvc.getProfile();

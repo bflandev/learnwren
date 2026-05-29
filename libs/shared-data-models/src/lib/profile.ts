@@ -49,3 +49,38 @@ export type ProfilePictureErrorCode =
   | ProfilePictureDecodeFailedCode
   | ProfilePictureTooLargeCode
   | UnsupportedProfilePictureFormatCode;
+
+/** Body of `POST /api/profile/email`. */
+export interface ChangeEmailRequest {
+  newEmail: string;
+  currentPassword: string;
+}
+
+/** Body of `POST /api/profile/email/confirm`. */
+export interface ConfirmEmailChangeResponse {
+  changed: boolean;
+  email?: string;
+}
+
+/** Wire error codes returned by the email-change endpoints (UC-01-03 ext 3b). */
+export const EMAIL_INVALID = 'EMAIL_INVALID';
+export const EMAIL_UNCHANGED = 'EMAIL_UNCHANGED';
+export const CURRENT_PASSWORD_INVALID = 'CURRENT_PASSWORD_INVALID';
+export const EMAIL_ALREADY_IN_USE = 'EMAIL_ALREADY_IN_USE';
+export const EMAIL_CHANGE_FAILED = 'EMAIL_CHANGE_FAILED';
+
+export type EmailChangeErrorCode =
+  | typeof EMAIL_INVALID
+  | typeof EMAIL_UNCHANGED
+  | typeof CURRENT_PASSWORD_INVALID
+  | typeof EMAIL_ALREADY_IN_USE
+  | typeof EMAIL_CHANGE_FAILED;
+
+/** Body of a non-2xx from the email-change endpoints. */
+export interface EmailChangeErrorBody {
+  error: {
+    code: EmailChangeErrorCode;
+    message: string;
+    details?: { field: 'newEmail' | 'currentPassword' };
+  };
+}

@@ -34,6 +34,12 @@ import { SessionCookieService } from './session-cookie.service';
       useFactory: () => resolveEmailTransport(),
     },
   ],
-  exports: [FirebaseSessionGuard, InstructorRoleGuard],
+  exports: [
+    FirebaseSessionGuard,
+    InstructorRoleGuard,
+    EMAIL_TRANSPORT,
+    FirebaseAuthRestClient,
+    SessionCookieHelper,
+  ],
 })
 export class AuthModule {}

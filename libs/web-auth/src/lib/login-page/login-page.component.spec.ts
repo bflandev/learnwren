@@ -200,6 +200,18 @@ describe('LoginPageComponent submit early returns and helpers', () => {
   });
 });
 
+describe('LoginPageComponent justChangedEmail notice', () => {
+  it('flags justChangedEmail when ?emailChanged=1 is present', () => {
+    const { fixture } = setup(new Map([['emailChanged', '1']]));
+    expect(fixture.componentInstance.justChangedEmail()).toBe(true);
+  });
+
+  it('does not flag justChangedEmail without the query param', () => {
+    const { fixture } = setup(new Map());
+    expect(fixture.componentInstance.justChangedEmail()).toBe(false);
+  });
+});
+
 describe('LoginPageComponent.resendVerification', () => {
   it('no-ops when the email field is empty', async () => {
     const { fixture, httpMock } = setup();
