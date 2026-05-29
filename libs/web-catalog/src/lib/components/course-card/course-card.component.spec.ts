@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 
 import type { CourseSummary } from '@learnwren/shared-data-models';
+import { coverToneForId } from '@learnwren/web-ui';
 
 import { CourseCardComponent } from './course-card.component';
 
@@ -34,6 +35,25 @@ describe('CourseCardComponent', () => {
     expect(text).toContain('Learn Rust');
     expect(text).toContain('Ada Lovelace');
     expect(text).toContain('BEGINNER');
+  });
+
+  // The card's only runtime logic is `coverTone = computed(coverToneForId(id))`,
+  // surfaced by lw-cover as [attr.data-tone]. Asserting the rendered tone is the
+  // id-derived value catches a computed that returned undefined or ignored the
+  // id. Two ids that hash to different tones prove it's keyed off the course id.
+  // (Separate `it`s — the render() helper reconfigures TestBed, which can't be
+  // called twice within one test.)
+  it('applies the id-derived cover tone to <lw-cover> for c-1', () => {
+    const tone = render(summary).querySelector('lw-cover')?.getAttribute('data-tone');
+    expect(tone).toBe(coverToneForId('c-1'));
+  });
+
+  it('derives a different cover tone for a different course id', () => {
+    expect(coverToneForId('c-2')).not.toBe(coverToneForId('c-1')); // guards the fixture choice
+    const tone = render({ ...summary, id: 'c-2' })
+      .querySelector('lw-cover')
+      ?.getAttribute('data-tone');
+    expect(tone).toBe(coverToneForId('c-2'));
   });
 
   it('links to the course detail page', () => {
