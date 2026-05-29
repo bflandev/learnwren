@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { CourseId, Lesson, LessonId, ModuleId, Video, VideoId, UserId, VideoKeyId } from '@learnwren/shared-data-models';
@@ -70,6 +70,62 @@ describe('LessonItemComponent', () => {
     fixture.componentInstance.draftTitle.set('');
     fixture.componentInstance.commit();
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('startEdit() enters edit mode seeded with the current title', () => {
+    const c = build().componentInstance;
+    c.startEdit();
+    expect(c.editing()).toBe(true);
+    expect(c.draftTitle()).toBe('Hello');
+  });
+
+  it('commit() exits edit mode after a successful rename', () => {
+    const c = build().componentInstance;
+    c.startEdit();
+    c.draftTitle.set('New name');
+    c.commit();
+    expect(c.editing()).toBe(false);
+  });
+
+  it('commit() does NOT emit rename when the title is unchanged, and exits edit mode', () => {
+    const c = build().componentInstance;
+    const spy = vi.spyOn(c.rename, 'emit');
+    c.startEdit();
+    c.draftTitle.set('Hello'); // identical to the current lesson title
+    c.commit();
+    expect(spy).not.toHaveBeenCalled();
+    expect(c.editing()).toBe(false);
+  });
+
+  it('commit() exits edit mode even when reverting an empty title', () => {
+    const c = build().componentInstance;
+    c.startEdit();
+    c.draftTitle.set('');
+    c.commit();
+    expect(c.editing()).toBe(false);
+  });
+
+  it('commit() trims the draft before emitting', () => {
+    const c = build().componentInstance;
+    const spy = vi.spyOn(c.rename, 'emit');
+    c.startEdit();
+    c.draftTitle.set('  Trimmed  ');
+    c.commit();
+    expect(spy).toHaveBeenCalledWith('Trimmed');
+  });
+
+  it('cancel() exits edit mode', () => {
+    const c = build().componentInstance;
+    c.startEdit();
+    c.cancel();
+    expect(c.editing()).toBe(false);
+  });
+
+  it('onVideoUploaded() emits videoChanged', () => {
+    const c = build().componentInstance;
+    const spy = vi.spyOn(c.videoChanged, 'emit');
+    c.onVideoUploaded();
+    expect(spy).toHaveBeenCalled();
   });
 
   it('emits delete when the delete button is clicked', () => {
@@ -196,5 +252,79 @@ describe('LessonItemComponent video render switch', () => {
   it('does NOT render <lib-video-state-badge> when video state is READY', () => {
     const fixture = bootstrapWith(READY_VIDEO);
     expect(fixture.debugElement.query(By.directive(VideoStateBadgeComponent))).toBeNull();
+  });
+});
+
+describe('LessonItemComponent video-state refetch + effect branches', () => {
+  const UPLOADED: Video = {
+    id: 'v1' as VideoId,
+    ownerInstructorId: 'u1' as UserId,
+    courseId: 'c1' as CourseId,
+    lessonId: 'lid-1' as LessonId,
+    state: 'UPLOADED',
+    source: { bucket: 'b', path: 'p' },
+    createdAt: '2026-05-12T00:00:00.000Z' as Video['createdAt'],
+    updatedAt: '2026-05-12T00:00:00.000Z' as Video['updatedAt'],
+  };
+  const LESSON_WITH_VIDEO: Lesson = { ...LESSON, videoId: 'v1' as VideoId };
+
+  function bootstrap(
+    getVideo: ReturnType<typeof vi.fn>,
+    lesson: Lesson,
+  ): ComponentFixture<LessonItemComponent> {
+    const materialsStub = { listMaterials: vi.fn().mockReturnValue(of([])) };
+    TestBed.configureTestingModule({
+      imports: [LessonItemComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: VideoService, useValue: { getVideo } },
+        { provide: MaterialsService, useValue: materialsStub },
+      ],
+    });
+    const fixture = TestBed.createComponent(LessonItemComponent);
+    fixture.componentRef.setInput('lesson', lesson);
+    fixture.componentRef.setInput('courseId', 'c1' as CourseId);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('onVideoStateChanged() emits the new state and refetches the video', () => {
+    const ready: Video = { ...UPLOADED, state: 'READY' };
+    // First call resolves the init effect; second resolves the post-change refetch.
+    const getVideo = vi.fn().mockReturnValueOnce(of(UPLOADED)).mockReturnValueOnce(of(ready));
+    const c = bootstrap(getVideo, LESSON_WITH_VIDEO).componentInstance;
+    const emit = vi.spyOn(c.videoStateChanged, 'emit');
+
+    c.onVideoStateChanged('READY');
+
+    expect(emit).toHaveBeenCalledWith('READY');
+    expect(getVideo).toHaveBeenCalledTimes(2); // once in the effect, once on state change
+    expect(c.video()?.state).toBe('READY');
+  });
+
+  it('onVideoStateChanged() still emits but skips the refetch when the lesson has no video', () => {
+    const getVideo = vi.fn();
+    const c = bootstrap(getVideo, LESSON).componentInstance; // LESSON has no videoId
+    const emit = vi.spyOn(c.videoStateChanged, 'emit');
+
+    c.onVideoStateChanged('FAILED');
+
+    expect(emit).toHaveBeenCalledWith('FAILED');
+    expect(getVideo).not.toHaveBeenCalled();
+  });
+
+  it('the effect leaves the video signal undefined when the lesson has no videoId', () => {
+    const getVideo = vi.fn();
+    const c = bootstrap(getVideo, LESSON).componentInstance;
+    expect(getVideo).not.toHaveBeenCalled();
+    expect(c.video()).toBeUndefined();
+  });
+
+  it('the effect leaves the video undefined when getVideo errors', () => {
+    const getVideo = vi.fn().mockReturnValue(throwError(() => new Error('boom')));
+    const c = bootstrap(getVideo, LESSON_WITH_VIDEO).componentInstance;
+    expect(getVideo).toHaveBeenCalledTimes(1);
+    expect(c.video()).toBeUndefined();
   });
 });

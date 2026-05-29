@@ -77,4 +77,83 @@ describe('ModuleItemComponent', () => {
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith('Only once');
   });
+
+  it('starts collapsed: not editing, not adding, with empty drafts', () => {
+    const c = build().componentInstance;
+    expect(c.editing()).toBe(false);
+    expect(c.addingLesson()).toBe(false);
+    expect(c.draftTitle()).toBe('');
+    expect(c.newLessonTitle()).toBe('');
+  });
+
+  it('startEdit() enters edit mode seeded with the current title', () => {
+    const c = build().componentInstance;
+    c.startEdit();
+    expect(c.editing()).toBe(true);
+    expect(c.draftTitle()).toBe('M1');
+  });
+
+  it('commit() does NOT emit renameModule for a blank title, but exits edit mode', () => {
+    const c = build().componentInstance;
+    const spy = vi.spyOn(c.renameModule, 'emit');
+    c.startEdit();
+    c.draftTitle.set('   ');
+    c.commit();
+    expect(spy).not.toHaveBeenCalled();
+    expect(c.editing()).toBe(false);
+  });
+
+  it('commit() does NOT emit renameModule when the title is unchanged', () => {
+    const c = build().componentInstance;
+    const spy = vi.spyOn(c.renameModule, 'emit');
+    c.startEdit();
+    c.draftTitle.set('M1'); // identical to the current module title
+    c.commit();
+    expect(spy).not.toHaveBeenCalled();
+    expect(c.editing()).toBe(false);
+  });
+
+  it('commit() trims the draft before emitting', () => {
+    const c = build().componentInstance;
+    const spy = vi.spyOn(c.renameModule, 'emit');
+    c.startEdit();
+    c.draftTitle.set('  Renamed  ');
+    c.commit();
+    expect(spy).toHaveBeenCalledWith('Renamed');
+  });
+
+  it('cancel() exits edit mode without emitting', () => {
+    const c = build().componentInstance;
+    const spy = vi.spyOn(c.renameModule, 'emit');
+    c.startEdit();
+    c.cancel();
+    expect(c.editing()).toBe(false);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('beginAddLesson() opens the add-lesson input with an empty draft', () => {
+    const c = build().componentInstance;
+    c.beginAddLesson();
+    expect(c.addingLesson()).toBe(true);
+    expect(c.newLessonTitle()).toBe('');
+  });
+
+  it('commitAddLesson() does NOT emit addLesson for a blank title, but closes the input', () => {
+    const c = build().componentInstance;
+    const spy = vi.spyOn(c.addLesson, 'emit');
+    c.beginAddLesson();
+    c.newLessonTitle.set('   ');
+    c.commitAddLesson();
+    expect(spy).not.toHaveBeenCalled();
+    expect(c.addingLesson()).toBe(false);
+  });
+
+  it('commitAddLesson() trims the new lesson title before emitting', () => {
+    const c = build().componentInstance;
+    const spy = vi.spyOn(c.addLesson, 'emit');
+    c.beginAddLesson();
+    c.newLessonTitle.set('  Lesson 2  ');
+    c.commitAddLesson();
+    expect(spy).toHaveBeenCalledWith('Lesson 2');
+  });
 });
