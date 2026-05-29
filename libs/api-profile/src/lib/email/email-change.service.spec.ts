@@ -7,6 +7,7 @@ import { EmailChangeService } from './email-change.service';
 import {
   CurrentPasswordInvalidException,
   EmailAlreadyInUseException,
+  EmailChangeFailedException,
   EmailInvalidException,
   EmailUnchangedException,
 } from './errors/email-change.exception';
@@ -52,6 +53,104 @@ describe('EmailChangeService.requestChange', () => {
     await expect(svc.requestChange(UID, 'old@example.com', { ...valid, newEmail: 'nope' }))
       .rejects.toBeInstanceOf(EmailInvalidException);
     expect(restClient.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'plainaddress',
+    'no-at-sign.com',
+    'missing@dot',
+    'two@@example.com',
+    'spa ce@example.com',
+    'trailingdot@example.',
+    '@example.com',
+    'user@.com',
+    '',
+    '   ',
+  ])('rejects malformed new email %j via the regex guard', async (badEmail) => {
+    const { svc, restClient } = makeService();
+    await expect(
+      svc.requestChange(UID, 'old@example.com', { ...valid, newEmail: badEmail }),
+    ).rejects.toBeInstanceOf(EmailInvalidException);
+    expect(restClient.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'simple@example.com',
+    'user.name+tag@sub.example.co.uk',
+    'a@b.c',
+  ])('accepts well-formed new email %j through the regex guard', async (goodEmail) => {
+    const { svc, auth } = makeService();
+    await svc.requestChange(UID, 'old@example.com', { ...valid, newEmail: goodEmail });
+    expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith(
+      'old@example.com',
+      goodEmail,
+      expect.anything(),
+    );
+  });
+
+  it('normalizes the new email (trim + lowercase) before reauth, link-gen and send', async () => {
+    const { svc, auth, transport } = makeService();
+    await svc.requestChange(UID, 'old@example.com', {
+      ...valid,
+      newEmail: '  NEW@Example.COM  ',
+    });
+    expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith(
+      'old@example.com',
+      'new@example.com',
+      expect.anything(),
+    );
+    expect(transport.sendEmailChangeVerificationEmail).toHaveBeenCalledWith({
+      to: 'new@example.com',
+      verificationUrl: 'https://app/verify?oobCode=x',
+    });
+  });
+
+  it('treats a whitespace/case-only difference from the current email as unchanged', async () => {
+    const { svc, restClient } = makeService();
+    await expect(
+      svc.requestChange(UID, '  Old@Example.com ', { ...valid, newEmail: ' OLD@example.COM ' }),
+    ).rejects.toBeInstanceOf(EmailUnchangedException);
+    expect(restClient.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it('wraps a non-INVALID_CREDENTIALS AuthException from reauth as EmailChangeFailedException', async () => {
+    const signIn = vi.fn().mockRejectedValue(new AuthException('NETWORK', 'down', 503));
+    const { svc } = makeService({ signIn });
+    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
+      EmailChangeFailedException,
+    );
+  });
+
+  it('wraps a non-AuthException reauth error as EmailChangeFailedException', async () => {
+    const signIn = vi.fn().mockRejectedValue(new Error('boom'));
+    const { svc } = makeService({ signIn });
+    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
+      EmailChangeFailedException,
+    );
+  });
+
+  it('wraps a non-already-exists link-gen error as EmailChangeFailedException', async () => {
+    const genLink = vi.fn().mockRejectedValue({ code: 'auth/internal-error' });
+    const { svc } = makeService({ genLink });
+    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
+      EmailChangeFailedException,
+    );
+  });
+
+  it('wraps a link-gen error with no code property as EmailChangeFailedException', async () => {
+    const genLink = vi.fn().mockRejectedValue(new Error('opaque'));
+    const { svc } = makeService({ genLink });
+    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
+      EmailChangeFailedException,
+    );
+  });
+
+  it('wraps a failure to send the verification email as EmailChangeFailedException', async () => {
+    const sendEmail = vi.fn().mockRejectedValue(new Error('smtp down'));
+    const { svc } = makeService({ sendEmail });
+    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
+      EmailChangeFailedException,
+    );
   });
 
   it('rejects when the new email equals the current (case-insensitive)', async () => {
@@ -105,6 +204,33 @@ describe('EmailChangeService.confirmChange', () => {
     auth.getUser = vi.fn().mockResolvedValue({ email: 'new@example.com', emailVerified: false });
     const res = await svc.confirmChange(UID, 'old@example.com');
     expect(res).toEqual({ changed: false });
+  });
+
+  it('returns changed:false when the user record has no email', async () => {
+    const { svc, auth } = makeService();
+    auth.getUser = vi.fn().mockResolvedValue({ email: undefined, emailVerified: true });
+    const res = await svc.confirmChange(UID, 'old@example.com');
+    expect(res).toEqual({ changed: false });
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+  });
+
+  it('treats a whitespace/case-only cookie email difference as no swap (normalized compare)', async () => {
+    const { svc, auth } = makeService();
+    auth.getUser = vi.fn().mockResolvedValue({ email: 'Old@Example.com', emailVerified: true });
+    const res = await svc.confirmChange(UID, '  old@example.COM  ');
+    expect(res).toEqual({ changed: false });
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+  });
+
+  it('treats emailVerified !== true (e.g. truthy non-boolean) as not verified', async () => {
+    const { svc, auth } = makeService();
+    // emailVerified is a truthy string, not the boolean true → strict === guard must reject it.
+    auth.getUser = vi
+      .fn()
+      .mockResolvedValue({ email: 'new@example.com', emailVerified: 'yes' });
+    const res = await svc.confirmChange(UID, 'old@example.com');
+    expect(res).toEqual({ changed: false });
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
   });
 
   it('syncs Firestore, revokes tokens, and returns changed:true on a verified swap', async () => {

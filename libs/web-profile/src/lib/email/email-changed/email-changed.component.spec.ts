@@ -44,4 +44,23 @@ describe('EmailChangedComponent', () => {
     expect(logout).not.toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith(['/settings/profile']);
   });
+
+  it('on a non-401 HttpErrorResponse routes back to the profile page without logging out', async () => {
+    const { fixture, navigate, logout } = setup(() =>
+      Promise.reject(new HttpErrorResponse({ status: 500 })),
+    );
+    await fixture.componentInstance.ngOnInit();
+    // Kills L34 `&&`→`||` and `=== 401` mutants: a 500 must NOT be treated as success.
+    expect(logout).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/settings/profile']);
+    expect(navigate).not.toHaveBeenCalledWith(['/login'], { queryParams: { emailChanged: 1 } });
+  });
+
+  it('on a non-HttpErrorResponse rejection routes back to the profile page', async () => {
+    const { fixture, navigate, logout } = setup(() => Promise.reject(new Error('boom')));
+    await fixture.componentInstance.ngOnInit();
+    // Kills the `instanceof HttpErrorResponse` side of the L34 guard.
+    expect(logout).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/settings/profile']);
+  });
 });

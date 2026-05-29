@@ -1,6 +1,6 @@
 # Mutation Test Report — `libs/api-firebase`
 
-> Generated 2026-05-26T02:58:11.998Z
+> Generated 2026-05-29T07:15:02.103Z
 
 **Headline mutation score: 81.69%** (killed=58, survived=13, no-cov=0, ignored=0). Score on covered mutants only: 81.69%. Adjusted (equivalent candidates excluded): 81.69%.
 

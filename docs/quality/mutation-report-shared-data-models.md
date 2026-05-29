@@ -1,8 +1,8 @@
 # Mutation Test Report — `libs/shared-data-models`
 
-> Generated 2026-05-26T02:55:55.271Z
+> Generated 2026-05-29T07:15:01.947Z
 
-**Headline mutation score: 100.00%** (killed=9, survived=0, no-cov=0, ignored=0). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
+**Headline mutation score: 100.00%** (killed=22, survived=0, no-cov=0, ignored=0). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
 
 
 Target band: unclassified.
@@ -12,6 +12,7 @@ Target band: unclassified.
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
 | `src/lib/material.ts` | 100.0% | 9 | 0 | 0 |
+| `src/lib/profile.ts` | 100.0% | 13 | 0 | 0 |
 
 ## Survivor clusters — gaps to close
 
