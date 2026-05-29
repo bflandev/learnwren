@@ -93,6 +93,9 @@ describe('AdminInstructorApplicationService', () => {
     const view = await svc.approve('u1' as never);
 
     expect(auth.setCustomUserClaims).toHaveBeenCalledWith('u1', { role: 'INSTRUCTOR' });
+    expect(docs['users/u1'].update).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'INSTRUCTOR' }),
+    );
     expect(email.sendInstructorApplicationApprovedEmail).toHaveBeenCalledWith({ to: 'ada@example.com' });
     expect(view.status).toBe('APPROVED');
   });
@@ -146,5 +149,42 @@ describe('AdminInstructorApplicationService', () => {
       update: vi.fn(),
     };
     await expect(svc.decline('u1' as never)).rejects.toThrow(ApplicationNotPendingException);
+  });
+
+  it('approve: email failure does not fail the operation', async () => {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => undefined),
+    };
+    email.sendInstructorApplicationApprovedEmail = vi.fn(async () => {
+      throw new Error('smtp down');
+    });
+
+    const view = await svc.approve('u1' as never);
+
+    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('u1', { role: 'INSTRUCTOR' });
+    expect(view.status).toBe('APPROVED');
+  });
+
+  it('decline: email failure does not fail the operation', async () => {
+    const update = vi.fn(async () => undefined);
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update,
+    };
+    email.sendInstructorApplicationDeclinedEmail = vi.fn(async () => {
+      throw new Error('smtp down');
+    });
+
+    const view = await svc.decline('u1' as never);
+
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: 'DECLINED' }));
+    expect(view.status).toBe('DECLINED');
   });
 });

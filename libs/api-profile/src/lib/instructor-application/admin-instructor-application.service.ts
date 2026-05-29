@@ -61,7 +61,15 @@ export class AdminInstructorApplicationService {
     }
 
     await promoteUserToInstructor(uid, this.auth, this.firestore as unknown as PromotionFirestoreLike, nowIso());
-    await this.email.sendInstructorApplicationApprovedEmail({ to: user.email ?? '' });
+
+    // Best-effort: the promotion is already committed, so a notification failure
+    // must not fail the request (that would mislead the admin into retrying).
+    try {
+      await this.email.sendInstructorApplicationApprovedEmail({ to: user.email ?? '' });
+    } catch (err) {
+      this.logger.error(`[admin] approval notice failed uid=${uid}: ${String(err)}`);
+    }
+
     this.logger.log(`[admin] instructor application approved uid=${uid}`);
 
     return this.viewOf(app, 'APPROVED');
@@ -75,7 +83,15 @@ export class AdminInstructorApplicationService {
       .update({ status: 'DECLINED', resolvedAt: nowIso() });
 
     const user = await this.auth.getUser(uid);
-    await this.email.sendInstructorApplicationDeclinedEmail({ to: user.email ?? '' });
+
+    // Best-effort: the decline is already committed, so a notification failure
+    // must not fail the request (that would mislead the admin into retrying).
+    try {
+      await this.email.sendInstructorApplicationDeclinedEmail({ to: user.email ?? '' });
+    } catch (err) {
+      this.logger.error(`[admin] decline notice failed uid=${uid}: ${String(err)}`);
+    }
+
     this.logger.log(`[admin] instructor application declined uid=${uid}`);
 
     return this.viewOf(app, 'DECLINED');
