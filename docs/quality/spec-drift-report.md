@@ -32,7 +32,7 @@ carries at least minor drift.
 
 | Epic | Use cases | Drift level | Headline |
 |---|---|---|---|
-| EP-01 — User Identity & Access | 4 | **Partial (2026-05-29)** | UC-01-01/02 built; UC-01-03 fully implemented — Slices A–D shipped (text profile 2026-05-27, picture 2026-05-28, email change 2026-05-28, password change 2026-05-29); UC-01-04 unbuilt; 2 minor behavioral divergences on shipped UCs |
+| EP-01 — User Identity & Access | 4 | **Partial (2026-05-29)** | UC-01-01/02 built; UC-01-03 fully implemented — Slices A–D shipped (text profile 2026-05-27, picture 2026-05-28, email change 2026-05-28, password change 2026-05-29); UC-01-04 submission flow shipped 2026-05-29 (admin review/approve/decline deferred to EP-08); 2 minor behavioral divergences on shipped UCs |
 | EP-02 — Course Authoring | 5 | **Reconciled (2026-05-26)** | UC-02-01..05 all built; UC-02-05 (cover image) added; divergences are documented design choices |
 | EP-03 — Video Management & DRM | 5 | **Reconciled (2026-05-26)** | UC-03-01..04 built as scoped-down HLS + AES-128 (intentional); UC-03-05 unbuilt (admin scope → EP-08) |
 | EP-04 — Lesson Materials | 2 | **Reconciled (2026-05-26)** | UC-04-01/02 both built; UC-04-02 student download landed in `af5a928` |
@@ -71,8 +71,9 @@ by — they are not scope decisions and are not recorded anywhere:
 ## EP-01 — User Identity and Access
 
 **Drift: Moderate (reconciled 2026-05-29).** UC-01-03 is now fully built across
-Slices A–D (text profile, picture, email change, password change); only UC-01-04
-remains entirely unbuilt. UC-01-01 and UC-01-02 are built but each carries a
+Slices A–D (text profile, picture, email change, password change). UC-01-04
+submission flow shipped 2026-05-29; the async approve/decline post-condition
+is deferred to EP-08. UC-01-01 and UC-01-02 are built but each carries a
 high-severity behavioral contradiction (below).
 
 ### UC-01-01 — Register a New Account
@@ -145,10 +146,23 @@ high-severity behavioral contradiction (below).
 
 ### UC-01-04 — Request Instructor Role
 
-- **CONTRADICTS** · High — The use case specifies an apply-and-review model
-  (statement of intent, pending application, admin queue, approve/decline emails).
-  None of it exists; the only mechanism is `InstructorRoleGuard` checking a custom
-  claim assigned out-of-band. `instructor-role.guard.ts:10`.
+- **PARTIAL — Submission flow shipped 2026-05-29.** The Student-only "Become an
+  Instructor" section on `/settings/profile` (main success scenario steps 1–8 +
+  extensions 2a / 2b / 6a) is wired end to end. Submitting persists a `PENDING`
+  document in the new `instructorApplications/{uid}` Firestore collection; the
+  form swaps to an "under review" card that persists across reload. Typed errors:
+  `ALREADY_INSTRUCTOR` (409), `INSTRUCTOR_APPLICATION_EXISTS` (409),
+  `INSTRUCTOR_APPLICATION_INVALID` (400). See
+  `docs/superpowers/specs/2026-05-29-uc-01-04-instructor-role-request-design.md`.
+- **DEFERRED to EP-08** — The asynchronous post-condition of UC-01-04 (admin review
+  queue UI, approve/decline actions, decision emails, user-facing DECLINED flow) is
+  not built. Promotion remains CLI-mediated via
+  `pnpm tools:promote-to-instructor <email>`, which now also resolves the pending
+  application to `APPROVED` (with `resolvedAt`). The `DECLINED` status and
+  `resolvedAt` field exist in the model for forward-compat only.
+- **BEYOND SPEC** · Low — `INSTRUCTOR_APPLICATION_EXISTS` blocks a re-submit when
+  a pending application is already on record; the use case does not specify this
+  guard explicitly (it is implied by the review model). `instructor-application.service.ts`.
 
 ---
 
