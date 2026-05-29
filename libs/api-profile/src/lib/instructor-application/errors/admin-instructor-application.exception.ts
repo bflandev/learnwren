@@ -6,8 +6,9 @@ export class AdminInstructorApplicationException extends Error {
     message: string,
     public readonly status: number,
     public readonly details?: Record<string, unknown>,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = 'AdminInstructorApplicationException';
   }
 }
