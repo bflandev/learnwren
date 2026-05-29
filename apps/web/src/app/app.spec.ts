@@ -97,6 +97,30 @@ describe('App', () => {
     ).toBeNull();
   });
 
+  it('shows the Admin nav link for an admin', async () => {
+    configure({ displayName: 'Etta Wren', role: 'ADMIN' });
+    await TestBed.inject(Router).navigateByUrl('/catalog');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        'a[routerLink="/admin/instructor-applications"]',
+      ),
+    ).not.toBeNull();
+  });
+
+  it('hides the Admin nav link for an instructor', async () => {
+    configure({ displayName: 'Etta Wren', role: 'INSTRUCTOR' });
+    await TestBed.inject(Router).navigateByUrl('/catalog');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        'a[routerLink="/admin/instructor-applications"]',
+      ),
+    ).toBeNull();
+  });
+
   it('initials chip links to /settings/profile', async () => {
     configure({ displayName: 'Etta Wren' });
     await TestBed.inject(Router).navigateByUrl('/catalog');

@@ -108,7 +108,7 @@ export class InvalidUnlockTokenException extends AuthException {
 
 export class InsufficientRoleException extends AuthException {
   constructor() {
-    super('INSUFFICIENT_ROLE', 'Instructor role required.', 403);
+    super('INSUFFICIENT_ROLE', 'Insufficient role.', 403);
   }
 }
 

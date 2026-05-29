@@ -3,6 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import type {
   EmailChangeVerificationEmailInput,
   EmailTransport,
+  InstructorApplicationApprovedEmailInput,
+  InstructorApplicationDeclinedEmailInput,
   PasswordChangedEmailInput,
   PasswordResetEmailInput,
   UnlockEmailInput,
@@ -10,7 +12,14 @@ import type {
 } from './email-transport';
 
 export interface OutboxEntry {
-  kind: 'unlock' | 'verification' | 'password-reset' | 'email-change' | 'password-changed';
+  kind:
+    | 'unlock'
+    | 'verification'
+    | 'password-reset'
+    | 'email-change'
+    | 'password-changed'
+    | 'instructor-approved'
+    | 'instructor-declined';
   to: string;
   url: string;
   sentAt: Date;
@@ -76,6 +85,20 @@ export class ConsoleEmailTransport implements EmailTransport {
   async sendPasswordChangedEmail(input: PasswordChangedEmailInput): Promise<void> {
     this.logger.log(`[password-changed-email] to=${input.to}`);
     this.append({ kind: 'password-changed', to: input.to, url: '', sentAt: new Date() });
+  }
+
+  async sendInstructorApplicationApprovedEmail(
+    input: InstructorApplicationApprovedEmailInput,
+  ): Promise<void> {
+    this.logger.log(`[instructor-approved-email] to=${input.to}`);
+    this.append({ kind: 'instructor-approved', to: input.to, url: '', sentAt: new Date() });
+  }
+
+  async sendInstructorApplicationDeclinedEmail(
+    input: InstructorApplicationDeclinedEmailInput,
+  ): Promise<void> {
+    this.logger.log(`[instructor-declined-email] to=${input.to}`);
+    this.append({ kind: 'instructor-declined', to: input.to, url: '', sentAt: new Date() });
   }
 
   /** Returns the most recent email of `kind` sent to `to`, or undefined. */

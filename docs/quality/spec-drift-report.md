@@ -32,12 +32,13 @@ carries at least minor drift.
 
 | Epic | Use cases | Drift level | Headline |
 |---|---|---|---|
-| EP-01 — User Identity & Access | 4 | **Partial (2026-05-29)** | UC-01-01/02 built; UC-01-03 fully implemented — Slices A–D shipped (text profile 2026-05-27, picture 2026-05-28, email change 2026-05-28, password change 2026-05-29); UC-01-04 submission flow shipped 2026-05-29 (admin review/approve/decline deferred to EP-08); 2 minor behavioral divergences on shipped UCs |
+| EP-01 — User Identity & Access | 4 | **Partial (2026-05-29)** | UC-01-01/02 built; UC-01-03 fully implemented — Slices A–D shipped (text profile 2026-05-27, picture 2026-05-28, email change 2026-05-28, password change 2026-05-29); UC-01-04 submission flow shipped 2026-05-29 (admin approve/decline review shipped via US-08-03, 2026-05-29); 2 minor behavioral divergences on shipped UCs |
 | EP-02 — Course Authoring | 5 | **Reconciled (2026-05-26)** | UC-02-01..05 all built; UC-02-05 (cover image) added; divergences are documented design choices |
 | EP-03 — Video Management & DRM | 5 | **Reconciled (2026-05-26)** | UC-03-01..04 built as scoped-down HLS + AES-128 (intentional); UC-03-05 unbuilt (admin scope → EP-08) |
 | EP-04 — Lesson Materials | 2 | **Reconciled (2026-05-26)** | UC-04-01/02 both built; UC-04-02 student download landed in `af5a928` |
 | EP-05 — Course Discovery & Enrollment | 5 | **Reconciled (2026-05-22)** | UC-05-01..05 all built across Slice A (discovery) and Slice B (enrolment) |
 | EP-06 — Learning Experience | 4 | **Reconciled (2026-05-26)** | UC-06-01..04 all built across Slices A–D; module/course rollups deferred post-MVP |
+| EP-08 — Platform Administration | — | **Partial (2026-05-29)** | US-08-03 (admin instructor-application review queue) shipped; US-08-01/02/04 (Manage Users, Manage Categories, Monitor Platform Health) deferred |
 
 ### Three kinds of drift
 
@@ -72,9 +73,10 @@ by — they are not scope decisions and are not recorded anywhere:
 
 **Drift: Moderate (reconciled 2026-05-29).** UC-01-03 is now fully built across
 Slices A–D (text profile, picture, email change, password change). UC-01-04
-submission flow shipped 2026-05-29; the async approve/decline post-condition
-is deferred to EP-08. UC-01-01 and UC-01-02 are built but each carries a
-high-severity behavioral contradiction (below).
+is fully implemented — submission flow shipped 2026-05-29 and the admin
+approve/decline review queue shipped via US-08-03, 2026-05-29. UC-01-01 and
+UC-01-02 are built but each carries a high-severity behavioral contradiction
+(below).
 
 ### UC-01-01 — Register a New Account
 
@@ -154,12 +156,17 @@ high-severity behavioral contradiction (below).
   `ALREADY_INSTRUCTOR` (409), `INSTRUCTOR_APPLICATION_EXISTS` (409),
   `INSTRUCTOR_APPLICATION_INVALID` (400). See
   `docs/superpowers/specs/2026-05-29-uc-01-04-instructor-role-request-design.md`.
-- **DEFERRED to EP-08** — The asynchronous post-condition of UC-01-04 (admin review
-  queue UI, approve/decline actions, decision emails, user-facing DECLINED flow) is
-  not built. Promotion remains CLI-mediated via
-  `pnpm tools:promote-to-instructor <email>`, which now also resolves the pending
-  application to `APPROVED` (with `resolvedAt`). The `DECLINED` status and
-  `resolvedAt` field exist in the model for forward-compat only.
+- **IMPLEMENTED — US-08-03 shipped 2026-05-29.** The asynchronous post-condition of
+  UC-01-04 (admin review queue, approve/decline actions, decision emails) is now built.
+  An ADMIN visits `/admin/instructor-applications` and sees the pending queue;
+  **Approve** grants the `INSTRUCTOR` role (requires verified email) and resolves the
+  application to `APPROVED`; **Decline** marks it `DECLINED` and allows re-application.
+  Both actions send a best-effort decision email. Scope cuts: pending-only queue (no
+  history view), no decline reason. ADMINs are provisioned via
+  `pnpm tools:promote-to-admin <email>`. CLI promotion via
+  `pnpm tools:promote-to-instructor <email>` also resolves the application. See
+  `docs/superpowers/specs/2026-05-29-us-08-03-review-instructor-applications-design.md`
+  and `docs/superpowers/plans/2026-05-29-us-08-03-review-instructor-applications.md`.
 - **BEYOND SPEC** · Low — `INSTRUCTOR_APPLICATION_EXISTS` blocks a re-submit when
   a pending application is already on record; the use case does not specify this
   guard explicitly (it is implied by the review model). `instructor-application.service.ts`.
@@ -376,6 +383,42 @@ stale and resolved.
 
 ---
 
+## EP-08 — Platform Administration
+
+**Drift: Partial (2026-05-29).** US-08-03 (Review Instructor Applications) is the first
+implemented administrator surface. The remaining EP-08 user stories (Manage Users,
+Manage Categories, Monitor Platform Health) remain deferred.
+
+### US-08-03 — Review Instructor Applications
+
+- **IMPLEMENTED — shipped 2026-05-29.** An ADMIN visits `/admin/instructor-applications`
+  (reached via the **Admin** nav link, which is visible only to ADMINs) and sees the
+  pending instructor-application queue. Each row shows the applicant's display name,
+  email, statement of intent, areas of expertise, and submission date. The ADMIN clicks
+  **Approve** or **Decline**:
+  - **Approve** — grants the `INSTRUCTOR` Firebase custom claim, updates
+    `users/{uid}.role`, resolves the `instructorApplications/{uid}` document to
+    `APPROVED` (with `resolvedAt`), and sends a best-effort approval email. Requires the
+    applicant's email to be verified; returns `APPLICANT_NOT_VERIFIED` otherwise.
+  - **Decline** — marks the application `DECLINED`; the applicant may re-apply.
+    A best-effort decline email is sent.
+  - The applicant must sign out and back in for a role grant to take effect.
+  - `pnpm tools:promote-to-admin <email>` provisions new ADMINs.
+  - `pnpm tools:promote-to-instructor <email>` also resolves a pending application to
+    `APPROVED` (unchanged from before this feature).
+- **Deliberate scope cuts** — the queue shows only `PENDING` applications (no
+  approved/declined history view); no decline-reason field.
+- Design spec: `docs/superpowers/specs/2026-05-29-us-08-03-review-instructor-applications-design.md`
+- Implementation plan: `docs/superpowers/plans/2026-05-29-us-08-03-review-instructor-applications.md`
+
+### Other EP-08 user stories
+
+- **US-08-01 Manage Users** — not built.
+- **US-08-02 Manage Categories** — not built.
+- **US-08-04 Monitor Platform Health** — not built.
+
+---
+
 ## Recommendations
 
 1. **Reconcile the DRM architecture story.** ✅ Addressed 2026-05-26 — the EP-03
@@ -393,10 +436,11 @@ stale and resolved.
 3. **Mark unbuilt use cases.** ✅ Addressed 2026-05-26; updated 2026-05-29 —
    **UC-01-03 (Manage Profile) is now fully built** across Slices A–D (text fields
    2026-05-27, profile picture 2026-05-28, email change 2026-05-28, password change
-   2026-05-29 — the ext 3c sub-flow that was previously deferred). The only use
-   cases that remain entirely unbuilt are **UC-01-04 (Request Instructor Role)** and
-   **UC-03-05 (Manage Video Storage)**; each is called out in the relevant epic's
-   DRIFT note. EP-05 and EP-06 are fully built.
+   2026-05-29 — the ext 3c sub-flow that was previously deferred). **UC-01-04
+   (Request Instructor Role) is now fully built**: submission flow shipped 2026-05-29
+   and the admin approve/decline review (US-08-03) shipped 2026-05-29. The only use
+   case that remains entirely unbuilt is **UC-03-05 (Manage Video Storage)**, called
+   out in the EP-03 DRIFT note. EP-05 and EP-06 are fully built.
 4. **Re-label the publish gate** consistently — it is UC-02-04 (EP-02), not
    "EP-03 slice D". Two references remain in this report (above); historical plan
    docs under `docs/superpowers/plans/` are post-implementation summaries and need

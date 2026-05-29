@@ -161,3 +161,17 @@ describe('ConsoleEmailTransport password-changed', () => {
     expect(entry?.url).toBe('');
   });
 });
+
+describe('ConsoleEmailTransport — instructor decision emails', () => {
+  it('records an approved email in the outbox', async () => {
+    const t = new ConsoleEmailTransport();
+    await t.sendInstructorApplicationApprovedEmail({ to: 'a@example.com' });
+    expect(t.lastSentTo('a@example.com', 'instructor-approved')).toBeDefined();
+  });
+
+  it('records a declined email in the outbox', async () => {
+    const t = new ConsoleEmailTransport();
+    await t.sendInstructorApplicationDeclinedEmail({ to: 'b@example.com' });
+    expect(t.lastSentTo('b@example.com', 'instructor-declined')).toBeDefined();
+  });
+});

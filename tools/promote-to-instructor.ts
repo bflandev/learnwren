@@ -17,6 +17,10 @@
 
 import * as admin from 'firebase-admin';
 
+import { promoteUserToInstructor } from '../libs/api-profile/src/lib/instructor-application/instructor-promotion';
+import type { PromotionFirestoreLike } from '../libs/api-profile/src/lib/instructor-application/instructor-promotion';
+import type { UserId } from '@learnwren/shared-data-models';
+
 import { initFirebaseApp, resolveMode } from './firebase-admin-init';
 
 type AuthLike = Pick<admin.auth.Auth, 'getUserByEmail' | 'setCustomUserClaims'>;
@@ -35,16 +39,12 @@ export async function promoteToInstructor(
     );
   }
 
-  await auth.setCustomUserClaims(user.uid, { role: 'INSTRUCTOR' });
-  await firestore.collection('users').doc(user.uid).update({ role: 'INSTRUCTOR' });
-
-  // UC-01-04: if the user has a pending instructor application, mark it resolved.
-  const appRef = firestore.collection('instructorApplications').doc(user.uid);
-  const appSnap = await appRef.get();
-  if (appSnap.exists && appSnap.data()?.status === 'PENDING') {
-    await appRef.update({ status: 'APPROVED', resolvedAt: new Date().toISOString() });
-    console.log(`[promote] Resolved pending instructor application for ${email} -> APPROVED.`);
-  }
+  await promoteUserToInstructor(
+    user.uid as UserId,
+    auth,
+    firestore as unknown as PromotionFirestoreLike,
+    new Date().toISOString(),
+  );
 
   console.log(`[promote] Promoted ${email} (uid=${user.uid}) to INSTRUCTOR.`);
   console.log(

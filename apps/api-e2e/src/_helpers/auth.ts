@@ -104,3 +104,29 @@ export async function registerStudent(
   const match = setCookie!.match(/__session=([^;]+)/);
   return { uid, cookieHeader: `__session=${match![1]}` };
 }
+
+/** Register a STUDENT, mark verified, promote to ADMIN, and re-mint the session cookie. */
+export async function registerAndPromoteAdmin(
+  request: import('@playwright/test').APIRequestContext,
+): Promise<SessionContext> {
+  const email = uniqueEmail('admin');
+  const password = 'Aa1!aaaaaaaa';
+  const reg = await postWithRetryOn429(request, `${API_BASE}/auth/register`, {
+    email,
+    password,
+    displayName: 'Adm',
+  });
+  expect(reg.status()).toBe(201);
+  const { uid } = (await reg.json()) as { uid: string };
+
+  await admin.auth().updateUser(uid, { emailVerified: true });
+  await admin.auth().setCustomUserClaims(uid, { role: 'ADMIN' });
+  await admin.firestore().collection('users').doc(uid).update({ role: 'ADMIN' });
+
+  const login = await postWithRetryOn429(request, `${API_BASE}/auth/login`, { email, password });
+  expect(login.status()).toBe(200);
+  const setCookie = login.headers()['set-cookie'];
+  const match = setCookie!.match(/__session=([^;]+)/);
+  expect(match).not.toBeNull();
+  return { uid, cookieHeader: `__session=${match![1]}` };
+}
