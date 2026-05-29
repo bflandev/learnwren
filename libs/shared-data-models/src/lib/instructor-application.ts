@@ -43,3 +43,27 @@ export interface InstructorApplicationErrorBody {
     details?: { field?: 'statement' | 'expertise' };
   };
 }
+
+/** One row of the admin pending queue: an application joined with the user doc. */
+export interface PendingInstructorApplicationView {
+  uid: UserId;
+  displayName: string;
+  email: string;
+  statement: string;
+  expertise: string;
+  createdAt: ISODateString;
+}
+
+/** Body of GET /api/admin/instructor-applications. */
+export interface PendingInstructorApplicationsResponse {
+  applications: PendingInstructorApplicationView[];
+}
+
+export const APPLICATION_NOT_FOUND = 'APPLICATION_NOT_FOUND';
+export const APPLICATION_NOT_PENDING = 'APPLICATION_NOT_PENDING';
+export const APPLICANT_NOT_VERIFIED = 'APPLICANT_NOT_VERIFIED';
+
+export type AdminInstructorApplicationErrorCode =
+  | typeof APPLICATION_NOT_FOUND
+  | typeof APPLICATION_NOT_PENDING
+  | typeof APPLICANT_NOT_VERIFIED;
