@@ -1,1 +1,1 @@
-// web-admin public API — populated by later tasks
+export { adminRoutes } from './lib/admin.routes';
