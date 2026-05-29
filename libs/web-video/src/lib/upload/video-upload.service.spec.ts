@@ -392,3 +392,205 @@ describe('VideoUploadService', () => {
     expect(svc.state().kind).toBe('idle');
   });
 });
+
+describe('VideoUploadService — branch coverage (mutation hardening)', () => {
+  let svc: VideoUploadService;
+  let api: ReturnType<typeof makeVideoSvc>;
+  let xhrs: FakeXhr[];
+  const CTX = { courseId: 'c1' as never, moduleId: 'm1' as never, lessonId: 'l1' as never };
+  const CHUNK = 8 * 1024 * 1024;
+
+  beforeEach(() => {
+    xhrs = [];
+    api = makeVideoSvc();
+    TestBed.configureTestingModule({
+      providers: [
+        VideoUploadService,
+        { provide: VideoService, useValue: api },
+        {
+          provide: XHR_FACTORY,
+          useValue: () => {
+            const x = new FakeXhr();
+            xhrs.push(x);
+            return x;
+          },
+        },
+      ],
+    });
+    svc = TestBed.inject(VideoUploadService);
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  const sized = (bytes: number, type = 'video/mp4'): File => {
+    const f = new File([new Uint8Array(1)], 'f.mp4', { type });
+    Object.defineProperty(f, 'size', { value: bytes });
+    return f;
+  };
+  const drain = async (n = 6): Promise<void> => {
+    for (let i = 0; i < n; i++) await Promise.resolve();
+  };
+
+  // ---- selectFile boundary + return contract ----
+  it('accepts a file exactly at the 10 GB limit (boundary)', () => {
+    expect(svc.selectFile(sized(10_000_000_000))).toEqual({ ok: true, contentType: 'video/mp4' });
+    expect(svc.state()).toEqual({ kind: 'idle' });
+  });
+
+  it('selectFile returns { ok: false } for an oversized file', () => {
+    expect(svc.selectFile(sized(10_000_000_001))).toEqual({ ok: false });
+  });
+
+  it('selectFile returns { ok: false } for an unsupported type', () => {
+    expect(svc.selectFile(sized(10, 'text/plain'))).toEqual({ ok: false });
+  });
+
+  it('start() does not create a session when the file is invalid', async () => {
+    await svc.start(CTX, sized(10, 'text/plain'));
+    expect(api.createUploadSession).not.toHaveBeenCalled();
+    expect(svc.state().kind).toBe('failed');
+  });
+
+  it('createUploadSession is called with the declared size and content type', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 200;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(api.createUploadSession).toHaveBeenCalledWith('c1', 'm1', 'l1', {
+      sizeBytes: 8,
+      contentType: 'video/mp4',
+    });
+  });
+
+  // ---- hard-failure path ----
+  it('a non-retriable status hard-fails: no finalize, marks failed with the status in the reason', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.markFailed.mockReturnValue(of({ id: 'v1', state: 'FAILED' }));
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 403;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(api.completeUpload).not.toHaveBeenCalled();
+    expect(api.markFailed).toHaveBeenCalledWith('v1', expect.stringContaining('403'));
+    expect(svc.state()).toEqual({ kind: 'failed', reason: expect.stringContaining('403'), videoId: 'v1' });
+  });
+
+  it('a 499 status is a hard failure with no retry (status >= 500 boundary)', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.markFailed.mockReturnValue(of({ id: 'v1', state: 'FAILED' }));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 499;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(xhrs.length).toBe(1); // no retry → exactly one attempt/XHR
+    expect(svc.state().kind).toBe('failed');
+  });
+
+  it('treats an XHR network error (onerror) as a hard upload failure', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.markFailed.mockReturnValue(of({ id: 'v1', state: 'FAILED' }));
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 0;
+    xhrs.at(-1)!.onerror!();
+    await done;
+    expect(api.completeUpload).not.toHaveBeenCalled();
+    expect(svc.state().kind).toBe('failed');
+  });
+
+  // ---- chunk slicing + percent + XHR wiring ----
+  it('slices per chunk and reports percent after each chunk', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'https://s', expiresAt: 'e' }));
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+    const file = sized(2 * CHUNK);
+    const sliceSpy = vi.spyOn(file, 'slice');
+    const done = svc.start(CTX, file);
+    await drain();
+    xhrs[0].status = 200;
+    xhrs[0].onload!();
+    await drain();
+    // two equal chunks → after the first, percent is exactly 50
+    expect(svc.state()).toEqual(expect.objectContaining({ kind: 'uploading', percent: 50 }));
+    expect(xhrs[0].open).toHaveBeenCalledWith('PUT', 'https://s', true);
+    xhrs[1].status = 200;
+    xhrs[1].onload!();
+    await done;
+    expect(sliceSpy).toHaveBeenNthCalledWith(1, 0, CHUNK);
+    expect(sliceSpy).toHaveBeenNthCalledWith(2, CHUNK, 2 * CHUNK);
+    expect(svc.state()).toEqual(expect.objectContaining({ kind: 'complete', videoId: 'v1' }));
+  });
+
+  // ---- cancel / retry edge states ----
+  it('cancel() from a failed state deletes the failed video', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.markFailed.mockReturnValue(of({ id: 'v1', state: 'FAILED' }));
+    api.delete.mockReturnValue(of(undefined));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 403;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(svc.state().kind).toBe('failed');
+    await svc.cancel();
+    expect(api.delete).toHaveBeenCalledWith('v1');
+    expect(svc.state().kind).toBe('idle');
+  });
+
+  it('cancel() from a complete state does NOT delete the video', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 200;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(svc.state().kind).toBe('complete');
+    await svc.cancel();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('retry() is a no-op when the failed state carries no videoId', async () => {
+    svc.selectFile(sized(10, 'text/plain')); // failed WITHOUT a videoId
+    expect(svc.state().kind).toBe('failed');
+    await svc.retry();
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(svc.state().kind).toBe('failed'); // unchanged — guard returned early
+  });
+
+  it('cancel() from a failed state with no videoId does not call delete', async () => {
+    svc.selectFile(sized(10, 'text/plain')); // failed WITHOUT a videoId
+    expect(svc.state().kind).toBe('failed');
+    await svc.cancel();
+    expect(api.delete).not.toHaveBeenCalled(); // the `if (vid)` guard skips delete
+    expect(svc.state().kind).toBe('idle');
+  });
+
+  it('retries on a 500 status (status >= 500 boundary) and can then succeed', async () => {
+    vi.useFakeTimers();
+    try {
+      api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+      api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+      const done = svc.start(CTX, sized(8));
+      await Promise.resolve();
+      xhrs.at(-1)!.status = 500; // exactly at the >= 500 retry boundary
+      xhrs.at(-1)!.onload!();
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      expect(xhrs.length).toBeGreaterThanOrEqual(2); // retried → a fresh attempt
+      xhrs.at(-1)!.status = 200;
+      xhrs.at(-1)!.onload!();
+      await vi.runAllTimersAsync();
+      await done;
+      expect(svc.state().kind).toBe('complete');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
