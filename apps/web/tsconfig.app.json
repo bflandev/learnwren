@@ -28,6 +28,9 @@
       "path": "../../libs/web-catalog/tsconfig.lib.json"
     },
     {
+      "path": "../../libs/web-admin/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/web-auth/tsconfig.lib.json"
     }
   ]
