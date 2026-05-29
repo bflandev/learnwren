@@ -134,3 +134,33 @@ describe('RegisterPageComponent', () => {
     expect(cmp.passwordHints()).toEqual([]);
   });
 });
+
+describe('RegisterPageComponent busy state', () => {
+  it('starts not busy', () => {
+    expect(setup().fixture.componentInstance.busy()).toBe(false);
+  });
+
+  it('sets busy true during submit and clears it after the response', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa', displayName: 'A' });
+    const p = cmp.submit();
+    expect(cmp.busy()).toBe(true);
+    httpMock.expectOne('/api/auth/register').flush(
+      { error: { code: 'EMAIL_ALREADY_EXISTS' } },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await p;
+    expect(cmp.busy()).toBe(false);
+  });
+
+  it('rejects a malformed email and an over-long display name', () => {
+    const f = setup().fixture.componentInstance.form;
+    f.setValue({ email: 'not-an-email', password: 'Aa1!aaaaaaaa', displayName: 'A' });
+    expect(f.controls.email.valid).toBe(false);
+    f.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa', displayName: 'x'.repeat(81) });
+    expect(f.controls.displayName.valid).toBe(false);
+    f.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa', displayName: 'A' });
+    expect(f.valid).toBe(true);
+  });
+});
