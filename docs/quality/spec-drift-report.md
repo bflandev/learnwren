@@ -32,7 +32,7 @@ carries at least minor drift.
 
 | Epic | Use cases | Drift level | Headline |
 |---|---|---|---|
-| EP-01 — User Identity & Access | 4 | **Partial (2026-05-29)** | UC-01-01/02 built; UC-01-03 fully implemented — Slices A–D shipped (text profile 2026-05-27, picture 2026-05-28, email change 2026-05-28, password change 2026-05-29); UC-01-04 submission flow shipped 2026-05-29 (admin review/approve/decline deferred to EP-08); 2 minor behavioral divergences on shipped UCs |
+| EP-01 — User Identity & Access | 4 | **Partial (2026-05-29)** | UC-01-01/02 built; UC-01-03 fully implemented — Slices A–D shipped (text profile 2026-05-27, picture 2026-05-28, email change 2026-05-28, password change 2026-05-29); UC-01-04 submission flow shipped 2026-05-29 (admin approve/decline review shipped via US-08-03, 2026-05-29); 2 minor behavioral divergences on shipped UCs |
 | EP-02 — Course Authoring | 5 | **Reconciled (2026-05-26)** | UC-02-01..05 all built; UC-02-05 (cover image) added; divergences are documented design choices |
 | EP-03 — Video Management & DRM | 5 | **Reconciled (2026-05-26)** | UC-03-01..04 built as scoped-down HLS + AES-128 (intentional); UC-03-05 unbuilt (admin scope → EP-08) |
 | EP-04 — Lesson Materials | 2 | **Reconciled (2026-05-26)** | UC-04-01/02 both built; UC-04-02 student download landed in `af5a928` |
@@ -73,9 +73,10 @@ by — they are not scope decisions and are not recorded anywhere:
 
 **Drift: Moderate (reconciled 2026-05-29).** UC-01-03 is now fully built across
 Slices A–D (text profile, picture, email change, password change). UC-01-04
-submission flow shipped 2026-05-29; the async approve/decline post-condition
-is deferred to EP-08. UC-01-01 and UC-01-02 are built but each carries a
-high-severity behavioral contradiction (below).
+is fully implemented — submission flow shipped 2026-05-29 and the admin
+approve/decline review queue shipped via US-08-03, 2026-05-29. UC-01-01 and
+UC-01-02 are built but each carries a high-severity behavioral contradiction
+(below).
 
 ### UC-01-01 — Register a New Account
 
