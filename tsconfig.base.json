@@ -32,7 +32,8 @@
       "@learnwren/web-enrollment": ["./libs/web-enrollment/src/index.ts"],
       "@learnwren/web-learn": ["./libs/web-learn/src/index.ts"],
       "@learnwren/api-profile": ["./libs/api-profile/src/index.ts"],
-      "@learnwren/web-profile": ["./libs/web-profile/src/index.ts"]
+      "@learnwren/web-profile": ["./libs/web-profile/src/index.ts"],
+      "@learnwren/api-http-errors": ["./libs/api-http-errors/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
