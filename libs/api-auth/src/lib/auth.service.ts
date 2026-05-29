@@ -16,6 +16,7 @@ import type {
 
 import { AccountRecoveryService } from './account-recovery.service';
 import { AuthAttemptsRepository } from './auth-attempts.repository';
+import { isFirebaseError } from './firebase-error.util';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
 import { SessionCookieService, type MintedSession } from './session-cookie.service';
@@ -131,7 +132,7 @@ export class AuthService {
         displayName,
       });
     } catch (err) {
-      if (this.isFirebaseError(err) && err.code === 'auth/email-already-exists') {
+      if (isFirebaseError(err) && err.code === 'auth/email-already-exists') {
         throw new EmailAlreadyExistsException();
       }
       this.logger.error(
@@ -308,10 +309,6 @@ export class AuthService {
       ...(data.photoUrl ? { photoUrl: data.photoUrl } : {}),
       emailVerified: fromCookie.emailVerified,
     };
-  }
-
-  private isFirebaseError(err: unknown): err is { code: string } {
-    return typeof err === 'object' && err !== null && 'code' in err;
   }
 
   private async bestEffortDeleteUser(uid: string): Promise<void> {

@@ -1,27 +1,35 @@
 # Mutation Test Report — `libs/api-auth`
 
-> Generated 2026-05-26T02:57:18.231Z
+> Generated 2026-05-29T05:07:56Z (raised to target; supersedes the 2026-05-26 run below)
 
-**Headline mutation score: 87.82%** (killed=476, survived=60, no-cov=6, ignored=0). Score on covered mutants only: 88.81%. Adjusted (equivalent candidates excluded): 94.26%.
+**Headline mutation score: 90.16%** (killed=440, survived=43, no-cov=5, ignored=0). Score on covered mutants only: 91.10%. Adjusted (equivalent candidates excluded): 97.35%.
 
+**2026-05-29 — raised from 87.82% → 90.16% (clears the 90% auth band).** Changes:
+- Extracted the duplicated private `isFirebaseError` predicate into `firebase-error.util.ts` and unit-tested it directly with an input table (object-with-code / object-without-code / null / undefined / string / number). Kills all 12 of its mutants (100%) and removes the two-copy duplication that left ~8 surviving conditional mutants in `auth.service.ts` + `account-recovery.service.ts`.
+- `auth.controller.ts` → **100%**: added `lastTestEmail` tests that isolate the `NODE_ENV === 'production'` gate and the `LEARNWREN_TEST_OUTBOX_ENABLED !== '1'` gate (each with all other gates passing, so the branch under test is the only one that can 404).
+- `account-recovery.service.ts` 79.3% → 88.0%: pinned `sendVerificationEmail`'s `{ to, verificationUrl }` payload, added a `LEARNWREN_PUBLIC_URL`-set `continueUrl` case, and covered `sendInitialVerificationEmail`.
 
-Target band: auth / billing / auth-adjacent — 90%+ target.
+The remaining 43 survivors are predominantly equivalent (36 flagged): logger message/name strings, catch-blocks containing only logging, a non-null type assertion, and a defensive double-guard in `redeemUnlockToken` (`!docSnap` after an `query.empty` check is unreachable with real Firestore). Adjusted score excluding these: **97.35%**.
 
 ## Per-file scores
 
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
-| `src/lib/account-recovery.service.ts` | 79.3% | 69 | 18 | 0 |
+| `src/lib/account-recovery.service.ts` | 88.0% | 66 | 9 | 0 |
 | `src/lib/session-cookie.service.ts` | 82.6% | 38 | 8 | 0 |
 | `src/lib/firebase-session.guard.ts` | 83.3% | 15 | 3 | 0 |
 | `src/lib/firebase-auth-rest-client.ts` | 83.8% | 31 | 5 | 1 |
-| `src/lib/auth.controller.ts` | 84.6% | 33 | 5 | 1 |
-| `src/lib/auth.service.ts` | 85.0% | 108 | 17 | 2 |
+| `src/lib/auth.controller.ts` | 100.0% | 39 | 0 | 0 |
+| `src/lib/auth.service.ts` | 85.5% | 100 | 15 | 2 |
 | `src/lib/auth-attempts.repository.ts` | 95.5% | 84 | 2 | 2 |
-| `src/lib/auth.exception-filter.ts` | 95.7% | 44 | 2 | 0 |
+| `src/lib/auth.exception-filter.ts` | 50.0% | 1 | 1 | 0 |
+| `src/lib/firebase-error.util.ts` | 100.0% | 12 | 0 | 0 |
 | `src/lib/instructor-role.guard.ts` | 100.0% | 8 | 0 | 0 |
 | `src/lib/password-policy.service.ts` | 100.0% | 41 | 0 | 0 |
 | `src/lib/session-cookie.helper.ts` | 100.0% | 5 | 0 | 0 |
+
+<details>
+<summary>Prior run (2026-05-26, 87.82%) — survivor analysis, retained for history</summary>
 
 ## Survivor clusters — gaps to close
 
@@ -207,3 +215,5 @@ _Recommended test._ Inspect `session-cookie.service.ts:91` in `sleepPastNextSeco
 - **Coverage analysis is `perTest`.** Stryker only runs tests whose coverage hit the mutated line.
 - **No-coverage mutants count against the raw score.** They reflect lines no test executes.
 - **Equivalent classification is heuristic.** Review each candidate before treating the adjusted score as authoritative.
+
+</details>
