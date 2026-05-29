@@ -9,6 +9,14 @@ export type PolicyRequirement =
 
 const MIN_LENGTH = 12;
 
+export const PASSWORD_REQUIREMENT_PROSE: Record<PolicyRequirement, string> = {
+  MIN_LENGTH: 'at least 12 characters',
+  UPPERCASE: 'at least one uppercase letter',
+  LOWERCASE: 'at least one lowercase letter',
+  DIGIT: 'at least one digit',
+  SPECIAL: 'at least one special character',
+};
+
 const REQUIREMENT_ORDER: PolicyRequirement[] = [
   'MIN_LENGTH',
   'UPPERCASE',

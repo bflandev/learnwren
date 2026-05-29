@@ -3,9 +3,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 
-import { AuthService, passwordPolicyValidator } from '@learnwren/web-auth';
+import { AuthService, passwordPolicyValidator, PASSWORD_REQUIREMENT_PROSE } from '@learnwren/web-auth';
+import type { PolicyRequirement } from '@learnwren/web-auth';
 import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
-import type { ProfileView, ProfileInvalidErrorBody, EmailChangeErrorBody, PasswordChangeErrorBody, PolicyRequirement } from '@learnwren/shared-data-models';
+import type { ProfileView, ProfileInvalidErrorBody, EmailChangeErrorBody, PasswordChangeErrorBody } from '@learnwren/shared-data-models';
 
 import { ProfileService } from '../profile.service';
 import { ProfilePictureUploaderComponent } from '../picture/profile-picture-uploader.component';
@@ -15,14 +16,6 @@ import { PasswordChangeService } from '../password/password-change.service';
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 type EmailStatus = 'idle' | 'sending' | 'sent' | 'error';
 type PasswordStatus = 'idle' | 'saving' | 'error';
-
-const REQUIREMENT_PROSE: Record<PolicyRequirement, string> = {
-  MIN_LENGTH: 'at least 12 characters',
-  UPPERCASE: 'at least one uppercase letter',
-  LOWERCASE: 'at least one lowercase letter',
-  DIGIT: 'at least one digit',
-  SPECIAL: 'at least one special character',
-};
 
 function confirmMatchesValidator(control: AbstractControl): ValidationErrors | null {
   const np = control.get('newPassword')?.value;
@@ -117,7 +110,7 @@ export class ProfilePageComponent implements OnInit {
     const policy = this.passwordForm.controls.newPassword.errors?.['passwordPolicy'] as
       | { unmet?: PolicyRequirement[] }
       | undefined;
-    return policy?.unmet?.map((r) => REQUIREMENT_PROSE[r]) ?? [];
+    return policy?.unmet?.map((r) => PASSWORD_REQUIREMENT_PROSE[r]) ?? [];
   }
 
   async submitPasswordChange(): Promise<void> {
