@@ -618,13 +618,13 @@ declined applications.
 
 Click **Approve** to grant the applicant the `INSTRUCTOR` role:
 
-- The `INSTRUCTOR` Firebase custom claim and `users/{uid}.role` are updated atomically.
+- The `INSTRUCTOR` Firebase custom claim and the `users/{uid}.role` field are both updated (and any pending application is marked approved).
 - The application is marked `APPROVED` with a `resolvedAt` timestamp.
 - A best-effort approval email is sent to the applicant.
 - The applicant must **sign out and sign back in** for the role change to take effect.
 
 > **Requirement:** the applicant's email must be verified. If it is not, the action is
-> refused with an `EMAIL_NOT_VERIFIED` error and the application remains pending.
+> refused with an `APPLICANT_NOT_VERIFIED` error and the application remains pending.
 
 ### Decline
 

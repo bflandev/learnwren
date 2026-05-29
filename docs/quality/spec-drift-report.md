@@ -398,7 +398,7 @@ Manage Categories, Monitor Platform Health) remain deferred.
   - **Approve** — grants the `INSTRUCTOR` Firebase custom claim, updates
     `users/{uid}.role`, resolves the `instructorApplications/{uid}` document to
     `APPROVED` (with `resolvedAt`), and sends a best-effort approval email. Requires the
-    applicant's email to be verified; returns `EMAIL_NOT_VERIFIED` otherwise.
+    applicant's email to be verified; returns `APPLICANT_NOT_VERIFIED` otherwise.
   - **Decline** — marks the application `DECLINED`; the applicant may re-apply.
     A best-effort decline email is sent.
   - The applicant must sign out and back in for a role grant to take effect.
