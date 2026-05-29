@@ -285,4 +285,23 @@ describe('ProfilePageComponent — change password', () => {
     await cmp.submitPasswordChange();
     expect(cmp.passwordForm.controls.currentPassword.errors?.['server']).toBeTruthy();
   });
+
+  it('routes PASSWORD_CHANGE_FAILED to the form-level banner, not a field', async () => {
+    change.mockRejectedValue(
+      new HttpErrorResponse({
+        status: 500,
+        error: { error: { code: 'PASSWORD_CHANGE_FAILED', message: 'We could not change your password. Please try again.' } },
+      }),
+    );
+    const cmp = fixture.componentInstance;
+    cmp.passwordForm.setValue({
+      currentPassword: 'Aa1!aaaaaaaa',
+      newPassword: 'Bb2@bbbbbbbb',
+      confirmNewPassword: 'Bb2@bbbbbbbb',
+    });
+
+    await cmp.submitPasswordChange();
+    expect(cmp.passwordBannerError()).toBeTruthy();
+    expect(cmp.passwordForm.controls.newPassword.errors?.['server']).toBeFalsy();
+  });
 });

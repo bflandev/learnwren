@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -68,6 +69,20 @@ export class ProfilePageComponent implements OnInit {
 
   readonly passwordStatus = signal<PasswordStatus>('idle');
   readonly passwordFormOpen = signal(false);
+  readonly passwordBannerError = signal<string | null>(null);
+
+  private readonly newPasswordValue = toSignal(
+    this.passwordForm.controls.newPassword.valueChanges,
+    { initialValue: this.passwordForm.controls.newPassword.value },
+  );
+
+  readonly passwordHints = computed<string[]>(() => {
+    void this.newPasswordValue();
+    const policy = this.passwordForm.controls.newPassword.errors?.['passwordPolicy'] as
+      | { unmet?: PolicyRequirement[] }
+      | undefined;
+    return policy?.unmet?.map((r) => PASSWORD_REQUIREMENT_PROSE[r]) ?? [];
+  });
 
   toggleEmailForm(): void {
     this.emailFormOpen.update((v) => !v);
@@ -106,19 +121,13 @@ export class ProfilePageComponent implements OnInit {
     this.passwordFormOpen.update((v) => !v);
   }
 
-  passwordHints(): string[] {
-    const policy = this.passwordForm.controls.newPassword.errors?.['passwordPolicy'] as
-      | { unmet?: PolicyRequirement[] }
-      | undefined;
-    return policy?.unmet?.map((r) => PASSWORD_REQUIREMENT_PROSE[r]) ?? [];
-  }
-
   async submitPasswordChange(): Promise<void> {
     if (this.passwordForm.invalid) {
       this.passwordForm.markAllAsTouched();
       return;
     }
     this.passwordStatus.set('saving');
+    this.passwordBannerError.set(null);
     const { currentPassword, newPassword } = this.passwordForm.getRawValue();
     try {
       await this.passwordSvc.change({ currentPassword, newPassword });
@@ -139,8 +148,10 @@ export class ProfilePageComponent implements OnInit {
     const message = body?.error?.message ?? 'Could not change password.';
     if (code === 'CURRENT_PASSWORD_INVALID') {
       this.passwordForm.controls.currentPassword.setErrors({ server: message });
-    } else {
+    } else if (code === 'NEW_PASSWORD_WEAK' || code === 'PASSWORD_UNCHANGED') {
       this.passwordForm.controls.newPassword.setErrors({ server: message });
+    } else {
+      this.passwordBannerError.set(message);
     }
   }
 

@@ -202,6 +202,12 @@
             }
           </label>
 
+          @if (passwordBannerError()) {
+            <p class="text-sm text-bad" role="alert" data-testid="password-change-error">
+              {{ passwordBannerError() }}
+            </p>
+          }
+
           <div>
             <button
               lwButton
