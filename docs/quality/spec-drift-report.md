@@ -31,7 +31,7 @@ carries at least minor drift.
 
 | Epic | Use cases | Drift level | Headline |
 |---|---|---|---|
-| EP-01 — User Identity & Access | 4 | **Partial (2026-05-28)** | UC-01-01/02 built; UC-01-03 Slices A + B + C shipped (text profile 2026-05-27, picture 2026-05-28, email change 2026-05-28), password change deferred (Slice D); UC-01-04 unbuilt; 2 minor behavioral divergences on shipped UCs |
+| EP-01 — User Identity & Access | 4 | **Partial (2026-05-29)** | UC-01-01/02 built; UC-01-03 fully implemented — Slices A–D shipped (text profile 2026-05-27, picture 2026-05-28, email change 2026-05-28, password change 2026-05-29); UC-01-04 unbuilt; 2 minor behavioral divergences on shipped UCs |
 | EP-02 — Course Authoring | 5 | **Reconciled (2026-05-26)** | UC-02-01..05 all built; UC-02-05 (cover image) added; divergences are documented design choices |
 | EP-03 — Video Management & DRM | 5 | **Reconciled (2026-05-26)** | UC-03-01..04 built as scoped-down HLS + AES-128 (intentional); UC-03-05 unbuilt (admin scope → EP-08) |
 | EP-04 — Lesson Materials | 2 | **Reconciled (2026-05-26)** | UC-04-01/02 both built; UC-04-02 student download landed in `af5a928` |
@@ -124,8 +124,21 @@ cases each carry a high-severity behavioral contradiction.
   generic error), the email-change endpoint returns a specific `EMAIL_ALREADY_IN_USE`
   (409) — standard, expected UX for an authenticated self-service email change where
   exposing whether an address is taken is not a privacy risk.
-- **NOT IMPLEMENTED** · High — Extensions 3c / 3c-3a / 3c-4a (password change
-  with current-password verification) remain unbuilt (deferred to Slice D).
+- **IMPLEMENTED — Slice D shipped 2026-05-29.** Extensions 3c / 3c-3a / 3c-4a
+  (password change with current-password re-authentication) are now wired up:
+  `POST /api/profile/password` requires the current password (re-auth via
+  Firebase REST API), validates the new password against the registration
+  complexity policy (12+ chars, upper, lower, digit, special), calls
+  `updateUser({ password })`, sends a password-changed notification email, and
+  revokes all refresh tokens — force re-login on all devices. Typed errors:
+  `CURRENT_PASSWORD_INVALID` (400), `NEW_PASSWORD_WEAK` (400, with unmet
+  requirements list), `PASSWORD_CHANGE_FAILED` (500). See
+  `docs/superpowers/specs/2026-05-29-uc-01-03-slice-d-password-change-design.md`.
+  **Deliberate addition beyond UC text:** `PASSWORD_UNCHANGED` (400) — the new
+  password must differ from the current one; this guard is not specified in the
+  UC but is standard, expected UX for a self-service credential change (mirrors
+  the reasoning for `EMAIL_UNCHANGED` in Slice C / `EMAIL_ALREADY_IN_USE`
+  being surfaced specifically rather than a generic error).
 
 ### UC-01-04 — Request Instructor Role
 

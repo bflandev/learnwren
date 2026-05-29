@@ -141,5 +141,86 @@
         </form>
       }
     </section>
+
+    <section class="mt-8 flex flex-col gap-3 border-t border-line pt-6">
+      <h2 class="text-lg font-serif">Password</h2>
+
+      <div>
+        <button
+          lwButton
+          variant="ghost"
+          type="button"
+          data-testid="toggle-password-change"
+          [attr.aria-expanded]="passwordFormOpen()"
+          (click)="togglePasswordForm()"
+        >
+          Change password
+        </button>
+      </div>
+
+      @if (passwordFormOpen()) {
+        <form
+          [formGroup]="passwordForm"
+          (ngSubmit)="submitPasswordChange()"
+          class="flex flex-col gap-3 border border-line rounded p-4"
+        >
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink-2">Current password</span>
+            <input lwInput type="password" formControlName="currentPassword" autocomplete="current-password" aria-describedby="cur-pw-err" />
+            @if (passwordForm.controls.currentPassword.touched && passwordForm.controls.currentPassword.invalid) {
+              <span id="cur-pw-err" class="text-sm text-bad">
+                @if (passwordForm.controls.currentPassword.errors?.['server']) {
+                  {{ passwordForm.controls.currentPassword.errors?.['server'] }}
+                } @else {
+                  Your current password is required.
+                }
+              </span>
+            }
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink-2">New password</span>
+            <input lwInput type="password" formControlName="newPassword" autocomplete="new-password" aria-describedby="new-pw-err" />
+            @if (passwordForm.controls.newPassword.errors?.['server']) {
+              <span id="new-pw-err" class="text-sm text-bad">
+                {{ passwordForm.controls.newPassword.errors?.['server'] }}
+              </span>
+            } @else if (passwordHints().length > 0) {
+              <ul class="mt-1 list-inside list-disc text-xs text-ink-3">
+                @for (hint of passwordHints(); track hint) {
+                  <li>{{ hint }}</li>
+                }
+              </ul>
+            }
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-ink-2">Confirm new password</span>
+            <input lwInput type="password" formControlName="confirmNewPassword" autocomplete="new-password" aria-describedby="confirm-pw-err" />
+            @if (passwordForm.controls.confirmNewPassword.touched && passwordForm.errors?.['confirmMismatch']) {
+              <span id="confirm-pw-err" class="text-sm text-bad">Passwords do not match.</span>
+            }
+          </label>
+
+          @if (passwordBannerError()) {
+            <p class="text-sm text-bad" role="alert" data-testid="password-change-error">
+              {{ passwordBannerError() }}
+            </p>
+          }
+
+          <div>
+            <button
+              lwButton
+              variant="primary"
+              type="submit"
+              data-testid="submit-password-change"
+              [disabled]="passwordStatus() === 'saving'"
+            >
+              Change password
+            </button>
+          </div>
+        </form>
+      }
+    </section>
   }
 </section>

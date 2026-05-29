@@ -81,6 +81,12 @@
     </p>
   }
 
+  @if (justChangedPassword()) {
+    <p class="mt-4 text-sm text-good" data-testid="password-changed-notice">
+      Your password was changed. Please sign in with your new password.
+    </p>
+  }
+
   <p class="mt-4 text-sm text-ink-2">
     <a routerLink="/forgot-password" class="text-ochre hover:underline">Forgot password?</a>
   </p>

@@ -1,0 +1,8 @@
+export const PASSWORD_CHANGE_ERROR_CODES = [
+  'CURRENT_PASSWORD_INVALID',
+  'NEW_PASSWORD_WEAK',
+  'PASSWORD_UNCHANGED',
+  'PASSWORD_CHANGE_FAILED',
+] as const;
+
+export type PasswordChangeErrorCode = (typeof PASSWORD_CHANGE_ERROR_CODES)[number];

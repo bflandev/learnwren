@@ -58,6 +58,7 @@ export class LoginPageComponent {
 
   readonly justResetPassword = computed(() => this.queryParams()?.get('reset') === 'ok');
   readonly justChangedEmail = computed(() => this.queryParams()?.get('emailChanged') === '1');
+  readonly justChangedPassword = computed(() => this.queryParams()?.get('passwordChanged') === '1');
 
   readonly unverifiedState = computed(() => {
     const s = this.errorState();

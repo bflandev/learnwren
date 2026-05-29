@@ -1,17 +1,28 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 
-import { AuthService } from '@learnwren/web-auth';
+import { AuthService, passwordPolicyValidator, PASSWORD_REQUIREMENT_PROSE } from '@learnwren/web-auth';
+import type { PolicyRequirement } from '@learnwren/web-auth';
 import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
-import type { ProfileView, ProfileInvalidErrorBody, EmailChangeErrorBody } from '@learnwren/shared-data-models';
+import type { ProfileView, ProfileInvalidErrorBody, EmailChangeErrorBody, PasswordChangeErrorBody } from '@learnwren/shared-data-models';
 
 import { ProfileService } from '../profile.service';
 import { ProfilePictureUploaderComponent } from '../picture/profile-picture-uploader.component';
 import { EmailChangeService } from '../email/email-change.service';
+import { PasswordChangeService } from '../password/password-change.service';
 
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 type EmailStatus = 'idle' | 'sending' | 'sent' | 'error';
+type PasswordStatus = 'idle' | 'saving' | 'error';
+
+function confirmMatchesValidator(control: AbstractControl): ValidationErrors | null {
+  const np = control.get('newPassword')?.value;
+  const cp = control.get('confirmNewPassword')?.value;
+  return np && cp && np !== cp ? { confirmMismatch: true } : null;
+}
 
 @Component({
   selector: 'lib-profile-page',
@@ -25,6 +36,8 @@ export class ProfilePageComponent implements OnInit {
   private readonly profileSvc = inject(ProfileService);
   private readonly authSvc = inject(AuthService);
   private readonly emailSvc = inject(EmailChangeService);
+  private readonly router = inject(Router);
+  private readonly passwordSvc = inject(PasswordChangeService);
 
   readonly form = this.fb.nonNullable.group({
     // `required` is intentionally omitted — empty-string validation is server-authoritative (see PROFILE_INVALID test).
@@ -44,6 +57,32 @@ export class ProfilePageComponent implements OnInit {
   readonly emailStatus = signal<EmailStatus>('idle');
   readonly emailFormOpen = signal(false);
   readonly pendingEmail = signal<string | null>(null);
+
+  readonly passwordForm = this.fb.nonNullable.group(
+    {
+      currentPassword: ['', [Validators.required]],
+      newPassword: ['', [Validators.required, passwordPolicyValidator()]],
+      confirmNewPassword: ['', [Validators.required]],
+    },
+    { validators: [confirmMatchesValidator] },
+  );
+
+  readonly passwordStatus = signal<PasswordStatus>('idle');
+  readonly passwordFormOpen = signal(false);
+  readonly passwordBannerError = signal<string | null>(null);
+
+  private readonly newPasswordValue = toSignal(
+    this.passwordForm.controls.newPassword.valueChanges,
+    { initialValue: this.passwordForm.controls.newPassword.value },
+  );
+
+  readonly passwordHints = computed<string[]>(() => {
+    void this.newPasswordValue();
+    const policy = this.passwordForm.controls.newPassword.errors?.['passwordPolicy'] as
+      | { unmet?: PolicyRequirement[] }
+      | undefined;
+    return policy?.unmet?.map((r) => PASSWORD_REQUIREMENT_PROSE[r]) ?? [];
+  });
 
   toggleEmailForm(): void {
     this.emailFormOpen.update((v) => !v);
@@ -75,6 +114,44 @@ export class ProfilePageComponent implements OnInit {
     const message = body?.error?.message ?? 'Could not change email.';
     if (field === 'newEmail' || field === 'currentPassword') {
       this.emailForm.controls[field].setErrors({ server: message });
+    }
+  }
+
+  togglePasswordForm(): void {
+    this.passwordFormOpen.update((v) => !v);
+  }
+
+  async submitPasswordChange(): Promise<void> {
+    if (this.passwordForm.invalid) {
+      this.passwordForm.markAllAsTouched();
+      return;
+    }
+    this.passwordStatus.set('saving');
+    this.passwordBannerError.set(null);
+    const { currentPassword, newPassword } = this.passwordForm.getRawValue();
+    try {
+      await this.passwordSvc.change({ currentPassword, newPassword });
+      // The server already revoked tokens + cleared the cookie; logout() is a
+      // best-effort client-state clear (nulls currentUser), matching Slice C.
+      await this.authSvc.logout();
+      await this.router.navigate(['/login'], { queryParams: { passwordChanged: 1 } });
+    } catch (err) {
+      this.applyPasswordServerError(err);
+      this.passwordStatus.set('error');
+    }
+  }
+
+  private applyPasswordServerError(err: unknown): void {
+    if (!(err instanceof HttpErrorResponse)) return;
+    const body = err.error as PasswordChangeErrorBody | undefined;
+    const code = body?.error?.code;
+    const message = body?.error?.message ?? 'Could not change password.';
+    if (code === 'CURRENT_PASSWORD_INVALID') {
+      this.passwordForm.controls.currentPassword.setErrors({ server: message });
+    } else if (code === 'NEW_PASSWORD_WEAK' || code === 'PASSWORD_UNCHANGED') {
+      this.passwordForm.controls.newPassword.setErrors({ server: message });
+    } else {
+      this.passwordBannerError.set(message);
     }
   }
 

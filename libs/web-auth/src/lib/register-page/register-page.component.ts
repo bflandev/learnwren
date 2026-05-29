@@ -12,16 +12,9 @@ import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
 import { AuthService } from '../auth.service';
 import {
   passwordPolicyValidator,
+  PASSWORD_REQUIREMENT_PROSE,
   type PolicyRequirement,
 } from '../password-policy.validator';
-
-const REQUIREMENT_PROSE: Record<PolicyRequirement, string> = {
-  MIN_LENGTH: 'at least 12 characters',
-  UPPERCASE: 'at least one uppercase letter',
-  LOWERCASE: 'at least one lowercase letter',
-  DIGIT: 'at least one digit',
-  SPECIAL: 'at least one special character',
-};
 
 @Component({
   selector: 'app-register-page',
@@ -52,7 +45,7 @@ export class RegisterPageComponent {
     const errors = this.form.controls.password.errors;
     const policy = errors?.['passwordPolicy'] as { unmet?: PolicyRequirement[] } | undefined;
     if (!policy?.unmet?.length) return [];
-    return policy.unmet.map((r) => REQUIREMENT_PROSE[r]);
+    return policy.unmet.map((r) => PASSWORD_REQUIREMENT_PROSE[r]);
   });
 
   async submit(): Promise<void> {
@@ -83,7 +76,7 @@ export class RegisterPageComponent {
       const unmet = (result.details as { unmetRequirements?: PolicyRequirement[] } | undefined)
         ?.unmetRequirements;
       if (unmet?.length) {
-        const list = unmet.map((r) => REQUIREMENT_PROSE[r]).join('; ');
+        const list = unmet.map((r) => PASSWORD_REQUIREMENT_PROSE[r]).join('; ');
         return `Password must include: ${list}.`;
       }
     }

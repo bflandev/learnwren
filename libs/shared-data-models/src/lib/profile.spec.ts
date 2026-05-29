@@ -10,11 +10,16 @@ import {
   CURRENT_PASSWORD_INVALID,
   EMAIL_ALREADY_IN_USE,
   EMAIL_CHANGE_FAILED,
+  NEW_PASSWORD_WEAK,
+  PASSWORD_UNCHANGED,
+  PASSWORD_CHANGE_FAILED,
   type ProfileView,
   type UpdateProfileInput,
   type ChangeEmailRequest,
   type ConfirmEmailChangeResponse,
   type EmailChangeErrorBody,
+  type ChangePasswordRequest,
+  type PasswordChangeErrorBody,
 } from './profile';
 
 describe('profile types', () => {
@@ -37,6 +42,28 @@ describe('profile types', () => {
   it('UpdateProfileInput shape compiles with displayName + biography', () => {
     const input: UpdateProfileInput = { displayName: 'A', biography: 'hi' };
     expect(input.biography).toBe('hi');
+  });
+
+  it('NEW_PASSWORD_WEAK / PASSWORD_UNCHANGED / PASSWORD_CHANGE_FAILED are wire codes', () => {
+    expect(NEW_PASSWORD_WEAK).toBe('NEW_PASSWORD_WEAK');
+    expect(PASSWORD_UNCHANGED).toBe('PASSWORD_UNCHANGED');
+    expect(PASSWORD_CHANGE_FAILED).toBe('PASSWORD_CHANGE_FAILED');
+  });
+
+  it('ChangePasswordRequest shape compiles', () => {
+    const req: ChangePasswordRequest = { currentPassword: 'a', newPassword: 'b' };
+    expect(req.newPassword).toBe('b');
+  });
+
+  it('PasswordChangeErrorBody carries optional unmetRequirements', () => {
+    const body: PasswordChangeErrorBody = {
+      error: {
+        code: 'NEW_PASSWORD_WEAK',
+        message: 'weak',
+        details: { field: 'newPassword', unmetRequirements: ['MIN_LENGTH'] },
+      },
+    };
+    expect(body.error.details?.unmetRequirements).toEqual(['MIN_LENGTH']);
   });
 });
 

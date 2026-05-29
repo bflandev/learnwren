@@ -205,7 +205,7 @@ See the header comment in `tools/promote-to-instructor.ts`.
 
 Once promoted and re-signed-in, the **`/courses`** area becomes accessible.
 
-## 2.7 Editing your profile (UC-01-03 Slices A – C)
+## 2.7 Editing your profile (UC-01-03 Slices A – D)
 
 Every logged-in user can update their **display name**, **biography**, and
 **profile picture** from the profile settings page.
@@ -258,10 +258,28 @@ From the `/settings/profile` page, click **Change email** to start the flow:
 If the new address is already registered to another account you will see an
 `EMAIL_ALREADY_IN_USE` error before any email is sent.
 
-**What is not yet available:**
+### Change password
 
-- **Password change** — use the **Forgot password?** flow on the login page to
-  reset your password (UC-01-03 extension 3c, deferred to Slice D).
+From the `/settings/profile` page, expand the **Change password** section:
+
+1. Enter your **current password** (required to re-authenticate before any
+   credential change).
+2. Enter a **new password** that meets the complexity requirements:
+   - At least **12 characters**
+   - At least one **uppercase letter**
+   - At least one **lowercase letter**
+   - At least one **digit**
+   - At least one **special character** (same policy as registration)
+3. Enter the new password again in the **Confirm new password** field. A live
+   complexity checklist shows which requirements are satisfied as you type.
+4. Click **Change password**.
+
+On success the platform sends a **password-changed notification email** to your
+current address, revokes your refresh tokens (signing you out of **all devices**),
+and redirects you to `/login?passwordChanged=1` which shows a confirmation notice.
+Sign in again with your new password to continue.
+
+> **Note:** the new password must differ from your current one.
 
 ## 2.8 Creating and structuring a course
 
@@ -874,7 +892,7 @@ These are specified in `docs/epics/` and `docs/use-cases/` but **not yet impleme
 - **Self-service instructor requests** — promotion is CLI-only; there is no in-app
   "become an instructor" flow.
 - **Instructor dashboard (EP-07)** and **platform administration (EP-08)** — post-MVP.
-- **Password change** — text profile editing (displayName + biography) shipped 2026-05-27 (UC-01-03 Slice A), profile picture upload/replace/remove shipped 2026-05-28 (UC-01-03 Slice B), and email address change shipped 2026-05-28 (UC-01-03 Slice C). The password-change (ext 3c) sub-flow remains deferred to Slice D. Account deletion, social auth, and App Check are also out of scope so far.
+- **Account management sub-flows** — account deletion, social auth, and App Check are out of scope for MVP. UC-01-03 (manage profile) is now fully implemented across Slices A–D (text profile, picture, email change, password change).
 
 ## Further reading
 

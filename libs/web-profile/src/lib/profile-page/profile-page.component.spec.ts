@@ -1,9 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, HttpErrorResponse } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { Router } from '@angular/router';
 
 import { AuthService } from '@learnwren/web-auth';
+
+import { PasswordChangeService } from '../password/password-change.service';
 
 import { ProfilePageComponent } from './profile-page.component';
 
@@ -180,5 +183,125 @@ describe('ProfilePageComponent — change email', () => {
     expect(cmp.emailStatus()).toBe('error');
     expect(cmp.emailForm.controls.newEmail.errors?.['server']).toBeUndefined();
     expect(cmp.emailForm.controls.currentPassword.errors?.['server']).toBeUndefined();
+  });
+});
+
+describe('ProfilePageComponent — change password', () => {
+  let fixture: ComponentFixture<ProfilePageComponent>;
+  let http: HttpTestingController;
+  let auth: AuthService;
+  const change = vi.fn();
+  const navigate = vi.fn().mockResolvedValue(true);
+
+  beforeEach(() => {
+    change.mockReset();
+    navigate.mockReset().mockResolvedValue(true);
+    TestBed.configureTestingModule({
+      imports: [ProfilePageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: PasswordChangeService, useValue: { change } },
+        { provide: Router, useValue: { navigate } },
+      ],
+    });
+    fixture = TestBed.createComponent(ProfilePageComponent);
+    http = TestBed.inject(HttpTestingController);
+    auth = TestBed.inject(AuthService);
+    fixture.detectChanges();
+    http.expectOne('/api/profile').flush(MOCK_PROFILE);
+  });
+
+  it('on 204 logs out and navigates to /login?passwordChanged=1', async () => {
+    change.mockResolvedValue(undefined);
+    const logout = vi.spyOn(auth, 'logout').mockResolvedValue(undefined);
+    const cmp = fixture.componentInstance;
+    cmp.passwordForm.setValue({
+      currentPassword: 'Aa1!aaaaaaaa',
+      newPassword: 'Bb2@bbbbbbbb',
+      confirmNewPassword: 'Bb2@bbbbbbbb',
+    });
+
+    await cmp.submitPasswordChange();
+
+    expect(change).toHaveBeenCalledWith({
+      currentPassword: 'Aa1!aaaaaaaa',
+      newPassword: 'Bb2@bbbbbbbb',
+    });
+    expect(logout).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { passwordChanged: 1 } });
+  });
+
+  it('does not submit when confirmNewPassword does not match', async () => {
+    const cmp = fixture.componentInstance;
+    cmp.passwordForm.setValue({
+      currentPassword: 'Aa1!aaaaaaaa',
+      newPassword: 'Bb2@bbbbbbbb',
+      confirmNewPassword: 'mismatch',
+    });
+
+    await cmp.submitPasswordChange();
+    expect(change).not.toHaveBeenCalled();
+  });
+
+  it('maps NEW_PASSWORD_WEAK to a server error on the newPassword control', async () => {
+    change.mockRejectedValue(
+      new HttpErrorResponse({
+        status: 400,
+        error: {
+          error: {
+            code: 'NEW_PASSWORD_WEAK',
+            message: 'weak',
+            details: { field: 'newPassword', unmetRequirements: ['DIGIT'] },
+          },
+        },
+      }),
+    );
+    const cmp = fixture.componentInstance;
+    cmp.passwordForm.setValue({
+      currentPassword: 'Aa1!aaaaaaaa',
+      newPassword: 'Bb2@bbbbbbbb',
+      confirmNewPassword: 'Bb2@bbbbbbbb',
+    });
+
+    await cmp.submitPasswordChange();
+    expect(cmp.passwordForm.controls.newPassword.errors?.['server']).toBeTruthy();
+  });
+
+  it('maps CURRENT_PASSWORD_INVALID to a server error on the currentPassword control', async () => {
+    change.mockRejectedValue(
+      new HttpErrorResponse({
+        status: 400,
+        error: { error: { code: 'CURRENT_PASSWORD_INVALID', message: 'Current password is incorrect.' } },
+      }),
+    );
+    const cmp = fixture.componentInstance;
+    cmp.passwordForm.setValue({
+      currentPassword: 'WrongPass1!',
+      newPassword: 'Bb2@bbbbbbbb',
+      confirmNewPassword: 'Bb2@bbbbbbbb',
+    });
+
+    await cmp.submitPasswordChange();
+    expect(cmp.passwordForm.controls.currentPassword.errors?.['server']).toBeTruthy();
+  });
+
+  it('routes PASSWORD_CHANGE_FAILED to the form-level banner, not a field', async () => {
+    change.mockRejectedValue(
+      new HttpErrorResponse({
+        status: 500,
+        error: { error: { code: 'PASSWORD_CHANGE_FAILED', message: 'We could not change your password. Please try again.' } },
+      }),
+    );
+    const cmp = fixture.componentInstance;
+    cmp.passwordForm.setValue({
+      currentPassword: 'Aa1!aaaaaaaa',
+      newPassword: 'Bb2@bbbbbbbb',
+      confirmNewPassword: 'Bb2@bbbbbbbb',
+    });
+
+    await cmp.submitPasswordChange();
+    expect(cmp.passwordBannerError()).toBeTruthy();
+    expect(cmp.passwordForm.controls.newPassword.errors?.['server']).toBeFalsy();
   });
 });

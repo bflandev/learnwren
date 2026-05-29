@@ -84,3 +84,46 @@ export interface EmailChangeErrorBody {
     details?: { field: 'newEmail' | 'currentPassword' };
   };
 }
+
+/**
+ * Canonical password-complexity requirement union (UC-01-01 step 4 policy).
+ * This is the wire contract surfaced in NEW_PASSWORD_WEAK details and the
+ * registration WEAK_PASSWORD details. `api-auth`'s PasswordPolicyService
+ * re-exports this type so the backend has a single source of truth.
+ */
+export type PolicyRequirement =
+  | 'MIN_LENGTH'
+  | 'UPPERCASE'
+  | 'LOWERCASE'
+  | 'DIGIT'
+  | 'SPECIAL';
+
+/** Body of `POST /api/profile/password` (UC-01-03 ext 3c). */
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+/** Wire error codes returned by `POST /api/profile/password`. */
+// CURRENT_PASSWORD_INVALID is already declared above (shared with email change).
+export const NEW_PASSWORD_WEAK = 'NEW_PASSWORD_WEAK';
+export const PASSWORD_UNCHANGED = 'PASSWORD_UNCHANGED';
+export const PASSWORD_CHANGE_FAILED = 'PASSWORD_CHANGE_FAILED';
+
+export type PasswordChangeErrorCode =
+  | typeof CURRENT_PASSWORD_INVALID
+  | typeof NEW_PASSWORD_WEAK
+  | typeof PASSWORD_UNCHANGED
+  | typeof PASSWORD_CHANGE_FAILED;
+
+/** Body of a non-2xx from `POST /api/profile/password`. */
+export interface PasswordChangeErrorBody {
+  error: {
+    code: PasswordChangeErrorCode;
+    message: string;
+    details?: {
+      field?: 'currentPassword' | 'newPassword';
+      unmetRequirements?: PolicyRequirement[];
+    };
+  };
+}
