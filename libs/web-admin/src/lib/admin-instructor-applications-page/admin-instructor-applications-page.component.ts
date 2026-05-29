@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 
+import {
+  APPLICANT_NOT_VERIFIED,
+  APPLICATION_NOT_FOUND,
+  APPLICATION_NOT_PENDING,
+} from '@learnwren/shared-data-models';
 import type { PendingInstructorApplicationView } from '@learnwren/shared-data-models';
 
 import { AdminInstructorApplicationsService } from '../admin-instructor-applications.service';
@@ -60,11 +65,11 @@ export class AdminInstructorApplicationsPageComponent implements OnInit {
 
   private messageFor(err: unknown): string {
     const code = (err as { error?: { error?: { code?: string } } })?.error?.error?.code;
-    if (code === 'APPLICANT_NOT_VERIFIED') {
+    if (code === APPLICANT_NOT_VERIFIED) {
       return 'Applicant must verify their email before approval.';
     }
-    if (code === 'APPLICATION_NOT_PENDING') {
-      return 'This application was already resolved. Refresh to update the queue.';
+    if (code === APPLICATION_NOT_PENDING || code === APPLICATION_NOT_FOUND) {
+      return 'This application is no longer pending. Refresh to update the queue.';
     }
     return 'Something went wrong. Please try again.';
   }

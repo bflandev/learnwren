@@ -5,7 +5,7 @@ import { adminRoleGuard } from './admin-role.guard';
 export const adminRoutes: Route[] = [
   {
     path: 'admin',
-    canMatch: [adminRoleGuard],
+    canActivate: [adminRoleGuard],
     children: [
       {
         path: 'instructor-applications',

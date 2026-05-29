@@ -1,6 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  APPLICANT_NOT_VERIFIED,
+  APPLICATION_NOT_FOUND,
+  APPLICATION_NOT_PENDING,
+} from '@learnwren/shared-data-models';
+
 import { AdminInstructorApplicationsService } from '../admin-instructor-applications.service';
 import { AdminInstructorApplicationsPageComponent } from './admin-instructor-applications-page.component';
 
@@ -82,5 +88,78 @@ describe('AdminInstructorApplicationsPageComponent', () => {
     await comp.approve('u1');
     expect(comp.applications().some((a) => a.uid === 'u1')).toBe(true);
     expect(comp.rowError('u1')).toBeTruthy();
+  });
+
+  it('shows loading state before the list resolves', async () => {
+    let resolveList!: (value: { applications: ReturnType<typeof row>[] }) => void;
+    svc.list = vi.fn(
+      () =>
+        new Promise<{ applications: ReturnType<typeof row>[] }>((r) => {
+          resolveList = r;
+        }),
+    );
+    TestBed.configureTestingModule({
+      imports: [AdminInstructorApplicationsPageComponent],
+      providers: [{ provide: AdminInstructorApplicationsService, useValue: svc }],
+    });
+    const fixture = TestBed.createComponent(AdminInstructorApplicationsPageComponent);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Loading');
+    resolveList({ applications: [row('u1')] });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Loading');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('ada@example.com');
+  });
+
+  it('sets isBusy during an in-flight approve and clears it after', async () => {
+    let resolveApprove!: (value: { status: string }) => void;
+    svc.approve = vi.fn(
+      () =>
+        new Promise<{ status: string }>((r) => {
+          resolveApprove = r;
+        }),
+    );
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    const approvePromise = comp.approve('u1');
+    expect(comp.isBusy('u1')).toBe(true);
+    resolveApprove({ status: 'APPROVED' });
+    await approvePromise;
+    expect(comp.isBusy('u1')).toBe(false);
+    expect(comp.applications().some((a) => a.uid === 'u1')).toBe(false);
+  });
+
+  it('maps error codes to the correct copy', async () => {
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+
+    // APPLICANT_NOT_VERIFIED → email verify copy
+    svc.approve = vi.fn(async () => {
+      throw { error: { error: { code: APPLICANT_NOT_VERIFIED } } };
+    });
+    await comp.approve('u1');
+    expect(comp.rowError('u1')).toContain('verify');
+
+    // APPLICATION_NOT_PENDING → "no longer pending / Refresh" copy
+    svc.approve = vi.fn(async () => {
+      throw { error: { error: { code: APPLICATION_NOT_PENDING } } };
+    });
+    await comp.approve('u1');
+    expect(comp.rowError('u1')).toContain('Refresh');
+
+    // APPLICATION_NOT_FOUND → same "no longer pending / Refresh" copy
+    svc.approve = vi.fn(async () => {
+      throw { error: { error: { code: APPLICATION_NOT_FOUND } } };
+    });
+    await comp.approve('u1');
+    expect(comp.rowError('u1')).toContain('Refresh');
+
+    // unknown code → generic fallback
+    svc.approve = vi.fn(async () => {
+      throw { error: { error: { code: 'SOME_OTHER_ERROR' } } };
+    });
+    await comp.approve('u1');
+    expect(comp.rowError('u1')).toContain('Something went wrong');
   });
 });
