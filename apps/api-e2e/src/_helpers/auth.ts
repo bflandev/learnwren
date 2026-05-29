@@ -1,7 +1,25 @@
-import { expect } from '@playwright/test';
+import { expect, request as apiRequest, type APIRequestContext } from '@playwright/test';
 import * as admin from 'firebase-admin';
 
 export const API_BASE = 'http://localhost:3333/api';
+
+/**
+ * Run `fn` with a request context that has a fresh, empty cookie jar — for
+ * genuinely-unauthenticated probes. The shared Playwright `request` fixture
+ * retains the `__session` cookie after any login in the same test, so a
+ * header-less call on it travels authenticated and the endpoint never returns
+ * 401. The throwaway context is always disposed, even if `fn` throws.
+ */
+export async function withAnonRequest<T>(
+  fn: (anon: APIRequestContext) => Promise<T>,
+): Promise<T> {
+  const anon = await apiRequest.newContext();
+  try {
+    return await fn(anon);
+  } finally {
+    await anon.dispose();
+  }
+}
 
 export function initAdmin(): void {
   if (admin.apps.length === 0) {

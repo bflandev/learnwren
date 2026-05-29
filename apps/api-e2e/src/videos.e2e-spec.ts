@@ -7,6 +7,7 @@ import {
   initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
+  withAnonRequest,
 } from './_helpers/auth';
 
 initAdmin();
@@ -88,25 +89,25 @@ test('video upload happy path', async ({ request }) => {
   expect(del.status()).toBe(204);
 });
 
-// Quarantined: this test issues an "unauthenticated" POST after a previous
-// authenticated call in the same Playwright request fixture, but the fixture
-// keeps the prior session cookie, so the call is actually authenticated and
-// returns 201 instead of the expected 401. Needs a fresh request context for
-// each unauth probe (or storageState reset). Tracked separately from the
-// fake source-probe seam that un-quarantined this file.
-test.fixme('401 unauthenticated, 403 wrong-role, 403 wrong-instructor, 409 already-has-video', async ({
+test('401 unauthenticated, 403 wrong-role, 403 wrong-instructor, 409 already-has-video', async ({
   request,
 }) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };
   const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
 
-  // 401 unauthenticated
-  const unauth = await request.post(
-    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
-    { data: { sizeBytes: 1, contentType: 'video/mp4' } },
+  // 401 unauthenticated — must use a cookie-free context. The shared `request`
+  // fixture still holds inst's __session from the login above, so a header-less
+  // call on it would travel authenticated and return 201.
+  const unauthStatus = await withAnonRequest((anon) =>
+    anon
+      .post(
+        `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+        { data: { sizeBytes: 1, contentType: 'video/mp4' } },
+      )
+      .then((r) => r.status()),
   );
-  expect(unauth.status()).toBe(401);
+  expect(unauthStatus).toBe(401);
 
   // 403 INSUFFICIENT_ROLE (student)
   const student = await registerStudent(request);
@@ -132,27 +133,34 @@ test.fixme('401 unauthenticated, 403 wrong-role, 403 wrong-instructor, 409 alrea
   expect(otherRes.status()).toBe(403);
   expect(((await otherRes.json()) as { error: { code: string } }).error.code).toBe('NOT_COURSE_OWNER');
 
-  // 409 LESSON_ALREADY_HAS_VIDEO
-  const first = await request.post(
-    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
-    { headers: hdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
-  );
-  const { videoId: firstVid, uploadSessionUri: uri1 } = (await first.json()) as {
-    videoId: string;
-    uploadSessionUri: string;
-  };
-  await request.put(uri1, {
-    headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
-    data: FIXTURE_BYTES,
-  });
-  await request.post(`${API_BASE}/videos/${firstVid}/upload-complete`, { headers: hdr });
+  // 409 LESSON_ALREADY_HAS_VIDEO — run the owner's calls on a cookie-free
+  // context. The shared `request` jar now holds otherInst's __session (from the
+  // login above), which would collide with the inst Cookie header below and
+  // make these calls travel as the non-owner.
+  const conflict = await withAnonRequest(async (anon) => {
+    const first = await anon.post(
+      `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+      { headers: hdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
+    );
+    const { videoId: firstVid, uploadSessionUri: uri1 } = (await first.json()) as {
+      videoId: string;
+      uploadSessionUri: string;
+    };
+    await anon.put(uri1, {
+      headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
+      data: FIXTURE_BYTES,
+    });
+    await anon.post(`${API_BASE}/videos/${firstVid}/upload-complete`, { headers: hdr });
 
-  const second = await request.post(
-    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
-    { headers: hdr, data: { sizeBytes: 1, contentType: 'video/mp4' } },
-  );
-  expect(second.status()).toBe(409);
-  expect(((await second.json()) as { error: { code: string } }).error.code).toBe('LESSON_ALREADY_HAS_VIDEO');
+    const second = await anon.post(
+      `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+      { headers: hdr, data: { sizeBytes: 1, contentType: 'video/mp4' } },
+    );
+    // Read the body before the context (and thus this response) is disposed.
+    return { status: second.status(), body: (await second.json()) as { error: { code: string } } };
+  });
+  expect(conflict.status).toBe(409);
+  expect(conflict.body.error.code).toBe('LESSON_ALREADY_HAS_VIDEO');
 });
 
 test('422 upload-object-missing when complete called before any bytes', async ({ request }) => {

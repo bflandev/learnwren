@@ -8,6 +8,7 @@ import {
   initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
+  withAnonRequest,
 } from './_helpers/auth';
 
 initAdmin();
@@ -189,25 +190,24 @@ test('owner can fetch master, rendition, and key', async ({ request }) => {
   expect(keyBody.length).toBe(16);
 });
 
-// Quarantined (cookie carryover, NOT the ready-chain): uploadAndTranscode
-// logs in through the shared Playwright `request` fixture, whose cookie jar
-// then retains __session. The header-less GETs below therefore travel
-// authenticated-as-owner and return 200 instead of 401. Needs a fresh request
-// context (or storageState reset) for the unauthenticated probes — same fix as
-// the videos.e2e-spec.ts 401/403 matrix test.
-test.fixme('401 unauthenticated for every playback endpoint', async ({ request }) => {
+test('401 unauthenticated for every playback endpoint', async ({ request }) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };
   const { videoId } = await uploadAndTranscode(request, hdr);
 
-  for (const url of [
-    `${API_BASE}/playback/manifest/${videoId}`,
-    `${API_BASE}/playback/manifest/${videoId}/rendition/720p`,
-    `${API_BASE}/playback/keys/${videoId}`,
-  ]) {
-    const r = await request.get(url);
-    expect(r.status()).toBe(401);
-  }
+  // Probe with a cookie-free context. uploadAndTranscode logs in through the
+  // shared `request` fixture, whose jar then holds __session — a header-less
+  // GET on it would travel authenticated-as-owner and return 200, not 401.
+  await withAnonRequest(async (anon) => {
+    for (const url of [
+      `${API_BASE}/playback/manifest/${videoId}`,
+      `${API_BASE}/playback/manifest/${videoId}/rendition/720p`,
+      `${API_BASE}/playback/keys/${videoId}`,
+    ]) {
+      const r = await anon.get(url);
+      expect(r.status()).toBe(401);
+    }
+  });
 });
 
 test('403 NOT_VIDEO_OWNER for a different instructor', async ({ request }) => {

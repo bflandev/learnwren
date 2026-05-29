@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { InsufficientRoleException } from '@learnwren/api-auth';
 
+import { NotCourseOwnerException } from '../errors/courses.exception';
 import {
   InvalidVideoStateException,
   VideoNotFoundException,
@@ -69,6 +70,19 @@ describe('VideoExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(403);
     expect(json).toHaveBeenCalledWith({
       error: { code: 'INSUFFICIENT_ROLE', message: 'Instructor role required.' },
+    });
+  });
+
+  it('maps a CoursesException (thrown by a reused courses guard) to its status and code', () => {
+    // Video routes mount courses-domain guards — e.g. CourseOwnerGuard on the
+    // upload-session route throws NotCourseOwnerException. The video filter
+    // must render it as 403, not let it escape to a 500.
+    const filter = new VideoExceptionFilter();
+    const { host, status, json } = buildHost();
+    filter.catch(new NotCourseOwnerException(), host);
+    expect(status).toHaveBeenCalledWith(403);
+    expect(json).toHaveBeenCalledWith({
+      error: { code: 'NOT_COURSE_OWNER', message: 'You do not own this course.' },
     });
   });
 
