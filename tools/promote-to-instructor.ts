@@ -38,6 +38,14 @@ export async function promoteToInstructor(
   await auth.setCustomUserClaims(user.uid, { role: 'INSTRUCTOR' });
   await firestore.collection('users').doc(user.uid).update({ role: 'INSTRUCTOR' });
 
+  // UC-01-04: if the user has a pending instructor application, mark it resolved.
+  const appRef = firestore.collection('instructorApplications').doc(user.uid);
+  const appSnap = await appRef.get();
+  if (appSnap.exists && appSnap.data()?.status === 'PENDING') {
+    await appRef.update({ status: 'APPROVED', resolvedAt: new Date().toISOString() });
+    console.log(`[promote] Resolved pending instructor application for ${email} -> APPROVED.`);
+  }
+
   console.log(`[promote] Promoted ${email} (uid=${user.uid}) to INSTRUCTOR.`);
   console.log(
     '[promote] User must sign out and sign back in for the new role to take effect.',
