@@ -212,6 +212,18 @@ describe('LoginPageComponent justChangedEmail notice', () => {
   });
 });
 
+describe('LoginPageComponent justChangedPassword notice', () => {
+  it('flags justChangedPassword when ?passwordChanged=1 is present', () => {
+    const { fixture } = setup(new Map([['passwordChanged', '1']]));
+    expect(fixture.componentInstance.justChangedPassword()).toBe(true);
+  });
+
+  it('does not flag justChangedPassword without the query param', () => {
+    const { fixture } = setup(new Map());
+    expect(fixture.componentInstance.justChangedPassword()).toBe(false);
+  });
+});
+
 describe('LoginPageComponent.resendVerification', () => {
   it('no-ops when the email field is empty', async () => {
     const { fixture, httpMock } = setup();
