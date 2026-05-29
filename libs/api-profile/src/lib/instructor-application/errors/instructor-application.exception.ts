@@ -15,7 +15,11 @@ export class InstructorApplicationException extends Error {
 
 export class InstructorApplicationInvalidException extends InstructorApplicationException {
   constructor(field: 'statement' | 'expertise') {
-    super('INSTRUCTOR_APPLICATION_INVALID', 'Both fields are required.', 400, { field });
+    const message =
+      field === 'statement'
+        ? 'A statement of intent is required (max 2000 characters).'
+        : 'Areas of expertise are required (max 2000 characters).';
+    super('INSTRUCTOR_APPLICATION_INVALID', message, 400, { field });
   }
 }
 
