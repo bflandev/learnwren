@@ -65,7 +65,6 @@ emulators — no real Firebase credentials are needed. Verify the wiring:
 
 ```bash
 curl http://localhost:3333/api/health
-curl http://localhost:3333/api/firestore-smoke
 ```
 
 The Emulator UI is at `http://127.0.0.1:4000` — inspect Firestore data, manage
@@ -126,11 +125,13 @@ pnpm nx e2e api-e2e
 pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e api-e2e'
 ```
 
-14 video upload / playback / publish tests are marked `test.fixme`: they
-exercise the real Cloud Storage upload / `ffprobe` path, which needs GCP
-credentials. The rest of the suite runs credential-free. CI runs this suite on
-every push and PR (`.github/workflows/ci.yml`, the `e2e` job — which uses the
-one-shot form above).
+The whole `api-e2e` suite runs credential-free — the video upload / transcode /
+playback path is exercised through the fake source-probe seam
+(`LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE`) and the in-memory fake transcoder,
+so no GCP credentials are needed. (The video / playback / publish tests were
+previously `test.fixme`-quarantined; those were all restored in 2026-05 and no
+`test.fixme` remain.) CI runs this suite on every push and PR
+(`.github/workflows/ci.yml`, the `e2e` job — which uses the one-shot form above).
 
 ## Real-project mode
 
