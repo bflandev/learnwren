@@ -31,7 +31,7 @@ carries at least minor drift.
 
 | Epic | Use cases | Drift level | Headline |
 |---|---|---|---|
-| EP-01 — User Identity & Access | 4 | **Partial (2026-05-28)** | UC-01-01/02 built; UC-01-03 Slices A + B shipped (text profile 2026-05-27, picture 2026-05-28), email/password deferred; UC-01-04 unbuilt; 2 minor behavioral divergences on shipped UCs |
+| EP-01 — User Identity & Access | 4 | **Partial (2026-05-28)** | UC-01-01/02 built; UC-01-03 Slices A + B + C shipped (text profile 2026-05-27, picture 2026-05-28, email change 2026-05-28), password change deferred (Slice D); UC-01-04 unbuilt; 2 minor behavioral divergences on shipped UCs |
 | EP-02 — Course Authoring | 5 | **Reconciled (2026-05-26)** | UC-02-01..05 all built; UC-02-05 (cover image) added; divergences are documented design choices |
 | EP-03 — Video Management & DRM | 5 | **Reconciled (2026-05-26)** | UC-03-01..04 built as scoped-down HLS + AES-128 (intentional); UC-03-05 unbuilt (admin scope → EP-08) |
 | EP-04 — Lesson Materials | 2 | **Reconciled (2026-05-26)** | UC-04-01/02 both built; UC-04-02 student download landed in `af5a928` |
@@ -111,10 +111,21 @@ cases each carry a high-severity behavioral contradiction.
   storage URL; the avatar surfaces in the header chip, on course cards, and on the
   course-detail instructor card (which also renders biography). See
   `docs/superpowers/specs/2026-05-28-uc-01-03-slice-b-profile-picture-design.md`.
-- **NOT IMPLEMENTED** · High — Extension 3b (email-address change with
-  re-verification flow) remains unbuilt.
+- **IMPLEMENTED — Slice C shipped 2026-05-28.** Extension 3b (email-address change
+  with re-verification flow) is wired up: `POST /api/profile/email` requires the
+  current password (re-auth), validates the new address, and sends a Firebase
+  `generateVerifyAndChangeEmailLink` to the new address; `POST /api/profile/email/confirm`
+  (invoked from the unguarded `/settings/profile/email-changed` landing page) syncs
+  the Firestore email mirror, revokes refresh tokens, and clears the session — the
+  user signs in with the new address. Typed errors: `EMAIL_INVALID`, `EMAIL_UNCHANGED`,
+  `CURRENT_PASSWORD_INVALID` (400), `EMAIL_CHANGE_FAILED` (500). See
+  `docs/superpowers/specs/2026-05-28-uc-01-03-slice-c-email-change-design.md`.
+  **Deliberate divergence:** unlike registration (which uses an enumeration-resistant
+  generic error), the email-change endpoint returns a specific `EMAIL_ALREADY_IN_USE`
+  (409) — standard, expected UX for an authenticated self-service email change where
+  exposing whether an address is taken is not a privacy risk.
 - **NOT IMPLEMENTED** · High — Extensions 3c / 3c-3a / 3c-4a (password change
-  with current-password verification) remain unbuilt.
+  with current-password verification) remain unbuilt (deferred to Slice D).
 
 ### UC-01-04 — Request Instructor Role
 
@@ -347,12 +358,13 @@ stale and resolved.
    auths pre-verification; suspended-account error code; module-title prompt; lesson-
    delete cascade; publish-gate eligibility-preview + restore). The 5% upload-size
    tolerance (`SIZE_TOLERANCE = 1.05`) is still undocumented in the UCs.
-3. **Mark unbuilt use cases.** ✅ Addressed 2026-05-26; partially updated 2026-05-28 —
-   **UC-01-03 (Manage Profile) Slices A + B** shipped (text fields 2026-05-27,
-   profile picture 2026-05-28); the email-change (ext 3b) and password-change
-   (ext 3c) sub-flows remain unbuilt. **UC-01-04 (Request Instructor Role)** and
-   **UC-03-05 (Manage Video Storage)** remain entirely unbuilt; each is called out
-   in the relevant epic's DRIFT note. EP-05 and EP-06 are fully built.
+3. **Mark unbuilt use cases.** ✅ Addressed 2026-05-26; updated 2026-05-28 —
+   **UC-01-03 (Manage Profile) Slices A + B + C** shipped (text fields 2026-05-27,
+   profile picture 2026-05-28, email change 2026-05-28); the password-change
+   (ext 3c) sub-flow remains unbuilt (deferred to Slice D). **UC-01-04 (Request
+   Instructor Role)** and **UC-03-05 (Manage Video Storage)** remain entirely
+   unbuilt; each is called out in the relevant epic's DRIFT note. EP-05 and EP-06
+   are fully built.
 4. **Re-label the publish gate** consistently — it is UC-02-04 (EP-02), not
    "EP-03 slice D". Two references remain in this report (above); historical plan
    docs under `docs/superpowers/plans/` are post-implementation summaries and need
