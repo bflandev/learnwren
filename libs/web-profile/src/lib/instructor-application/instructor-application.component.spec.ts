@@ -70,6 +70,21 @@ describe('InstructorApplicationComponent', () => {
     await cmp.submit();
     expect(svc.submit).toHaveBeenCalledWith({ statement: 'I teach', expertise: 'Rust' });
     expect(cmp.application()?.status).toBe('PENDING');
+    expect(cmp.formOpen()).toBe(false);
+    expect(cmp.form.controls.statement.value).toBe('');
+    expect(cmp.status()).toBe('idle');
+  });
+
+  it('marks all controls touched and does not call submit when the form is invalid', async () => {
+    const fixture = create('STUDENT');
+    await fixture.whenStable();
+    const cmp = fixture.componentInstance;
+    cmp.open();
+    // form is empty/invalid — do NOT call setValue
+    await cmp.submit();
+    expect(svc.submit).not.toHaveBeenCalled();
+    expect(cmp.form.controls.statement.touched).toBe(true);
+    expect(cmp.form.controls.expertise.touched).toBe(true);
   });
 
   it('maps an INSTRUCTOR_APPLICATION_INVALID field error onto the control', async () => {
@@ -86,6 +101,7 @@ describe('InstructorApplicationComponent', () => {
     cmp.form.setValue({ statement: 'I teach', expertise: 'Rust' });
     await cmp.submit();
     expect(cmp.form.controls.statement.errors?.['server']).toBeTruthy();
+    expect(cmp.status()).toBe('idle');
   });
 
   it('shows a banner and re-fetches on INSTRUCTOR_APPLICATION_EXISTS', async () => {
@@ -104,5 +120,6 @@ describe('InstructorApplicationComponent', () => {
     await cmp.submit();
     expect(cmp.bannerError()).toBeTruthy();
     expect(svc.getApplication).toHaveBeenCalledTimes(2);
+    expect(cmp.status()).toBe('idle');
   });
 });
