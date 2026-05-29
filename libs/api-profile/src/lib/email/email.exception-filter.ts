@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 
+import { AuthException } from '@learnwren/api-auth';
 import { EmailChangeException } from './errors/email-change.exception';
 
 interface EmailChangeErrorBody {
@@ -17,7 +18,7 @@ interface EmailChangeErrorBody {
   };
 }
 
-@Catch(EmailChangeException, HttpException)
+@Catch(EmailChangeException, AuthException, HttpException)
 export class EmailChangeExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('EmailChangeExceptionFilter');
 
@@ -30,6 +31,12 @@ export class EmailChangeExceptionFilter implements ExceptionFilter {
           message: exception.message,
           ...(exception.details ? { details: exception.details } : {}),
         },
+      } satisfies EmailChangeErrorBody);
+      return;
+    }
+    if (exception instanceof AuthException) {
+      response.status(exception.status).json({
+        error: { code: exception.code, message: exception.message },
       } satisfies EmailChangeErrorBody);
       return;
     }

@@ -4,6 +4,7 @@ import type { ArgumentsHost } from '@nestjs/common';
 
 import { EmailChangeExceptionFilter } from './email.exception-filter';
 import { EmailAlreadyInUseException } from './errors/email-change.exception';
+import { AuthException } from '@learnwren/api-auth';
 
 function mockHost() {
   const json = vi.fn();
@@ -34,6 +35,18 @@ describe('EmailChangeExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(401);
     expect(json).toHaveBeenCalledWith({
       error: { code: 'UNAUTHORIZED', message: 'nope' },
+    });
+  });
+
+  it('maps an AuthException (e.g. guard 401) to its status code', () => {
+    const { host, status, json } = mockHost();
+    new EmailChangeExceptionFilter().catch(
+      new AuthException('UNAUTHENTICATED', 'Not authenticated.', 401),
+      host,
+    );
+    expect(status).toHaveBeenCalledWith(401);
+    expect(json).toHaveBeenCalledWith({
+      error: { code: 'UNAUTHENTICATED', message: 'Not authenticated.' },
     });
   });
 });

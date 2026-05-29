@@ -130,3 +130,8 @@ test('confirm is a no-op when nothing has swapped', async ({ request }) => {
   expect(res.status()).toBe(200);
   expect(await res.json()).toEqual({ changed: false });
 });
+
+test('confirm without a session cookie is rejected with 401 (not 500)', async ({ request }) => {
+  const res = await request.post(`${API_BASE}/profile/email/confirm`);
+  expect(res.status()).toBe(401);
+});
