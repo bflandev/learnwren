@@ -1,1 +1,1 @@
-export * from './lib/api-http-errors';
+export * from './lib/exception-response';
