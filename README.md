@@ -6,7 +6,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > **PROJECT STATUS: ACTIVE DEVELOPMENT**
 > Built in vertical slices. What is wired up today, end to end:
 >
-> - **EP-01 Identity & access** — register, email-verification gate, login, logout, brute-force lockout + email unlock, logged-out password reset, session cookie, protected routes. **Text profile editing** (displayName + biography) via `/settings/profile` shipped 2026-05-27 (UC-01-03 Slice A). **Profile picture upload** (JPEG/PNG, ≤ 2 MB, auto-cropped to 512×512) shipped 2026-05-28 (UC-01-03 Slice B); the avatar surfaces in the header chip, on course cards, and on the course-detail instructor card (which also renders the instructor's biography). **Email address change** shipped 2026-05-28 (UC-01-03 Slice C, ext 3b): `POST /api/profile/email` re-authenticates with the current password, then sends a verification link to the NEW address; `POST /api/profile/email/confirm` (called from the unguarded `/settings/profile/email-changed` landing page after the link is clicked) syncs the Firestore mirror, revokes refresh tokens, and clears the session — the user signs in with the new address. **Password change** shipped 2026-05-29 (UC-01-03 Slice D, ext 3c): `POST /api/profile/password` re-authenticates with the current password, validates the new password against the same complexity policy as registration (12+ chars, upper, lower, digit, special), updates the credential, sends a password-changed notification email, and revokes refresh tokens — the user is signed out of all devices and signs back in with the new password. **UC-01-03 is now fully implemented.** **Instructor role request (submission) shipped 2026-05-29 (UC-01-04 submission slice)**: a Student on `/settings/profile` sees a "Become an Instructor" section; submitting a statement of intent and areas of expertise (free-text, ≤ 2000 chars) persists a `PENDING` document in `instructorApplications/{uid}` and swaps the form for an "under review" card that persists across reload. Re-submission is blocked (`INSTRUCTOR_APPLICATION_EXISTS`); the `pnpm tools:promote-to-instructor <email>` CLI now resolves the pending application to `APPROVED` (with `resolvedAt`) after flipping the role. Admin review queue UI, approve/decline actions, and decision emails are deferred to EP-08.
+> - **EP-01 Identity & access** — register, email-verification gate, login, logout, brute-force lockout + email unlock, logged-out password reset, session cookie, protected routes. **Text profile editing** (displayName + biography) via `/settings/profile` shipped 2026-05-27 (UC-01-03 Slice A). **Profile picture upload** (JPEG/PNG, ≤ 2 MB, auto-cropped to 512×512) shipped 2026-05-28 (UC-01-03 Slice B); the avatar surfaces in the header chip, on course cards, and on the course-detail instructor card (which also renders the instructor's biography). **Email address change** shipped 2026-05-28 (UC-01-03 Slice C, ext 3b): `POST /api/profile/email` re-authenticates with the current password, then sends a verification link to the NEW address; `POST /api/profile/email/confirm` (called from the unguarded `/settings/profile/email-changed` landing page after the link is clicked) syncs the Firestore mirror, revokes refresh tokens, and clears the session — the user signs in with the new address. **Password change** shipped 2026-05-29 (UC-01-03 Slice D, ext 3c): `POST /api/profile/password` re-authenticates with the current password, validates the new password against the same complexity policy as registration (12+ chars, upper, lower, digit, special), updates the credential, sends a password-changed notification email, and revokes refresh tokens — the user is signed out of all devices and signs back in with the new password. **UC-01-03 is now fully implemented.** **Instructor role request (submission) shipped 2026-05-29 (UC-01-04 submission slice)**: a Student on `/settings/profile` sees a "Become an Instructor" section; submitting a statement of intent and areas of expertise (free-text, ≤ 2000 chars) persists a `PENDING` document in `instructorApplications/{uid}` and swaps the form for an "under review" card that persists across reload. Re-submission is blocked (`INSTRUCTOR_APPLICATION_EXISTS`); the `pnpm tools:promote-to-instructor <email>` CLI now resolves the pending application to `APPROVED` (with `resolvedAt`) after flipping the role. **Admin review of instructor applications shipped 2026-05-29 (US-08-03)**: this is the first administrator surface. An ADMIN navigates to `/admin/instructor-applications` via the **Admin** nav link (visible only to ADMINs) and sees the pending queue — applicant name, email, statement, expertise, and submission date. Clicking **Approve** grants the `INSTRUCTOR` role (Firebase custom claim + `users` doc update) and resolves the application to `APPROVED`; clicking **Decline** marks it `DECLINED` so the applicant may re-apply. Approval requires the applicant's email to be verified (returns `EMAIL_NOT_VERIFIED` otherwise); both actions send the applicant a best-effort decision email. The applicant must sign out and back in for a role change to take effect. Scope cuts: pending-only queue (no approved/declined history view), no decline reason. ADMINs are provisioned via `pnpm tools:promote-to-admin <email>`. Approval also remains available via `pnpm tools:promote-to-instructor <email>`.
 > - **EP-02 Course authoring** — instructor role promotion (CLI), REST course CRUD, modules and lessons, drag-and-drop reorder.
 > - **EP-03 Video & DRM** — resumable upload (MP4 / MOV / MKV ≤ 10 GB), GCP Transcoder → AES-128 HLS, owner playback in the lesson editor (hls.js, native HLS on Safari/iOS), publish / unpublish / archive / restore gate with structured eligibility feedback.
 > - **EP-04 Lesson materials** — attach / rename / remove supplementary files (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB each); owners **and enrolled students on PUBLISHED courses** download via short-lived signed URL; the learn page surfaces a materials list with per-row Download buttons.
@@ -18,7 +18,7 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 >
 > - **Course cover image upload** — instructors can upload a cover from the course editor (JPEG or PNG, ≥1280×720, ≤10 MB); uploads are auto-resized to a canonical 1920×1080 JPEG. Replace or remove from the same panel.
 >
-> Not built yet: module / course completion rollups (rest of EP-06), instructor dashboard (EP-07), platform administration (EP-08). `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
+> Not built yet: module / course completion rollups (rest of EP-06), instructor dashboard (EP-07), remaining EP-08 admin stories (Manage Users, Manage Categories, Monitor Platform Health). US-08-03 (admin instructor-application review) is shipped. `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
 
 ---
 
@@ -44,9 +44,11 @@ learnwren/
 │   ├── web-catalog/         # Angular standalone components for public course discovery (catalogue, search, course detail)
 │   ├── web-enrollment/      # Angular enroll/leave panel for the course detail page
 │   ├── web-learn/           # Angular standalone student lesson player page at /learn/:cid/:lid
+│   ├── web-admin/           # Angular admin surface: /admin/instructor-applications queue (US-08-03)
 │   └── web-ui/              # Shared Angular UI primitives (cover tones, buttons, etc.)
 ├── tools/
 │   ├── promote-to-instructor.ts                    # CLI: promote a STUDENT to INSTRUCTOR via custom claim
+│   ├── promote-to-admin.ts                         # CLI: promote a STUDENT or INSTRUCTOR to ADMIN via custom claim
 │   ├── firebase-admin-init.ts                      # Shared admin-SDK bootstrap for CLI tools
 │   ├── migrate-auth-2026-05-cleanup-unverified.ts  # Pre-deploy script: prune unverified accounts
 │   ├── crap/                                       # CRAP score reporter (consumes Vitest coverage)
@@ -74,6 +76,7 @@ learnwren/
 | `web-catalog` | Library | Angular standalone components for public course discovery (catalogue, search, course detail) |
 | `web-enrollment` | Library | Angular standalone `EnrollmentService` + `CourseEnrollmentPanelComponent` |
 | `web-learn` | Library | Angular standalone `LearnService` + `LessonPlayerPageComponent`; the `/learn/:cid/:lid` student playback route |
+| `web-admin` | Library | Angular standalone `AdminInstructorApplicationsPageComponent`; the `/admin/instructor-applications` review queue (US-08-03) |
 | `web-ui` | Library | Shared Angular UI primitives (deterministic course-cover tones, etc.) consumed by `web-catalog` and `web-courses` |
 | `web-e2e`, `api-e2e` | E2E suite | Playwright (api-e2e covers `/auth/**` end-to-end including lockout + Firestore rules) |
 
@@ -161,6 +164,14 @@ The API endpoints exposed by UC-01-03/UC-01-04 (profile management — session c
 | `GET` | `/api/profile/instructor-application` | Return the caller's application status: `{ status: 'NONE' \| 'PENDING' \| 'APPROVED' \| 'DECLINED', statement?, expertise?, createdAt? }`. |
 | `POST` | `/api/profile/instructor-application` | Submit `{ statement, expertise }` (both non-empty, ≤ 2000 chars); persists `PENDING` in `instructorApplications/{uid}`; blocked for existing applicants (`INSTRUCTOR_APPLICATION_EXISTS`) and for instructors/admins (`ALREADY_INSTRUCTOR`). |
 
+The API endpoints exposed by US-08-03 (admin instructor-application review — session cookie + ADMIN role required):
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/api/admin/instructor-applications` | List all `PENDING` instructor applications (applicant uid, name, email, statement, expertise, submitted date). |
+| `POST` | `/api/admin/instructor-applications/:uid/approve` | Approve the application: grant `INSTRUCTOR` role; requires applicant's email to be verified. |
+| `POST` | `/api/admin/instructor-applications/:uid/decline` | Decline the application; the applicant may re-apply. |
+
 The API endpoints exposed by slice D (course publish gate):
 
 | Method | Path | Purpose |
@@ -247,6 +258,7 @@ All scripts run from the repo root and delegate to Nx.
 | `pnpm crap` | Run coverage on the backend + selected libs and emit the CRAP-score report (`pnpm crap:coverage`, `pnpm crap:report` are split steps). |
 | `pnpm mutate` | Run Stryker mutation tests for `api-auth` and `api-courses` and aggregate the report (`pnpm mutate:api-auth`, `pnpm mutate:api-courses`, `pnpm mutate:report` are split steps). |
 | `pnpm tools:promote-to-instructor <email>` | Promote an email-verified STUDENT to INSTRUCTOR (custom claim + `users/{uid}` doc). Required to access the course editor; the user must sign out and back in after. |
+| `pnpm tools:promote-to-admin <email>` | Promote an email-verified user to ADMIN (custom claim + `users/{uid}` doc). Required to access `/admin/**`; the user must sign out and back in after. |
 | `pnpm secrets:render` | Render `.env` from `.env.tpl` via 1Password. |
 | `pnpm secrets:run -- <cmd>` | Run a command with secrets injected in-memory (no `.env` written). |
 

@@ -30,7 +30,9 @@ This guide covers **every feature wired up so far** from two angles:
 | Identity | Session cookie + protected routes | Built |
 | Identity | Text profile editing (displayName + biography) | Built (2026-05-27) |
 | Identity | Profile picture upload / replace / remove | Built (2026-05-28) |
-| Identity | Email change, password change | Not built |
+| Identity | Email change, password change | Built (2026-05-28 / 2026-05-29) |
+| Identity | Instructor role request (self-service) | Built (2026-05-29) |
+| Administration | Admin review of instructor applications | Built (2026-05-29) |
 | Authoring | Instructor role promotion (CLI tool) | Built |
 | Authoring | Course create / edit / delete | Built |
 | Authoring | Modules & lessons, drag-and-drop reorder | Built |
@@ -183,9 +185,28 @@ To protect against password guessing:
 
 ## 2.6 Becoming an instructor
 
-Course authoring requires the **`INSTRUCTOR`** role. There is no self-service "become
-an instructor" button yet — promotion is done with a CLI tool by whoever operates the
-deployment.
+Course authoring requires the **`INSTRUCTOR`** role. Students can request it via a
+self-service form, and an ADMIN approves or declines the request via the admin
+review queue (see [2.18 Admin: reviewing instructor applications](#218-admin-reviewing-instructor-applications)).
+Operators can also promote users directly with a CLI tool.
+
+### Self-service request
+
+A logged-in Student sees a **Become an Instructor** section on `/settings/profile`.
+Fill in:
+
+- **Statement of intent** — why you want to create courses (free text, up to 2000 characters).
+- **Areas of expertise** — the subjects you plan to cover (free text, up to 2000 characters).
+
+Click **Submit request**. The form swaps to an "under review" card that persists
+across reload. Re-submission is blocked while a `PENDING` application is on record.
+
+Once the ADMIN approves the request, **you must sign out and sign back in** for the
+`INSTRUCTOR` role to take effect.
+
+### CLI promotion (operator/developer tool)
+
+Operators can also promote a user directly without going through the review queue:
 
 ```bash
 pnpm tools:promote-to-instructor <email>
@@ -193,7 +214,8 @@ pnpm tools:promote-to-instructor <email>
 
 - The target account **must already be email-verified** — the tool refuses otherwise.
 - It sets the Firebase Auth custom claim `role: INSTRUCTOR` and updates
-  `users/{uid}.role`.
+  `users/{uid}.role`. If the user has a `PENDING` application on record it is
+  resolved to `APPROVED` (with `resolvedAt`) at the same time.
 - **The user must sign out and sign back in** for the new role to take effect (the
   role is baked into the session).
 
@@ -570,6 +592,67 @@ page.
 
 ---
 
+## 2.18 Admin: reviewing instructor applications (US-08-03)
+
+Platform ADMINs can approve or decline instructor-role requests submitted by students.
+This is the first implemented administrator surface.
+
+### Reaching the queue
+
+A user with the **`ADMIN`** role sees an **Admin** link in the top navigation. Clicking
+it navigates to `/admin/instructor-applications`. Non-ADMIN users do not see the link
+and are redirected if they visit the URL directly.
+
+### The pending queue
+
+The page lists every `PENDING` instructor application. Each row shows:
+
+- Applicant **display name** and **email address**.
+- The applicant's **statement of intent** and **areas of expertise**.
+- The **date the request was submitted**.
+
+The queue shows only pending applications — there is no history view of approved or
+declined applications.
+
+### Approve
+
+Click **Approve** to grant the applicant the `INSTRUCTOR` role:
+
+- The `INSTRUCTOR` Firebase custom claim and `users/{uid}.role` are updated atomically.
+- The application is marked `APPROVED` with a `resolvedAt` timestamp.
+- A best-effort approval email is sent to the applicant.
+- The applicant must **sign out and sign back in** for the role change to take effect.
+
+> **Requirement:** the applicant's email must be verified. If it is not, the action is
+> refused with an `EMAIL_NOT_VERIFIED` error and the application remains pending.
+
+### Decline
+
+Click **Decline** to reject the request:
+
+- The application is marked `DECLINED`.
+- A best-effort decline email is sent to the applicant.
+- The applicant may submit a new request after being declined.
+
+No decline reason is captured (deliberate scope cut for this slice).
+
+### Provisioning ADMINs
+
+ADMINs are created via the CLI tool — there is no in-app promotion path:
+
+```bash
+pnpm tools:promote-to-admin <email>
+```
+
+- The target account must be email-verified.
+- Sets the Firebase Auth custom claim `role: ADMIN` and updates `users/{uid}.role`.
+- **The user must sign out and sign back in** for the admin role to take effect.
+
+The remaining EP-08 admin features (Manage Users, Manage Categories, Monitor Platform
+Health) are deferred post-MVP.
+
+---
+
 # Part 3 — Developer & API reference
 
 ## 3.1 Architecture in one paragraph
@@ -692,7 +775,18 @@ Error codes specific to enrollment:
 | `CANNOT_ENROLL_OWN_COURSE` | `409` | The course owner clicked Enroll on their own course. |
 | `NOT_ENROLLED` | `404` | `DELETE` called when the caller has no `ACTIVE` enrollment for that course. |
 
-## 3.7 Materials endpoints
+## 3.7 Admin endpoints — `/api/admin`
+
+All admin endpoints require a valid session cookie **and** the `ADMIN` role
+(`FirebaseSessionGuard` + `AdminRoleGuard`).
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/api/admin/instructor-applications` | List all `PENDING` instructor applications. |
+| `POST` | `/api/admin/instructor-applications/:uid/approve` | Approve the application; grant `INSTRUCTOR` role. Requires applicant's email to be verified. |
+| `POST` | `/api/admin/instructor-applications/:uid/decline` | Decline the application; the applicant may re-apply. |
+
+## 3.8 Materials endpoints
 
 Create / list / mutate endpoints require session + `INSTRUCTOR` and are gated
 by `CourseOwnerGuard` or `MaterialOwnerGuard`. The download endpoint widens
@@ -710,7 +804,7 @@ access to ACTIVE-enrolled students via `MaterialAccessGuard`.
 Supported content types: PDF, DOCX, PPTX, XLSX, TXT, ZIP. Per-file size cap:
 50 MB.
 
-## 3.8 Video endpoints
+## 3.9 Video endpoints
 
 Upload/management endpoints require session + `INSTRUCTOR`; per-video endpoints add
 `VideoOwnerGuard`.
@@ -750,7 +844,7 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `GET` | `/api/health` | `{ status:"ok", version, serverTime }`. |
 | `GET` | `/api/firestore-smoke` | Writes a doc via the Admin SDK to prove Firestore wiring. |
 
-## 3.9 Web routes
+## 3.10 Web routes
 
 | Path | Guard | Page |
 | :--- | :--- | :--- |
@@ -767,14 +861,15 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `/courses` | `instructorRoleGuard` | Instructor's course list. |
 | `/courses/new` | `instructorRoleGuard` | Create a course. |
 | `/courses/:id/edit` | `instructorRoleGuard` | Course editor: modules, lessons, video, publish bar. |
+| `/admin/instructor-applications` | `adminRoleGuard` | Pending instructor-application review queue (US-08-03). |
 
-## 3.10 Roles and guards
+## 3.11 Roles and guards
 
 | Role | Granted | Can do |
 | :--- | :--- | :--- |
-| `STUDENT` | Every new account | Register, sign in, view the dashboard. |
-| `INSTRUCTOR` | Via `pnpm tools:promote-to-instructor <email>` | Everything `STUDENT` can, plus full course authoring, video, and publishing. |
-| `ADMIN` | Not yet granted by any tool | Reserved for platform administration (post-MVP). |
+| `STUDENT` | Every new account | Register, sign in, view the dashboard, submit an instructor-role request. |
+| `INSTRUCTOR` | Via `pnpm tools:promote-to-instructor <email>` or ADMIN approval of a role request | Everything `STUDENT` can, plus full course authoring, video, and publishing. |
+| `ADMIN` | Via `pnpm tools:promote-to-admin <email>` | Everything `STUDENT` can, plus the admin instructor-application review queue at `/admin/instructor-applications`. |
 
 The role lives in a Firebase Auth custom claim and is baked into the session — a user
 must **sign out and back in** after a role change.
@@ -783,12 +878,13 @@ must **sign out and back in** after a role change.
 | :--- | :--- |
 | `FirebaseSessionGuard` | A valid `__session` cookie. |
 | `InstructorRoleGuard` | The caller's role is `INSTRUCTOR`. |
+| `AdminRoleGuard` | The caller's role is `ADMIN`. |
 | `CourseOwnerGuard` | The course belongs to the caller. |
 | `VideoOwnerGuard` | The video belongs to the caller. |
 | `EnrollmentOrOwnerGuard` | The caller owns the course **or** has an `ACTIVE` enrollment in it. |
 | `PubSubPushGuard` | The transcoder webhook request carries a valid Pub/Sub push token. |
 
-## 3.11 Data models
+## 3.12 Data models
 
 Defined in `libs/shared-data-models` and shared by both apps. IDs are **branded
 strings** (Firestore document IDs); timestamps are **ISO 8601 strings**; enum-like
@@ -817,7 +913,7 @@ fields are **string-literal unions** (not TypeScript enums).
 - **`LessonProgress`** — `lessonId`, `completedAt`, `lastWatchedSeconds` — reserved for
   the EP-06 learning experience.
 
-## 3.12 Video pipeline configuration
+## 3.13 Video pipeline configuration
 
 The `VideoModule` reads its configuration from environment variables
 (`libs/api-courses/src/lib/video/video.config.ts`):
@@ -857,7 +953,7 @@ curl -X POST http://localhost:3333/api/internal/fake-transcoder/fail/<videoId> \
 The fake transcoder wraps the payload in the same Pub/Sub push envelope the real
 webhook expects, so it exercises the identical `TranscoderEventsController` code path.
 
-## 3.13 Developer commands
+## 3.14 Developer commands
 
 | Command | Description |
 | :--- | :--- |
@@ -870,6 +966,7 @@ webhook expects, so it exercises the identical `TranscoderEventsController` code
 | `pnpm affected` | Lint + test + build + typecheck only what the branch changed. |
 | `pnpm secrets:render` | Render `.env` from `.env.tpl` via 1Password. |
 | `pnpm tools:promote-to-instructor <email>` | Promote a user to `INSTRUCTOR`. |
+| `pnpm tools:promote-to-admin <email>` | Promote a user to `ADMIN`. |
 
 Target a single project by invoking Nx directly, e.g. `pnpm nx test api-courses`.
 
@@ -889,9 +986,8 @@ These are specified in `docs/epics/` and `docs/use-cases/` but **not yet impleme
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll are
   live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than 90 days is
   not implemented.
-- **Self-service instructor requests** — promotion is CLI-only; there is no in-app
-  "become an instructor" flow.
-- **Instructor dashboard (EP-07)** and **platform administration (EP-08)** — post-MVP.
+- **Instructor dashboard (EP-07)** — post-MVP.
+- **Remaining EP-08 admin features** — Manage Users, Manage Categories, and Monitor Platform Health are deferred post-MVP. The admin instructor-application review queue (US-08-03) is shipped.
 - **Account management sub-flows** — account deletion, social auth, and App Check are out of scope for MVP. UC-01-03 (manage profile) is now fully implemented across Slices A–D (text profile, picture, email change, password change).
 
 ## Further reading
