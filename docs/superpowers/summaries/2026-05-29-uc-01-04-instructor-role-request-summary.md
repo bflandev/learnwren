@@ -14,8 +14,8 @@ Ships the UC-01-04 submission slice. A Student on `/settings/profile` sees a "Be
 
 ### NestJS (`libs/api-profile/src/lib/instructor-application/`)
 
-- `errors/instructor-application.exceptions.ts` — domain exceptions: `AlreadyInstructorException` (409), `InstructorApplicationExistsException` (409), `InstructorApplicationInvalidException` (400, with field-accurate details list). Commit `5863b1d`; field messages corrected in `e0af335`.
-- `errors/instructor-application-exception.filter.ts` — per-feature `ExceptionFilter` delegating rendering to `handleException()` in `@learnwren/api-http-errors`. Commit `98c96e2`.
+- `errors/instructor-application.exception.ts` — domain exceptions: `AlreadyInstructorException` (409), `InstructorApplicationExistsException` (409), `InstructorApplicationInvalidException` (400, with field-accurate details list). Commit `5863b1d`; field messages corrected in `e0af335`.
+- `instructor-application.exception-filter.ts` — per-feature `ExceptionFilter` delegating rendering to `handleException()` in `@learnwren/api-http-errors`. Commit `98c96e2`.
 - `dto/submit-instructor-application.dto.ts` — plain-class DTO (type guards only; no class-validator decorators, per the workspace convention that length/content validation lives in the service to avoid NestJS `ValidationPipe` short-circuiting with raw messages). Commit `1ed76c8`.
 - `instructor-application.service.ts` — role guards (`INSTRUCTOR` or `ADMIN` → `AlreadyInstructorException`), field validation (both fields non-empty after trim + ≤ 2000 chars → `InstructorApplicationInvalidException`), existence guard (doc already present → `InstructorApplicationExistsException`), and Firestore write to `instructorApplications/{uid}`. GET reads the doc and maps `NONE` for missing docs. Commit `76632c2`; specs extended in `577e02f`.
 - `instructor-application.controller.ts` — `GET /api/profile/instructor-application` and `POST /api/profile/instructor-application`, both guarded by `FirebaseSessionGuard` and decorated with the per-feature filter. Commit `af6d945`.
