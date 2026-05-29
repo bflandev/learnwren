@@ -1,7 +1,8 @@
 # Specification Drift Report
 
-> Generated 2026-05-21. Compares the frozen Cockburn use cases in `docs/use-cases/`
-> against the current implementation in `apps/` and `libs/`.
+> Generated 2026-05-21; incrementally reconciled as slices shipped (last update
+> 2026-05-29). Compares the frozen Cockburn use cases in `docs/use-cases/` against
+> the current implementation in `apps/` and `libs/`.
 
 ## Method
 
@@ -69,8 +70,10 @@ by — they are not scope decisions and are not recorded anywhere:
 
 ## EP-01 — User Identity and Access
 
-**Drift: Major.** Two of four use cases are entirely unbuilt; the two built use
-cases each carry a high-severity behavioral contradiction.
+**Drift: Moderate (reconciled 2026-05-29).** UC-01-03 is now fully built across
+Slices A–D (text profile, picture, email change, password change); only UC-01-04
+remains entirely unbuilt. UC-01-01 and UC-01-02 are built but each carries a
+high-severity behavioral contradiction (below).
 
 ### UC-01-01 — Register a New Account
 
@@ -160,7 +163,9 @@ exist and the publish slice is over-built relative to its use case.
 - **RECONCILED** · 2026-05-26 — UC-02-01 cover-image bullet removed from create-form; new UC-02-05 documents the editor-only upload/replace/remove flow. `Course.coverImageUrl` is set via `PUT /api/courses/:cid/cover` (`libs/api-courses/src/lib/cover/`).
 - **CONTRADICTS** · Low — Extensions 5a/5b specify exact error copy ("Title must
   be 100 characters or fewer."); the API returns raw class-validator messages.
-  `courses.exception-filter.ts:75-85`.
+  Validation rendering now lives in the shared `respondValidation` /
+  `VALIDATION_FAILED` path in `libs/api-http-errors/src/lib/exception-response.ts`
+  (the per-feature filters delegate to it as of 2026-05-29).
 
 ### UC-02-02 — Add and Manage Modules
 
@@ -371,13 +376,13 @@ stale and resolved.
    auths pre-verification; suspended-account error code; module-title prompt; lesson-
    delete cascade; publish-gate eligibility-preview + restore). The 5% upload-size
    tolerance (`SIZE_TOLERANCE = 1.05`) is still undocumented in the UCs.
-3. **Mark unbuilt use cases.** ✅ Addressed 2026-05-26; updated 2026-05-28 —
-   **UC-01-03 (Manage Profile) Slices A + B + C** shipped (text fields 2026-05-27,
-   profile picture 2026-05-28, email change 2026-05-28); the password-change
-   (ext 3c) sub-flow remains unbuilt (deferred to Slice D). **UC-01-04 (Request
-   Instructor Role)** and **UC-03-05 (Manage Video Storage)** remain entirely
-   unbuilt; each is called out in the relevant epic's DRIFT note. EP-05 and EP-06
-   are fully built.
+3. **Mark unbuilt use cases.** ✅ Addressed 2026-05-26; updated 2026-05-29 —
+   **UC-01-03 (Manage Profile) is now fully built** across Slices A–D (text fields
+   2026-05-27, profile picture 2026-05-28, email change 2026-05-28, password change
+   2026-05-29 — the ext 3c sub-flow that was previously deferred). The only use
+   cases that remain entirely unbuilt are **UC-01-04 (Request Instructor Role)** and
+   **UC-03-05 (Manage Video Storage)**; each is called out in the relevant epic's
+   DRIFT note. EP-05 and EP-06 are fully built.
 4. **Re-label the publish gate** consistently — it is UC-02-04 (EP-02), not
    "EP-03 slice D". Two references remain in this report (above); historical plan
    docs under `docs/superpowers/plans/` are post-implementation summaries and need

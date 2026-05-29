@@ -31,7 +31,7 @@ learnwren/
 ├── apps/
 │   ├── web/            # Angular SPA — root `/` redirects to `/catalog`
 │   ├── web-e2e/        # Playwright E2E tests for web
-│   ├── api/            # NestJS API — exposes GET /api/health, GET /api/firestore-smoke
+│   ├── api/            # NestJS API — exposes GET /api/health
 │   └── api-e2e/        # Playwright E2E tests for api
 ├── libs/
 │   ├── shared-data-models/  # TS types shared between web and api
@@ -121,10 +121,9 @@ Verify the wiring end-to-end:
 
 ```bash
 curl http://localhost:3333/api/health
-curl http://localhost:3333/api/firestore-smoke
 ```
 
-`/api/firestore-smoke` writes a doc through the Admin SDK into the local Firestore emulator. No real Firebase credentials are needed for local development — both apps target the reserved `demo-learnwren` project ID against the local emulator suite.
+`/api/health` returns `{ status: 'ok', version, serverTime }`. No real Firebase credentials are needed for local development — both apps target the reserved `demo-learnwren` project ID against the local emulator suite.
 
 ### Try the auth flow (emulator mode)
 

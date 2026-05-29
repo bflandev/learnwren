@@ -47,7 +47,7 @@ The project was renamed from "Teachify" to "Learn Wren" (commit `707fca7`) and a
 ## Local Development
 
 - Emulator mode is the default and needs no cloud credentials: run `pnpm emulators` in one terminal and `pnpm start` in another (web on `:4200`, api on `:3333`).
-- `docs/development.md` is partially stale (e.g. it still lists a removed `/auth/session` endpoint) — when it disagrees with the code, trust the code and `README.md`.
+- `docs/development.md` covers local setup, scripts, ports, and the dev workflow; it was reconciled against the code on 2026-05-29. If any doc ever disagrees with the code, trust the code and `README.md` (the authoritative feature record).
 
 
 <!-- nx configuration start-->
