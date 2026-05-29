@@ -17,13 +17,16 @@ import { EmailChangeService } from './email/email-change.service';
 import { PasswordChangeController } from './password/password-change.controller';
 import { PasswordChangeExceptionFilter } from './password/password.exception-filter';
 import { PasswordChangeService } from './password/password-change.service';
+import { InstructorApplicationController } from './instructor-application/instructor-application.controller';
+import { InstructorApplicationExceptionFilter } from './instructor-application/instructor-application.exception-filter';
+import { InstructorApplicationService } from './instructor-application/instructor-application.service';
 import { ProfileController } from './profile.controller';
 import { ProfileExceptionFilter } from './profile.exception-filter';
 import { ProfileService } from './profile.service';
 
 @Module({
   imports: [AuthModule], // pulls in FirebaseSessionGuard
-  controllers: [ProfileController, ProfilePictureController, EmailChangeController, PasswordChangeController],
+  controllers: [ProfileController, ProfilePictureController, EmailChangeController, PasswordChangeController, InstructorApplicationController],
   providers: [
     ProfileService,
     ProfileExceptionFilter,
@@ -33,6 +36,8 @@ import { ProfileService } from './profile.service';
     EmailChangeExceptionFilter,
     PasswordChangeService,
     PasswordChangeExceptionFilter,
+    InstructorApplicationService,
+    InstructorApplicationExceptionFilter,
     FirebasePictureStorageAdapter,
     { provide: PICTURE_CONFIG, useFactory: () => readPictureConfigFromEnv(process.env) },
     {
