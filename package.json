@@ -28,6 +28,7 @@
     "mutate": "pnpm mutate:api-auth && pnpm mutate:api-courses && pnpm mutate:web-catalog && pnpm mutate:web-enrollment && pnpm mutate:web-ui && pnpm mutate:report",
     "emulators": "firebase emulators:start",
     "tools:promote-to-instructor": "tsx tools/promote-to-instructor.ts",
+    "tools:promote-to-admin": "tsx tools/promote-to-admin.ts",
     "secrets:render": "op inject -i .env.tpl -o .env",
     "secrets:run": "op run --env-file=.env.tpl"
   },
