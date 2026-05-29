@@ -8,6 +8,9 @@
         @if (auth.currentUser()?.role === 'INSTRUCTOR') {
           <a routerLink="/courses" class="lw-btn lw-btn-ghost">My Courses</a>
         }
+        @if (auth.currentUser()?.role === 'ADMIN') {
+          <a routerLink="/admin/instructor-applications" class="lw-btn lw-btn-ghost">Admin</a>
+        }
       }
     </nav>
     <span class="flex-1"></span>

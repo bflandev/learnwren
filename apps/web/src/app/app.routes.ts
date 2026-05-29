@@ -8,6 +8,7 @@ import {
   RegisterPageComponent,
   UnlockPageComponent,
 } from '@learnwren/web-auth';
+import { adminRoutes } from '@learnwren/web-admin';
 import { catalogRoutes } from '@learnwren/web-catalog';
 import { coursesRoutes } from '@learnwren/web-courses';
 import { learnRoutes } from '@learnwren/web-learn';
@@ -42,6 +43,7 @@ export const appRoutes: Route[] = [
   },
   ...catalogRoutes,
   ...coursesRoutes,
+  ...adminRoutes,
   ...learnRoutes,
   ...profileRoutes,
   { path: '', pathMatch: 'full', redirectTo: '/catalog' },
