@@ -69,11 +69,12 @@ describe('InstructorApplicationService', () => {
   });
 
   it('submit rejects an ADMIN role with ALREADY_INSTRUCTOR', async () => {
-    const { firestore } = makeFirestore({ exists: false, data: {} });
+    const { firestore, collection } = makeFirestore({ exists: false, data: {} });
     const svc = new InstructorApplicationService(firestore);
     await expect(
       svc.submit(UID, 'ADMIN', { statement: 'x', expertise: 'y' }),
     ).rejects.toBeInstanceOf(AlreadyInstructorException);
+    expect(collection).not.toHaveBeenCalled();
   });
 
   it('submit rejects a blank statement with field=statement', async () => {
@@ -97,6 +98,14 @@ describe('InstructorApplicationService', () => {
     const svc = new InstructorApplicationService(firestore);
     await expect(
       svc.submit(UID, STUDENT, { statement: 'a'.repeat(2001), expertise: 'Rust' }),
+    ).rejects.toBeInstanceOf(InstructorApplicationInvalidException);
+  });
+
+  it('submit rejects an over-long expertise (>2000 chars)', async () => {
+    const { firestore } = makeFirestore({ exists: false, data: {} });
+    const svc = new InstructorApplicationService(firestore);
+    await expect(
+      svc.submit(UID, STUDENT, { statement: 'I teach', expertise: 'x'.repeat(2001) }),
     ).rejects.toBeInstanceOf(InstructorApplicationInvalidException);
   });
 

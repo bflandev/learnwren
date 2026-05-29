@@ -4,6 +4,7 @@ import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
 import type {
   InstructorApplication,
   InstructorApplicationView,
+  ISODateString,
   SubmitInstructorApplicationRequest,
   UserId,
   UserRole,
@@ -17,6 +18,10 @@ import {
 
 const COLLECTION = 'instructorApplications';
 const MAX_FIELD_LENGTH = 2000;
+
+function nowIso(): ISODateString {
+  return new Date().toISOString() as ISODateString;
+}
 
 @Injectable()
 export class InstructorApplicationService {
@@ -62,7 +67,7 @@ export class InstructorApplicationService {
       throw new InstructorApplicationExistsException();
     }
 
-    const createdAt = new Date().toISOString() as InstructorApplication['createdAt'];
+    const createdAt = nowIso();
     const doc: InstructorApplication = {
       uid,
       statement,
