@@ -109,6 +109,7 @@ export class AdminInstructorApplicationService {
     return app;
   }
 
+  // Builds the response view from the just-resolved application; the request is the sole writer, so the in-memory snapshot + new status is authoritative.
   private viewOf(
     app: InstructorApplication,
     status: 'APPROVED' | 'DECLINED',

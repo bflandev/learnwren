@@ -69,7 +69,7 @@ describe('VideoExceptionFilter', () => {
     filter.catch(new InsufficientRoleException(), host);
     expect(status).toHaveBeenCalledWith(403);
     expect(json).toHaveBeenCalledWith({
-      error: { code: 'INSUFFICIENT_ROLE', message: 'Instructor role required.' },
+      error: { code: 'INSUFFICIENT_ROLE', message: 'Insufficient role.' },
     });
   });
 
