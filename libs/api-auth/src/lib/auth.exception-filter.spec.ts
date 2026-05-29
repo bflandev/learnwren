@@ -142,7 +142,8 @@ describe('AuthExceptionFilter — hardening exceptions', () => {
 });
 
 describe('AuthExceptionFilter — HttpException status → code mapping', () => {
-  // Pins every branch of the private codeForStatus() helper. The path is only
+  // Pins every branch of the shared codeForStatus() helper (api-http-errors),
+  // exercised through the filter. The path is only
   // reached by a plain HttpException (not an AuthException, which carries its
   // own code). 418 covers the fallback HTTP_ERROR branch.
   it.each<[number, string]>([

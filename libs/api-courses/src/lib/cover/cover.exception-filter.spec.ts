@@ -82,7 +82,7 @@ describe('CoverExceptionFilter — codeForStatus branches', () => {
   it('maps 415 → UNSUPPORTED_MEDIA_TYPE', () => {
     expect(mapHttpException(new UnsupportedMediaTypeException('x'))).toEqual({ status: 415, code: 'UNSUPPORTED_MEDIA_TYPE' });
   });
-  it('defaults unknown statuses to ERROR', () => {
-    expect(mapHttpException(new HttpException('teapot', 418))).toEqual({ status: 418, code: 'ERROR' });
+  it('defaults unknown statuses to HTTP_ERROR', () => {
+    expect(mapHttpException(new HttpException('teapot', 418))).toEqual({ status: 418, code: 'HTTP_ERROR' });
   });
 });

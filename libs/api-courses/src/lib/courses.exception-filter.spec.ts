@@ -84,7 +84,8 @@ describe('CoursesExceptionFilter', () => {
 });
 
 describe('CoursesExceptionFilter — HttpException status → code mapping', () => {
-  // Pins every branch of the private codeForStatus() helper. BadRequestException
+  // Pins every branch of the shared codeForStatus() helper (api-http-errors),
+  // exercised through the filter. BadRequestException
   // is intercepted upstream into VALIDATION_FAILED, so the 400 branch here is
   // reached only by a plain HttpException base instance. 418 pins the default.
   it.each<[number, string]>([

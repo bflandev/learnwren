@@ -2,12 +2,15 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "../../dist/out-tsc",
-    "composite": true,
-    "declaration": true,
-    "types": ["node"]
+    "types": [
+      "vitest/globals",
+      "vitest/importMeta",
+      "vite/client",
+      "node",
+      "vitest"
+    ]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": [
+  "include": [
     "vite.config.ts",
     "vite.config.mts",
     "vitest.config.ts",
@@ -19,17 +22,7 @@
     "src/**/*.test.js",
     "src/**/*.spec.js",
     "src/**/*.test.jsx",
-    "src/**/*.spec.jsx"
-  ],
-  "references": [
-    {
-      "path": "../api-http-errors/tsconfig.lib.json"
-    },
-    {
-      "path": "../shared-data-models/tsconfig.lib.json"
-    },
-    {
-      "path": "../api-firebase/tsconfig.lib.json"
-    }
+    "src/**/*.spec.jsx",
+    "src/**/*.d.ts"
   ]
 }

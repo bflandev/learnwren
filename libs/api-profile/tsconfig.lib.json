@@ -31,6 +31,9 @@
   ],
   "references": [
     {
+      "path": "../api-http-errors/tsconfig.lib.json"
+    },
+    {
       "path": "../api-firebase/tsconfig.lib.json"
     },
     {
