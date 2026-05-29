@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ISODateString, LessonId, LessonView, MaterialId } from '@learnwren/shared-data-models';
 import { VideoPlayerComponent } from '@learnwren/web-video';
 
-import { LessonPlayerPageComponent } from './lesson-player-page.component';
+import { LessonPlayerPageComponent, formatBytes } from './lesson-player-page.component';
 
 // jsdom does not implement window.matchMedia; polyfill it once for all tests in this file.
 if (typeof window !== 'undefined' && !window.matchMedia) {
@@ -1204,5 +1204,24 @@ describe('UC-04-02 materials section', () => {
     const err = query(fixture, '[data-testid="material-error-mat-1"]');
     expect(err).not.toBeNull();
     expect((err as HTMLElement).textContent ?? '').toContain("Couldn't prepare the download. Try again.");
+  });
+});
+
+describe('formatBytes', () => {
+  // Pins every unit threshold, the per-unit divisor + toFixed precision, and the
+  // unit suffix strings. Boundary cases sit exactly on each 1024 cutover so the
+  // `<` comparison mutants (→ `<=`) flip the chosen unit.
+  it.each([
+    [0, '0 B'],
+    [512, '512 B'],
+    [1023, '1023 B'], // just under 1 KiB → stays in bytes
+    [1024, '1.0 KB'], // exactly 1 KiB → crosses to KB
+    [1536, '1.5 KB'], // pins the /1024 divisor + 1-dp rounding
+    [1048576, '1.0 MB'], // exactly 1 MiB → crosses to MB
+    [1572864, '1.5 MB'], // pins the /(1024*1024) divisor
+    [1073741824, '1.00 GB'], // exactly 1 GiB → crosses to GB
+    [5368709120, '5.00 GB'], // pins the /(1024^3) divisor + 2-dp rounding
+  ] as const)('formats %i bytes as %s', (n, expected) => {
+    expect(formatBytes(n)).toBe(expected);
   });
 });

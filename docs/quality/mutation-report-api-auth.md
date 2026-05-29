@@ -1,105 +1,34 @@
 # Mutation Test Report — `libs/api-auth`
 
-> Generated 2026-05-29T05:07:56Z (raised to target; supersedes the 2026-05-26 run below)
+> Generated 2026-05-29T07:15:01.996Z
 
 **Headline mutation score: 90.16%** (killed=440, survived=43, no-cov=5, ignored=0). Score on covered mutants only: 91.10%. Adjusted (equivalent candidates excluded): 97.35%.
 
-**2026-05-29 — raised from 87.82% → 90.16% (clears the 90% auth band).** Changes:
-- Extracted the duplicated private `isFirebaseError` predicate into `firebase-error.util.ts` and unit-tested it directly with an input table (object-with-code / object-without-code / null / undefined / string / number). Kills all 12 of its mutants (100%) and removes the two-copy duplication that left ~8 surviving conditional mutants in `auth.service.ts` + `account-recovery.service.ts`.
-- `auth.controller.ts` → **100%**: added `lastTestEmail` tests that isolate the `NODE_ENV === 'production'` gate and the `LEARNWREN_TEST_OUTBOX_ENABLED !== '1'` gate (each with all other gates passing, so the branch under test is the only one that can 404).
-- `account-recovery.service.ts` 79.3% → 88.0%: pinned `sendVerificationEmail`'s `{ to, verificationUrl }` payload, added a `LEARNWREN_PUBLIC_URL`-set `continueUrl` case, and covered `sendInitialVerificationEmail`.
 
-The remaining 43 survivors are predominantly equivalent (36 flagged): logger message/name strings, catch-blocks containing only logging, a non-null type assertion, and a defensive double-guard in `redeemUnlockToken` (`!docSnap` after an `query.empty` check is unreachable with real Firestore). Adjusted score excluding these: **97.35%**.
+Target band: auth / billing / auth-adjacent — 90%+ target.
 
 ## Per-file scores
 
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
-| `src/lib/account-recovery.service.ts` | 88.0% | 66 | 9 | 0 |
+| `src/lib/auth.exception-filter.ts` | 50.0% | 1 | 1 | 0 |
 | `src/lib/session-cookie.service.ts` | 82.6% | 38 | 8 | 0 |
 | `src/lib/firebase-session.guard.ts` | 83.3% | 15 | 3 | 0 |
 | `src/lib/firebase-auth-rest-client.ts` | 83.8% | 31 | 5 | 1 |
-| `src/lib/auth.controller.ts` | 100.0% | 39 | 0 | 0 |
 | `src/lib/auth.service.ts` | 85.5% | 100 | 15 | 2 |
+| `src/lib/account-recovery.service.ts` | 88.0% | 66 | 9 | 0 |
 | `src/lib/auth-attempts.repository.ts` | 95.5% | 84 | 2 | 2 |
-| `src/lib/auth.exception-filter.ts` | 50.0% | 1 | 1 | 0 |
+| `src/lib/auth.controller.ts` | 100.0% | 39 | 0 | 0 |
 | `src/lib/firebase-error.util.ts` | 100.0% | 12 | 0 | 0 |
 | `src/lib/instructor-role.guard.ts` | 100.0% | 8 | 0 | 0 |
 | `src/lib/password-policy.service.ts` | 100.0% | 41 | 0 | 0 |
 | `src/lib/session-cookie.helper.ts` | 100.0% | 5 | 0 | 0 |
 
-<details>
-<summary>Prior run (2026-05-26, 87.82%) — survivor analysis, retained for history</summary>
-
 ## Survivor clusters — gaps to close
-
-### `src/lib/account-recovery.service.ts` — 11 surviving mutants
-
-**Cluster 1** (lines 39–43 — `if()`): 2 mutants surviving — StringLiteral×1, ObjectLiteral×1
-
-Sample mutation:
-```diff
-- await this.dispatchOutboundEmail('resend-verification', emailHash, async () => {
-+ <replaced with: "">
-```
-
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
-
-_Recommended test._ Add an assertion that pins the literal value at `account-recovery.service.ts:39` in `if`. If it's a log message, classify as equivalent.
-
-**Cluster 2** (lines 56 — `requestPasswordReset()`): 1 mutant surviving — StringLiteral×1
-
-Sample mutation:
-```diff
-- await this.dispatchOutboundEmail('password-reset', emailHash, async () => {
-+ <replaced with: "">
-```
-
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
-
-_Recommended test._ Add an assertion that pins the literal value at `account-recovery.service.ts:56` in `requestPasswordReset`. If it's a log message, classify as equivalent.
-
-**Cluster 3** (lines 119 — `sendInitialVerificationEmail()`): 1 mutant surviving — ObjectLiteral×1
-
-Sample mutation:
-```diff
-- await this.emailTransport.sendVerificationEmail({ to: email, verificationUrl });
-+ <replaced with: {}>
-```
-
-_Diagnosis._ An object literal could be replaced with `{}` and tests pass. The shape isn't asserted — only that something object-like is returned.
-
-_Recommended test._ Assert on the array length / object shape returned at `account-recovery.service.ts:119` in `sendInitialVerificationEmail`, not just truthiness.
-
-**Cluster 4** (lines 165–170 — `continueUrl()`): 7 mutants surviving — StringLiteral×1, ConditionalExpression×4, LogicalOperator×2
-
-Sample mutation:
-```diff
-- const base = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
-+ <replaced with: "">
-```
-
-_Diagnosis._ A ternary or conditional could be replaced and tests still pass. Cover both branches with distinct assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `account-recovery.service.ts:165` in `continueUrl` with assertions that distinguish the outcomes.
-
-### `src/lib/auth.controller.ts` — 6 surviving mutants
-
-**Cluster 5** (lines 157–162 — `if()`): 6 mutants surviving — BlockStatement×2, ConditionalExpression×2, StringLiteral×2
-
-Sample mutation:
-```diff
-- if (process.env['NODE_ENV'] === 'production') {
-+ <replaced with: {}>
-```
-
-_Diagnosis._ An entire block could be deleted without test failure: the side effect inside it is not observed. Assert on the change it makes (state, mock call, returned value).
-
-_Recommended test._ Add an assertion on the side effect of the block/function at `auth.controller.ts:157` in `if` — verify state change, mock invocation, or returned value.
 
 ### `src/lib/auth-attempts.repository.ts` — 4 surviving mutants
 
-**Cluster 6** (lines 103–106 — `redeemUnlockToken()`): 4 mutants surviving — ConditionalExpression×2, ObjectLiteral×1, StringLiteral×1
+**Cluster 1** (lines 103–106 — `redeemUnlockToken()`): 4 mutants surviving — ConditionalExpression×2, ObjectLiteral×1, StringLiteral×1
 
 Sample mutation:
 ```diff
@@ -113,7 +42,7 @@ _Recommended test._ Add a test that drives both sides of the conditional at `aut
 
 ### `src/lib/firebase-auth-rest-client.ts` — 4 surviving mutants
 
-**Cluster 7** (lines 59 — `upstreamCode()`): 4 mutants surviving — StringLiteral×2, MethodExpression×1, OptionalChaining×1
+**Cluster 2** (lines 59 — `upstreamCode()`): 4 mutants surviving — StringLiteral×2, MethodExpression×1, OptionalChaining×1
 
 Sample mutation:
 ```diff
@@ -125,23 +54,35 @@ _Diagnosis._ A string literal could be replaced with the empty string and tests 
 
 _Recommended test._ Add an assertion that pins the literal value at `firebase-auth-rest-client.ts:59` in `upstreamCode`. If it's a log message, classify as equivalent.
 
-### `src/lib/auth.service.ts` — 2 surviving mutants
+### `src/lib/account-recovery.service.ts` — 2 surviving mutants
 
-**Cluster 8** (lines 311 — `isFirebaseError()`): 2 mutants surviving — ConditionalExpression×2
+**Cluster 3** (lines 40 — `if()`): 1 mutant surviving — StringLiteral×1
 
 Sample mutation:
 ```diff
-- return typeof err === 'object' && err !== null && 'code' in err;
-+ <replaced with: true>
+- await this.dispatchOutboundEmail('resend-verification', emailHash, async () => {
++ <replaced with: "">
 ```
 
-_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
-_Recommended test._ Add a test that drives both sides of the conditional at `auth.service.ts:311` in `isFirebaseError` with assertions that distinguish the outcomes.
+_Recommended test._ Add an assertion that pins the literal value at `account-recovery.service.ts:40` in `if`. If it's a log message, classify as equivalent.
+
+**Cluster 4** (lines 57 — `requestPasswordReset()`): 1 mutant surviving — StringLiteral×1
+
+Sample mutation:
+```diff
+- await this.dispatchOutboundEmail('password-reset', emailHash, async () => {
++ <replaced with: "">
+```
+
+_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
+
+_Recommended test._ Add an assertion that pins the literal value at `account-recovery.service.ts:57` in `requestPasswordReset`. If it's a log message, classify as equivalent.
 
 ### `src/lib/session-cookie.service.ts` — 2 surviving mutants
 
-**Cluster 9** (lines 55 — `revokeFromCookie()`): 1 mutant surviving — BooleanLiteral×1
+**Cluster 5** (lines 55 — `revokeFromCookie()`): 1 mutant surviving — BooleanLiteral×1
 
 Sample mutation:
 ```diff
@@ -153,7 +94,7 @@ _Diagnosis._ A `true`/`false` literal could be flipped and tests still pass. Add
 
 _Recommended test._ Add a test that drives both sides of the conditional at `session-cookie.service.ts:55` in `revokeFromCookie` with assertions that distinguish the outcomes.
 
-**Cluster 10** (lines 91 — `sleepPastNextSecond()`): 1 mutant surviving — ArithmeticOperator×1
+**Cluster 6** (lines 91 — `sleepPastNextSecond()`): 1 mutant surviving — ArithmeticOperator×1
 
 Sample mutation:
 ```diff
@@ -167,38 +108,37 @@ _Recommended test._ Inspect `session-cookie.service.ts:91` in `sleepPastNextSeco
 
 ## Equivalent-mutant candidates (excluded from adjusted score)
 
-37 mutants flagged as likely equivalent — these are excluded from the **adjusted** score above. Reviewer should confirm each before treating the adjusted score as authoritative:
+36 mutants flagged as likely equivalent — these are excluded from the **adjusted** score above. Reviewer should confirm each before treating the adjusted score as authoritative:
 
 | File:line | Mutator | Reason |
 |-----------|---------|--------|
 | `src/lib/auth.service.ts:317` | BlockStatement | Catch block contains only logging — emptying it preserves the silent-swallow behavior. |
 | `src/lib/auth.service.ts:318` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:73` | StringLiteral | Logger name passed to `new Logger(...)` — observability, not behavior. |
-| `src/lib/auth.service.ts:97` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:138` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:138` | LogicalOperator | Operator/expression inside a logger call — affects log content only, not behavior. |
-| `src/lib/auth.service.ts:138` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:161` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:171` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:190` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:208` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:250` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:250` | MethodExpression | Operator/expression inside a logger call — affects log content only, not behavior. |
-| `src/lib/auth.service.ts:259` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:273` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:282` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.service.ts:294` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:74` | StringLiteral | Logger name passed to `new Logger(...)` — observability, not behavior. |
+| `src/lib/auth.service.ts:98` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:139` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:139` | LogicalOperator | Operator/expression inside a logger call — affects log content only, not behavior. |
+| `src/lib/auth.service.ts:139` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:163` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:173` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:192` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:210` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:252` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:252` | MethodExpression | Operator/expression inside a logger call — affects log content only, not behavior. |
+| `src/lib/auth.service.ts:261` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:275` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:284` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.service.ts:296` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
 | `src/lib/firebase-auth-rest-client.ts:31` | StringLiteral | Logger name passed to `new Logger(...)` — observability, not behavior. |
 | `src/lib/firebase-auth-rest-client.ts:66` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/account-recovery.service.ts:18` | StringLiteral | Logger name passed to `new Logger(...)` — observability, not behavior. |
-| `src/lib/account-recovery.service.ts:68` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/account-recovery.service.ts:104` | BlockStatement | Catch block contains only logging — emptying it preserves the silent-swallow behavior. |
-| `src/lib/account-recovery.service.ts:105` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/account-recovery.service.ts:122` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/account-recovery.service.ts:157` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/account-recovery.service.ts:159` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
-| `src/lib/auth.exception-filter.ts:55` | LogicalOperator | Operator/expression inside a logger call — affects log content only, not behavior. |
-| `src/lib/auth.exception-filter.ts:27` | StringLiteral | Logger name passed to `new Logger(...)` — observability, not behavior. |
+| `src/lib/account-recovery.service.ts:19` | StringLiteral | Logger name passed to `new Logger(...)` — observability, not behavior. |
+| `src/lib/account-recovery.service.ts:69` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/account-recovery.service.ts:105` | BlockStatement | Catch block contains only logging — emptying it preserves the silent-swallow behavior. |
+| `src/lib/account-recovery.service.ts:106` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/account-recovery.service.ts:123` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/account-recovery.service.ts:158` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/account-recovery.service.ts:160` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
+| `src/lib/auth.exception-filter.ts:9` | StringLiteral | Logger name passed to `new Logger(...)` — observability, not behavior. |
 | `src/lib/firebase-session.guard.ts:12` | StringLiteral | Logger name passed to `new Logger(...)` — observability, not behavior. |
 | `src/lib/firebase-session.guard.ts:23` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
 | `src/lib/firebase-session.guard.ts:37` | StringLiteral | String literal inside a logger call — log content is observability, not behavior. |
@@ -215,5 +155,3 @@ _Recommended test._ Inspect `session-cookie.service.ts:91` in `sleepPastNextSeco
 - **Coverage analysis is `perTest`.** Stryker only runs tests whose coverage hit the mutated line.
 - **No-coverage mutants count against the raw score.** They reflect lines no test executes.
 - **Equivalent classification is heuristic.** Review each candidate before treating the adjusted score as authoritative.
-
-</details>

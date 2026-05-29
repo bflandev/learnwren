@@ -1,8 +1,8 @@
 # Mutation Test Report — `libs/web-catalog`
 
-> Generated 2026-05-26T03:01:38.452Z
+> Generated 2026-05-29T07:15:02.302Z
 
-**Headline mutation score: 82.33%** (killed=177, survived=33, no-cov=5, ignored=0). Score on covered mutants only: 84.29%. Adjusted (equivalent candidates excluded): 82.33%.
+**Headline mutation score: 82.79%** (killed=178, survived=32, no-cov=5, ignored=0). Score on covered mutants only: 84.76%. Adjusted (equivalent candidates excluded): 82.79%.
 
 
 Target band: web glue/orchestration — 50–70% target.
@@ -11,19 +11,19 @@ Target band: web glue/orchestration — 50–70% target.
 
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
-| `src/lib/components/course-card/course-card.component.ts` | 0.0% | 0 | 1 | 0 |
 | `src/lib/search-results-page/search-results-page.component.ts` | 78.6% | 22 | 6 | 0 |
 | `src/lib/catalog.service.ts` | 79.2% | 19 | 5 | 0 |
 | `src/lib/course-detail-page/course-detail-page.component.ts` | 82.1% | 87 | 14 | 5 |
 | `src/lib/components/catalog-filter-bar/catalog-filter-bar.component.ts` | 85.7% | 6 | 1 | 0 |
 | `src/lib/catalog-page/catalog-page.component.ts` | 86.1% | 31 | 5 | 0 |
 | `src/lib/components/course-search-bar/course-search-bar.component.ts` | 92.3% | 12 | 1 | 0 |
+| `src/lib/components/course-card/course-card.component.ts` | 100.0% | 1 | 0 | 0 |
 
 ## Survivor clusters — gaps to close
 
 ### `src/lib/course-detail-page/course-detail-page.component.ts` — 19 surviving mutants
 
-**Cluster 1** (lines 28–40): 7 mutants surviving — BooleanLiteral×2, BlockStatement×1, StringLiteral×1, OptionalChaining×3
+**Cluster 1** (lines 42–54): 7 mutants surviving — BooleanLiteral×2, BlockStatement×1, StringLiteral×1, OptionalChaining×3
 
 Sample mutation:
 ```diff
@@ -33,9 +33,9 @@ Sample mutation:
 
 _Diagnosis._ Removing `?.` from an access didn't break tests — every test exercises the path where the parent exists. Add a case where the parent is null/undefined to lock in defensive access.
 
-_Recommended test._ Add a test where the optional-chained parent is undefined / null at `course-detail-page.component.ts:28`.
+_Recommended test._ Add a test where the optional-chained parent is undefined / null at `course-detail-page.component.ts:42`.
 
-**Cluster 2** (lines 53–56 — `coverToneForId()`): 5 mutants surviving — OptionalChaining×3, ConditionalExpression×1, MethodExpression×1
+**Cluster 2** (lines 67–70 — `coverToneForId()`): 5 mutants surviving — OptionalChaining×3, ConditionalExpression×1, MethodExpression×1
 
 Sample mutation:
 ```diff
@@ -45,9 +45,9 @@ Sample mutation:
 
 _Diagnosis._ Removing `?.` from an access didn't break tests — every test exercises the path where the parent exists. Add a case where the parent is null/undefined to lock in defensive access.
 
-_Recommended test._ Add a test where the optional-chained parent is undefined / null at `course-detail-page.component.ts:53` in `coverToneForId`.
+_Recommended test._ Add a test where the optional-chained parent is undefined / null at `course-detail-page.component.ts:67` in `coverToneForId`.
 
-**Cluster 3** (lines 69 — `coverToneForId()`): 2 mutants surviving — ConditionalExpression×1, BooleanLiteral×1
+**Cluster 3** (lines 83 — `coverToneForId()`): 2 mutants surviving — ConditionalExpression×1, BooleanLiteral×1
 
 Sample mutation:
 ```diff
@@ -57,9 +57,9 @@ Sample mutation:
 
 _Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
 
-_Recommended test._ Add a test that drives both sides of the conditional at `course-detail-page.component.ts:69` in `coverToneForId` with assertions that distinguish the outcomes.
+_Recommended test._ Add a test that drives both sides of the conditional at `course-detail-page.component.ts:83` in `coverToneForId` with assertions that distinguish the outcomes.
 
-**Cluster 4** (lines 89–92 — `onEnrollmentStatusChanged()`): 4 mutants surviving — BlockStatement×1, OptionalChaining×1, ConditionalExpression×2
+**Cluster 4** (lines 103–106 — `onEnrollmentStatusChanged()`): 4 mutants surviving — BlockStatement×1, OptionalChaining×1, ConditionalExpression×2
 
 Sample mutation:
 ```diff
@@ -69,9 +69,9 @@ Sample mutation:
 
 _Diagnosis._ A ternary or conditional could be replaced and tests still pass. Cover both branches with distinct assertions.
 
-_Recommended test._ Add a test that drives both sides of the conditional at `course-detail-page.component.ts:89` in `onEnrollmentStatusChanged` with assertions that distinguish the outcomes.
+_Recommended test._ Add a test that drives both sides of the conditional at `course-detail-page.component.ts:103` in `onEnrollmentStatusChanged` with assertions that distinguish the outcomes.
 
-**Cluster 5** (lines 118 — `if()`): 1 mutant surviving — ConditionalExpression×1
+**Cluster 5** (lines 132 — `if()`): 1 mutant surviving — ConditionalExpression×1
 
 Sample mutation:
 ```diff
@@ -81,7 +81,7 @@ Sample mutation:
 
 _Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
 
-_Recommended test._ Add a test that drives both sides of the conditional at `course-detail-page.component.ts:118` in `if` with assertions that distinguish the outcomes.
+_Recommended test._ Add a test that drives both sides of the conditional at `course-detail-page.component.ts:132` in `if` with assertions that distinguish the outcomes.
 
 ### `src/lib/search-results-page/search-results-page.component.ts` — 6 surviving mutants
 
@@ -200,20 +200,6 @@ Sample mutation:
 _Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
 
 _Recommended test._ Add an assertion that pins the literal value at `course-search-bar.component.ts:16`. If it's a log message, classify as equivalent.
-
-### `src/lib/components/course-card/course-card.component.ts` — 1 surviving mutant
-
-**Cluster 15** (lines 16): 1 mutant surviving — ArrowFunction×1
-
-Sample mutation:
-```diff
-- readonly coverTone = computed(() => coverToneForId(this.course().id));
-+ <replaced with: () => undefined>
-```
-
-_Diagnosis._ A method/arrow body could be emptied with no test failing. The function is called but its effect isn't asserted.
-
-_Recommended test._ Add an assertion on the side effect of the block/function at `course-card.component.ts:16` — verify state change, mock invocation, or returned value.
 
 ## Equivalent-mutant candidates (excluded from adjusted score)
 

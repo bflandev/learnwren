@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
-import { LwAvatarComponent } from './lw-avatar.component';
+import { LwAvatarComponent, deriveInitials } from './lw-avatar.component';
 
 function render(
   props: Partial<{
@@ -86,5 +86,28 @@ describe('LwAvatarComponent', () => {
   it('applies the lw-avatar host class', () => {
     const f = render({});
     expect((f.nativeElement as HTMLElement).classList.contains('lw-avatar')).toBe(true);
+  });
+});
+
+describe('deriveInitials', () => {
+  it('takes the first letter of the first and last word, uppercased', () => {
+    expect(deriveInitials('Ada Lovelace')).toBe('AL');
+    expect(deriveInitials('grace brewster murray hopper')).toBe('GH');
+  });
+
+  it('takes the first two letters for a single-word name, uppercased', () => {
+    expect(deriveInitials('Madonna')).toBe('MA');
+    expect(deriveInitials('x')).toBe('X');
+  });
+
+  it('trims surrounding whitespace before deriving', () => {
+    // Kills the `name.trim()` → `name` mutant: without trimming, the leading
+    // space makes words[0] the empty string and the initials collapse to ''.
+    expect(deriveInitials('  Ada Lovelace  ')).toBe('AL');
+  });
+
+  it('returns an empty string for blank or whitespace-only input', () => {
+    expect(deriveInitials('')).toBe('');
+    expect(deriveInitials('   ')).toBe('');
   });
 });

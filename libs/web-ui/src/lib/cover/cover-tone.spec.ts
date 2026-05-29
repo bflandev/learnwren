@@ -38,6 +38,20 @@ describe('coverToneForId', () => {
     expect(coverToneForId('')).toBe('moss');
   });
 
+  // Pin exact id→tone mappings across all five tone indices: kills the per-tone
+  // string-literal mutants and the `hash / 31` arithmetic mutant. The
+  // `hash * 31 - c` mutant is equivalent (31 ≡ 1 mod 5, result is abs()-ed, so
+  // subtraction lands on the same tone for every id) — left intentionally.
+  it.each([
+    ['ab', 'moss'],
+    ['xy', 'clay'],
+    ['course-1', 'bark'],
+    ['c-1', 'paper'],
+    ['c-2', 'ochre'],
+  ] as const)('maps %s to the %s tone', (id, expected) => {
+    expect(coverToneForId(id)).toBe(expected);
+  });
+
   it('hashes "a" to a tone distinct from the empty string', () => {
     // Pins the character iteration: if the loop never enters, "a" and ""
     // would produce identical hashes.

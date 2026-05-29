@@ -1,6 +1,6 @@
 # Mutation Test Report — `libs/web-enrollment`
 
-> Generated 2026-05-26T03:16:41.469Z
+> Generated 2026-05-29T07:15:02.404Z
 
 **Headline mutation score: 83.33%** (killed=80, survived=12, no-cov=4, ignored=0). Score on covered mutants only: 86.96%. Adjusted (equivalent candidates excluded): 83.33%.
 
