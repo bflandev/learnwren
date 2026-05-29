@@ -260,3 +260,47 @@ describe('LoginPageComponent.resendVerification', () => {
     });
   });
 });
+
+describe('LoginPageComponent busy state + reset notice', () => {
+  it('starts not busy', () => {
+    expect(setup().fixture.componentInstance.busy()).toBe(false);
+  });
+
+  it('sets busy true during submit and clears it after the response', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const p = cmp.submit();
+    expect(cmp.busy()).toBe(true);
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'INVALID_CREDENTIALS' } },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+    await p;
+    expect(cmp.busy()).toBe(false);
+  });
+
+  it('flags justResetPassword when ?reset=ok', () => {
+    expect(setup(new Map([['reset', 'ok']])).fixture.componentInstance.justResetPassword()).toBe(true);
+  });
+
+  it('does not flag justResetPassword without the reset param', () => {
+    expect(setup(new Map()).fixture.componentInstance.justResetPassword()).toBe(false);
+  });
+
+  it('does not flag justResetPassword for a non-"ok" reset value', () => {
+    expect(setup(new Map([['reset', 'nope']])).fixture.componentInstance.justResetPassword()).toBe(false);
+  });
+
+  it('enforces required + email on the email field and required on the password', () => {
+    const f = setup().fixture.componentInstance.form;
+    f.setValue({ email: '', password: '' });
+    expect(f.invalid).toBe(true);
+    f.setValue({ email: 'not-an-email', password: 'pw' });
+    expect(f.controls.email.valid).toBe(false);
+    f.setValue({ email: 'a@b.c', password: '' });
+    expect(f.controls.password.valid).toBe(false);
+    f.setValue({ email: 'a@b.c', password: 'pw' });
+    expect(f.valid).toBe(true);
+  });
+});

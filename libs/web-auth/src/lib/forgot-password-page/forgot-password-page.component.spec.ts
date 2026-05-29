@@ -55,3 +55,35 @@ describe('ForgotPasswordPageComponent', () => {
     expect(fixture.componentInstance.submitted()).toBe(false);
   });
 });
+
+describe('ForgotPasswordPageComponent — busy + validity', () => {
+  it('starts not busy and not submitted', () => {
+    const { fixture } = setup();
+    expect(fixture.componentInstance.busy()).toBe(false);
+    expect(fixture.componentInstance.submitted()).toBe(false);
+  });
+
+  it('sets busy true during submit and false (with submitted true) after', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c' });
+    const p = cmp.submit();
+    expect(cmp.busy()).toBe(true);
+    httpMock
+      .expectOne('/api/auth/request-password-reset')
+      .flush(null, { status: 202, statusText: 'Accepted' });
+    await p;
+    expect(cmp.busy()).toBe(false);
+    expect(cmp.submitted()).toBe(true);
+  });
+
+  it('requires a present, well-formed email', () => {
+    const c = setup().fixture.componentInstance.form.controls.email;
+    c.setValue('');
+    expect(c.valid).toBe(false);
+    c.setValue('not-an-email');
+    expect(c.valid).toBe(false);
+    c.setValue('a@b.c');
+    expect(c.valid).toBe(true);
+  });
+});
