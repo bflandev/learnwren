@@ -18,6 +18,7 @@
 import * as admin from 'firebase-admin';
 
 import { promoteUserToInstructor } from '../libs/api-profile/src/lib/instructor-application/instructor-promotion';
+import type { PromotionFirestoreLike } from '../libs/api-profile/src/lib/instructor-application/instructor-promotion';
 import type { UserId } from '@learnwren/shared-data-models';
 
 import { initFirebaseApp, resolveMode } from './firebase-admin-init';
@@ -41,7 +42,7 @@ export async function promoteToInstructor(
   await promoteUserToInstructor(
     user.uid as UserId,
     auth,
-    firestore as never,
+    firestore as unknown as PromotionFirestoreLike,
     new Date().toISOString(),
   );
 

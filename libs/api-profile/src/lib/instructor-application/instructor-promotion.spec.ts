@@ -42,4 +42,13 @@ describe('promoteUserToInstructor', () => {
 
     expect(appUpdate).not.toHaveBeenCalled();
   });
+
+  it('does not touch the app when none exists', async () => {
+    const setCustomUserClaims = vi.fn(async () => undefined);
+    const { firestore, appUpdate } = fakeFirestore(null);
+
+    await promoteUserToInstructor('u1' as UserId, { setCustomUserClaims }, firestore as never, NOW);
+
+    expect(appUpdate).not.toHaveBeenCalled();
+  });
 });
