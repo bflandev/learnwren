@@ -150,3 +150,14 @@ describe('ConsoleEmailTransport email-change', () => {
     expect(entry?.kind).toBe('email-change');
   });
 });
+
+describe('ConsoleEmailTransport password-changed', () => {
+  it('records a password-changed notification retrievable via lastSentTo', async () => {
+    const transport = new ConsoleEmailTransport();
+    await transport.sendPasswordChangedEmail({ to: 'user@example.com' });
+    const entry = transport.lastSentTo('user@example.com', 'password-changed');
+    expect(entry).toBeDefined();
+    expect(entry?.kind).toBe('password-changed');
+    expect(entry?.url).toBe('');
+  });
+});

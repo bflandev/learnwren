@@ -21,9 +21,14 @@ export interface EmailChangeVerificationEmailInput {
   verificationUrl: string;
 }
 
+export interface PasswordChangedEmailInput {
+  to: string; // the account address (unchanged by this flow)
+}
+
 export interface EmailTransport {
   sendUnlockEmail(input: UnlockEmailInput): Promise<void>;
   sendVerificationEmail(input: VerificationEmailInput): Promise<void>;
   sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<void>;
   sendEmailChangeVerificationEmail(input: EmailChangeVerificationEmailInput): Promise<void>;
+  sendPasswordChangedEmail(input: PasswordChangedEmailInput): Promise<void>;
 }

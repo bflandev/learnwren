@@ -4,6 +4,7 @@ import { createTransport, type Transporter } from 'nodemailer';
 import type {
   EmailChangeVerificationEmailInput,
   EmailTransport,
+  PasswordChangedEmailInput,
   PasswordResetEmailInput,
   UnlockEmailInput,
   VerificationEmailInput,
@@ -118,6 +119,28 @@ export class SmtpEmailTransport implements EmailTransport {
       this.logger.log(`[email-change-email] sent to=${input.to}`);
     } catch (err) {
       this.logger.error(`[email-change-email] send failed to=${input.to}: ${String(err)}`);
+      throw err;
+    }
+  }
+
+  async sendPasswordChangedEmail(input: PasswordChangedEmailInput): Promise<void> {
+    const text =
+      `The password on your Learn Wren account was just changed.\n\n` +
+      `If this was you, no action is needed. You've been signed out on all devices ` +
+      `and can sign in again with your new password.\n\n` +
+      `If you did NOT change your password, reset it immediately using "Forgot password" ` +
+      `on the sign-in page.`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.config.from,
+        to: input.to,
+        subject: 'Your Learn Wren password was changed',
+        text,
+      });
+      this.logger.log(`[password-changed-email] sent to=${input.to}`);
+    } catch (err) {
+      this.logger.error(`[password-changed-email] send failed to=${input.to}: ${String(err)}`);
       throw err;
     }
   }

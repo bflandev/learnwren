@@ -3,13 +3,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import type {
   EmailChangeVerificationEmailInput,
   EmailTransport,
+  PasswordChangedEmailInput,
   PasswordResetEmailInput,
   UnlockEmailInput,
   VerificationEmailInput,
 } from './email-transport';
 
 export interface OutboxEntry {
-  kind: 'unlock' | 'verification' | 'password-reset' | 'email-change';
+  kind: 'unlock' | 'verification' | 'password-reset' | 'email-change' | 'password-changed';
   to: string;
   url: string;
   sentAt: Date;
@@ -70,6 +71,11 @@ export class ConsoleEmailTransport implements EmailTransport {
       url: input.verificationUrl,
       sentAt: new Date(),
     });
+  }
+
+  async sendPasswordChangedEmail(input: PasswordChangedEmailInput): Promise<void> {
+    this.logger.log(`[password-changed-email] to=${input.to}`);
+    this.append({ kind: 'password-changed', to: input.to, url: '', sentAt: new Date() });
   }
 
   /** Returns the most recent email of `kind` sent to `to`, or undefined. */
