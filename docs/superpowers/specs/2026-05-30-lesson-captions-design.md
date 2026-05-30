@@ -42,7 +42,7 @@ export interface VideoCaptions {
 Projections:
 
 - `LessonView.lesson` gains `captions: { language: string; label: string } | null` — tells the learn page whether and how to render the `<track>`.
-- The owner video read (`GET /api/videos/:vid`) gains `captions: { language: string; label: string; updatedAt: ISODateString } | null` — tells the editor the current state.
+- A new owner read `GET /api/videos/:vid/captions` returns the captions metadata `{ language: string; label: string; updatedAt: ISODateString } | null` — tells the editor the current state. The `Video` entity itself is left unchanged.
 
 Both projections are derived from a single direct `get` of the captions doc by `videoId` (no query, because id = videoId).
 
@@ -54,6 +54,7 @@ New `CaptionsController` + `CaptionsService` in the video submodule.
 |---|---|---|---|
 | `PUT` | `/api/videos/:vid/captions` | video **owner** | Upload or replace. `multipart/form-data` with a `file` field (matching the cover/picture upload pattern). Validates, then upserts the captions doc. Returns `{ language, label, updatedAt }`. |
 | `DELETE` | `/api/videos/:vid/captions` | video **owner** | Remove the captions doc. `204`. Idempotent (no-op if absent). |
+| `GET` | `/api/videos/:vid/captions` | video **owner** | Return captions metadata `{ language, label, updatedAt } \| null` (JSON — the editor's state read, not the VTT). |
 | `GET` | `/api/playback/captions/:vid` | owner **or** active enrollee on a PUBLISHED course | Streams `text/vtt; charset=utf-8`. `404` if no captions. `Cache-Control: private`. |
 
 - **Owner write** (`PUT`/`DELETE`) reuses the `@CurrentVideo` / ownership path that `video.controller` already uses.
@@ -61,7 +62,7 @@ New `CaptionsController` + `CaptionsService` in the video submodule.
 
 ### Errors
 
-A new `CaptionsException` is `{ code, status, details? }`-shaped so the existing **api-courses per-feature exception filter** renders it via `handleException()` from `@learnwren/api-http-errors` — its branch must be added to the filter (per the project rule that a per-feature filter catches every exception type its routes can throw).
+Captions errors are **subclasses of the existing `VideoException`** with new codes added to `VideoErrorCode`. The existing `VideoExceptionFilter` already `@Catch`es `VideoException` and renders it via `handleException()` from `@learnwren/api-http-errors`, so no new exception class or filter branch is required.
 
 | Code | Status | When |
 |---|---|---|
