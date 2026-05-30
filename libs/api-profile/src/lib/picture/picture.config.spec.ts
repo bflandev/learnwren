@@ -21,11 +21,30 @@ describe('readPictureConfigFromEnv', () => {
     expect(cfg.impl).toBe('firebase');
   });
 
-  it('throws when LEARNWREN_PICTURE_BUCKET is missing', () => {
-    expect(() => readPictureConfigFromEnv({ LEARNWREN_PICTURE_PUBLIC_BASE_URL: 'x' })).toThrow();
+  it('defaults the picture stack to fake mode outside production', () => {
+    // With no env at all the api must still boot — `nx serve` and the e2e
+    // suite run credential-free.
+    const cfg = readPictureConfigFromEnv({});
+    expect(cfg.bucket).toBeTruthy();
+    expect(cfg.publicBaseUrl).toBeTruthy();
+    expect(cfg.impl).toBe('fake');
   });
 
-  it('throws when LEARNWREN_PICTURE_PUBLIC_BASE_URL is missing', () => {
-    expect(() => readPictureConfigFromEnv({ LEARNWREN_PICTURE_BUCKET: 'b' })).toThrow();
+  it('throws when LEARNWREN_PICTURE_BUCKET is missing in production', () => {
+    expect(() =>
+      readPictureConfigFromEnv({
+        NODE_ENV: 'production',
+        LEARNWREN_PICTURE_PUBLIC_BASE_URL: 'x',
+      }),
+    ).toThrow(/LEARNWREN_PICTURE_BUCKET/);
+  });
+
+  it('throws when LEARNWREN_PICTURE_PUBLIC_BASE_URL is missing in production', () => {
+    expect(() =>
+      readPictureConfigFromEnv({
+        NODE_ENV: 'production',
+        LEARNWREN_PICTURE_BUCKET: 'b',
+      }),
+    ).toThrow(/LEARNWREN_PICTURE_PUBLIC_BASE_URL/);
   });
 });

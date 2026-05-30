@@ -8,17 +8,29 @@ export interface PictureConfig {
   impl: PictureStorageImpl;
 }
 
+function requireEnv(env: Record<string, string | undefined>, name: string): string {
+  const v = env[name];
+  if (!v) {
+    throw new Error(`${name} is required.`);
+  }
+  return v;
+}
+
 export function readPictureConfigFromEnv(
   env: Record<string, string | undefined>,
 ): PictureConfig {
-  const bucket = env['LEARNWREN_PICTURE_BUCKET'];
-  if (!bucket) {
-    throw new Error('LEARNWREN_PICTURE_BUCKET is required.');
-  }
-  const publicBaseUrl = env['LEARNWREN_PICTURE_PUBLIC_BASE_URL'];
-  if (!publicBaseUrl) {
-    throw new Error('LEARNWREN_PICTURE_PUBLIC_BASE_URL is required.');
-  }
+  // Outside production the picture stack defaults to its credential-free fake
+  // mode, so `nx serve` and the e2e suite boot with no GCP project or bucket.
+  // Production still requires a real bucket + public base URL.
+  const isProduction = env['NODE_ENV'] === 'production';
+
+  const bucket = isProduction
+    ? requireEnv(env, 'LEARNWREN_PICTURE_BUCKET')
+    : (env['LEARNWREN_PICTURE_BUCKET'] ?? 'learnwren-dev-picture');
+  const publicBaseUrl = isProduction
+    ? requireEnv(env, 'LEARNWREN_PICTURE_PUBLIC_BASE_URL')
+    : (env['LEARNWREN_PICTURE_PUBLIC_BASE_URL'] ?? `https://storage.googleapis.com/${bucket}`);
+
   const raw = env['LEARNWREN_PICTURE_STORAGE'];
   const impl: PictureStorageImpl = raw === 'firebase' ? 'firebase' : 'fake';
   return { bucket, publicBaseUrl, impl };
