@@ -28,7 +28,7 @@ This guide covers **every feature wired up so far** from two angles:
 | Identity | Brute-force lockout + email unlock | Built |
 | Identity | Logged-out password reset | Built |
 | Identity | Session cookie + protected routes | Built |
-| Identity | Text profile editing (displayName + biography) | Built (2026-05-27) |
+| Identity | Text profile editing (displayName + biography) | Built (2026-05-28) |
 | Identity | Profile picture upload / replace / remove | Built (2026-05-28) |
 | Identity | Email change, password change | Built (2026-05-28 / 2026-05-29) |
 | Identity | Instructor role request (self-service) | Built (2026-05-29) |
