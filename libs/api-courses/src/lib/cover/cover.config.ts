@@ -8,17 +8,29 @@ export interface CoverConfig {
   impl: CoverStorageImpl;
 }
 
+function requireEnv(env: Record<string, string | undefined>, name: string): string {
+  const v = env[name];
+  if (!v) {
+    throw new Error(`${name} is required.`);
+  }
+  return v;
+}
+
 export function readCoverConfigFromEnv(
   env: Record<string, string | undefined>,
 ): CoverConfig {
-  const bucket = env['LEARNWREN_COVER_BUCKET'];
-  if (!bucket) {
-    throw new Error('LEARNWREN_COVER_BUCKET is required.');
-  }
-  const publicBaseUrl = env['LEARNWREN_COVER_PUBLIC_BASE_URL'];
-  if (!publicBaseUrl) {
-    throw new Error('LEARNWREN_COVER_PUBLIC_BASE_URL is required.');
-  }
+  // Outside production the cover stack defaults to its credential-free fake
+  // mode, so `nx serve` and the e2e suite boot with no GCP project or bucket.
+  // Production still requires a real bucket + public base URL.
+  const isProduction = env['NODE_ENV'] === 'production';
+
+  const bucket = isProduction
+    ? requireEnv(env, 'LEARNWREN_COVER_BUCKET')
+    : (env['LEARNWREN_COVER_BUCKET'] ?? 'learnwren-dev-cover');
+  const publicBaseUrl = isProduction
+    ? requireEnv(env, 'LEARNWREN_COVER_PUBLIC_BASE_URL')
+    : (env['LEARNWREN_COVER_PUBLIC_BASE_URL'] ?? `https://storage.googleapis.com/${bucket}`);
+
   const raw = env['LEARNWREN_COVER_STORAGE'];
   const impl: CoverStorageImpl = raw === 'firebase' ? 'firebase' : 'fake';
   return { bucket, publicBaseUrl, impl };

@@ -24,15 +24,30 @@ describe('readCoverConfigFromEnv', () => {
     expect(cfg.impl).toBe('fake');
   });
 
-  it('throws when bucket is missing', () => {
+  it('defaults the cover stack to fake mode outside production', () => {
+    // With no env at all the api must still boot — `nx serve` and the e2e
+    // suite run credential-free.
+    const cfg = readCoverConfigFromEnv({});
+    expect(cfg.bucket).toBeTruthy();
+    expect(cfg.publicBaseUrl).toBeTruthy();
+    expect(cfg.impl).toBe('fake');
+  });
+
+  it('throws when bucket is missing in production', () => {
     expect(() =>
-      readCoverConfigFromEnv({ LEARNWREN_COVER_PUBLIC_BASE_URL: 'x' }),
+      readCoverConfigFromEnv({
+        NODE_ENV: 'production',
+        LEARNWREN_COVER_PUBLIC_BASE_URL: 'x',
+      }),
     ).toThrow(/LEARNWREN_COVER_BUCKET/);
   });
 
-  it('throws when publicBaseUrl is missing', () => {
+  it('throws when publicBaseUrl is missing in production', () => {
     expect(() =>
-      readCoverConfigFromEnv({ LEARNWREN_COVER_BUCKET: 'b' }),
+      readCoverConfigFromEnv({
+        NODE_ENV: 'production',
+        LEARNWREN_COVER_BUCKET: 'b',
+      }),
     ).toThrow(/LEARNWREN_COVER_PUBLIC_BASE_URL/);
   });
 });
