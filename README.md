@@ -352,3 +352,11 @@ A detailed breakdown of the recommended technical architecture, including the te
 ## Contributing
 
 This project is in its early stages. Contributions are welcome. Please start by reviewing the product specifications and technical architecture. If you have suggestions or would like to contribute to the development, please open an issue to start a discussion.
+
+---
+
+## License
+
+Copyright © Learn Wren contributors.
+
+Learn Wren is free software licensed under the **GNU Affero General Public License v3.0 or later** (AGPL-3.0-or-later). You may use, modify, and redistribute it under those terms. Notably, if you run a modified version to provide a network service, the AGPL requires you to make the corresponding source available to that service's users. See [`LICENSE`](./LICENSE) for the full text.
