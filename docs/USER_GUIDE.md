@@ -891,6 +891,12 @@ strings** (Firestore document IDs); timestamps are **ISO 8601 strings**; enum-li
 fields are **string-literal unions** (not TypeScript enums).
 
 - **`User`** — `id, email, displayName, role (STUDENT|INSTRUCTOR|ADMIN), createdAt, updatedAt`.
+- **`InstructorApplication`** — `uid` (=== the Firestore doc id in the `instructorApplications`
+  collection), `statement`, `expertise`, `status (PENDING|APPROVED|DECLINED)`, `createdAt`,
+  `resolvedAt?`. Submitted by a student via `POST /api/profile/instructor-application` and
+  resolved by an ADMIN (approve/decline) or the `promote-to-instructor` CLI. The admin queue
+  read-model **`PendingInstructorApplicationView`** joins each pending application with its
+  user doc to add `displayName` and `email`.
 - **`Course`** — `id, title, description, longDescription?, category?, difficulty?,
   instructorId, status (DRAFT|PUBLISHED|ARCHIVED), publishedAt?, archivedAt?,
   createdAt, updatedAt`.
