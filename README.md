@@ -256,7 +256,7 @@ All scripts run from the repo root and delegate to Nx.
 | `pnpm e2e` | Run the Playwright E2E suites (sequential). |
 | `pnpm affected` | Run lint + test + build + typecheck only for projects affected by the current branch. |
 | `pnpm crap` | Run coverage on the backend + selected libs and emit the CRAP-score report (`pnpm crap:coverage`, `pnpm crap:report` are split steps). |
-| `pnpm mutate` | Run Stryker mutation tests for the aggregate set (`api-auth`, `api-courses`, `web-catalog`, `web-enrollment`, `web-ui`) and write the consolidated report (`pnpm mutate:<lib>` and `pnpm mutate:report` are split steps). All 14 libraries have a scoped config — run any single one with `pnpm exec stryker run stryker.<lib>.config.mjs`. |
+| `pnpm mutate` | Run Stryker mutation tests for the aggregate set (`api-auth`, `api-courses`, `web-catalog`, `web-enrollment`, `web-ui`) and write the consolidated report (`pnpm mutate:<lib>` and `pnpm mutate:report` are split steps). All 15 libraries have a scoped config — run any single one with `pnpm exec stryker run stryker.<lib>.config.mjs`. |
 | `pnpm tools:promote-to-instructor <email>` | Promote an email-verified STUDENT to INSTRUCTOR (custom claim + `users/{uid}` doc). Required to access the course editor; the user must sign out and back in after. |
 | `pnpm tools:promote-to-admin <email>` | Promote an email-verified user to ADMIN (custom claim + `users/{uid}` doc). Required to access `/admin/**`; the user must sign out and back in after. |
 | `pnpm secrets:render` | Render `.env` from `.env.tpl` via 1Password. |
@@ -264,7 +264,7 @@ All scripts run from the repo root and delegate to Nx.
 
 To target a single project, invoke Nx directly — e.g. `pnpm nx test web`, `pnpm nx build api`, `pnpm nx lint shared-data-models`.
 
-**Mutation testing.** All 14 libraries are under [Stryker](https://stryker-mutator.io/) mutation testing, each with a scoped `stryker.<lib>.config.mjs`, and all currently sit at or above an **80% adjusted** (equivalent-mutant-excluded) score — the bar for auth code is higher (`api-auth` ~97%). Per-library reports are written to [`docs/quality/`](./docs/quality/) (`mutation-report-<lib>.md`) and the consolidated report to `docs/quality/mutation-report.md`; `node tools/mutation/report.mjs <lib>` re-summarises a lib's existing run and prints a parseable `SCORE=` line. The sweep cadence and per-lib history live in `tools/mutation/state.json`.
+**Mutation testing.** All 15 libraries are under [Stryker](https://stryker-mutator.io/) mutation testing, each with a scoped `stryker.<lib>.config.mjs`, and all currently sit at or above an **80% adjusted** (equivalent-mutant-excluded) score — the bar for auth/admin code is higher (`api-auth` ~97%, `web-admin` ~92%). Per-library reports are written to [`docs/quality/`](./docs/quality/) (`mutation-report-<lib>.md`) and the consolidated report to `docs/quality/mutation-report.md`; `node tools/mutation/report.mjs <lib>` re-summarises a lib's existing run and prints a parseable `SCORE=` line. The sweep cadence and per-lib history live in `tools/mutation/state.json`.
 
 For more detail on local development and ports, see [`docs/development.md`](./docs/development.md).
 
