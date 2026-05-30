@@ -31,9 +31,13 @@ describe('adminRoleGuard', () => {
     });
   });
 
-  it('allows ADMIN', async () => {
+  it('allows ADMIN without re-refreshing when the user is already loaded', async () => {
     auth.currentUser = signal({ role: 'ADMIN' }) as never;
     await expect(runGuard()).resolves.toBe(true);
+    // Pins the `currentUser() === undefined` guard: an already-loaded user must
+    // NOT trigger a redundant refresh() (kills the `if (true)` mutant that would
+    // refresh on every activation).
+    expect(auth.refresh).not.toHaveBeenCalled();
   });
 
   it('redirects non-ADMIN to /dashboard', async () => {
