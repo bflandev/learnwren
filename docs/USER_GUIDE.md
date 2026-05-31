@@ -506,7 +506,7 @@ any progress data written by EP-06).
 > the "Course Completed" badge, and per-lesson progress indicators on the catalog
 > detail page ship with later EP-06 slices. The **Start Learning** button, lesson
 > player, **Continue Learning** resume tracking, mark-complete, and the course-outline
-> panel are all live now (see 2.14–2.16 below). The 90-day hard-delete of withdrawn
+> panel are all live now (see 2.16–2.18 below). The 90-day hard-delete of withdrawn
 > enrollment records remains deferred (soft-delete and restore on re-enroll are live;
 > the scheduled purge is not). Access IS revoked when an instructor unpublishes a
 > course — the lesson endpoint and the manifest endpoint both require
@@ -948,7 +948,7 @@ fields are **string-literal unions** (not TypeScript enums).
   the EP-06 learning experience.
 - **`VideoCaptions`** — `videoId` (=== the Firestore doc id in the `videoCaptions`
   collection), `language` (e.g. `"en"`), `label` (e.g. `"English"`), `format`
-  (`"webvtt"`), `content` (the raw VTT text), `createdAt`, `updatedAt`. One document per
+  (`"vtt"`), `content` (the raw VTT text), `createdAt`, `updatedAt`. One document per
   video; presence of the document means a caption track exists. Absent document means no
   captions are available (the streaming endpoint returns `404 CAPTIONS_NOT_FOUND`).
 

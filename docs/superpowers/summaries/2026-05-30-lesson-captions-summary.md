@@ -10,9 +10,9 @@ Ships WebVTT caption support for lesson videos. Instructors upload a `.vtt` file
 
 ### Shared (`libs/shared-data-models`)
 
-- `VideoCaptionsMetadata` wire type — `{ language, label, updatedAt }` — the caption metadata shape returned by the owner management endpoints.
-- `LessonCaptionsInfo` — `{ language, label } | null` — the lighter projection carried inside `LessonView.lesson.captions` for the student player page.
-- Caption error-code string-literal union (`CAPTIONS_NOT_FOUND | CAPTIONS_INVALID | CAPTIONS_TOO_LARGE | CAPTIONS_WRONG_FORMAT`).
+- `VideoCaptions` interface — `{ videoId, language, label, format, content, createdAt, updatedAt }` — the full Firestore document shape for the `videoCaptions` collection.
+- `VideoCaptionsMeta` — `Pick<VideoCaptions, 'language' | 'label' | 'updatedAt'>` — the metadata shape returned by the owner management endpoints.
+- `LessonView.lesson.captions` carries an inline projection `{ language: string; label: string } | null` — there is no separate named type for this field.
 
 ### NestJS (`libs/api-courses`)
 
@@ -27,7 +27,7 @@ Ships WebVTT caption support for lesson videos. Instructors upload a `.vtt` file
 **`LearnService` projection:**
 - `GET /api/learn/courses/:cid/lessons/:lid` already fans out to several sub-reads; caption metadata is now fetched in parallel and landed in `LessonView.lesson.captions` as `{ language, label } | null`. No new endpoint is needed for the student player.
 
-**Domain exceptions:** caption errors are `VideoException` subclasses (reusing the existing `VideosExceptionFilter` per-feature filter). No new filter was introduced.
+**Domain exceptions:** caption errors are `VideoException` subclasses (reusing the existing `VideosExceptionFilter` per-feature filter). No new filter was introduced. Caption error codes (`INVALID_CAPTION_FILE`, `CAPTION_TOO_LARGE`, `CAPTIONS_NOT_FOUND`) are part of the `VideoErrorCode` union in `libs/api-courses/src/lib/video/errors/video-error.codes.ts` — they are not in `shared-data-models`.
 
 ### Angular (`libs/web-video`)
 
