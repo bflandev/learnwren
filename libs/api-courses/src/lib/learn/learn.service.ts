@@ -16,6 +16,7 @@ import type {
 import { CoursesRepository } from '../courses.repository';
 import { EnrollmentRepository } from '../enrollment/enrollment.repository';
 import { MaterialsService } from '../materials/materials.service';
+import { CaptionsService } from '../video/captions/captions.service';
 import { VideoRepository } from '../video/video.repository';
 
 @Injectable()
@@ -27,13 +28,21 @@ export class LearnService {
     private readonly enrollment: EnrollmentRepository,
     private readonly courses: CoursesRepository,
     private readonly materials: MaterialsService,
+    private readonly captions: CaptionsService,
   ) {}
 
   async getLessonView(userId: UserId, course: Course, lesson: Lesson): Promise<LessonView> {
     let videoState: LessonView['lesson']['videoState'] = null;
+    let captions: LessonView['lesson']['captions'] = null;
     if (lesson.videoId) {
-      const video = await this.videos.getVideo(lesson.videoId);
+      const [video, captionsMeta] = await Promise.all([
+        this.videos.getVideo(lesson.videoId),
+        this.captions.getMeta(lesson.videoId),
+      ]);
       videoState = video?.state ?? null;
+      captions = captionsMeta
+        ? { language: captionsMeta.language, label: captionsMeta.label }
+        : null;
     }
 
     const progress = await this.resolveProgress(userId, course, lesson);
@@ -73,6 +82,7 @@ export class LearnService {
         description: lesson.description,
         videoId: lesson.videoId ?? null,
         videoState,
+        captions,
       },
       progress,
       outline,
