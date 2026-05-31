@@ -53,7 +53,16 @@ Supporting controls (defense in depth):
    TTL and the NFR should be reconciled — either tighten the cookie or amend the
    requirement.
 
+## CORS posture — audited 2026-05-31
+
+A "CORS error on the video player page" was reported and investigated. **It was not a cross-origin vulnerability or misconfiguration.** Findings:
+
+- **The app's own API is same-origin.** The web app calls the API with relative `/api/...` URLs: in dev the Angular dev server proxies `/api` → `:3333` (`apps/web/proxy.conf.json`); in the planned deploy Firebase Hosting rewrites `/api` to the function. So auth, captions delivery (`/api/playback/captions/:vid`), and HLS manifests/keys are all same-origin — no CORS applies to them. The server-side CORS allowlist (`app.enableCors`, prod refuses to boot without `LEARNWREN_CORS_ORIGINS`) is defense-in-depth for any genuinely cross-origin XHR.
+- **The reported error was a dev-only artifact.** In local **fake playback-storage mode** the player's HLS segment URLs are stubs (`gs-stub://…`). The browser blocks any request whose scheme isn't http/https/data/etc. and *phrases that scheme rejection as a "blocked by CORS policy" error*. It was hls.js failing to fetch fake segments — not a real cross-origin request. Fixed by skipping hls.js in fake mode and showing a dev placeholder (merge `947d074`); production is unaffected.
+- **One genuine cross-origin path to validate at deploy (pre-existing, EP-03):** in production, HLS **video segments** are real `https://storage.googleapis.com` signed URLs (cross-origin), and the `<video crossorigin="use-credentials">` element + hls.js `xhr.withCredentials = true` send them as credentialed cross-origin fetches. That requires the GCS bucket's CORS config to allow the web origin **with credentials** (no `Access-Control-Allow-Origin: *`), and the credentials are functionally pointless there (the signed URL is what authorizes). This predates the captions/placeholder work; see the open item below.
+
 ## Open items (tracked, not yet done)
 
 - A basic **OWASP Top 10** review before initial deployment (US-09-02).
 - Reconcile the 24h session-token requirement (caveat 2 above).
+- **Production HLS segment CORS:** decide whether to drop `withCredentials` on segment fetches (signed URLs don't need it) or to configure credentialed CORS on the output bucket, and verify real playback cross-origin before deploy (see CORS posture above).
