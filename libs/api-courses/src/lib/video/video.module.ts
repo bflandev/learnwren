@@ -11,6 +11,7 @@ import { CaptionsService } from './captions/captions.service';
 import { EnrollmentOrOwnerGuard } from './playback/enrollment-or-owner.guard';
 import { KeyService } from './playback/key.service';
 import { ManifestService } from './playback/manifest.service';
+import { PlaybackConfigController } from './playback/playback-config.controller';
 import { PlaybackController } from './playback/playback.controller';
 import { FakeTranscoderAdapter } from './transcoder/fake-transcoder.adapter';
 import {
@@ -59,6 +60,7 @@ const controllers = [
   CaptionsController,
   TranscoderEventsController,
   PlaybackController,
+  PlaybackConfigController,
   ...(fakeTranscoderEnabled ? [FakeTranscoderController] : []),
 ];
 
