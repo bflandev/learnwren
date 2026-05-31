@@ -1,4 +1,4 @@
-<div class="overflow-hidden rounded-lg bg-black">
+<div class="relative overflow-hidden rounded-lg bg-black">
   <video
     #playerEl
     controls
@@ -11,6 +11,14 @@
       <track kind="subtitles" [src]="c.src" [srclang]="c.srclang" [label]="c.label" />
     }
   </video>
+  @if (devPlaceholder()) {
+    <div
+      class="absolute inset-0 flex items-center justify-center bg-black/80 p-4 text-center text-sm text-white"
+      data-testid="video-player-dev-placeholder"
+    >
+      Video preview is unavailable in local dev mode.
+    </div>
+  }
 </div>
 @if (error(); as msg) {
   <div

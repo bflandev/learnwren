@@ -4,8 +4,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { VideoId } from '@learnwren/shared-data-models';
 
+import { PlaybackConfigService } from '../playback-config.service';
 import { VideoPlayerComponent } from './video-player.component';
 import { VideoPlayerService, type PlayerHandle } from './video-player.service';
+
+/** Provider for a PlaybackConfigService stub fixed to real (or fake) mode. */
+function provideConfig(fake = false) {
+  return { provide: PlaybackConfigService, useValue: { isFakePlayback: () => fake } };
+}
 
 interface StubService {
   handle: PlayerHandle & { dispose: ReturnType<typeof vi.fn> };
@@ -34,7 +40,7 @@ async function bootstrap(): Promise<{
   const stub = makeStubService();
   TestBed.configureTestingModule({
     imports: [VideoPlayerComponent],
-    providers: [{ provide: VideoPlayerService, useValue: stub }],
+    providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(false)],
   });
   const fixture = TestBed.createComponent(VideoPlayerComponent);
   fixture.componentRef.setInput('videoId', 'v1' as VideoId);
@@ -111,7 +117,7 @@ describe('VideoPlayerComponent', () => {
     const stub = makeStubService();
     TestBed.configureTestingModule({
       imports: [VideoPlayerComponent],
-      providers: [{ provide: VideoPlayerService, useValue: stub }],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(false)],
     });
     const fixture = TestBed.createComponent(VideoPlayerComponent);
     fixture.componentRef.setInput('videoId', 'v1' as VideoId);
@@ -131,13 +137,43 @@ describe('VideoPlayerComponent', () => {
     const stub = makeStubService();
     TestBed.configureTestingModule({
       imports: [VideoPlayerComponent],
-      providers: [{ provide: VideoPlayerService, useValue: stub }],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(false)],
     });
     const fixture = TestBed.createComponent(VideoPlayerComponent);
     fixture.componentRef.setInput('videoId', 'v1' as VideoId);
     fixture.componentRef.setInput('captions', null);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('track')).toBeNull();
+  });
+
+  it('in fake playback mode shows a dev placeholder and does not mount hls.js', async () => {
+    const stub = makeStubService();
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(true)],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // hls.js is never attached → no manifest/segment/key fetches, no console noise.
+    expect(stub.attach).not.toHaveBeenCalled();
+    // The placeholder is shown…
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="video-player-dev-placeholder"]'),
+    ).not.toBeNull();
+    // …but the <video> element stays in the DOM for the resume/position machinery.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="video-player"]'),
+    ).not.toBeNull();
+  });
+
+  it('in real playback mode shows no dev placeholder', async () => {
+    const { fixture } = await bootstrap();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="video-player-dev-placeholder"]'),
+    ).toBeNull();
   });
 });
 
@@ -151,6 +187,7 @@ function harness(): {
     providers: [
       provideHttpClient(),
       { provide: VideoPlayerService, useValue: playerSvcStub },
+      provideConfig(false),
     ],
   });
   const fixture = TestBed.createComponent(VideoPlayerComponent);

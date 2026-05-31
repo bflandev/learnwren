@@ -74,3 +74,14 @@ export interface VideoCaptions {
 
 /** Metadata projection of VideoCaptions (no VTT body). */
 export type VideoCaptionsMeta = Pick<VideoCaptions, 'language' | 'label' | 'updatedAt'>;
+
+/**
+ * Response shape of GET /api/playback/config. `fakePlayback` is true when the
+ * server runs the in-memory fake playback-storage seam (local/dev), where there
+ * are no real decryptable HLS segments — the web player shows a dev placeholder
+ * instead of mounting hls.js (which would flood the console with failed segment
+ * fetches). Always false in production.
+ */
+export interface PlaybackConfig {
+  fakePlayback: boolean;
+}

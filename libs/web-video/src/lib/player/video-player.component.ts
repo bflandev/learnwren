@@ -14,6 +14,7 @@ import {
 import type { VideoId } from '@learnwren/shared-data-models';
 
 import { LwButtonDirective } from '@learnwren/web-ui';
+import { PlaybackConfigService } from '../playback-config.service';
 import { VideoPlayerService, type PlayerHandle } from './video-player.service';
 
 @Component({
@@ -36,8 +37,15 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
   @Output() readonly videoEnded = new EventEmitter<void>();
 
   readonly error = signal<string | null>(null);
+  /**
+   * True in local/dev fake-playback mode: there are no decryptable HLS
+   * segments, so we skip mounting hls.js (which would flood the console with
+   * failed segment fetches) and show a placeholder instead.
+   */
+  readonly devPlaceholder = signal(false);
   private handle: PlayerHandle | null = null;
   private readonly playerSvc = inject(VideoPlayerService);
+  private readonly playbackConfig = inject(PlaybackConfigService);
   private listenersAttached = false;
   private readonly onMetadata = (): void => this.metadata.emit();
   private readonly onPlay = (): void => this.played.emit();
@@ -45,7 +53,15 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
   private readonly onEnded = (): void => this.videoEnded.emit();
 
   ngAfterViewInit(): void {
+    // Always attach native <video> listeners — the lesson page's resume/
+    // position-saving machinery dispatches events on the element regardless of
+    // whether hls.js is mounted. Only the hls.js mount (and its segment/key
+    // fetches) is gated behind real playback mode.
     this.attachListeners();
+    if (this.playbackConfig.isFakePlayback()) {
+      this.devPlaceholder.set(true);
+      return;
+    }
     this.mount();
   }
 
@@ -56,6 +72,7 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
   }
 
   retry(): void {
+    if (this.devPlaceholder()) return;
     this.handle?.dispose();
     this.handle = null;
     this.error.set(null);
