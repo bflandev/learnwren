@@ -377,17 +377,18 @@ Each lesson holds at most one video. In the lesson editor:
 
 ## 2.10 Adding captions to a lesson video
 
-Once a lesson's video is in the **`READY`** state, instructors can attach a WebVTT
+Once a lesson's video has been uploaded, instructors can attach a WebVTT
 caption track to it from the lesson editor.
 
 **Where to find it:** in the lesson editor, the **Captions** panel appears below the
-video player once the video is READY.
+video widget as soon as a video has been uploaded to the lesson (regardless of its
+processing state).
 
-- **Upload** — click **Upload captions** and pick a **WebVTT (`.vtt`)** file no larger
+- **Upload** — click **Add captions (.vtt)** and pick a **WebVTT (`.vtt`)** file no larger
   than **256 KB**. The track is stored immediately and the panel updates to show the
   track's language and label.
-- **Replace** — uploading a new file from the same panel overwrites the previous track.
-- **Remove** — click **Remove captions** to clear the track.
+- **Replace** — click **Replace** in the panel to overwrite the previous track.
+- **Remove** — click **Remove** to clear the track.
 
 Constraints for this release:
 - **File format:** WebVTT (`.vtt`) only. SRT is not accepted.
