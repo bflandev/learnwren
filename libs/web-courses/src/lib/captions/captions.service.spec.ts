@@ -43,7 +43,18 @@ describe('CaptionsService (web-courses)', () => {
     await p;
   });
 
-  it('validateLocally rejects non-vtt and oversized files', () => {
+  it('validateLocally accepts a valid small vtt file', () => {
+    const file = new File(['WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHello'], 'c.vtt', { type: 'text/vtt' });
+    expect(svc.validateLocally(file).ok).toBe(true);
+  });
+
+  it('validateLocally rejects a non-vtt file', () => {
     expect(svc.validateLocally(new File(['x'], 'a.txt', { type: 'text/plain' })).ok).toBe(false);
+  });
+
+  it('validateLocally rejects an oversized vtt file', () => {
+    const big = new File([new Uint8Array(256_001)], 'big.vtt', { type: 'text/vtt' });
+    expect(big.size > 256000).toBe(true); // ensure the size branch fires
+    expect(svc.validateLocally(big).ok).toBe(false);
   });
 });
