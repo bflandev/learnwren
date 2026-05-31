@@ -4,7 +4,8 @@ import type { Response } from 'express';
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
 import type { Video } from '@learnwren/shared-data-models';
 
-import { RenditionNotFoundException } from '../errors/video.exception';
+import { CaptionsNotFoundException, RenditionNotFoundException } from '../errors/video.exception';
+import { CaptionsService } from '../captions/captions.service';
 import { VideoExceptionFilter } from '../video.exception-filter';
 import { CurrentVideo } from './current-video.decorator';
 import { EnrollmentOrOwnerGuard } from './enrollment-or-owner.guard';
@@ -21,6 +22,7 @@ export class PlaybackController {
   constructor(
     private readonly manifest: ManifestService,
     private readonly keys: KeyService,
+    private readonly captionsSvc: CaptionsService,
   ) {}
 
   @Get('manifest/:vid')
@@ -53,5 +55,14 @@ export class PlaybackController {
     res.setHeader('Content-Length', String(buf.length));
     res.setHeader('Cache-Control', 'no-store');
     res.end(buf);
+  }
+
+  @Get('captions/:vid')
+  async captions(@CurrentVideo() video: Video, @Res() res: Response): Promise<void> {
+    const captions = await this.captionsSvc.getForDelivery(video.id);
+    if (!captions) throw new CaptionsNotFoundException();
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(captions.content);
   }
 }
