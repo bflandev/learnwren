@@ -136,3 +136,21 @@ export class ManifestParseFailedException extends VideoException {
     );
   }
 }
+
+export class InvalidCaptionFileException extends VideoException {
+  constructor() {
+    super('INVALID_CAPTION_FILE', 'Captions must be a valid WebVTT (.vtt) file.', 400);
+  }
+}
+
+export class CaptionTooLargeException extends VideoException {
+  constructor() {
+    super('CAPTION_TOO_LARGE', 'Caption file exceeds the 256 KB limit.', 400);
+  }
+}
+
+export class CaptionsNotFoundException extends VideoException {
+  constructor() {
+    super('CAPTIONS_NOT_FOUND', 'No captions exist for this video.', 404);
+  }
+}
