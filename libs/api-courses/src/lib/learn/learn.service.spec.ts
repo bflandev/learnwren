@@ -518,6 +518,37 @@ describe('LearnService.getLessonView outline (Slice D)', () => {
   });
 });
 
+describe('LearnService.getLessonView caption projection', () => {
+  it('projects { language, label } when getMeta returns caption metadata', async () => {
+    const video = { id: VID, state: 'READY' } as unknown as Video;
+    const videos = makeVideoRepo({ getVideo: video });
+    const enrollment = makeEnrollmentRepo({ getEnrollment: null });
+    const captionsWithMeta = {
+      getMeta: vi.fn().mockResolvedValue({
+        language: 'en',
+        label: 'English',
+        updatedAt: '2026-01-01T00:00:00Z' as ISODateString,
+      }),
+    } as unknown as CaptionsService;
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), captionsWithMeta);
+
+    const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
+
+    expect(view.lesson.captions).toEqual({ language: 'en', label: 'English' });
+  });
+
+  it('projects captions: null when getMeta returns null', async () => {
+    const video = { id: VID, state: 'READY' } as unknown as Video;
+    const videos = makeVideoRepo({ getVideo: video });
+    const enrollment = makeEnrollmentRepo({ getEnrollment: null });
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
+
+    const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
+
+    expect(view.lesson.captions).toBeNull();
+  });
+});
+
 describe('UC-04-02 materials projection', () => {
   const ownerId = 'instructor-1' as UserId;
   const course = makeCourse({ instructorId: ownerId });
