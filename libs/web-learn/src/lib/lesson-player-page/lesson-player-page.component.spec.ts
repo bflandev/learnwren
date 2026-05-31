@@ -1216,13 +1216,9 @@ describe('LessonPlayerPageComponent captionsTrack computed', () => {
   it('computes a captions track when the view has captions', () => {
     configure();
     const { fixture } = create();
-    fixture.componentInstance.view.set({
-      course: { id: 'c1' as LessonView['course']['id'], title: 'C', status: 'PUBLISHED' },
-      lesson: { id: 'l1' as LessonView['lesson']['id'], moduleId: 'm1' as LessonView['lesson']['moduleId'], title: 'L', videoId: 'v1' as LessonView['lesson']['videoId'], videoState: 'READY', captions: { language: 'en', label: 'English' } },
-      progress: null,
-      outline: { modules: [] },
-      materials: [],
-    } as never);
+    fixture.componentInstance.view.set(
+      makeView({ videoId: 'v1' as LessonView['lesson']['videoId'], captions: { language: 'en', label: 'English' } }, null),
+    );
     expect(fixture.componentInstance.captionsTrack()).toEqual({
       src: '/api/playback/captions/v1', srclang: 'en', label: 'English',
     });
@@ -1231,13 +1227,18 @@ describe('LessonPlayerPageComponent captionsTrack computed', () => {
   it('captionsTrack is null when the view has no captions', () => {
     configure();
     const { fixture } = create();
-    fixture.componentInstance.view.set({
-      course: { id: 'c1' as LessonView['course']['id'], title: 'C', status: 'PUBLISHED' },
-      lesson: { id: 'l1' as LessonView['lesson']['id'], moduleId: 'm1' as LessonView['lesson']['moduleId'], title: 'L', videoId: 'v1' as LessonView['lesson']['videoId'], videoState: 'READY', captions: null },
-      progress: null,
-      outline: { modules: [] },
-      materials: [],
-    } as never);
+    fixture.componentInstance.view.set(
+      makeView({ videoId: 'v1' as LessonView['lesson']['videoId'], captions: null }, null),
+    );
+    expect(fixture.componentInstance.captionsTrack()).toBeNull();
+  });
+
+  it('captionsTrack is null when the lesson has no videoId', () => {
+    configure();
+    const { fixture } = create();
+    fixture.componentInstance.view.set(
+      makeView({ videoId: null, videoState: null, captions: null }, null),
+    );
     expect(fixture.componentInstance.captionsTrack()).toBeNull();
   });
 });
