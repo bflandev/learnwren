@@ -6,6 +6,7 @@ import {
   initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
+  withAnonRequest,
 } from './_helpers/auth';
 
 initAdmin();
@@ -120,7 +121,7 @@ test('owner can upload captions, fetch meta, and stream delivery', async ({ requ
   const putBody = (await put.json()) as { language: string; label: string; updatedAt: string };
   expect(putBody.language).toBe('en');
   expect(putBody.label).toBe('English');
-  expect(putBody.updatedAt).toBeTruthy();
+  expect(putBody.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
   // GET meta — owner reads caption metadata
   const meta = await request.get(`${API_BASE}/videos/${videoId}/captions`, {
@@ -130,7 +131,7 @@ test('owner can upload captions, fetch meta, and stream delivery', async ({ requ
   const metaBody = (await meta.json()) as { language: string; label: string; updatedAt: string };
   expect(metaBody.language).toBe('en');
   expect(metaBody.label).toBe('English');
-  expect(metaBody.updatedAt).toBeTruthy();
+  expect(metaBody.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
   // GET delivery — owner streams the VTT file via playback endpoint
   const delivery = await request.get(`${API_BASE}/playback/captions/${videoId}`, {
@@ -187,6 +188,7 @@ test('enrolled student can fetch captions; non-enrolled student gets 403', async
     headers: { Cookie: other.cookieHeader },
   });
   expect(otherDelivery.status()).toBe(403);
+  expect(((await otherDelivery.json()) as { error: { code: string } }).error.code).toBe('NOT_VIDEO_OWNER');
 });
 
 test('delete captions then delivery returns 404 CAPTIONS_NOT_FOUND, meta returns null', async ({ request }) => {
@@ -223,4 +225,18 @@ test('delete captions then delivery returns 404 CAPTIONS_NOT_FOUND, meta returns
   // NestJS renders a null return as either an empty body or the literal "null";
   // either is acceptable — both signal "no captions".
   expect(metaText === '' || metaText === 'null').toBe(true);
+});
+
+test('401 unauthenticated for captions endpoints', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const { videoId } = await seedLessonWithReadyVideo({ courseId, instructorId: instructor.uid });
+
+  await withAnonRequest(async (anon) => {
+    const delivery = await anon.get(`${API_BASE}/playback/captions/${videoId}`);
+    expect(delivery.status()).toBe(401);
+
+    const metaAnon = await anon.get(`${API_BASE}/videos/${videoId}/captions`);
+    expect(metaAnon.status()).toBe(401);
+  });
 });
