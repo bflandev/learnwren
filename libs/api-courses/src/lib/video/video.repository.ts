@@ -7,6 +7,8 @@ import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
 import type {
   LessonId,
   Video,
+  VideoCaptions,
+  VideoCaptionsMeta,
   VideoId,
   VideoKey,
   VideoKeyId,
@@ -25,6 +27,10 @@ export class VideoRepository {
 
   private videoKeyRef(kid: VideoKeyId) {
     return this.db.collection('videoKeys').doc(kid);
+  }
+
+  private videoCaptionsRef(vid: VideoId) {
+    return this.db.collection('videoCaptions').doc(vid);
   }
 
   /**
@@ -81,6 +87,25 @@ export class VideoRepository {
 
   async updateVideo(vid: VideoId, patch: Partial<Video>): Promise<void> {
     await this.videoRef(vid).update(patch);
+  }
+
+  async getCaptions(vid: VideoId): Promise<VideoCaptions | null> {
+    const snap = await this.videoCaptionsRef(vid).get();
+    return snap.exists ? (snap.data() as VideoCaptions) : null;
+  }
+
+  async getCaptionsMeta(vid: VideoId): Promise<VideoCaptionsMeta | null> {
+    const captions = await this.getCaptions(vid);
+    if (!captions) return null;
+    return { language: captions.language, label: captions.label, updatedAt: captions.updatedAt };
+  }
+
+  async upsertCaptions(captions: VideoCaptions): Promise<void> {
+    await this.videoCaptionsRef(captions.videoId).set(captions);
+  }
+
+  async deleteCaptions(vid: VideoId): Promise<void> {
+    await this.videoCaptionsRef(vid).delete();
   }
 
   async finalizeUploadWithJob(args: {
@@ -206,6 +231,7 @@ export class VideoRepository {
       const keySnap = await tx.get(keyQ);
 
       tx.delete(videoRef);
+      tx.delete(this.videoCaptionsRef(vid)); // no-op if absent
       if (!keySnap.empty) tx.delete(keySnap.docs[0]!.ref);
       if (!lessonSnap.empty) {
         const lesson = lessonSnap.docs[0]!;
