@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  computed,
   effect,
   inject,
   input,
@@ -12,7 +13,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 
-import type { CourseId, Lesson, Video, VideoState } from '@learnwren/shared-data-models';
+import type { CourseId, Lesson, Video, VideoCaptionsMeta, VideoState } from '@learnwren/shared-data-models';
 import {
   VideoPlayerComponent,
   VideoService,
@@ -47,6 +48,14 @@ export class LessonItemComponent {
   readonly editing = signal(false);
   readonly draftTitle = signal('');
   readonly video = signal<Video | undefined>(undefined);
+  readonly captionsMeta = signal<VideoCaptionsMeta | null>(null);
+
+  readonly captionsTrack = computed(() => {
+    const videoId = this.lesson().videoId;
+    const meta = this.captionsMeta();
+    if (!videoId || !meta) return null;
+    return { src: `/api/playback/captions/${videoId}`, srclang: meta.language, label: meta.label };
+  });
 
   constructor() {
     effect(() => {
@@ -81,6 +90,10 @@ export class LessonItemComponent {
 
   cancel(): void {
     this.editing.set(false);
+  }
+
+  onCaptionsMeta(meta: VideoCaptionsMeta | null): void {
+    this.captionsMeta.set(meta);
   }
 
   onVideoUploaded(): void {

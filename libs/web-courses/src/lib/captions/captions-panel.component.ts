@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 
 import type { VideoCaptionsMeta, VideoId } from '@learnwren/shared-data-models';
 import { LwButtonDirective } from '@learnwren/web-ui';
@@ -17,15 +17,20 @@ export class CaptionsPanelComponent implements OnInit {
 
   readonly videoId = input.required<VideoId>();
 
+  readonly metaChange = output<VideoCaptionsMeta | null>();
+
   readonly meta = signal<VideoCaptionsMeta | null>(null);
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
 
   async ngOnInit(): Promise<void> {
     try {
-      this.meta.set(await this.svc.getMeta(this.videoId()));
+      const loaded = await this.svc.getMeta(this.videoId());
+      this.meta.set(loaded);
+      this.metaChange.emit(loaded);
     } catch {
       // Non-fatal: leave meta null; the add affordance still works.
+      this.metaChange.emit(null);
     }
   }
 
@@ -38,7 +43,9 @@ export class CaptionsPanelComponent implements OnInit {
     }
     this.busy.set(true);
     try {
-      this.meta.set(await this.svc.upload(this.videoId(), file));
+      const uploaded = await this.svc.upload(this.videoId(), file);
+      this.meta.set(uploaded);
+      this.metaChange.emit(uploaded);
     } catch {
       this.error.set('Upload failed. Try again.');
     } finally {
@@ -52,6 +59,7 @@ export class CaptionsPanelComponent implements OnInit {
     try {
       await this.svc.remove(this.videoId());
       this.meta.set(null);
+      this.metaChange.emit(null);
     } catch {
       this.error.set('Remove failed. Try again.');
     } finally {
