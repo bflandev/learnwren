@@ -25,6 +25,9 @@
     },
     {
       "path": "../../libs/web-profile/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/web-admin/tsconfig.lib.json"
     }
   ]
 }
