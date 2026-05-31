@@ -43,6 +43,7 @@ function makeView(
       description: 'A great lesson',
       videoId: 'vid-1' as LessonView['lesson']['videoId'],
       videoState: 'READY',
+      captions: null,
       ...overrides,
     },
     progress,
@@ -1204,6 +1205,41 @@ describe('UC-04-02 materials section', () => {
     const err = query(fixture, '[data-testid="material-error-mat-1"]');
     expect(err).not.toBeNull();
     expect((err as HTMLElement).textContent ?? '').toContain("Couldn't prepare the download. Try again.");
+  });
+});
+
+describe('LessonPlayerPageComponent captionsTrack computed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('computes a captions track when the view has captions', () => {
+    configure();
+    const { fixture } = create();
+    fixture.componentInstance.view.set(
+      makeView({ videoId: 'v1' as LessonView['lesson']['videoId'], captions: { language: 'en', label: 'English' } }, null),
+    );
+    expect(fixture.componentInstance.captionsTrack()).toEqual({
+      src: '/api/playback/captions/v1', srclang: 'en', label: 'English',
+    });
+  });
+
+  it('captionsTrack is null when the view has no captions', () => {
+    configure();
+    const { fixture } = create();
+    fixture.componentInstance.view.set(
+      makeView({ videoId: 'v1' as LessonView['lesson']['videoId'], captions: null }, null),
+    );
+    expect(fixture.componentInstance.captionsTrack()).toBeNull();
+  });
+
+  it('captionsTrack is null when the lesson has no videoId', () => {
+    configure();
+    const { fixture } = create();
+    fixture.componentInstance.view.set(
+      makeView({ videoId: null, videoState: null, captions: null }, null),
+    );
+    expect(fixture.componentInstance.captionsTrack()).toBeNull();
   });
 });
 

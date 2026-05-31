@@ -5,6 +5,8 @@ import { FirebaseSessionGuard } from '@learnwren/api-auth';
 import { FIREBASE_AUTH, FIRESTORE } from '@learnwren/api-firebase';
 import type { Video, VideoId } from '@learnwren/shared-data-models';
 
+import { CaptionsService } from '../captions/captions.service';
+import { CaptionsNotFoundException } from '../errors/video.exception';
 import { EnrollmentOrOwnerGuard } from './enrollment-or-owner.guard';
 import { KeyService } from './key.service';
 import { ManifestService } from './manifest.service';
@@ -39,12 +41,14 @@ function makeRes() {
 async function buildController(
   manifestSvc: Partial<ManifestService>,
   keySvc: Partial<KeyService>,
+  captionsSvc: Partial<CaptionsService> = {},
 ): Promise<PlaybackController> {
   const mod = await Test.createTestingModule({
     controllers: [PlaybackController],
     providers: [
       { provide: ManifestService, useValue: manifestSvc },
       { provide: KeyService, useValue: keySvc },
+      { provide: CaptionsService, useValue: captionsSvc },
       { provide: FIRESTORE, useValue: {} },
       { provide: FIREBASE_AUTH, useValue: {} },
     ],
@@ -120,5 +124,33 @@ describe('PlaybackController.key', () => {
     expect(res.headers['content-length']).toBe('16');
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.end).toHaveBeenCalledWith(buf);
+  });
+});
+
+describe('PlaybackController.captions', () => {
+  it('streams text/vtt with the stored content', async () => {
+    const captionsSvc = { getForDelivery: vi.fn().mockResolvedValue({ content: 'WEBVTT\nhi' }) };
+    const ctrl = await buildController(
+      {} as ManifestService,
+      {} as KeyService,
+      captionsSvc as unknown as CaptionsService,
+    );
+    const res = makeRes();
+    await ctrl.captions(VIDEO, res as unknown as import('express').Response);
+    expect(captionsSvc.getForDelivery).toHaveBeenCalledWith(VIDEO.id);
+    expect(res.headers['content-type']).toBe('text/vtt; charset=utf-8');
+    expect(res.send).toHaveBeenCalledWith('WEBVTT\nhi');
+  });
+
+  it('throws CaptionsNotFoundException when none exist', async () => {
+    const captionsSvc = { getForDelivery: vi.fn().mockResolvedValue(null) };
+    const ctrl = await buildController(
+      {} as ManifestService,
+      {} as KeyService,
+      captionsSvc as unknown as CaptionsService,
+    );
+    await expect(
+      ctrl.captions(VIDEO, makeRes() as unknown as import('express').Response),
+    ).rejects.toBeInstanceOf(CaptionsNotFoundException);
   });
 });

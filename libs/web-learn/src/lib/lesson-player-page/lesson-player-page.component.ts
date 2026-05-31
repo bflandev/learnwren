@@ -82,6 +82,11 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   readonly formatBytes = formatBytes;
 
   readonly outline = computed<CourseOutline | null>(() => this.view()?.outline ?? null);
+  readonly captionsTrack = computed<{ src: string; srclang: string; label: string } | null>(() => {
+    const l = this.view()?.lesson;
+    if (!l?.videoId || !l.captions) return null;
+    return { src: `/api/playback/captions/${l.videoId}`, srclang: l.captions.language, label: l.captions.label };
+  });
   readonly outlineOpen = signal<boolean>(
     typeof window !== 'undefined'
       ? window.matchMedia('(min-width: 1024px)').matches

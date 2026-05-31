@@ -1,0 +1,22 @@
+<div class="rounded border border-line p-3" data-testid="captions-panel">
+  @if (meta(); as m) {
+    <div data-testid="captions-present" class="flex flex-wrap items-center gap-3">
+      <span class="text-sm text-ink">Captions: {{ m.label }}</span>
+      <label class="inline-block cursor-pointer" data-testid="captions-replace">
+        <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy()" />
+        <span class="lw-btn">Replace</span>
+      </label>
+      <button lwButton type="button" class="text-bad" [disabled]="busy()" (click)="onRemove()" data-testid="captions-remove">
+        Remove
+      </button>
+    </div>
+  } @else {
+    <label class="inline-block cursor-pointer" data-testid="captions-add">
+      <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy()" />
+      <span class="lw-btn">Add captions (.vtt)</span>
+    </label>
+  }
+  @if (error(); as e) {
+    <p data-testid="captions-error" class="mt-2 text-sm text-bad">{{ e }}</p>
+  }
+</div>

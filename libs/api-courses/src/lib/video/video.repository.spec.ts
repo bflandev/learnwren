@@ -8,6 +8,7 @@ import type {
   LessonId,
   UserId,
   Video,
+  VideoCaptions,
   VideoId,
   VideoKey,
   VideoKeyId,
@@ -393,5 +394,60 @@ describe('VideoRepository.listVideoStatesForLessons', () => {
     const states = await repo.listVideoStatesForLessons([]);
 
     expect(states.size).toBe(0);
+  });
+});
+
+function makeCaptions(overrides: Partial<VideoCaptions> = {}): VideoCaptions {
+  return {
+    videoId: 'v1' as VideoId,
+    language: 'en',
+    label: 'English',
+    format: 'vtt',
+    content: 'WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi\n',
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+    ...overrides,
+  };
+}
+
+describe('VideoRepository — captions', () => {
+  it('upsertCaptions then getCaptions round-trips', async () => {
+    const fake = createFakeFirestore();
+    const repo = await buildRepo(fake);
+    await repo.upsertCaptions(makeCaptions());
+    const got = await repo.getCaptions('v1' as VideoId);
+    expect(got?.content).toContain('WEBVTT');
+    expect(got?.language).toBe('en');
+  });
+
+  it('getCaptions returns null when absent', async () => {
+    const repo = await buildRepo(createFakeFirestore());
+    expect(await repo.getCaptions('nope' as VideoId)).toBeNull();
+  });
+
+  it('getCaptionsMeta omits the content body', async () => {
+    const fake = createFakeFirestore({ 'videoCaptions/v1': makeCaptions() });
+    const repo = await buildRepo(fake);
+    const meta = await repo.getCaptionsMeta('v1' as VideoId);
+    expect(meta).toEqual({ language: 'en', label: 'English', updatedAt: SEED_DATE });
+  });
+
+  it('deleteCaptions removes the doc and is idempotent', async () => {
+    const fake = createFakeFirestore({ 'videoCaptions/v1': makeCaptions() });
+    const repo = await buildRepo(fake);
+    await repo.deleteCaptions('v1' as VideoId);
+    expect(await repo.getCaptions('v1' as VideoId)).toBeNull();
+    await expect(repo.deleteCaptions('v1' as VideoId)).resolves.toBeUndefined();
+  });
+
+  it('deleteVideoAndDetach also removes the captions doc', async () => {
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo(),
+      [LESSON_PATH]: lessonDoc({ videoId: 'v1' }),
+      'videoCaptions/v1': makeCaptions(),
+    });
+    const repo = await buildRepo(fake);
+    await repo.deleteVideoAndDetach('v1' as VideoId, 'l1' as LessonId, NOW_ISO);
+    expect(await repo.getCaptions('v1' as VideoId)).toBeNull();
   });
 });

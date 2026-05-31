@@ -38,11 +38,12 @@
     @if (lesson().videoId) {
       @if (video(); as v) {
         @if (v.state === 'READY') {
-          <lib-video-player [videoId]="v.id" />
+          <lib-video-player [videoId]="v.id" [captions]="captionsTrack()" />
         } @else {
           <lib-video-state-badge [video]="v" (stateChanged)="onVideoStateChanged($event)" />
         }
       }
+      <lib-captions-panel [videoId]="lesson().videoId!" (metaChange)="onCaptionsMeta($event)" />
     } @else {
       <lib-video-upload
         [courseId]="courseId()"

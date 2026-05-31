@@ -106,6 +106,39 @@ describe('VideoPlayerComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Test error message');
   });
+
+  it('renders a <track> when captions are provided', () => {
+    const stub = makeStubService();
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.componentRef.setInput('captions', {
+      src: '/api/playback/captions/v1', srclang: 'en', label: 'English',
+    });
+    fixture.detectChanges();
+    const track = fixture.nativeElement.querySelector('track');
+    expect(track).not.toBeNull();
+    expect(track.getAttribute('src')).toBe('/api/playback/captions/v1');
+    expect(track.getAttribute('srclang')).toBe('en');
+    expect(track.getAttribute('label')).toBe('English');
+    expect(track.getAttribute('kind')).toBe('subtitles');
+  });
+
+  it('renders no <track> when captions are null', () => {
+    const stub = makeStubService();
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.componentRef.setInput('captions', null);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('track')).toBeNull();
+  });
 });
 
 function harness(): {

@@ -6,6 +6,8 @@ import { AuthModule } from '@learnwren/api-auth';
 import { FirebaseAdminModule } from '@learnwren/api-firebase';
 
 import { CoursesModule } from '../courses.module';
+import { CaptionsController } from './captions/captions.controller';
+import { CaptionsService } from './captions/captions.service';
 import { EnrollmentOrOwnerGuard } from './playback/enrollment-or-owner.guard';
 import { KeyService } from './playback/key.service';
 import { ManifestService } from './playback/manifest.service';
@@ -54,6 +56,7 @@ if (
 }
 const controllers = [
   VideoController,
+  CaptionsController,
   TranscoderEventsController,
   PlaybackController,
   ...(fakeTranscoderEnabled ? [FakeTranscoderController] : []),
@@ -70,6 +73,7 @@ const controllers = [
   providers: [
     VideoRepository,
     VideoService,
+    CaptionsService,
     VideoStorageAdapter,
     VideoOwnerGuard,
     VideoExceptionFilter,
@@ -92,6 +96,6 @@ const controllers = [
     // handler. Nest does not expose controllers through the DI container.
     TranscoderEventsController,
   ],
-  exports: [VideoRepository, VideoService],
+  exports: [VideoRepository, VideoService, CaptionsService],
 })
 export class VideoModule {}

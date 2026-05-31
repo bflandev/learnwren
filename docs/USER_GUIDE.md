@@ -50,6 +50,7 @@ This guide covers **every feature wired up so far** from two angles:
 | Learning | Completion rollups (module / course level) | Not built |
 | Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
 | Cover images | Course cover image upload / replace / remove | Built |
+| Video | Lesson captions (WebVTT, one English track per lesson) | Built (2026-05-30) |
 
 ---
 
@@ -187,7 +188,7 @@ To protect against password guessing:
 
 Course authoring requires the **`INSTRUCTOR`** role. Students can request it via a
 self-service form, and an ADMIN approves or declines the request via the admin
-review queue (see [2.18 Admin: reviewing instructor applications](#218-admin-reviewing-instructor-applications)).
+review queue (see [2.19 Admin: reviewing instructor applications](#219-admin-reviewing-instructor-applications)).
 Operators can also promote users directly with a CLI tool.
 
 ### Self-service request
@@ -374,7 +375,30 @@ Each lesson holds at most one video. In the lesson editor:
    Because playback is owner-gated, you (the course owner) can preview your own video
    right in the editor.
 
-## 2.10 Lesson materials
+## 2.10 Adding captions to a lesson video
+
+Once a lesson's video has been uploaded, instructors can attach a WebVTT
+caption track to it from the lesson editor.
+
+**Where to find it:** in the lesson editor, the **Captions** panel appears below the
+video widget as soon as a video has been uploaded to the lesson (regardless of its
+processing state).
+
+- **Upload** — click **Add captions (.vtt)** and pick a **WebVTT (`.vtt`)** file no larger
+  than **256 KB**. The track is stored immediately and the panel updates to show the
+  track's language and label.
+- **Replace** — click **Replace** in the panel to overwrite the previous track.
+- **Remove** — click **Remove** to clear the track.
+
+Constraints for this release:
+- **File format:** WebVTT (`.vtt`) only. SRT is not accepted.
+- **File size:** maximum **256 KB**.
+- **Language:** English only. One track per video. Multi-language support is deferred.
+
+Students watching the lesson can turn captions on or off using the **CC button** built
+into their browser's native video controls (captions are off by default).
+
+## 2.11 Lesson materials
 
 Below each lesson's video, instructors can attach supplementary files —
 PDF, DOCX, PPTX, XLSX, TXT, or ZIP, up to 50 MB each. Click **Add material**
@@ -390,7 +414,7 @@ At the API layer, `MaterialAccessGuard` already grants `GET
 materials from the lesson player ships with a later EP-06 slice — for now,
 only the instructor course editor surfaces these files.
 
-## 2.11 Publishing a course
+## 2.12 Publishing a course
 
 A course starts as a **`DRAFT`**. Before students could ever see it, it must pass a
 **publish eligibility gate**. The course editor shows a **publish bar** and an
@@ -423,7 +447,7 @@ DRAFT  ──────────►  PUBLISHED  ─────────
 The first publish timestamp is kept on the course (`publishedAt`) and survives
 unpublish and archive.
 
-## 2.12 Browsing and discovering courses
+## 2.13 Browsing and discovering courses
 
 Any visitor — logged in or not — can browse the catalogue at **http://localhost:4200**
 (the root redirects there). The catalogue shows all `PUBLISHED` courses as cards.
@@ -438,7 +462,7 @@ Any visitor — logged in or not — can browse the catalogue at **http://localh
   difficulty, and the complete module/lesson structure (titles only — video content
   requires enrollment).
 
-## 2.13 Enrolling in a course
+## 2.14 Enrolling in a course
 
 Enrollment is open to every logged-in user (including instructors enrolling in courses
 they do not own). To enroll:
@@ -463,7 +487,7 @@ where the enrollment completes automatically — no second click needed. The `?e
 query param drives this round-trip; it is stripped from the URL once the enrollment
 fires so that a page refresh does not re-trigger it.
 
-## 2.14 Leaving a course
+## 2.15 Leaving a course
 
 An enrolled student can leave any course they are enrolled in:
 
@@ -483,14 +507,14 @@ any progress data written by EP-06).
 > the "Course Completed" badge, and per-lesson progress indicators on the catalog
 > detail page ship with later EP-06 slices. The **Start Learning** button, lesson
 > player, **Continue Learning** resume tracking, mark-complete, and the course-outline
-> panel are all live now (see 2.14–2.16 below). The 90-day hard-delete of withdrawn
+> panel are all live now (see 2.16–2.18 below). The 90-day hard-delete of withdrawn
 > enrollment records remains deferred (soft-delete and restore on re-enroll are live;
 > the scheduled purge is not). Access IS revoked when an instructor unpublishes a
 > course — the lesson endpoint and the manifest endpoint both require
 > `course.status === 'PUBLISHED'` for non-owner callers, so a previously enrolled
 > student starts seeing 403s on the next manifest refresh after an unpublish.
 
-## 2.15 Watching a lesson as an enrolled student (EP-06 Slice A)
+## 2.16 Watching a lesson as an enrolled student (EP-06 Slice A)
 
 Once a student has enrolled in a `PUBLISHED` course, the course detail page
 (`/catalog/:cid`) shows a **Start Learning** button. The course's instructor sees the
@@ -518,13 +542,18 @@ Edge cases:
 - **Lesson missing or in the wrong course** — the page renders a "Lesson not available"
   panel.
 
+**Captions:** if the instructor has uploaded a WebVTT caption track for the lesson's
+video, a sidecar `<track kind="subtitles">` is served alongside the HLS stream. Captions
+are **off by default** — use the **CC** button in the player's native controls to enable
+them. Only one English track is available per lesson in this release.
+
 **Shipped in later EP-06 slices:** progress / last-watched tracking (Slice C),
 the **Continue Learning** resume button (Slice C), and the collapsible course-outline
 panel with completion checkmarks (Slice D).
 
 ---
 
-## 2.16 Marking a lesson complete (EP-06 Slice B)
+## 2.17 Marking a lesson complete (EP-06 Slice B)
 
 While watching a lesson, the student sees a **Mark as Complete** button below the
 video. Clicking it:
@@ -558,7 +587,7 @@ catalog detail page.
 
 ---
 
-## 2.17 Resume Learning and navigating the course (EP-06 Slice C)
+## 2.18 Resume Learning and navigating the course (EP-06 Slice C)
 
 When you re-open a course you are enrolled in, the course detail page shows a
 **Continue Learning** button (falling back to **Start Learning** for new
@@ -592,7 +621,7 @@ page.
 
 ---
 
-## 2.18 Admin: reviewing instructor applications (US-08-03)
+## 2.19 Admin: reviewing instructor applications (US-08-03)
 
 Platform ADMINs can approve or decline instructor-role requests submitted by students.
 This is the first implemented administrator surface.
@@ -918,6 +947,11 @@ fields are **string-literal unions** (not TypeScript enums).
   the authenticated read-model returned by `GET /api/enrollments/:courseId`.
 - **`LessonProgress`** — `lessonId`, `completedAt`, `lastWatchedSeconds` — reserved for
   the EP-06 learning experience.
+- **`VideoCaptions`** — `videoId` (=== the Firestore doc id in the `videoCaptions`
+  collection), `language` (e.g. `"en"`), `label` (e.g. `"English"`), `format`
+  (`"vtt"`), `content` (the raw VTT text), `createdAt`, `updatedAt`. One document per
+  video; presence of the document means a caption track exists. Absent document means no
+  captions are available (the streaming endpoint returns `404 CAPTIONS_NOT_FOUND`).
 
 ## 3.13 Video pipeline configuration
 

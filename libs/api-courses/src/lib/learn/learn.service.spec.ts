@@ -19,6 +19,7 @@ import type {
 import type { CoursesRepository } from '../courses.repository';
 import type { EnrollmentRepository } from '../enrollment/enrollment.repository';
 import type { MaterialsService } from '../materials/materials.service';
+import type { CaptionsService } from '../video/captions/captions.service';
 import type { VideoRepository } from '../video/video.repository';
 import { LearnService } from './learn.service';
 
@@ -124,12 +125,18 @@ function makeMaterialsService(materials: Material[] = []): MaterialsService {
   } as unknown as MaterialsService;
 }
 
+function makeCaptionsService(): CaptionsService {
+  return {
+    getMeta: vi.fn().mockResolvedValue(null),
+  } as unknown as CaptionsService;
+}
+
 describe('LearnService', () => {
   it('maps a lesson with a READY video to the full LessonView shape', async () => {
     const video = { id: VID, state: 'READY' } as unknown as Video;
     const videos = makeVideoRepo({ getVideo: video });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
 
@@ -142,6 +149,7 @@ describe('LearnService', () => {
         description: 'A description',
         videoId: VID,
         videoState: 'READY',
+        captions: null,
       },
       progress: null,
       outline: { modules: [] },
@@ -152,7 +160,7 @@ describe('LearnService', () => {
   it('returns videoId null and videoState null when the lesson has no video', async () => {
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const lessonWithoutVideo: Lesson = { ...baseLesson, videoId: undefined };
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, lessonWithoutVideo);
@@ -165,7 +173,7 @@ describe('LearnService', () => {
   it('returns videoState null when the video document is missing', async () => {
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
 
@@ -178,7 +186,7 @@ describe('LearnService', () => {
     const video = { id: VID, state: 'TRANSCODING' } as unknown as Video;
     const videos = makeVideoRepo({ getVideo: video });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
 
@@ -188,7 +196,7 @@ describe('LearnService', () => {
   it('passes through a non-empty description as-is', async () => {
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const lessonWithDesc: Lesson = { ...baseLesson, description: 'Hello world' };
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, lessonWithDesc);
@@ -199,7 +207,7 @@ describe('LearnService', () => {
   it('leaves description undefined when the lesson has no description authored', async () => {
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const lessonNoDesc: Lesson = { ...baseLesson, description: undefined };
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, lessonNoDesc);
@@ -210,7 +218,7 @@ describe('LearnService', () => {
   it('preserves an explicit empty-string description distinct from undefined', async () => {
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const lessonEmptyDesc: Lesson = { ...baseLesson, description: '' };
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, lessonEmptyDesc);
@@ -225,7 +233,7 @@ describe('getLessonView progress', () => {
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue(null),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const course = makeCourse({ instructorId: 'owner-1' as UserId });
     const view = await service.getLessonView('owner-1' as UserId, course, makeLesson());
     expect(view.progress).toBeNull();
@@ -241,7 +249,7 @@ describe('getLessonView progress', () => {
       }),
       touchLastAccessed: vi.fn(async () => undefined),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const view = await service.getLessonView(
       's' as UserId,
       makeCourse({ instructorId: 'owner-1' as UserId }),
@@ -260,7 +268,7 @@ describe('getLessonView progress', () => {
       }),
       touchLastAccessed: vi.fn(async () => undefined),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const view = await service.getLessonView(
       's' as UserId,
       makeCourse({ instructorId: 'owner-1' as UserId }),
@@ -274,7 +282,7 @@ describe('getLessonView progress', () => {
     const enrollment = {
       getEnrollment: vi.fn().mockResolvedValue(null),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const view = await service.getLessonView(
       's' as UserId,
       makeCourse({ instructorId: 'owner-1' as UserId }),
@@ -303,7 +311,7 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
       }),
       touchLastAccessed: touchSpy,
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     await service.getLessonView(STUDENT_UID, COURSE, LESSON);
     expect(touchSpy).toHaveBeenCalledTimes(1);
     expect(touchSpy).toHaveBeenCalledWith(STUDENT_UID, COURSE.id, LESSON.id, expect.any(String));
@@ -316,7 +324,7 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
       getEnrollment: vi.fn().mockResolvedValue(null),
       touchLastAccessed: touchSpy,
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     await service.getLessonView(OWNER_UID, COURSE, LESSON);
     expect(touchSpy).not.toHaveBeenCalled();
   });
@@ -332,7 +340,7 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
       }),
       touchLastAccessed: touchSpy,
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const view = await service.getLessonView(STUDENT_UID, COURSE, LESSON);
     expect(view.course.id).toBe(COURSE.id);
     expect(touchSpy).toHaveBeenCalledTimes(1);
@@ -348,7 +356,7 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
       }),
       touchLastAccessed: vi.fn(async () => undefined),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const view = await service.getLessonView(STUDENT_UID, COURSE, LESSON);
     expect(view.progress).toEqual({ completedAt: null, lastWatchedSeconds: 87 });
   });
@@ -363,7 +371,7 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
       }),
       touchLastAccessed: vi.fn(async () => undefined),
     } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService());
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
     const view = await service.getLessonView(STUDENT_UID, COURSE, LESSON);
     expect(view.progress).toEqual({ completedAt: null, lastWatchedSeconds: 0 });
   });
@@ -392,7 +400,7 @@ describe('LearnService.getLessonView outline (Slice D)', () => {
       outlineStates: { l1: 'READY', l2: 'TRANSCODING', l3: null },
     });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, courses, makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, courses, makeMaterialsService(), makeCaptionsService());
 
     const view = await svc.getLessonView(STUDENT_ID, course, lesson);
 
@@ -431,7 +439,7 @@ describe('LearnService.getLessonView outline (Slice D)', () => {
         withdrawnAt: null,
       },
     });
-    const svc = new LearnService(videos, enrollment, courses, makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, courses, makeMaterialsService(), makeCaptionsService());
 
     const view = await svc.getLessonView(STUDENT_ID, course, lesson);
     const lessons = view.outline.modules[0]!.lessons;
@@ -453,7 +461,7 @@ describe('LearnService.getLessonView outline (Slice D)', () => {
       outlineStates: { l1: 'READY' },
     });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, courses, makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, courses, makeMaterialsService(), makeCaptionsService());
 
     const view = await svc.getLessonView(owner, course, lesson);
     expect(view.progress).toBeNull();
@@ -484,7 +492,7 @@ describe('LearnService.getLessonView outline (Slice D)', () => {
         withdrawnAt: null,
       },
     });
-    const svc = new LearnService(videos, enrollment, courses, makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, courses, makeMaterialsService(), makeCaptionsService());
 
     const view = await svc.getLessonView(STUDENT_ID, course, lesson);
     expect(view.outline.modules[0]!.lessons).toHaveLength(1);
@@ -503,10 +511,41 @@ describe('LearnService.getLessonView outline (Slice D)', () => {
       outlineStates: { l1: null },
     });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, courses, makeMaterialsService());
+    const svc = new LearnService(videos, enrollment, courses, makeMaterialsService(), makeCaptionsService());
 
     const view = await svc.getLessonView(STUDENT_ID, course, lesson);
     expect(view.outline.modules[0]!.lessons[0]!.videoState).toBeNull();
+  });
+});
+
+describe('LearnService.getLessonView caption projection', () => {
+  it('projects { language, label } when getMeta returns caption metadata', async () => {
+    const video = { id: VID, state: 'READY' } as unknown as Video;
+    const videos = makeVideoRepo({ getVideo: video });
+    const enrollment = makeEnrollmentRepo({ getEnrollment: null });
+    const captionsWithMeta = {
+      getMeta: vi.fn().mockResolvedValue({
+        language: 'en',
+        label: 'English',
+        updatedAt: '2026-01-01T00:00:00Z' as ISODateString,
+      }),
+    } as unknown as CaptionsService;
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), captionsWithMeta);
+
+    const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
+
+    expect(view.lesson.captions).toEqual({ language: 'en', label: 'English' });
+  });
+
+  it('projects captions: null when getMeta returns null', async () => {
+    const video = { id: VID, state: 'READY' } as unknown as Video;
+    const videos = makeVideoRepo({ getVideo: video });
+    const enrollment = makeEnrollmentRepo({ getEnrollment: null });
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
+
+    const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
+
+    expect(view.lesson.captions).toBeNull();
   });
 });
 
@@ -539,7 +578,7 @@ describe('UC-04-02 materials projection', () => {
     ]);
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), materials);
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), materials, makeCaptionsService());
 
     const view = await svc.getLessonView(ownerId, course, lesson);
 
@@ -554,7 +593,7 @@ describe('UC-04-02 materials projection', () => {
     const materials = makeMaterialsService([]);
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), materials);
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), materials, makeCaptionsService());
 
     const view = await svc.getLessonView(ownerId, course, lesson);
     expect(view.materials).toEqual([]);
@@ -564,7 +603,7 @@ describe('UC-04-02 materials projection', () => {
     const materials = makeMaterialsService([baseMat()]);
     const videos = makeVideoRepo({ getVideo: null });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
-    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), materials);
+    const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), materials, makeCaptionsService());
 
     const view = await svc.getLessonView(ownerId, course, lesson);
     const m = view.materials[0]!;

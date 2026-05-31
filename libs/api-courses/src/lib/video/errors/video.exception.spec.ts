@@ -1,6 +1,9 @@
 import { describe, expect, it, test } from 'vitest';
 
 import {
+  CaptionsNotFoundException,
+  CaptionTooLargeException,
+  InvalidCaptionFileException,
   InvalidVideoStateException,
   KeyLookupFailedException,
   LessonAlreadyHasVideoException,
@@ -137,5 +140,23 @@ describe('slice C exceptions', () => {
     expect(ex.status).toBe(502);
     expect(ex.code).toBe('MANIFEST_PARSE_FAILED');
     expect(ex.message).toMatch(/missing #EXTM3U/);
+  });
+});
+
+describe('caption exceptions', () => {
+  it('InvalidCaptionFileException is a 400 with INVALID_CAPTION_FILE', () => {
+    const e = new InvalidCaptionFileException();
+    expect(e.code).toBe('INVALID_CAPTION_FILE');
+    expect(e.status).toBe(400);
+  });
+  it('CaptionTooLargeException is a 400 with CAPTION_TOO_LARGE', () => {
+    const e = new CaptionTooLargeException();
+    expect(e.code).toBe('CAPTION_TOO_LARGE');
+    expect(e.status).toBe(400);
+  });
+  it('CaptionsNotFoundException is a 404 with CAPTIONS_NOT_FOUND', () => {
+    const e = new CaptionsNotFoundException();
+    expect(e.code).toBe('CAPTIONS_NOT_FOUND');
+    expect(e.status).toBe(404);
   });
 });

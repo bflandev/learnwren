@@ -5,7 +5,7 @@ import { By } from '@angular/platform-browser';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CourseId, Lesson, LessonId, ModuleId, Video, VideoId, UserId, VideoKeyId } from '@learnwren/shared-data-models';
+import type { CourseId, Lesson, LessonId, ModuleId, Video, VideoCaptionsMeta, VideoId, UserId, VideoKeyId } from '@learnwren/shared-data-models';
 import {
   VideoPlayerComponent,
   VideoPlayerService,
@@ -180,6 +180,69 @@ describe('LessonItemComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('lib-video-state-badge')).toBeTruthy();
     expect(el.querySelector('lib-video-upload')).toBeNull();
+  });
+});
+
+describe('LessonItemComponent captionsMeta / captionsTrack', () => {
+  const LESSON_WITH_VIDEO: Lesson = {
+    id: 'lid-1' as LessonId,
+    moduleId: 'mid-1' as ModuleId,
+    title: 'Hello',
+    order: 0,
+    videoId: 'v1' as VideoId,
+    createdAt: '2026-05-12T00:00:00.000Z' as Lesson['createdAt'],
+    updatedAt: '2026-05-12T00:00:00.000Z' as Lesson['updatedAt'],
+  };
+
+  function buildWithVideo(): ReturnType<typeof TestBed.createComponent<LessonItemComponent>> {
+    const materialsStub = { listMaterials: vi.fn().mockReturnValue(of([])) };
+    TestBed.configureTestingModule({
+      imports: [LessonItemComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        VideoService,
+        { provide: MaterialsService, useValue: materialsStub },
+      ],
+    });
+    const fixture = TestBed.createComponent(LessonItemComponent);
+    fixture.componentRef.setInput('lesson', LESSON_WITH_VIDEO);
+    fixture.componentRef.setInput('courseId', 'c1' as CourseId);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('captionsTrack() returns null when captionsMeta is null', () => {
+    const c = buildWithVideo().componentInstance;
+    c.captionsMeta.set(null);
+    expect(c.captionsTrack()).toBeNull();
+  });
+
+  it('captionsTrack() returns a track object when captionsMeta is set and lesson has videoId', () => {
+    const c = buildWithVideo().componentInstance;
+    const meta: VideoCaptionsMeta = { language: 'en', label: 'English', updatedAt: 'x' };
+    c.onCaptionsMeta(meta);
+    expect(c.captionsTrack()).toEqual({
+      src: '/api/playback/captions/v1',
+      srclang: 'en',
+      label: 'English',
+    });
+  });
+
+  it('onCaptionsMeta() sets captionsMeta signal to the provided value', () => {
+    const c = buildWithVideo().componentInstance;
+    const meta: VideoCaptionsMeta = { language: 'en', label: 'English', updatedAt: 'x' };
+    c.onCaptionsMeta(meta);
+    expect(c.captionsMeta()).toEqual(meta);
+  });
+
+  it('onCaptionsMeta(null) sets captionsMeta to null and captionsTrack returns null', () => {
+    const c = buildWithVideo().componentInstance;
+    const meta: VideoCaptionsMeta = { language: 'en', label: 'English', updatedAt: 'x' };
+    c.onCaptionsMeta(meta);
+    c.onCaptionsMeta(null);
+    expect(c.captionsMeta()).toBeNull();
+    expect(c.captionsTrack()).toBeNull();
   });
 });
 

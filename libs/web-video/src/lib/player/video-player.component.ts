@@ -24,6 +24,7 @@ import { VideoPlayerService, type PlayerHandle } from './video-player.service';
 })
 export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
   readonly videoId = input.required<VideoId>();
+  readonly captions = input<{ src: string; srclang: string; label: string } | null>(null);
 
   @ViewChild('playerEl', { static: true })
   playerEl!: ElementRef<HTMLVideoElement>;

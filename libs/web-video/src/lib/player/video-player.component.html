@@ -6,7 +6,11 @@
     crossorigin="use-credentials"
     class="block w-full"
     data-testid="video-player"
-  ></video>
+  >
+    @if (captions(); as c) {
+      <track kind="subtitles" [src]="c.src" [srclang]="c.srclang" [label]="c.label" />
+    }
+  </video>
 </div>
 @if (error(); as msg) {
   <div
