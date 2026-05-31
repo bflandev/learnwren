@@ -43,6 +43,7 @@
           <lib-video-state-badge [video]="v" (stateChanged)="onVideoStateChanged($event)" />
         }
       }
+      <lib-captions-panel [videoId]="lesson().videoId!" />
     } @else {
       <lib-video-upload
         [courseId]="courseId()"

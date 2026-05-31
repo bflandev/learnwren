@@ -22,12 +22,13 @@ import {
 
 import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
 
+import { CaptionsPanelComponent } from '../../captions/captions-panel.component';
 import { MaterialsListComponent } from '../../materials/materials-list.component';
 
 @Component({
   selector: 'lib-lesson-item',
   standalone: true,
-  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, LwButtonDirective, LwInputDirective],
+  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, CaptionsPanelComponent, LwButtonDirective, LwInputDirective],
   templateUrl: './lesson-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
