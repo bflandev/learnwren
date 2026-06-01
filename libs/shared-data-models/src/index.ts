@@ -5,6 +5,7 @@ export * from './lib/module';
 export * from './lib/lesson';
 export * from './lib/lesson-view';
 export * from './lib/enrollment';
+export * from './lib/roster';
 export * from './lib/video';
 export * from './lib/material';
 export * from './lib/publish';
