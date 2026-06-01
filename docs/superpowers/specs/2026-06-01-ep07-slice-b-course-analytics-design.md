@@ -57,7 +57,7 @@ All metrics derive from three sources the platform already maintains: the course
 
 **Course summary**
 - `enrolledTotal` — number of ACTIVE enrollments.
-- `averageCompletionPercent` — mean over ACTIVE students of `round(distinctCompletedExistingLessons / totalLessons * 100)`; `0` when there are no students or no lessons. (Reuses the Slice A progress definition: a completed lesson counts only if `completedAt != null` **and** the lesson still exists in the course.)
+- `averageCompletionPercent` — `round(` mean over ACTIVE students of `distinctCompletedExistingLessons / totalLessons * 100 )` (the mean of unrounded per-student ratios, rounded once at the end); `0` when there are no students or no lessons. (Reuses the Slice A progress definition: a completed lesson counts only if `completedAt != null` **and** the lesson still exists in the course.)
 - `newEnrollments` — `{ last7Days, last30Days, last90Days }`, each the count of ACTIVE enrollments whose `createdAt >= now − N days`. `now` is the request time. (Windows are nested: a sign-up 3 days ago counts in all three.)
 
 **Per-lesson row** (one per current lesson, ordered by module `order`, then lesson `order`)
