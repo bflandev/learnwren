@@ -1,12 +1,20 @@
 <div class="mx-auto w-full max-w-4xl p-6">
   <header class="mb-5 flex items-center justify-between">
     <a routerLink="/courses" class="text-sm text-ochre hover:underline">← My Courses</a>
-    <a
-      [routerLink]="['/courses', cid(), 'students']"
-      data-testid="view-students"
-      class="text-sm text-ochre hover:underline"
-      >Students</a
-    >
+    <span class="flex gap-4">
+      <a
+        [routerLink]="['/courses', cid(), 'students']"
+        data-testid="view-students"
+        class="text-sm text-ochre hover:underline"
+        >Students</a
+      >
+      <a
+        [routerLink]="['/courses', cid(), 'analytics']"
+        data-testid="view-analytics"
+        class="text-sm text-ochre hover:underline"
+        >Analytics</a
+      >
+    </span>
   </header>
 
   @if (tree() === null) {

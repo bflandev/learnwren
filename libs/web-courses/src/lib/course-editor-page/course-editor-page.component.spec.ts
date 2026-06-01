@@ -627,6 +627,17 @@ describe('CourseEditorPageComponent', () => {
     expect(link!.getAttribute('href')).toContain('/students');
   });
 
+  it('links to the analytics page for the course', async () => {
+    const fixture = await initEditor();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
+      '[data-testid="view-analytics"]',
+    );
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute('href')).toContain('/analytics');
+  });
+
   describe('confirmMessage', () => {
     it('is empty when nothing is pending', async () => {
       const fixture = await initEditor();
