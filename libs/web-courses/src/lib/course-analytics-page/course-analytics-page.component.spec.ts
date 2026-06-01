@@ -115,4 +115,37 @@ describe('CourseAnalyticsPageComponent', () => {
       'could not load',
     );
   });
+
+  it('renders the loading state before the response arrives', () => {
+    const s = setup();
+    // Do NOT flush yet — the component is mid-request, state === 'loading'.
+    expect((s.fixture.nativeElement as HTMLElement).textContent).toContain('Loading');
+    // Now satisfy the outstanding request so the test ends cleanly.
+    s.http.expectOne('/api/courses/course-1/analytics').flush(VIEW);
+  });
+
+  it('falls back to an empty course id when the route has no id param', () => {
+    TestBed.configureTestingModule({
+      imports: [CourseAnalyticsPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { paramMap: of(new Map()) } },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(CourseAnalyticsPageComponent);
+    fixture.detectChanges();
+    // cid() === '' so the request URL has an empty id segment.
+    http.expectOne('/api/courses//analytics').flush({
+      courseId: '',
+      enrolledTotal: 0,
+      averageCompletionPercent: 0,
+      newEnrollments: { last7Days: 0, last30Days: 0, last90Days: 0 },
+      totalLessons: 0,
+      lessons: [],
+      generatedAt: '2026-06-01T00:00:00.000Z',
+    } as never);
+  });
 });
