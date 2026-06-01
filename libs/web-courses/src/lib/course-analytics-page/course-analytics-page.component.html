@@ -1,0 +1,82 @@
+<section class="mx-auto max-w-4xl p-4">
+  <header class="mb-5">
+    <a [routerLink]="['/courses', cid(), 'edit']" class="text-sm text-ochre hover:underline"
+      >← Back to course</a
+    >
+    <h1 class="mt-1 font-serif text-2xl text-ink">Course analytics</h1>
+  </header>
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="text-ink-3">Loading…</p>
+    }
+    @case ('error') {
+      <lw-card>
+        <p class="text-bad">We could not load the analytics.</p>
+        <button type="button" class="lw-btn lw-btn-secondary mt-3" (click)="load()">Try again</button>
+      </lw-card>
+    }
+    @case ('loaded') {
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <lw-card>
+          <p class="text-ink-3 text-xs uppercase tracking-wide">Enrolled students</p>
+          <p class="mt-1 font-serif text-3xl text-ink" data-testid="enrolled-total">
+            {{ view()!.enrolledTotal }}
+          </p>
+        </lw-card>
+        <lw-card>
+          <p class="text-ink-3 text-xs uppercase tracking-wide">Average completion</p>
+          <p class="mt-1 font-serif text-3xl text-ink" data-testid="avg-completion">
+            {{ view()!.averageCompletionPercent }}%
+          </p>
+        </lw-card>
+        <lw-card>
+          <p class="text-ink-3 text-xs uppercase tracking-wide">New enrollments</p>
+          <p class="mt-1 text-ink-2 text-sm" data-testid="new-enrollments">
+            {{ view()!.newEnrollments.last7Days }} in 7d ·
+            {{ view()!.newEnrollments.last30Days }} in 30d ·
+            {{ view()!.newEnrollments.last90Days }} in 90d
+          </p>
+        </lw-card>
+      </div>
+
+      <p class="text-ink-3 mt-3 text-xs">Updated {{ view()!.generatedAt | date: 'medium' }}</p>
+
+      @if (view()!.lessons.length === 0) {
+        <lw-card>
+          <p class="text-ink-2 mt-4">No lessons yet — add lessons to see per-lesson analytics.</p>
+        </lw-card>
+      } @else {
+        <lw-card>
+          <table class="mt-2 w-full text-left text-sm">
+            <thead class="text-ink-3">
+              <tr>
+                <th class="py-2">Lesson</th>
+                <th class="py-2">Completion</th>
+                <th class="py-2">Avg. progress</th>
+                <th class="py-2">Duration</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of view()!.lessons; track row.lessonId) {
+                <tr class="border-t border-bg-2">
+                  <td class="py-2 text-ink" data-testid="lesson-title">{{ row.title }}</td>
+                  <td class="py-2 text-ink-2">{{ row.completionRatePercent }}%</td>
+                  <td class="py-2 text-ink-2">
+                    {{ clock(row.averageWatchedSeconds) }}
+                    @if (row.averageWatchedPercent !== null) {
+                      · {{ row.averageWatchedPercent }}%
+                    }
+                  </td>
+                  <td class="py-2 text-ink-2" data-testid="lesson-duration">
+                    {{ row.durationSec !== null ? clock(row.durationSec) : '—' }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </lw-card>
+      }
+    }
+  }
+</section>
