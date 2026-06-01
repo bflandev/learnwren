@@ -66,6 +66,16 @@ export class EnrollmentRepository {
     return snap.exists ? (snap.data() as Enrollment) : null;
   }
 
+  /** All ACTIVE enrollments for a course — the instructor roster source (US-07-01). */
+  async listActiveByCourse(courseId: CourseId): Promise<Enrollment[]> {
+    const snap = await this.db
+      .collection(ENROLLMENTS)
+      .where('courseId', '==', courseId)
+      .where('status', '==', 'ACTIVE')
+      .get();
+    return snap.docs.map((d) => d.data() as Enrollment);
+  }
+
   /** True only when an ACTIVE enrollment exists. Consumed by the access guards. */
   async isEnrolled(userId: UserId, courseId: CourseId): Promise<boolean> {
     const enrollment = await this.getEnrollment(userId, courseId);

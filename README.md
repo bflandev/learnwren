@@ -15,10 +15,11 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > - **EP-06 Slice B: Mark a lesson complete** — enrolled students click **Mark as Complete** on the lesson page; the API persists `completedAt` on their per-lesson progress; the button swaps to a "✓ Completed" pill that persists across reload and across a `WITHDRAWN → ACTIVE` re-enrolment. Per-lesson only; module / course rollups and the course-outline panel are deferred.
 > - **EP-06 Slice C: Resume Learning** — opening a lesson is tracked per-enrolment; the course-detail page surfaces **Continue Learning** (falling back to **Start Learning** for new enrolments and owners); the lesson player auto-saves position every ~15 s, flushes on pause / `pagehide` / tab hidden via `navigator.sendBeacon`, and resumes within 5 s on revisit. Position writes are idempotent and monotonic (out-of-order beacons cannot rewind progress).
 > - **EP-06 Slice D: Course Outline Panel** — the lesson player renders a collapsible left sidebar (desktop) or drawer (mobile) listing every module and lesson in the course; the active lesson is highlighted; completed lessons carry a checkmark; lessons whose video is still processing surface an inline notice; clicking a different lesson navigates and flushes any in-flight playback position.
+> - **EP-07 Slice A: Enrolled students roster (US-07-01)** — a course owner opens **Students** from the course editor to reach `/courses/:cid/students`, a table of the course's ACTIVE enrollees showing display name, email, enrollment date, and progress (completed ÷ total lessons). Sortable by enrollment date and progress; exportable as an RFC-4180 CSV generated in-browser. Owner-only (`GET /api/courses/:cid/students`, `CourseOwnerGuard`). Analytics (US-07-02) and new-module notifications (US-07-03) are deferred to later EP-07 slices.
 >
 > - **Course cover image upload** — instructors can upload a cover from the course editor (JPEG or PNG, ≥1280×720, ≤10 MB); uploads are auto-resized to a canonical 1920×1080 JPEG. Replace or remove from the same panel.
 >
-> Not built yet: module / course completion rollups (rest of EP-06), instructor dashboard (EP-07), remaining EP-08 admin stories (Manage Users, Manage Categories, Monitor Platform Health). US-08-03 (admin instructor-application review) is shipped. `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
+> Not built yet: module / course completion rollups (rest of EP-06), the rest of the instructor dashboard (EP-07 Slices B–C: analytics, new-module notifications), remaining EP-08 admin stories (Manage Users, Manage Categories, Monitor Platform Health). US-08-03 (admin instructor-application review) is shipped. `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
 
 ---
 
@@ -224,6 +225,12 @@ The API endpoints exposed by EP-06 Slices A & B (student lesson playback + mark-
 | :--- | :--- | :--- |
 | `GET` | `/api/learn/courses/:cid/lessons/:lid` | The caller's lesson view (course + lesson + video state + per-lesson progress + course outline + lesson materials); 403 unless owner or active enrollee on a PUBLISHED course; 404 if the lesson does not belong to the course. |
 | `POST` | `/api/learn/courses/:cid/lessons/:lid/complete` | Mark the lesson complete for the caller. Idempotent (returns 200 with the same `completedAt` on repeat calls). 403 `NOT_ENROLLED_LESSON` for owners and for non-active enrolments. |
+
+The API endpoints exposed by EP-07 Slice A (instructor roster — session cookie + course owner required):
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/api/courses/:cid/students` | The course owner's roster of ACTIVE enrollees: display name, email, enrollment date, completed/total lessons, progress %. `403` for non-owners, `404` for a missing course. |
 
 For the full auth dev workflow, the deferred items, and error-code → prose mappings, see [`docs/development.md`](./docs/development.md#auth-dev-workflow) and the design specs at [`docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md`](./docs/superpowers/specs/2026-05-04-auth-registration-and-login-design.md) and [`docs/superpowers/specs/2026-05-06-auth-hardening-design.md`](./docs/superpowers/specs/2026-05-06-auth-hardening-design.md).
 

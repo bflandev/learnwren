@@ -29,6 +29,13 @@ export const coursesRoutes: Route[] = [
             (m) => m.CourseEditorPageComponent,
           ),
       },
+      {
+        path: ':id/students',
+        loadComponent: () =>
+          import('./course-students-page/course-students-page.component').then(
+            (m) => m.CourseStudentsPageComponent,
+          ),
+      },
     ],
   },
 ];

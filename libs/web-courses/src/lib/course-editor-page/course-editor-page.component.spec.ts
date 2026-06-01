@@ -616,6 +616,17 @@ describe('CourseEditorPageComponent', () => {
     });
   });
 
+  it('links to the students roster for the course', async () => {
+    const fixture = await initEditor();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
+      '[data-testid="view-students"]',
+    );
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute('href')).toContain('/students');
+  });
+
   describe('confirmMessage', () => {
     it('is empty when nothing is pending', async () => {
       const fixture = await initEditor();
