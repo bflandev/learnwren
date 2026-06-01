@@ -1,0 +1,78 @@
+<section class="mx-auto max-w-4xl p-4">
+  <header class="mb-5 flex items-center justify-between">
+    <div>
+      <a [routerLink]="['/courses', cid(), 'edit']" class="text-sm text-ochre hover:underline"
+        >← Back to course</a
+      >
+      <h1 class="mt-1 font-serif text-2xl text-ink">Enrolled students</h1>
+    </div>
+    @if (state() === 'loaded' && rows().length > 0) {
+      <button
+        type="button"
+        data-testid="export-csv"
+        class="lw-btn lw-btn-secondary"
+        (click)="exportCsv()"
+      >
+        Export CSV
+      </button>
+    }
+  </header>
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="text-ink-3">Loading…</p>
+    }
+    @case ('error') {
+      <lw-card>
+        <p class="text-bad">We could not load the student list.</p>
+        <button type="button" class="lw-btn lw-btn-secondary mt-3" (click)="load()">Try again</button>
+      </lw-card>
+    }
+    @case ('loaded') {
+      @if (rows().length === 0) {
+        <lw-card>
+          <p class="text-ink-2">No students enrolled yet.</p>
+        </lw-card>
+      } @else {
+        <lw-card>
+          <table class="w-full text-left text-sm">
+            <thead class="text-ink-3">
+              <tr>
+                <th class="py-2">Name</th>
+                <th class="py-2">Email</th>
+                <th class="py-2">
+                  <button type="button" class="hover:underline" (click)="toggleSort('enrolledAt')">
+                    Enrolled
+                    @if (sortKey() === 'enrolledAt') {
+                      <span aria-hidden="true">{{ sortDir() === 'asc' ? '▲' : '▼' }}</span>
+                    }
+                  </button>
+                </th>
+                <th class="py-2">
+                  <button type="button" class="hover:underline" (click)="toggleSort('progress')">
+                    Progress
+                    @if (sortKey() === 'progress') {
+                      <span aria-hidden="true">{{ sortDir() === 'asc' ? '▲' : '▼' }}</span>
+                    }
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows(); track row.userId) {
+                <tr class="border-t border-bg-2">
+                  <td class="py-2 text-ink" data-testid="student-name">{{ row.displayName }}</td>
+                  <td class="py-2 text-ink-2">{{ row.email }}</td>
+                  <td class="py-2 text-ink-2">{{ row.enrolledAt | date: 'mediumDate' }}</td>
+                  <td class="py-2 text-ink-2">
+                    {{ row.completedLessons }} / {{ row.totalLessons }} · {{ row.progressPercent }}%
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </lw-card>
+      }
+    }
+  }
+</section>
