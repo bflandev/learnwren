@@ -397,6 +397,45 @@ describe('VideoRepository.listVideoStatesForLessons', () => {
   });
 });
 
+describe('VideoRepository.listVideosForLessons', () => {
+  it('returns a Map with full Video docs keyed by lessonId, absent for lessons with no video', async () => {
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({
+        id: 'v1' as VideoId,
+        lessonId: 'lesson-1' as LessonId,
+        state: 'READY' as VideoState,
+        output: { bucket: 'out-bucket', manifestPath: 'out/v1/manifest.m3u8', durationSec: 180 },
+      }),
+      'videos/v2': makeVideo({
+        id: 'v2' as VideoId,
+        lessonId: 'lesson-2' as LessonId,
+        state: 'TRANSCODING' as VideoState,
+      }),
+    });
+    const repo = await buildRepo(fake);
+
+    const map = await repo.listVideosForLessons([
+      'lesson-1' as LessonId,
+      'lesson-2' as LessonId,
+      'lesson-3' as LessonId,
+    ]);
+
+    expect(map.get('lesson-1' as LessonId)?.id).toBe('v1');
+    expect(map.get('lesson-1' as LessonId)?.output?.durationSec).toBe(180);
+    expect(map.get('lesson-2' as LessonId)?.state).toBe('TRANSCODING');
+    expect(map.has('lesson-3' as LessonId)).toBe(false);
+  });
+
+  it('returns an empty Map for an empty input', async () => {
+    const fake = createFakeFirestore();
+    const repo = await buildRepo(fake);
+
+    const map = await repo.listVideosForLessons([]);
+
+    expect(map.size).toBe(0);
+  });
+});
+
 function makeCaptions(overrides: Partial<VideoCaptions> = {}): VideoCaptions {
   return {
     videoId: 'v1' as VideoId,

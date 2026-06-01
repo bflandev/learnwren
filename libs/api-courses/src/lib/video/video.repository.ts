@@ -76,6 +76,18 @@ export class VideoRepository {
     return out;
   }
 
+  /** Full Video docs for the given lessons, keyed by lessonId. Lessons with no video are absent. */
+  async listVideosForLessons(lessonIds: LessonId[]): Promise<Map<LessonId, Video>> {
+    const out = new Map<LessonId, Video>();
+    const unique = [...new Set(lessonIds)];
+    if (unique.length === 0) return out;
+    const results = await Promise.all(unique.map((lid) => this.getVideoByLesson(lid)));
+    results.forEach((video, i) => {
+      if (video) out.set(unique[i]!, video);
+    });
+    return out;
+  }
+
   async getVideoKey(kid: VideoKeyId): Promise<VideoKey | null> {
     const snap = await this.videoKeyRef(kid).get();
     return snap.exists ? (snap.data() as VideoKey) : null;
