@@ -49,6 +49,7 @@ This guide covers **every feature wired up so far** from two angles:
 | Learning | Resume / last-watched and course-outline panel | Built |
 | Learning | Completion rollups (module / course level) | Not built |
 | Instructor dashboard | Enrolled students roster (US-07-01) | Built (2026-06-01) |
+| Instructor dashboard | Course analytics (US-07-02) | Built (2026-06-01) |
 | Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
 | Cover images | Course cover image upload / replace / remove | Built |
 | Video | Lesson captions (WebVTT, one English track per lesson) | Built (2026-05-30) |
@@ -710,8 +711,53 @@ RFC-4180-compliant CSV file generated entirely in the browser (no extra API call
 > (status `WITHDRAWN`) are not shown. This page is visible to the course owner only —
 > visiting it as a non-owner returns a `403`.
 
-Analytics (US-07-02) and new-module notifications (US-07-03) are deferred to later
-EP-07 slices.
+New-module notifications (US-07-03) are deferred to a later EP-07 slice.
+
+---
+
+## 2.21 Course analytics (EP-07 Slice B, US-07-02)
+
+Course owners can view live engagement analytics for their course from the course editor.
+
+**How to reach it:** open the course editor (`/courses/:cid/edit`) and click the
+**Analytics** link in the editor header — or navigate directly to
+`/courses/:cid/analytics`.
+
+### Course summary
+
+The top of the page shows three summary figures:
+
+- **Enrolled** — the total number of currently ACTIVE enrollees.
+- **Avg. completion** — the average per-student completion percentage across all ACTIVE
+  enrollees (completed lessons ÷ total lessons, averaged).
+- **New enrollments** — a sparkline-style count of new enrollments over the last **7**,
+  **30**, and **90** days.
+
+### Per-lesson breakdown
+
+Below the summary, a table lists every lesson in the course with:
+
+- **Lesson title** (including its module name for context).
+- **Completion rate** — the percentage of ACTIVE enrollees who have marked the lesson
+  complete.
+- **Avg. progress** — the average furthest-watched position across all ACTIVE enrollees,
+  expressed both as **m:ss** and as a **% of the lesson's video duration**. Shown as
+  **—** when no student has watched the lesson yet.
+- **Duration** — the video's total duration, shown as **m:ss**. Shown as **—** when
+  the video is not yet ready (still uploading or transcoding).
+
+> **Note on "average progress":** this figure reflects the furthest position each
+> student reached in the video (`lastWatchedSeconds`), not the cumulative time they
+> spent watching. A student who skipped to the end will appear at 100% even if they
+> only watched a few seconds.
+
+### Access and freshness
+
+- **Owner-only** — this page is visible to the course owner only; visiting it as a
+  non-owner returns a `403`.
+- **Computed live** — analytics are calculated fresh on each page load from the current
+  enrollment and progress data. There is no caching or scheduled aggregation job, so the
+  figures always reflect the latest state.
 
 ---
 
@@ -924,6 +970,7 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `/courses/new` | `instructorRoleGuard` | Create a course. |
 | `/courses/:id/edit` | `instructorRoleGuard` | Course editor: modules, lessons, video, publish bar. |
 | `/courses/:cid/students` | `instructorRoleGuard` + `CourseOwnerGuard` | Enrolled students roster for the course (US-07-01). |
+| `/courses/:cid/analytics` | `instructorRoleGuard` + `CourseOwnerGuard` | Live course analytics: enrolled total, avg. completion, new enrollments, per-lesson breakdown (US-07-02). |
 | `/admin/instructor-applications` | `adminRoleGuard` | Pending instructor-application review queue (US-08-03). |
 
 ## 3.11 Roles and guards
@@ -1060,7 +1107,7 @@ These are specified in `docs/epics/` and `docs/use-cases/` but **not yet impleme
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll are
   live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than 90 days is
   not implemented.
-- **Instructor dashboard, remaining slices (EP-07 Slices B–C)** — analytics (US-07-02) and new-module notifications (US-07-03) are deferred. The enrolled-students roster (US-07-01, Slice A) is shipped.
+- **Instructor dashboard, remaining slice (EP-07 Slice C)** — new-module notifications (US-07-03) are deferred. The enrolled-students roster (US-07-01, Slice A) and course analytics (US-07-02, Slice B) are shipped.
 - **Remaining EP-08 admin features** — Manage Users, Manage Categories, and Monitor Platform Health are deferred post-MVP. The admin instructor-application review queue (US-08-03) is shipped.
 - **Account management sub-flows** — account deletion, social auth, and App Check are out of scope for MVP. UC-01-03 (manage profile) is now fully implemented across Slices A–D (text profile, picture, email change, password change).
 
