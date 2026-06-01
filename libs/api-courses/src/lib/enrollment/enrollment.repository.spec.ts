@@ -437,6 +437,46 @@ describe('EnrollmentRepository.setLastWatchedSeconds', () => {
   });
 });
 
+describe('EnrollmentRepository.listActiveByCourse', () => {
+  const NOW = '2026-01-01T00:00:00.000Z' as ISODateString;
+
+  function enrollment(userId: string, courseId: string, status: 'ACTIVE' | 'WITHDRAWN'): Enrollment {
+    const uid = userId as UserId;
+    const cid = courseId as CourseId;
+    const id = enrollmentId(uid, cid);
+    return {
+      id,
+      userId: uid,
+      courseId: cid,
+      status,
+      progress: [],
+      withdrawnAt: status === 'WITHDRAWN' ? NOW : null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+  }
+
+  it('returns only ACTIVE enrollments scoped to the requested course', async () => {
+    const e1 = enrollment('u1', 'course-1', 'ACTIVE');
+    const e2 = enrollment('u2', 'course-1', 'ACTIVE');
+    const e3 = enrollment('u3', 'course-1', 'WITHDRAWN');
+    const e4 = enrollment('u4', 'course-2', 'ACTIVE');
+    const { repo } = repoWith({
+      [`enrollments/${e1.id}`]: e1,
+      [`enrollments/${e2.id}`]: e2,
+      [`enrollments/${e3.id}`]: e3,
+      [`enrollments/${e4.id}`]: e4,
+    });
+
+    const rows = await repo.listActiveByCourse('course-1' as CourseId);
+
+    expect(rows.map((r) => r.userId).sort()).toEqual(['u1', 'u2']);
+    expect(rows.every((r) => r.status === 'ACTIVE')).toBe(true);
+  });
+});
+
 describe('EnrollmentRepository.enroll (Slice C fields)', () => {
   it('seeds lastAccessedLessonId=null and lastAccessedAt=null on first enrol', async () => {
     const { repo } = repoWith({ [`courses/${CID}`]: course() });
