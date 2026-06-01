@@ -36,6 +36,13 @@ export const coursesRoutes: Route[] = [
             (m) => m.CourseStudentsPageComponent,
           ),
       },
+      {
+        path: ':id/analytics',
+        loadComponent: () =>
+          import('./course-analytics-page/course-analytics-page.component').then(
+            (m) => m.CourseAnalyticsPageComponent,
+          ),
+      },
     ],
   },
 ];
