@@ -48,6 +48,7 @@ This guide covers **every feature wired up so far** from two angles:
 | Learning | Mark lesson complete + persistent completed pill | Built |
 | Learning | Resume / last-watched and course-outline panel | Built |
 | Learning | Completion rollups (module / course level) | Not built |
+| Instructor dashboard | Enrolled students roster (US-07-01) | Built (2026-06-01) |
 | Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
 | Cover images | Course cover image upload / replace / remove | Built |
 | Video | Lesson captions (WebVTT, one English track per lesson) | Built (2026-05-30) |
@@ -682,6 +683,38 @@ Health) are deferred post-MVP.
 
 ---
 
+## 2.20 Viewing enrolled students (EP-07 Slice A, US-07-01)
+
+Course owners can view a roster of their enrolled students from the course editor.
+
+**How to reach it:** open the course editor (`/courses/:cid/edit`) and click the
+**Students** link in the editor header — or navigate directly to
+`/courses/:cid/students`.
+
+The page shows a table of every **currently-enrolled (ACTIVE)** student in the course,
+with the following columns:
+
+- **Display name** — the student's display name.
+- **Email** — the student's email address.
+- **Enrolled** — the date the student enrolled.
+- **Progress** — the number of lessons the student has completed out of the total lesson
+  count, plus a percentage (e.g. `5 / 10 · 50%`).
+
+**Sorting:** click the **Enrolled** or **Progress** column header to sort the table
+client-side (click again to toggle direction). Other columns are not sortable.
+
+**Export:** click **Export CSV** to download the current table as an
+RFC-4180-compliant CSV file generated entirely in the browser (no extra API call).
+
+> **Note:** only ACTIVE enrollees appear. Students who have left the course
+> (status `WITHDRAWN`) are not shown. This page is visible to the course owner only —
+> visiting it as a non-owner returns a `403`.
+
+Analytics (US-07-02) and new-module notifications (US-07-03) are deferred to later
+EP-07 slices.
+
+---
+
 # Part 3 — Developer & API reference
 
 ## 3.1 Architecture in one paragraph
@@ -890,6 +923,7 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `/courses` | `instructorRoleGuard` | Instructor's course list. |
 | `/courses/new` | `instructorRoleGuard` | Create a course. |
 | `/courses/:id/edit` | `instructorRoleGuard` | Course editor: modules, lessons, video, publish bar. |
+| `/courses/:cid/students` | `instructorRoleGuard` + `CourseOwnerGuard` | Enrolled students roster for the course (US-07-01). |
 | `/admin/instructor-applications` | `adminRoleGuard` | Pending instructor-application review queue (US-08-03). |
 
 ## 3.11 Roles and guards
@@ -1026,7 +1060,7 @@ These are specified in `docs/epics/` and `docs/use-cases/` but **not yet impleme
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll are
   live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than 90 days is
   not implemented.
-- **Instructor dashboard (EP-07)** — post-MVP.
+- **Instructor dashboard, remaining slices (EP-07 Slices B–C)** — analytics (US-07-02) and new-module notifications (US-07-03) are deferred. The enrolled-students roster (US-07-01, Slice A) is shipped.
 - **Remaining EP-08 admin features** — Manage Users, Manage Categories, and Monitor Platform Health are deferred post-MVP. The admin instructor-application review queue (US-08-03) is shipped.
 - **Account management sub-flows** — account deletion, social auth, and App Check are out of scope for MVP. UC-01-03 (manage profile) is now fully implemented across Slices A–D (text profile, picture, email change, password change).
 
