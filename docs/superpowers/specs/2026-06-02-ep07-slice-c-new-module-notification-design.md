@@ -109,7 +109,7 @@ export interface NewModuleEmailInput {
 }
 ```
 
-> The service constructs `courseUrl` from the **same web base-URL configuration the existing verification / instructor-application emails use**. Because every recipient is an enrolled student, the link targets the course's **learn entry point** (the route the student app uses to resume the course), not the public catalog detail page. The implementation plan confirms the exact config key and route; if no shared base-URL config is currently centralised, reuse whatever the email-change verification flow reads.
+> The service builds `courseUrl` exactly like the existing emails do: an inline `continueUrl(path)` helper reading `process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200'` (this is a duplicated convention — `account-recovery.service.ts` and `email-change.service.ts` each carry their own copy; there is no shared util, so inline it). The link targets the course's **landing/detail page `/catalog/{courseId}`** — the student's entry point to (re)start the course, which itself renders the resume-into-`/learn` CTA. (The `/learn` route is `learn/:courseId/:lessonId` and requires a specific lesson id; since the approved content decision is to link to *the course* rather than deep-link a module, `/catalog/:id` is the correct, robust target.) So `courseUrl = this.continueUrl('/catalog/' + course.id)`.
 
 ## 3. API — `libs/api-courses/src/lib/notifications/`
 
