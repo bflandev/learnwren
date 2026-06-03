@@ -12,7 +12,7 @@
         <h1 class="text-xl font-semibold text-ink">{{ u.displayName }}</h1>
         <p class="text-sm text-muted">{{ u.email }}</p>
       </div>
-      <span class="ml-auto rounded bg-surface px-2 py-0.5 text-xs text-muted">{{ u.role }}</span>
+      <span class="ml-auto rounded bg-bg-2 px-2 py-0.5 text-xs text-muted">{{ u.role }}</span>
     </div>
 
     <dl class="mt-6 grid grid-cols-[8rem_1fr] gap-2 text-sm">
@@ -29,7 +29,7 @@
           <li class="flex items-baseline justify-between gap-4 py-2 text-sm">
             <span class="text-ink">{{ e.courseTitle }}</span>
             <span class="flex items-center gap-3">
-              <span class="rounded bg-surface px-2 py-0.5 text-xs text-muted">{{ e.status }}</span>
+              <span class="rounded bg-bg-2 px-2 py-0.5 text-xs text-muted">{{ e.status }}</span>
               <span class="text-xs text-muted">{{ e.enrolledAt | date: 'mediumDate' }}</span>
             </span>
           </li>
@@ -43,7 +43,7 @@
         @for (c of u.authoredCourses; track c.courseId) {
           <li class="flex items-baseline justify-between gap-4 py-2 text-sm">
             <span class="text-ink">{{ c.title }}</span>
-            <span class="rounded bg-surface px-2 py-0.5 text-xs text-muted">{{ c.status }}</span>
+            <span class="rounded bg-bg-2 px-2 py-0.5 text-xs text-muted">{{ c.status }}</span>
           </li>
         }
       </ul>
