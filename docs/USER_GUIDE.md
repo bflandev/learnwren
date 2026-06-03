@@ -711,7 +711,7 @@ RFC-4180-compliant CSV file generated entirely in the browser (no extra API call
 > (status `WITHDRAWN`) are not shown. This page is visible to the course owner only —
 > visiting it as a non-owner returns a `403`.
 
-New-module notifications (US-07-03) shipped in EP-07 Slice C — see [2.22 Notifying students of a new module](#222-notifying-students-of-a-new-module).
+New-module notifications (US-07-03) shipped in EP-07 Slice C — see [2.22 Notifying students of a new module](#222-notifying-students-of-a-new-module-ep-07-slice-c-us-07-03).
 
 ---
 
@@ -762,8 +762,6 @@ Below the summary, a table lists every lesson in the course with:
 ---
 
 ## 2.22 Notifying students of a new module (EP-07 Slice C, US-07-03)
-
-### Notifying students of a new module
 
 When you add a new module to a **published** course, enrolled students are not told automatically. Once the module has at least one lesson and is ready, click **Notify students** on that module in the course editor to email every active enrollee a short note with a link to the course. This can be done **once per module** — after notifying, the button is replaced with "Students notified ⟨date⟩". Minor edits (renaming, editing lessons, replacing a video, updating materials) never email students.
 
