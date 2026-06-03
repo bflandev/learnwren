@@ -10,9 +10,10 @@
     <div class="flex flex-col gap-2">
       @switch (state()) {
         @case ('idle') {
-          <label class="cursor-pointer underline">
+          <label class="cursor-pointer underline" for="profile-picture-input">
             <input
-              hidden
+              id="profile-picture-input"
+              class="sr-only"
               type="file"
               accept="image/jpeg,image/png"
               (change)="onFileSelected($any($event.target).files[0])"

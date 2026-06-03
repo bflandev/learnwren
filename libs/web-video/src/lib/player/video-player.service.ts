@@ -14,6 +14,15 @@ export const HLS_CONSTRUCTOR = new InjectionToken<typeof HlsImport>('HLS_CONSTRU
   factory: () => HlsImport,
 });
 
+/** True when `url` resolves to the app's own origin (the same-origin API). */
+function isSameOrigin(url: string): boolean {
+  try {
+    return new URL(url, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 function userMessageFor(details: string | undefined): string {
   switch (details) {
     case 'manifestLoadError':
@@ -44,8 +53,16 @@ export class VideoPlayerService {
     const Hls = this.Hls;
     if (Hls.isSupported()) {
       const hls = new Hls({
-        xhrSetup: (xhr: XMLHttpRequest) => {
-          xhr.withCredentials = true;
+        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
+          // Only attach the first-party session cookie to same-origin API
+          // requests (the manifest and DRM-key endpoints, which re-authorize via
+          // EnrollmentOrOwnerGuard). HLS segments are signed cross-origin GCS
+          // URLs whose authorization already travels in the URL — sending the
+          // cookie there is unnecessary and would force credentialed CORS on the
+          // bucket.
+          if (isSameOrigin(url)) {
+            xhr.withCredentials = true;
+          }
         },
       });
       hls.on(Hls.Events.ERROR, (_: unknown, data: { fatal: boolean; details?: string }) => {

@@ -1,5 +1,6 @@
 import {
   AfterViewInit,
+  ChangeDetectionStrategy,
   Component,
   ElementRef,
   EventEmitter,
@@ -22,6 +23,7 @@ import { VideoPlayerService, type PlayerHandle } from './video-player.service';
   standalone: true,
   imports: [LwButtonDirective],
   templateUrl: './video-player.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
   readonly videoId = input.required<VideoId>();

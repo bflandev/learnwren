@@ -220,6 +220,6 @@ describe('CourseOutlinePanelComponent (default Input values)', () => {
     fixture.componentRef.setInput('courseId', CID);
     fixture.componentRef.setInput('mode', 'sidebar');
     // intentionally omit setInput('outlineOpen', ...) — assert default
-    expect(fixture.componentInstance.outlineOpen).toBe(true);
+    expect(fixture.componentInstance.outlineOpen()).toBe(true);
   });
 });

@@ -16,6 +16,7 @@ import { CoursesService } from '../courses.service';
 export class CoursesListPageComponent {
   private readonly service = inject(CoursesService);
   readonly courses = signal<Course[] | null>(null);
+  readonly error = signal<boolean>(false);
   readonly coverToneForId = coverToneForId;
 
   constructor() {
@@ -23,7 +24,14 @@ export class CoursesListPageComponent {
   }
 
   async refresh(): Promise<void> {
+    this.error.set(false);
     this.courses.set(null);
-    this.courses.set(await this.service.listCourses());
+    try {
+      this.courses.set(await this.service.listCourses());
+    } catch {
+      // Surface a recoverable error state instead of an unhandled rejection that
+      // leaves the page stuck on "Loading…".
+      this.error.set(true);
+    }
   }
 }

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { InsufficientRoleException } from '@learnwren/api-auth';
 
+import { NotEnrolledException } from '../errors/courses.exception';
 import { LessonNotFoundException, NotLessonOwnerException } from './errors/learn.exception';
 import { LearnExceptionFilter } from './learn.exception-filter';
 
@@ -66,6 +67,19 @@ describe('LearnExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(403);
     expect(json).toHaveBeenCalledWith({
       error: { code: 'INSUFFICIENT_ROLE', message: 'Insufficient role.' },
+    });
+  });
+
+  it('delegates a NotEnrolledException (CoursesException subclass) to a 404 NOT_ENROLLED', () => {
+    // Regression: markLessonComplete/setLastWatchedSeconds re-check enrollment
+    // inside their transactions and throw NotEnrolledException — a CoursesException,
+    // not a LearnException. It must render as 404, not leak as a 500.
+    const filter = new LearnExceptionFilter();
+    const { host, status, json } = buildHost();
+    filter.catch(new NotEnrolledException(), host);
+    expect(status).toHaveBeenCalledWith(404);
+    expect(json).toHaveBeenCalledWith({
+      error: { code: 'NOT_ENROLLED', message: 'You are not enrolled in this course.' },
     });
   });
 

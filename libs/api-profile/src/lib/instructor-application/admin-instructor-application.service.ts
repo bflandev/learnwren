@@ -1,6 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { FIRESTORE, type FirestoreHandle, FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
+import {
+  FIRESTORE,
+  type FirestoreHandle,
+  FIREBASE_AUTH,
+  type FirebaseAuthHandle,
+  readStoredUserProfiles,
+} from '@learnwren/api-firebase';
 import { EMAIL_TRANSPORT, type EmailTransport } from '@learnwren/api-auth';
 import type {
   InstructorApplication,
@@ -36,20 +42,21 @@ export class AdminInstructorApplicationService {
 
   async listPending(): Promise<PendingInstructorApplicationsResponse> {
     const snap = await this.firestore.collection(COLLECTION).where('status', '==', 'PENDING').get();
-    const applications: PendingInstructorApplicationView[] = [];
-    for (const doc of snap.docs) {
-      const app = doc.data() as InstructorApplication;
-      const userSnap = await this.firestore.collection('users').doc(app.uid).get();
-      const user = userSnap.data() as { displayName?: string; email?: string } | undefined;
-      applications.push({
+    const apps = snap.docs.map((doc) => doc.data() as InstructorApplication);
+    // One parallel batch read of users/{uid} instead of a serial per-application
+    // round-trip loop, via the shared reader (single source of truth).
+    const profiles = await readStoredUserProfiles(this.firestore, apps.map((a) => a.uid));
+    const applications: PendingInstructorApplicationView[] = apps.map((app) => {
+      const user = profiles.get(app.uid);
+      return {
         uid: app.uid,
         displayName: user?.displayName ?? '',
         email: user?.email ?? '',
         statement: app.statement,
         expertise: app.expertise,
         createdAt: app.createdAt,
-      });
-    }
+      };
+    });
     return { applications };
   }
 

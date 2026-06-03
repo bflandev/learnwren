@@ -52,11 +52,10 @@ test('instructor can create a course, add a module + lesson, rename, delete', as
   // Editor loads
   await expect(page.getByTestId('course-meta')).toBeVisible({ timeout: 10_000 });
 
-  // Add a module via the prompt
-  page.once('dialog', async (dialog) => {
-    await dialog.accept('Module One');
-  });
+  // Add a module via the inline input
   await page.getByTestId('add-module').click();
+  await page.getByTestId('new-module-title').fill('Module One');
+  await page.getByTestId('add-module-confirm').click();
 
   // Module appears
   await expect(page.getByTestId('module-title')).toHaveText('Module One', { timeout: 5_000 });
@@ -101,6 +100,6 @@ test('STUDENT is redirected away from /courses', async ({ page, request }) => {
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
 
   await page.goto('/courses');
-  // canMatch guard sends non-INSTRUCTOR users to '/' which redirects to '/login'
+  // instructorRoleGuard (canActivate) redirects an authenticated non-INSTRUCTOR away from /courses
   await expect(page).not.toHaveURL(/\/courses/);
 });

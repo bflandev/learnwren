@@ -80,8 +80,10 @@ describe('PasswordChangeExceptionFilter', () => {
     [403, 'FORBIDDEN'],
     [404, 'NOT_FOUND'],
     [409, 'CONFLICT'],
-    [418, 'ERROR'],
-    [500, 'ERROR'],
+    // Now delegates to the shared codeForStatus, whose default is HTTP_ERROR
+    // (the old hand-rolled copy returned 'ERROR').
+    [418, 'HTTP_ERROR'],
+    [500, 'HTTP_ERROR'],
   ])('maps a generic HttpException status %i via codeForStatus', (httpStatus, expectedCode) => {
     const { host, status, json } = mockHost();
     new PasswordChangeExceptionFilter().catch(new HttpException('boom', httpStatus), host);

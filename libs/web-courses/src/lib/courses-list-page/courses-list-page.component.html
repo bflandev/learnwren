@@ -9,7 +9,14 @@
     >
   </header>
 
-  @if (courses() === null) {
+  @if (error()) {
+    <lw-card class="p-8 text-center" data-testid="courses-error">
+      <p class="text-bad">We could not load your courses.</p>
+      <button type="button" class="lw-btn lw-btn-secondary mt-3" (click)="refresh()">
+        Try again
+      </button>
+    </lw-card>
+  } @else if (courses() === null) {
     <p class="text-sm text-ink-3">Loading…</p>
   } @else if (courses()!.length === 0) {
     <lw-card class="p-8 text-center">

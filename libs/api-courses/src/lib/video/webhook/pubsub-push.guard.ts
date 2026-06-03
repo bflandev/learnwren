@@ -11,7 +11,13 @@ import { VIDEO_CONFIG, type VideoConfig } from '../video.config';
 export interface IdTokenVerifier {
   verifyIdToken(token: string): Promise<{
     getPayload():
-      | { iss?: string; aud?: string | string[]; email?: string; exp?: number }
+      | {
+          iss?: string;
+          aud?: string | string[];
+          email?: string;
+          email_verified?: boolean;
+          exp?: number;
+        }
       | undefined;
   }>;
 }
@@ -42,6 +48,7 @@ export class PubSubPushGuard implements CanActivate {
     assertNotExpired(payload);
     assertAudience(payload, this.cfg.webhookAudience);
     assertInvoker(payload, this.cfg.invokerSaEmail);
+    assertEmailVerified(payload);
     return true;
   }
 
@@ -98,6 +105,15 @@ function assertAudience(payload: IdTokenPayload, expected: string | undefined): 
 
 function assertInvoker(payload: IdTokenPayload, expected: string | undefined): void {
   if (payload.email !== expected) {
+    throw new PubSubWrongInvokerException();
+  }
+}
+
+// Google's authenticated-push recipe: trust the `email` claim only when the token
+// also asserts the address is verified. Google-issued SA identity tokens always
+// set this, so it is defense-in-depth against a future token-minting change.
+function assertEmailVerified(payload: IdTokenPayload): void {
+  if (payload.email_verified !== true) {
     throw new PubSubWrongInvokerException();
   }
 }

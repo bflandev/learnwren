@@ -291,21 +291,25 @@ describe('CourseEditorPageComponent', () => {
     });
   });
 
-  describe('addModule', () => {
-    it('does nothing when the title prompt is cancelled', async () => {
-      vi.spyOn(window, 'prompt').mockReturnValue(null);
+  describe('addModule (inline input)', () => {
+    it('does nothing when the typed title is blank', async () => {
       const fixture = await initEditor();
+      fixture.componentInstance.startAddModule();
+      fixture.componentInstance.newModuleTitle.set('   ');
 
-      await fixture.componentInstance.addModule();
+      await fixture.componentInstance.confirmAddModule();
 
       http.expectNone((req) => req.method === 'POST');
+      // form stays open so the user can correct the title
+      expect(fixture.componentInstance.addingModule()).toBe(true);
     });
 
-    it('POSTs the new module then refreshes the tree', async () => {
-      vi.spyOn(window, 'prompt').mockReturnValue('Module 2');
+    it('POSTs the trimmed module title, refreshes, and closes the form', async () => {
       const fixture = await initEditor();
+      fixture.componentInstance.startAddModule();
+      fixture.componentInstance.newModuleTitle.set('  Module 2  ');
 
-      const pending = fixture.componentInstance.addModule();
+      const pending = fixture.componentInstance.confirmAddModule();
       const post = http.expectOne('/api/courses/cid-1/modules');
       expect(post.request.method).toBe('POST');
       expect(post.request.body).toEqual({ title: 'Module 2' });
@@ -315,19 +319,24 @@ describe('CourseEditorPageComponent', () => {
       http.expectOne('/api/courses/cid-1').flush(buildTree());
       await pending;
       expect(fixture.componentInstance.error()).toBeNull();
+      expect(fixture.componentInstance.addingModule()).toBe(false);
+      expect(fixture.componentInstance.newModuleTitle()).toBe('');
     });
 
-    it('surfaces an error when the POST fails', async () => {
-      vi.spyOn(window, 'prompt').mockReturnValue('Module 2');
+    it('surfaces an error and keeps the form open when the POST fails', async () => {
       const fixture = await initEditor();
+      fixture.componentInstance.startAddModule();
+      fixture.componentInstance.newModuleTitle.set('Module 2');
 
-      const pending = fixture.componentInstance.addModule();
+      const pending = fixture.componentInstance.confirmAddModule();
       http
         .expectOne('/api/courses/cid-1/modules')
         .flush({}, { status: 500, statusText: 'Server Error' });
       await pending;
 
       expect(fixture.componentInstance.error()).toContain('Failed to add module');
+      expect(fixture.componentInstance.addingModule()).toBe(true);
+      expect(fixture.componentInstance.newModuleTitle()).toBe('Module 2');
     });
   });
 

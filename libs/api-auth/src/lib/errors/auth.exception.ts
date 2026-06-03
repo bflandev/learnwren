@@ -1,6 +1,5 @@
-import type { ISODateString } from '@learnwren/shared-data-models';
+import type { AuthErrorCode, ISODateString } from '@learnwren/shared-data-models';
 
-import { AuthErrorCode } from './auth-error.codes';
 import type { PolicyRequirement } from '../password-policy.service';
 
 export interface AuthErrorDetails {

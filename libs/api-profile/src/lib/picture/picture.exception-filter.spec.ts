@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ArgumentsHost, HttpException } from '@nestjs/common';
+
+import { AuthException } from '@learnwren/api-auth';
+
 import {
   PictureDecodeFailedException,
   PictureDimensionsTooSmallException,
@@ -71,5 +74,14 @@ describe('PictureExceptionFilter', () => {
     new PictureExceptionFilter().catch(new HttpException('nope', 401), host);
     expect(status).toHaveBeenCalledWith(401);
     expect(json.mock.calls[0]![0].error.code).toBe('UNAUTHORIZED');
+  });
+
+  it('delegates an AuthException (FirebaseSessionGuard 401) to 401', () => {
+    // Regression: an unauthenticated PUT/DELETE /profile/picture must render 401,
+    // not leak as a 500.
+    const { host, status, json } = makeHost();
+    new PictureExceptionFilter().catch(new AuthException('UNAUTHENTICATED', 'Not signed in.', 401), host);
+    expect(status).toHaveBeenCalledWith(401);
+    expect(json.mock.calls[0]![0].error.code).toBe('UNAUTHENTICATED');
   });
 });

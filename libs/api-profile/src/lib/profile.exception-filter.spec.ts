@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ArgumentsHost } from '@nestjs/common';
 import { BadRequestException, HttpException } from '@nestjs/common';
 
+import { AuthException } from '@learnwren/api-auth';
+
 import { ProfileInvalidException, ProfileException } from './errors/profile.exception';
 import { ProfileExceptionFilter } from './profile.exception-filter';
 
@@ -37,6 +39,17 @@ describe('ProfileExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(400);
     expect(json).toHaveBeenCalledWith({
       error: { code: 'BAD_REQUEST', message: 'bad' },
+    });
+  });
+
+  it('delegates an AuthException (FirebaseSessionGuard 401) to 401', () => {
+    // Regression: an unauthenticated GET/PATCH /profile must render 401, not leak
+    // as a 500.
+    const { host, status, json } = makeHost();
+    new ProfileExceptionFilter().catch(new AuthException('UNAUTHENTICATED', 'Not signed in.', 401), host);
+    expect(status).toHaveBeenCalledWith(401);
+    expect(json).toHaveBeenCalledWith({
+      error: { code: 'UNAUTHENTICATED', message: 'Not signed in.' },
     });
   });
 

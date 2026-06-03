@@ -62,11 +62,6 @@ export class InstructorApplicationService {
     }
 
     const ref = this.firestore.collection(COLLECTION).doc(uid);
-    const existing = await ref.get();
-    if (existing.exists && (existing.data() as InstructorApplication).status === 'PENDING') {
-      throw new InstructorApplicationExistsException();
-    }
-
     const createdAt = nowIso();
     const doc: InstructorApplication = {
       uid,
@@ -75,7 +70,17 @@ export class InstructorApplicationService {
       status: 'PENDING',
       createdAt,
     };
-    await ref.set(doc);
+
+    // Read-then-write in one transaction: two concurrent submits (or a submit
+    // racing an admin approval) cannot both pass the PENDING check and clobber
+    // each other's write.
+    await this.firestore.runTransaction(async (tx) => {
+      const existing = await tx.get(ref);
+      if (existing.exists && (existing.data() as InstructorApplication).status === 'PENDING') {
+        throw new InstructorApplicationExistsException();
+      }
+      tx.set(ref, doc);
+    });
     this.logger.log(`[profile] instructor application submitted uid=${uid}`);
 
     return { status: 'PENDING', statement, expertise, createdAt };

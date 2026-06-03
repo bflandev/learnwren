@@ -1,4 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime } from 'rxjs';
 
 import type { CourseId, PublishEligibility } from '@learnwren/shared-data-models';
@@ -22,7 +23,11 @@ export class PublishEligibilityService {
   readonly lastError = this._lastError.asReadonly();
 
   constructor() {
-    this.trigger$.pipe(debounceTime(DEBOUNCE_MS)).subscribe(() => this.fetch());
+    // Tie the debounced subscription to this service's lifecycle so it is torn
+    // down with the injector rather than living forever.
+    this.trigger$
+      .pipe(debounceTime(DEBOUNCE_MS), takeUntilDestroyed())
+      .subscribe(() => this.fetch());
   }
 
   bindToCourse(cid: CourseId): void {

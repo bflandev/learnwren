@@ -63,10 +63,9 @@ async function setupCourseWithLesson(
   await expect(page.getByTestId('course-meta')).toBeVisible({ timeout: 10_000 });
 
   // Add a module
-  page.once('dialog', async (dialog) => {
-    await dialog.accept('Video Module');
-  });
   await page.getByTestId('add-module').click();
+  await page.getByTestId('new-module-title').fill('Video Module');
+  await page.getByTestId('add-module-confirm').click();
   await expect(page.getByTestId('module-title')).toHaveText('Video Module', { timeout: 5_000 });
 
   // Add a lesson

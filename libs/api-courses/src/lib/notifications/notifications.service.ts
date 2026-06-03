@@ -1,8 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { EMAIL_TRANSPORT, type EmailTransport } from '@learnwren/api-auth';
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
-import type { Course, ISODateString, ModuleId, NotifyModuleResult, User, UserId } from '@learnwren/shared-data-models';
+import { FIRESTORE, type FirestoreHandle, readStoredUserProfiles } from '@learnwren/api-firebase';
+import type { Course, ISODateString, ModuleId, NotifyModuleResult, UserId } from '@learnwren/shared-data-models';
 
 import { CoursesRepository } from '../courses.repository';
 import { EnrollmentRepository } from '../enrollment/enrollment.repository';
@@ -13,7 +13,6 @@ import {
   ModuleNotFoundException,
 } from '../errors/courses.exception';
 
-const USERS = 'users';
 const FALLBACK_NAME = 'Student';
 
 interface Recipient {
@@ -95,14 +94,11 @@ export class NotificationsService {
 
   /** Batch-read name + email from users/{uid} (owner-guarded path only). */
   private async loadRecipients(uids: UserId[]): Promise<Recipient[]> {
-    const unique = [...new Set(uids)];
-    return Promise.all(
-      unique.map(async (uid): Promise<Recipient> => {
-        const snap = await this.firestore.collection(USERS).doc(uid).get();
-        const data = snap.exists ? (snap.data() as User) : undefined;
-        return { email: data?.email ?? '', displayName: data?.displayName ?? FALLBACK_NAME };
-      }),
-    );
+    const stored = await readStoredUserProfiles(this.firestore, uids);
+    return [...new Set(uids)].map((uid) => {
+      const data = stored.get(uid);
+      return { email: data?.email ?? '', displayName: data?.displayName ?? FALLBACK_NAME };
+    });
   }
 
   private continueUrl(path: string): string {

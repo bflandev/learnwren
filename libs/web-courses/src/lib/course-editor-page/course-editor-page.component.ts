@@ -148,13 +148,34 @@ export class CourseEditorPageComponent {
     }
   }
 
-  async addModule(): Promise<void> {
-    const title = window.prompt('Module title');
+  readonly addingModule = signal(false);
+  readonly newModuleTitle = signal('');
+
+  startAddModule(): void {
+    this.newModuleTitle.set('');
+    this.addingModule.set(true);
+  }
+
+  cancelAddModule(): void {
+    this.addingModule.set(false);
+    this.newModuleTitle.set('');
+  }
+
+  async confirmAddModule(): Promise<void> {
+    const title = this.newModuleTitle().trim();
     if (!title) return;
-    await this.runWithErrorMessage(
-      () => this.service.createModule(this.cid(), { title }),
-      'Failed to add module.',
-    );
+    this.error.set(null);
+    this.notice.set(null);
+    try {
+      await this.service.createModule(this.cid(), { title });
+      // Reset only on success; on failure keep the form open with the typed
+      // title so the instructor can retry. Replaces the inaccessible window.prompt.
+      this.addingModule.set(false);
+      this.newModuleTitle.set('');
+      await this.refresh();
+    } catch {
+      this.error.set('Failed to add module.');
+    }
   }
 
   async onRenameModule(args: { moduleId: string; title: string }): Promise<void> {

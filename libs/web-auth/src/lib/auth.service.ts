@@ -2,8 +2,9 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, switchMap, tap } from 'rxjs';
 
+import type { ApiAuthErrorBody } from '@learnwren/shared-data-models';
+
 import type { AuthenticatedUser } from './types/authenticated-user';
-import type { ApiAuthErrorBody } from './types/api-error';
 
 export interface RegisterInput {
   email: string;

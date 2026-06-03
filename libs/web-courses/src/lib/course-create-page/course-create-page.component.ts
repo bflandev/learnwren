@@ -12,8 +12,9 @@ import {
 
 import { LwButtonDirective, LwCardComponent, LwInputDirective } from '@learnwren/web-ui';
 
+import type { CoursesApiErrorBody } from '@learnwren/shared-data-models';
+
 import { CoursesService } from '../courses.service';
-import type { CoursesApiErrorBody } from '../types/api-error';
 
 @Component({
   selector: 'lib-course-create-page',

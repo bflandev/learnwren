@@ -573,6 +573,36 @@ describe('LessonPlayerPageComponent initial state defaults', () => {
     const { fixture } = create();
     expect(fixture.componentInstance.outlineOpen()).toBe(false);
   });
+
+  it('outlineMode() reacts to a viewport breakpoint change (not stuck at first render)', () => {
+    // Controllable matchMedia that captures the 'change' handler so we can flip
+    // the breakpoint after construction.
+    let changeHandler: ((e: MediaQueryListEvent) => void) | null = null;
+    const mql = {
+      matches: false,
+      media: '(min-width: 1024px)',
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn((_: string, h: (e: MediaQueryListEvent) => void) => {
+        changeHandler = h;
+      }),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    };
+    const prev = window.matchMedia;
+    window.matchMedia = vi.fn(() => mql) as unknown as typeof window.matchMedia;
+    try {
+      configure();
+      const { fixture } = create();
+      expect(fixture.componentInstance.outlineMode()).toBe('drawer');
+      // Simulate resizing up to a wide viewport.
+      changeHandler?.({ matches: true } as MediaQueryListEvent);
+      expect(fixture.componentInstance.outlineMode()).toBe('sidebar');
+    } finally {
+      window.matchMedia = prev;
+    }
+  });
 });
 
 describe('LessonPlayerPageComponent computed values after load', () => {

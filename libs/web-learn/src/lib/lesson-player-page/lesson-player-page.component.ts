@@ -87,15 +87,20 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     if (!l?.videoId || !l.captions) return null;
     return { src: `/api/playback/captions/${l.videoId}`, srclang: l.captions.language, label: l.captions.label };
   });
-  readonly outlineOpen = signal<boolean>(
-    typeof window !== 'undefined'
-      ? window.matchMedia('(min-width: 1024px)').matches
-      : true,
-  );
+  // A single MediaQueryList drives the responsive layout reactively. matchMedia
+  // results are NOT signal dependencies, so reading them directly inside a
+  // computed() never re-evaluated on resize and left outlineMode stuck at the
+  // first-render breakpoint (hiding the drawer toggle on mobile). We mirror the
+  // query into a signal via its 'change' event instead.
+  private readonly desktopQuery =
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)') : null;
+  private readonly isDesktop = signal<boolean>(this.desktopQuery?.matches ?? true);
+  private readonly onDesktopChange = (e: MediaQueryListEvent): void =>
+    this.isDesktop.set(e.matches);
+
+  readonly outlineOpen = signal<boolean>(this.desktopQuery?.matches ?? true);
   readonly outlineMode = computed<'sidebar' | 'drawer'>(() =>
-    typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
-      ? 'sidebar'
-      : 'drawer',
+    this.isDesktop() ? 'sidebar' : 'drawer',
   );
 
   private saver: PositionSaver | null = null;
@@ -114,6 +119,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
+    this.desktopQuery?.addEventListener('change', this.onDesktopChange);
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((pm) => {
       void this.applyRouteParams(pm.get('courseId'), pm.get('lessonId'));
     });
@@ -153,6 +159,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
     }
+    this.desktopQuery?.removeEventListener('change', this.onDesktopChange);
     this.saver?.stop();
     this.saver = null;
   }

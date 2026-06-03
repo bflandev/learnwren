@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HLS_CONSTRUCTOR, VideoPlayerService } from './video-player.service';
 
 type FakeInst = {
-  config: { xhrSetup?: (xhr: XMLHttpRequest) => void };
+  config: { xhrSetup?: (xhr: XMLHttpRequest, url: string) => void };
   on: ReturnType<typeof vi.fn>;
   loadSource: ReturnType<typeof vi.fn>;
   attachMedia: ReturnType<typeof vi.fn>;
@@ -62,7 +62,7 @@ describe('VideoPlayerService', () => {
     vi.restoreAllMocks();
   });
 
-  it('uses hls.js when supported — sets xhrSetup.withCredentials, loadSource, attachMedia', () => {
+  it('uses hls.js when supported — scopes withCredentials to same-origin, loadSource, attachMedia', () => {
     const el = videoEl();
     const onFatalError = vi.fn();
     const handle = svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
@@ -70,10 +70,16 @@ describe('VideoPlayerService', () => {
     const inst = instances[0]!;
     expect(inst.loadSource).toHaveBeenCalledWith('/api/playback/manifest/v1');
     expect(inst.attachMedia).toHaveBeenCalledWith(el);
-    // xhrSetup is a config callback — exercise it
-    const xhr = { withCredentials: false } as XMLHttpRequest;
-    (inst.config as { xhrSetup: (xhr: XMLHttpRequest) => void }).xhrSetup(xhr);
-    expect(xhr.withCredentials).toBe(true);
+    // xhrSetup is a config callback — exercise both origins.
+    const xhrSetup = (inst.config as { xhrSetup: (xhr: XMLHttpRequest, url: string) => void }).xhrSetup;
+    // Same-origin API request (manifest / DRM key) → first-party cookie attached.
+    const sameOrigin = { withCredentials: false } as XMLHttpRequest;
+    xhrSetup(sameOrigin, `${window.location.origin}/api/playback/key/v1`);
+    expect(sameOrigin.withCredentials).toBe(true);
+    // Cross-origin signed GCS segment → cookie NOT attached.
+    const crossOrigin = { withCredentials: false } as XMLHttpRequest;
+    xhrSetup(crossOrigin, 'https://storage.googleapis.com/bucket/seg-1.ts?sig=abc');
+    expect(crossOrigin.withCredentials).toBe(false);
     // dispose
     handle.dispose();
     expect(inst.destroy).toHaveBeenCalledOnce();
