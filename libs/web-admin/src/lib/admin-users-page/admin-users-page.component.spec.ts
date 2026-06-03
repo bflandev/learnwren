@@ -74,11 +74,20 @@ describe('AdminUsersPageComponent', () => {
   });
 
   it('goToPage reloads with the new page', async () => {
+    svc.list = vi.fn(async () => ({ users: [user('u1')], total: 45, page: 1, pageSize: 20, capped: false }));
     const fixture = await setup();
     const comp = fixture.componentInstance;
     svc.list.mockClear();
     await comp.goToPage(2);
     expect(svc.list).toHaveBeenCalledWith('', 2, 20);
+  });
+
+  it('goToPage ignores a page beyond the last page (guard)', async () => {
+    const fixture = await setup(); // default svc: total 2 -> totalPages 1
+    const comp = fixture.componentInstance;
+    svc.list.mockClear();
+    await comp.goToPage(2);
+    expect(svc.list).not.toHaveBeenCalled();
   });
 
   it('debounced search resets to page 1 and reloads', async () => {

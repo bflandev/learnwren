@@ -57,7 +57,7 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
   }
 
   async goToPage(page: number): Promise<void> {
-    if (page < 1) return;
+    if (page < 1 || page > this.totalPages()) return;
     this.page.set(page);
     await this.reload();
   }
