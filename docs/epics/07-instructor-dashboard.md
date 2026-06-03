@@ -6,11 +6,15 @@
 
 This epic provides Instructors with the tools they need to manage their courses and understand their student base.
 
+**Implementation status:** ✅ All three user stories are shipped — **EP-07 (Instructor Dashboard) is complete**. `README.md` (the authoritative feature record) and `docs/USER_GUIDE.md` §§2.20–2.22 document the delivered behavior. (The DRAFT banner above reflects the spec's review status, not its build status.)
+
 ---
 
 ## US-07-01: View Enrolled Students
 
 > **As an** Instructor, **I want to** see a list of all students enrolled in my course **so that** I can understand who is taking my course.
+
+**Status:** ✅ Shipped — EP-07 Slice A, merged 2026-06-01 (`5123955`).
 
 **Acceptance Criteria (Conditions of Satisfaction):**
 
@@ -25,6 +29,8 @@ This epic provides Instructors with the tools they need to manage their courses 
 
 > **As an** Instructor, **I want to** see basic analytics for my course **so that** I can understand how students are engaging with the content.
 
+**Status:** ✅ Shipped — EP-07 Slice B, merged 2026-06-01 (`10e6d87`).
+
 **Acceptance Criteria (Conditions of Satisfaction):**
 
 - The analytics dashboard displays the total number of enrolled students, the average course completion rate, and the number of new enrollments in the last 7, 30, and 90 days.
@@ -36,6 +42,8 @@ This epic provides Instructors with the tools they need to manage their courses 
 ## US-07-03: Manage Course Content After Publication
 
 > **As an** Instructor, **I want to** edit my course content after it has been published **so that** I can correct mistakes and add new material.
+
+**Status:** ✅ Shipped — post-publication editing is served by existing course CRUD (EP-02/03/04); the "notify enrolled students when a new module is added" criterion was delivered in EP-07 Slice C, merged 2026-06-02 (`8567e52`).
 
 **Acceptance Criteria (Conditions of Satisfaction):**
 
