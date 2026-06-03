@@ -6,8 +6,11 @@ import {
   CourseNotFoundException,
   CourseNotAvailableException,
   CoursesException,
+  CourseNotPublishedForNotifyException,
   InvalidTransitionException,
   LessonNotFoundException,
+  ModuleAlreadyNotifiedException,
+  ModuleHasNoLessonsException,
   ModuleNotFoundException,
   NotCourseOwnerException,
   NotEnrolledException,
@@ -110,5 +113,23 @@ describe('slice B enrollment exceptions', () => {
     expect(e.code).toBe('NOT_ENROLLED');
     expect(e.status).toBe(404);
     expect(e.message).toBe('You are not enrolled in this course.');
+  });
+});
+
+describe('Slice C notification exceptions', () => {
+  it('CourseNotPublishedForNotifyException → COURSE_NOT_PUBLISHED_FOR_NOTIFY / 409', () => {
+    const e = new CourseNotPublishedForNotifyException();
+    expect(e.code).toBe('COURSE_NOT_PUBLISHED_FOR_NOTIFY');
+    expect(e.status).toBe(409);
+  });
+  it('ModuleHasNoLessonsException → MODULE_HAS_NO_LESSONS / 409', () => {
+    const e = new ModuleHasNoLessonsException();
+    expect(e.code).toBe('MODULE_HAS_NO_LESSONS');
+    expect(e.status).toBe(409);
+  });
+  it('ModuleAlreadyNotifiedException → MODULE_ALREADY_NOTIFIED / 409', () => {
+    const e = new ModuleAlreadyNotifiedException();
+    expect(e.code).toBe('MODULE_ALREADY_NOTIFIED');
+    expect(e.status).toBe(409);
   });
 });
