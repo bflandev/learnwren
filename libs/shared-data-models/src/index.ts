@@ -15,3 +15,4 @@ export * from './lib/auth';
 export * from './lib/wire';
 export * from './lib/profile';
 export * from './lib/instructor-application';
+export * from './lib/notify';
