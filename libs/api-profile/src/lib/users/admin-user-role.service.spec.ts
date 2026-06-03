@@ -60,6 +60,7 @@ describe('AdminUserRoleService', () => {
       expect(promoteMock).toHaveBeenCalledTimes(1);
       expect(promoteMock.mock.calls[0][0]).toBe('u1');
       expect(promoteMock.mock.calls[0][1]).toBe(auth);
+      expect(promoteMock.mock.calls[0][2]).toBe(firestore);
       expect(res).toEqual({ id: 'u1', role: 'INSTRUCTOR' });
     });
   });
@@ -89,6 +90,7 @@ describe('AdminUserRoleService', () => {
       expect(demoteMock).toHaveBeenCalledTimes(1);
       expect(demoteMock.mock.calls[0][0]).toBe('u1');
       expect(demoteMock.mock.calls[0][1]).toBe(auth);
+      expect(demoteMock.mock.calls[0][2]).toBe(firestore);
       expect(res).toEqual({ id: 'u1', role: 'STUDENT' });
     });
   });

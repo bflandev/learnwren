@@ -31,7 +31,7 @@ export class AdminUserRoleService {
       throw new UserNotFoundException();
     }
     if (user.role !== 'STUDENT') {
-      throw new InvalidRoleTransitionException((user.role ?? 'STUDENT') as UserRole, 'INSTRUCTOR');
+      throw new InvalidRoleTransitionException(user.role as UserRole, 'INSTRUCTOR');
     }
     await promoteUserToInstructor(
       uid,
@@ -48,7 +48,7 @@ export class AdminUserRoleService {
       throw new UserNotFoundException();
     }
     if (user.role !== 'INSTRUCTOR') {
-      throw new InvalidRoleTransitionException((user.role ?? 'STUDENT') as UserRole, 'STUDENT');
+      throw new InvalidRoleTransitionException(user.role as UserRole, 'STUDENT');
     }
     await demoteInstructorToStudent(
       uid,
