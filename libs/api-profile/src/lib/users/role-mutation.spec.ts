@@ -21,5 +21,8 @@ describe('demoteInstructorToStudent', () => {
     expect(doc).toHaveBeenCalledWith('u1');
     expect(update).toHaveBeenCalledWith({ role: 'STUDENT' });
     expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('u1');
+    expect(auth.setCustomUserClaims.mock.invocationCallOrder[0]).toBeLessThan(
+      auth.revokeRefreshTokens.mock.invocationCallOrder[0],
+    );
   });
 });

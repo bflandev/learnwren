@@ -57,7 +57,7 @@ describe('AdminUsersExceptionFilter', () => {
   it('renders InvalidRoleTransitionException as HTTP 409 with code + details', () => {
     const { host, status, json } = mockHost();
     new AdminUsersExceptionFilter().catch(
-      new InvalidRoleTransitionException('STUDENT', 'STUDENT'),
+      new InvalidRoleTransitionException('ADMIN', 'INSTRUCTOR'),
       host,
     );
     expect(status).toHaveBeenCalledWith(409);
@@ -65,7 +65,7 @@ describe('AdminUsersExceptionFilter', () => {
       error: {
         code: 'INVALID_ROLE_TRANSITION',
         message: 'Invalid role transition.',
-        details: { currentRole: 'STUDENT', attempted: 'STUDENT' },
+        details: { currentRole: 'ADMIN', attempted: 'INSTRUCTOR' },
       },
     });
   });
