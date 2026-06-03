@@ -94,7 +94,7 @@ test('notifying a module with no lessons is rejected', async ({ request }) => {
     headers: { cookie: owner.cookieHeader },
   });
   expect(res.status()).toBe(409);
-  expect((await res.json()).code).toBe('MODULE_HAS_NO_LESSONS');
+  expect((await res.json()).error.code).toBe('MODULE_HAS_NO_LESSONS');
 });
 
 test('notifying a draft course is rejected', async ({ request }) => {
@@ -104,7 +104,7 @@ test('notifying a draft course is rejected', async ({ request }) => {
     headers: { cookie: owner.cookieHeader },
   });
   expect(res.status()).toBe(409);
-  expect((await res.json()).code).toBe('COURSE_NOT_PUBLISHED_FOR_NOTIFY');
+  expect((await res.json()).error.code).toBe('COURSE_NOT_PUBLISHED_FOR_NOTIFY');
 });
 
 test('notifying twice is rejected as already-notified', async ({ request }) => {
@@ -118,5 +118,5 @@ test('notifying twice is rejected as already-notified', async ({ request }) => {
     headers: { cookie: owner.cookieHeader },
   });
   expect(second.status()).toBe(409);
-  expect((await second.json()).code).toBe('MODULE_ALREADY_NOTIFIED');
+  expect((await second.json()).error.code).toBe('MODULE_ALREADY_NOTIFIED');
 });
