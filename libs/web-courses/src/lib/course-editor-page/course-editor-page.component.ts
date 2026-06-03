@@ -62,6 +62,7 @@ export class CourseEditorPageComponent {
       this.publishSvc.bindToCourse(cid);
       this.publishSvc.refresh();
     } catch {
+      this.notice.set(null);
       this.error.set('Failed to load course.');
     }
   }
@@ -142,6 +143,7 @@ export class CourseEditorPageComponent {
       }
       await this.refresh();
     } catch {
+      this.notice.set(null);
       this.error.set('Delete failed — refresh to see current state.');
     }
   }
@@ -232,6 +234,7 @@ export class CourseEditorPageComponent {
       await commit();
     } catch {
       this.tree.set(snapshot);
+      this.notice.set(null);
       this.error.set('Reorder failed — reverted.');
       await this.refresh();
     }
@@ -247,6 +250,7 @@ export class CourseEditorPageComponent {
       await op();
       await this.refresh();
     } catch {
+      this.notice.set(null);
       this.error.set(errorMessage);
     }
   }
