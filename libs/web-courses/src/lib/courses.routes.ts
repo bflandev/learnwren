@@ -4,8 +4,12 @@ import { instructorRoleGuard } from './instructor-role.guard';
 
 export const coursesRoutes: Route[] = [
   {
+    // canActivate (not canMatch): the guard is a CanActivateFn that reads
+    // state.url to build the ?redirect= param. canMatch passes UrlSegment[] as
+    // the 2nd arg, so state.url would be undefined and the redirect lost. This
+    // matches how adminRoutes gates its role-guarded path.
     path: 'courses',
-    canMatch: [instructorRoleGuard],
+    canActivate: [instructorRoleGuard],
     children: [
       {
         path: '',

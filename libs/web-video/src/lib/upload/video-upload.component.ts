@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Output, inject, input } from '@angular/core';
 
 import type {
   CourseId,
@@ -16,6 +16,7 @@ import { LwButtonDirective, LwProgressComponent } from '@learnwren/web-ui';
   templateUrl: './video-upload.component.html',
   imports: [LwButtonDirective, LwProgressComponent],
   providers: [VideoUploadService],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VideoUploadComponent {
   readonly courseId = input.required<CourseId>();

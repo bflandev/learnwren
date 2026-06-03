@@ -40,6 +40,24 @@ describe('CoursesListPageComponent', () => {
     expect(text).toContain('Course Two');
   });
 
+  it('renders a recoverable error state when the request fails', async () => {
+    const fixture = TestBed.createComponent(CoursesListPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/courses').flush('boom', { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="courses-error"]')).not.toBeNull();
+    expect(el.textContent).toContain('We could not load your courses');
+    // and recovers on retry
+    fixture.componentInstance.refresh();
+    fixture.detectChanges();
+    http.expectOne('/api/courses').flush([{ id: 'c1', title: 'Recovered', description: 'D', status: 'DRAFT' }]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Recovered');
+  });
+
   it('renders a Create Course link', () => {
     const fixture = TestBed.createComponent(CoursesListPageComponent);
     fixture.detectChanges();

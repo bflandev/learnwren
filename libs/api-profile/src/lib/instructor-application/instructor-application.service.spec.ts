@@ -26,8 +26,20 @@ function makeFirestore(initial: DocState) {
     set: setFn,
   };
   const collection = vi.fn(() => ({ doc: vi.fn(() => doc) }));
-  const firestore = { collection } as unknown as FirestoreHandle;
-  return { firestore, collection, setFn, state };
+  // submit() now reads-then-writes inside runTransaction; the fake delegates the
+  // transaction's get/set straight to the single doc stub so existing assertions
+  // on `setFn` and `state` continue to hold.
+  const runTransaction = vi.fn(
+    async (fn: (tx: { get: (r: typeof doc) => unknown; set: (r: typeof doc, d: Record<string, unknown>) => void }) => unknown) =>
+      fn({
+        get: (r) => r.get(),
+        set: (r, d) => {
+          void r.set(d);
+        },
+      }),
+  );
+  const firestore = { collection, runTransaction } as unknown as FirestoreHandle;
+  return { firestore, collection, setFn, state, runTransaction };
 }
 
 const UID = 'u-1' as UserId;
@@ -118,6 +130,16 @@ describe('InstructorApplicationService', () => {
     await expect(
       svc.submit(UID, STUDENT, { statement: 'again', expertise: 'again' }),
     ).rejects.toBeInstanceOf(InstructorApplicationExistsException);
+  });
+
+  it('submit performs the PENDING check and write inside a single transaction', async () => {
+    // Regression (N6): a non-transactional read-then-write let two concurrent
+    // submits both pass the check and clobber each other / regress an APPROVED doc.
+    const { firestore, runTransaction, setFn } = makeFirestore({ exists: false, data: {} });
+    const svc = new InstructorApplicationService(firestore);
+    await svc.submit(UID, STUDENT, { statement: 'I teach', expertise: 'Rust' });
+    expect(runTransaction).toHaveBeenCalledTimes(1);
+    expect(setFn).toHaveBeenCalledTimes(1);
   });
 
   it('submit writes a trimmed PENDING doc and returns the view (overwrites a DECLINED doc)', async () => {

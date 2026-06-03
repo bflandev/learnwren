@@ -1,18 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { FIRESTORE, type FirestoreHandle, readStoredUserProfiles } from '@learnwren/api-firebase';
 import type {
   Course,
   CourseRosterRow,
   CourseRosterView,
-  User,
   UserId,
 } from '@learnwren/shared-data-models';
 
 import { CoursesRepository } from '../courses.repository';
 import { EnrollmentRepository } from '../enrollment/enrollment.repository';
 
-const USERS = 'users';
 const FALLBACK_NAME = 'Student';
 
 interface ProfileRef {
@@ -68,14 +66,12 @@ export class RosterService {
 
   /** Batch-read name + email from users/{uid}. Owner-guarded path only. */
   private async loadProfiles(uids: UserId[]): Promise<Map<UserId, ProfileRef>> {
-    const unique = [...new Set(uids)];
-    const entries = await Promise.all(
-      unique.map(async (uid): Promise<[UserId, ProfileRef]> => {
-        const snap = await this.firestore.collection(USERS).doc(uid).get();
-        const data = snap.exists ? (snap.data() as User) : undefined;
-        return [uid, { displayName: data?.displayName ?? FALLBACK_NAME, email: data?.email ?? '' }];
-      }),
+    const stored = await readStoredUserProfiles(this.firestore, uids);
+    return new Map(
+      [...stored].map(([uid, p]): [UserId, ProfileRef] => [
+        uid as UserId,
+        { displayName: p.displayName ?? FALLBACK_NAME, email: p.email ?? '' },
+      ]),
     );
-    return new Map(entries);
   }
 }

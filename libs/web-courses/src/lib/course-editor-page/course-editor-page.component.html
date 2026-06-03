@@ -47,10 +47,39 @@
 
       <div class="flex items-center justify-between gap-4">
         <h2 class="text-lg">Modules</h2>
-        <button lwButton data-testid="add-module" type="button" (click)="addModule()">
-          Add module
-        </button>
+        @if (!addingModule()) {
+          <button lwButton data-testid="add-module" type="button" (click)="startAddModule()">
+            Add module
+          </button>
+        }
       </div>
+
+      @if (addingModule()) {
+        <form
+          class="flex items-center gap-2"
+          (submit)="$event.preventDefault(); confirmAddModule()"
+        >
+          <label class="sr-only" for="new-module-title">Module title</label>
+          <input
+            id="new-module-title"
+            data-testid="new-module-title"
+            type="text"
+            class="flex-1"
+            placeholder="Module title"
+            [value]="newModuleTitle()"
+            (input)="newModuleTitle.set($any($event.target).value)"
+          />
+          <button lwButton data-testid="add-module-confirm" type="submit">Add</button>
+          <button
+            lwButton
+            data-testid="add-module-cancel"
+            type="button"
+            (click)="cancelAddModule()"
+          >
+            Cancel
+          </button>
+        </form>
+      }
 
       <lib-module-tree
         [nodes]="nodes()"

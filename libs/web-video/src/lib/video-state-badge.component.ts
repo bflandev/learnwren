@@ -1,4 +1,14 @@
-import { Component, DestroyRef, OnInit, computed, inject, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import type { Video, VideoState } from '@learnwren/shared-data-models';
@@ -14,6 +24,7 @@ const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
   standalone: true,
   templateUrl: './video-state-badge.component.html',
   imports: [LwPillComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VideoStateBadgeComponent implements OnInit {
   readonly video = input.required<Video>();

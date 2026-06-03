@@ -20,6 +20,11 @@ import { LearnExceptionFilter } from './learn.exception-filter';
 import { LearnService } from './learn.service';
 import type { LessonScopedRequest } from './types/lesson-scoped-request';
 
+// Upper bound for a saved watch position. Generous enough for any real lesson
+// (24h) while preventing an enrolled user from persisting an absurd value into
+// their progress doc and poisoning downstream analytics/roster rollups.
+const MAX_POSITION_SECONDS = 24 * 60 * 60;
+
 @Controller('learn')
 @UseFilters(LearnExceptionFilter)
 @UseGuards(FirebaseSessionGuard)
@@ -59,7 +64,12 @@ export class LearnController {
       throw new Error('LearnController: guard did not attach course/lesson/user');
     }
     const seconds = body?.seconds;
-    if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) {
+    if (
+      typeof seconds !== 'number' ||
+      !Number.isFinite(seconds) ||
+      seconds < 0 ||
+      seconds > MAX_POSITION_SECONDS
+    ) {
       throw new InvalidPositionException();
     }
     return this.service.savePosition(req.user.uid as UserId, req.course, req.lesson, seconds);

@@ -1,16 +1,16 @@
-@if (mode === 'drawer' && outlineOpen) {
+@if (mode() === 'drawer' && outlineOpen()) {
   <div data-testid="outline-backdrop" class="outline-backdrop" role="button" tabindex="0" (click)="onBackdropClick()" (keydown.escape)="onBackdropClick()"></div>
 }
 <aside
   aria-label="Course outline"
   class="course-outline"
-  [class.is-drawer]="mode === 'drawer'"
-  [class.is-open]="outlineOpen"
-  [attr.hidden]="mode === 'sidebar' && !outlineOpen ? '' : null"
-  [cdkTrapFocus]="mode === 'drawer' && outlineOpen"
-  [cdkTrapFocusAutoCapture]="mode === 'drawer' && outlineOpen"
+  [class.is-drawer]="mode() === 'drawer'"
+  [class.is-open]="outlineOpen()"
+  [attr.hidden]="mode() === 'sidebar' && !outlineOpen() ? '' : null"
+  [cdkTrapFocus]="mode() === 'drawer' && outlineOpen()"
+  [cdkTrapFocusAutoCapture]="mode() === 'drawer' && outlineOpen()"
 >
-  @for (m of outline.modules; track m.id) {
+  @for (m of outline().modules; track m.id) {
     <section>
       <h3>{{ m.title }}</h3>
       <ol>
@@ -19,9 +19,9 @@
             <button
               type="button"
               data-testid="outline-row"
-              [attr.aria-current]="l.id === activeLessonId ? 'page' : null"
+              [attr.aria-current]="l.id === activeLessonId() ? 'page' : null"
               [attr.aria-disabled]="l.videoState !== 'READY' ? 'true' : null"
-              [class.is-active]="l.id === activeLessonId"
+              [class.is-active]="l.id === activeLessonId()"
               [class.is-processing]="l.videoState !== 'READY'"
               (click)="onRowClick(l.id, l.videoState)"
             >

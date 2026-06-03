@@ -19,7 +19,13 @@ function makeGuard(opts: {
   audience: string;
   invokerSaEmail: string;
   verifier: (token: string) => Promise<{
-    getPayload: () => { iss?: string; aud?: string; email?: string; exp?: number };
+    getPayload: () => {
+      iss?: string;
+      aud?: string;
+      email?: string;
+      email_verified?: boolean;
+      exp?: number;
+    };
   }>;
 }) {
   return new PubSubPushGuard(
@@ -37,6 +43,7 @@ describe('PubSubPushGuard', () => {
         iss: 'https://accounts.google.com',
         aud: cfg.audience,
         email: cfg.invokerSaEmail,
+        email_verified: true,
         exp: Math.floor(Date.now() / 1000) + 60,
       }),
     }));
@@ -177,6 +184,25 @@ describe('PubSubPushGuard', () => {
           iss: 'https://accounts.google.com',
           aud: cfg.audience,
           email: 'someone-else@p.iam.gserviceaccount.com',
+          exp: Math.floor(Date.now() / 1000) + 60,
+        }),
+      })),
+    });
+    await expect(
+      g.canActivate(ctx({ authorization: 'Bearer xyz' })),
+    ).rejects.toBeInstanceOf(PubSubWrongInvokerException);
+  });
+
+  it('rejects when the invoker email is not verified', async () => {
+    // Matches email + issuer + audience + exp, but email_verified is not true.
+    const g = makeGuard({
+      ...cfg,
+      verifier: vi.fn(async () => ({
+        getPayload: () => ({
+          iss: 'https://accounts.google.com',
+          aud: cfg.audience,
+          email: cfg.invokerSaEmail,
+          email_verified: false,
           exp: Math.floor(Date.now() / 1000) + 60,
         }),
       })),

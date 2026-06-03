@@ -76,6 +76,34 @@ test('non-JPEG/PNG file is rejected with UNSUPPORTED_COVER_FORMAT', async ({ req
   expect(body.error.code).toBe('UNSUPPORTED_COVER_FORMAT');
 });
 
+// Regression lock (N2): CoverExceptionFilter must @Catch AuthException +
+// CoursesException so guard rejections render their real status, not a 500.
+// These extend Error (not HttpException) and there is no global filter, so a
+// missing @Catch entry leaks the guard failure as a 500.
+test('401 — an unauthenticated cover edit is rejected, not 500 (AuthException via the filter)', async ({
+  request,
+}) => {
+  const res = await request.put(`${API_BASE}/courses/any-course/cover`);
+  expect(res.status()).toBe(401);
+});
+
+test('403 NOT_COURSE_OWNER — a non-owner instructor cannot edit the cover, not 500 (CoursesException via the filter)', async ({
+  request,
+}) => {
+  const owner = await registerAndPromoteInstructor(request);
+  const other = await registerAndPromoteInstructor(request);
+  const create = await request.post(`${API_BASE}/courses`, {
+    headers: { Cookie: owner.cookieHeader },
+    data: { title: 'Owned course', description: 'd' },
+  });
+  const course = await create.json();
+  const res = await request.put(`${API_BASE}/courses/${course.id}/cover`, {
+    headers: { Cookie: other.cookieHeader },
+  });
+  expect(res.status()).toBe(403);
+  expect(((await res.json()) as { error: { code: string } }).error.code).toBe('NOT_COURSE_OWNER');
+});
+
 test('too-small image is rejected with COVER_DIMENSIONS_TOO_SMALL', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: instructor.cookieHeader };

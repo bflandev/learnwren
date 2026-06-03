@@ -58,3 +58,10 @@ test('UC-01-03 Slice B — profile picture PUT → GET → DELETE → GET round-
   const get2Body = await get2.json();
   expect(get2Body.photoUrl).toBeUndefined();
 });
+
+// Regression lock (N3): PictureExceptionFilter must @Catch AuthException so an
+// unauthenticated request renders 401, not a 500.
+test('401 — an unauthenticated profile-picture edit is rejected, not 500', async ({ request }) => {
+  const res = await request.put(`${API_BASE}/profile/picture`);
+  expect(res.status()).toBe(401);
+});

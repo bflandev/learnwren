@@ -1,5 +1,4 @@
-import type { CoursesErrorCode } from './courses-error.codes';
-import type { CourseStatus, PublishBlockReason } from '@learnwren/shared-data-models';
+import type { CourseStatus, CoursesErrorCode, PublishBlockReason } from '@learnwren/shared-data-models';
 
 export class CoursesException extends Error {
   constructor(

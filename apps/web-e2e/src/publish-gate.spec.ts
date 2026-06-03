@@ -44,8 +44,9 @@ async function setupCourseWithLesson(page: Page, email: string, password: string
   await page.getByTestId('description').fill('e2e publish gate course');
   await page.getByTestId('submit').click();
   await expect(page.getByTestId('course-meta')).toBeVisible({ timeout: 10_000 });
-  page.once('dialog', async (d) => { await d.accept('Publish Module'); });
   await page.getByTestId('add-module').click();
+  await page.getByTestId('new-module-title').fill('Publish Module');
+  await page.getByTestId('add-module-confirm').click();
   await expect(page.getByTestId('module-title')).toHaveText('Publish Module', { timeout: 5_000 });
   await page.getByTestId('add-lesson').click();
   await page.getByTestId('add-lesson-input').fill('Publish Lesson');

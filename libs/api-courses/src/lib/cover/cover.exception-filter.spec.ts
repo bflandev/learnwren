@@ -10,6 +10,9 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 
+import { AuthException, InsufficientRoleException } from '@learnwren/api-auth';
+
+import { NotCourseOwnerException } from '../errors/courses.exception';
 import { CoverDimensionsTooSmallException, CoverException } from './errors/cover.exception';
 import { CoverExceptionFilter } from './cover.exception-filter';
 
@@ -45,6 +48,33 @@ describe('CoverExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith({
       error: { code: 'NOT_FOUND', message: 'Course not found.' },
     });
+  });
+
+  it('delegates a NotCourseOwnerException (CoursesException from CourseOwnerGuard) to 403', () => {
+    // Regression: the per-route CourseOwnerGuard throws a CoursesException, which
+    // must render as 403, not leak as a 500.
+    const { host, status, json } = makeHost();
+    new CoverExceptionFilter().catch(new NotCourseOwnerException(), host);
+    expect(status).toHaveBeenCalledWith(403);
+    expect(json).toHaveBeenCalledWith({
+      error: { code: 'NOT_COURSE_OWNER', message: 'You do not own this course.' },
+    });
+  });
+
+  it('delegates an AuthException (FirebaseSessionGuard 401) to 401', () => {
+    const { host, status, json } = makeHost();
+    new CoverExceptionFilter().catch(new AuthException('UNAUTHENTICATED', 'Not signed in.', 401), host);
+    expect(status).toHaveBeenCalledWith(401);
+    expect(json).toHaveBeenCalledWith({
+      error: { code: 'UNAUTHENTICATED', message: 'Not signed in.' },
+    });
+  });
+
+  it('delegates an InsufficientRoleException (InstructorRoleGuard 403) to 403', () => {
+    const { host, status, json } = makeHost();
+    new CoverExceptionFilter().catch(new InsufficientRoleException(), host);
+    expect(status).toHaveBeenCalledWith(403);
+    expect(json.mock.calls[0]![0].error.code).toBe('INSUFFICIENT_ROLE');
   });
 
   it('falls back to 500 INTERNAL for unknown errors', () => {

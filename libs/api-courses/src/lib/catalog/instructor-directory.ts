@@ -1,9 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
-import type { User, UserId } from '@learnwren/shared-data-models';
+import { FIRESTORE, type FirestoreHandle, readStoredUserProfiles } from '@learnwren/api-firebase';
+import type { UserId } from '@learnwren/shared-data-models';
 
-const USERS = 'users';
 const FALLBACK_NAME = 'Instructor';
 
 export interface InstructorRef {
@@ -27,18 +26,17 @@ export class InstructorDirectory {
    * Falls back to `{ displayName: 'Instructor' }` when the user document does not exist.
    */
   async instructorRefsFor(uids: UserId[]): Promise<Map<UserId, InstructorRef>> {
+    const stored = await readStoredUserProfiles(this.firestore, uids);
     const unique = [...new Set(uids)];
-    const entries = await Promise.all(
-      unique.map(async (uid): Promise<[UserId, InstructorRef]> => {
-        const snap = await this.firestore.collection(USERS).doc(uid).get();
-        const data = snap.exists ? (snap.data() as User) : undefined;
+    return new Map(
+      unique.map((uid): [UserId, InstructorRef] => {
+        const data = stored.get(uid);
         const ref: InstructorRef = { displayName: data?.displayName ?? FALLBACK_NAME };
         if (data?.photoUrl) ref.photoUrl = data.photoUrl;
         if (data?.biography) ref.biography = data.biography;
         return [uid, ref];
       }),
     );
-    return new Map(entries);
   }
 
   /** @deprecated Prefer `instructorRefsFor`. Retained as a thin shim for now. */

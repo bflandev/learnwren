@@ -9,4 +9,4 @@ export { UnlockPageComponent } from './lib/unlock-page/unlock-page.component';
 export { passwordPolicyValidator, PASSWORD_REQUIREMENT_PROSE } from './lib/password-policy.validator';
 export type { PolicyRequirement } from './lib/password-policy.validator';
 export type { AuthenticatedUser } from './lib/types/authenticated-user';
-export type { ApiAuthErrorBody, ApiAuthErrorCode } from './lib/types/api-error';
+export type { ApiAuthErrorBody, ApiAuthErrorCode } from '@learnwren/shared-data-models';

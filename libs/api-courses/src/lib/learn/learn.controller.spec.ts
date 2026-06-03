@@ -489,4 +489,18 @@ describe('LearnController.savePosition', () => {
     ).rejects.toBeInstanceOf(InvalidPositionException);
     expect(svc.savePosition).not.toHaveBeenCalled();
   });
+
+  it('accepts seconds exactly at the 24h ceiling', async () => {
+    const req = makeReq();
+    await ctrl.savePosition(req, { seconds: 24 * 60 * 60 });
+    expect(svc.savePosition).toHaveBeenCalledWith(USER_ID, COURSE, LESSON, 24 * 60 * 60);
+  });
+
+  it('throws InvalidPositionException when seconds exceeds the 24h ceiling', async () => {
+    const req = makeReq();
+    await expect(
+      ctrl.savePosition(req, { seconds: 24 * 60 * 60 + 1 }),
+    ).rejects.toBeInstanceOf(InvalidPositionException);
+    expect(svc.savePosition).not.toHaveBeenCalled();
+  });
 });

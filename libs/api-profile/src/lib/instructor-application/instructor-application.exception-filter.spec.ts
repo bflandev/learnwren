@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { AuthException } from '@learnwren/api-auth';
+
 import { InstructorApplicationExceptionFilter } from './instructor-application.exception-filter';
 import { InstructorApplicationInvalidException } from './errors/instructor-application.exception';
 
@@ -26,6 +28,20 @@ describe('InstructorApplicationExceptionFilter', () => {
         message: 'A statement of intent is required (max 2000 characters).',
         details: { field: 'statement' },
       },
+    });
+  });
+
+  it('delegates an AuthException (FirebaseSessionGuard 401) to 401', () => {
+    // Regression: an unauthenticated GET/POST /profile/instructor-application must
+    // render 401, not leak as a 500.
+    const { host, status, json } = mockHost();
+    new InstructorApplicationExceptionFilter().catch(
+      new AuthException('UNAUTHENTICATED', 'Not signed in.', 401),
+      host,
+    );
+    expect(status).toHaveBeenCalledWith(401);
+    expect(json).toHaveBeenCalledWith({
+      error: { code: 'UNAUTHENTICATED', message: 'Not signed in.' },
     });
   });
 });
