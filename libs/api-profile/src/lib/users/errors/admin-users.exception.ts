@@ -1,4 +1,4 @@
-import type { AdminUsersErrorCode } from '@learnwren/shared-data-models';
+import type { AdminUsersErrorCode, UserRole } from '@learnwren/shared-data-models';
 
 export class AdminUsersException extends Error {
   constructor(
@@ -16,5 +16,11 @@ export class AdminUsersException extends Error {
 export class UserNotFoundException extends AdminUsersException {
   constructor() {
     super('USER_NOT_FOUND', 'No such user.', 404);
+  }
+}
+
+export class InvalidRoleTransitionException extends AdminUsersException {
+  constructor(currentRole: UserRole, attempted: UserRole) {
+    super('INVALID_ROLE_TRANSITION', 'Invalid role transition.', 409, { currentRole, attempted });
   }
 }
