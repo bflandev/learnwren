@@ -55,3 +55,9 @@ export interface AdminUserDetail {
   /** Courses this user authored; empty unless they own some. */
   authoredCourses: AdminAuthoredCourseRow[];
 }
+
+/** Result of an admin role change (POST /api/admin/users/:uid/promote | .../demote). */
+export interface AdminUserRoleResponse {
+  id: UserId;
+  role: UserRole;
+}
