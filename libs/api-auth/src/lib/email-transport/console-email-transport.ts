@@ -5,6 +5,7 @@ import type {
   EmailTransport,
   InstructorApplicationApprovedEmailInput,
   InstructorApplicationDeclinedEmailInput,
+  NewModuleEmailInput,
   PasswordChangedEmailInput,
   PasswordResetEmailInput,
   UnlockEmailInput,
@@ -19,7 +20,8 @@ export interface OutboxEntry {
     | 'email-change'
     | 'password-changed'
     | 'instructor-approved'
-    | 'instructor-declined';
+    | 'instructor-declined'
+    | 'new-module';
   to: string;
   url: string;
   sentAt: Date;
@@ -99,6 +101,11 @@ export class ConsoleEmailTransport implements EmailTransport {
   ): Promise<void> {
     this.logger.log(`[instructor-declined-email] to=${input.to}`);
     this.append({ kind: 'instructor-declined', to: input.to, url: '', sentAt: new Date() });
+  }
+
+  async sendNewModuleEmail(input: NewModuleEmailInput): Promise<void> {
+    this.logger.log(`[new-module-email] to=${input.to} url=${input.courseUrl}`);
+    this.append({ kind: 'new-module', to: input.to, url: input.courseUrl, sentAt: new Date() });
   }
 
   /** Returns the most recent email of `kind` sent to `to`, or undefined. */

@@ -33,6 +33,14 @@ export interface InstructorApplicationDeclinedEmailInput {
   to: string;
 }
 
+export interface NewModuleEmailInput {
+  to: string;
+  studentName: string;
+  courseTitle: string;
+  moduleTitle: string;
+  courseUrl: string;
+}
+
 export interface EmailTransport {
   sendUnlockEmail(input: UnlockEmailInput): Promise<void>;
   sendVerificationEmail(input: VerificationEmailInput): Promise<void>;
@@ -45,4 +53,5 @@ export interface EmailTransport {
   sendInstructorApplicationDeclinedEmail(
     input: InstructorApplicationDeclinedEmailInput,
   ): Promise<void>;
+  sendNewModuleEmail(input: NewModuleEmailInput): Promise<void>;
 }
