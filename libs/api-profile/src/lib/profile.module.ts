@@ -21,6 +21,7 @@ import { AdminInstructorApplicationController } from './instructor-application/a
 import { AdminInstructorApplicationExceptionFilter } from './instructor-application/admin-instructor-application.exception-filter';
 import { AdminInstructorApplicationService } from './instructor-application/admin-instructor-application.service';
 import { InstructorApplicationController } from './instructor-application/instructor-application.controller';
+import { AdminUserRoleService } from './users/admin-user-role.service';
 import { AdminUsersController } from './users/admin-users.controller';
 import { AdminUsersExceptionFilter } from './users/admin-users.exception-filter';
 import { AdminUsersRepository } from './users/admin-users.repository';
@@ -48,6 +49,7 @@ import { ProfileService } from './profile.service';
     InstructorApplicationService,
     InstructorApplicationExceptionFilter,
     AdminUsersService,
+    AdminUserRoleService,
     AdminUsersRepository,
     AdminUsersExceptionFilter,
     FirebasePictureStorageAdapter,
