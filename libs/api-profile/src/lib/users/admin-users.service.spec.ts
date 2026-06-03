@@ -97,6 +97,28 @@ describe('AdminUsersService', () => {
       expect(res.page).toBe(1);
       expect(res.pageSize).toBe(100);
     });
+
+    it('does NOT cap at exactly the cap (5000 records)', async () => {
+      repo.scanUsers = vi.fn(async () => Array.from({ length: 5000 }, (_, i) => userRecord(`u${i}`)));
+      const res = await svc.list('', 1, 20);
+      expect(res.capped).toBe(false);
+      expect(res.total).toBe(5000);
+    });
+
+    it('breaks displayName ties by email ascending', async () => {
+      repo.scanUsers = vi.fn(async () => [
+        userRecord('2', { displayName: 'Sam', email: 'zoe@x.com' }),
+        userRecord('1', { displayName: 'Sam', email: 'amy@x.com' }),
+      ]);
+      const res = await svc.list('', 1, 20);
+      expect(res.users.map((u) => u.email)).toEqual(['amy@x.com', 'zoe@x.com']);
+    });
+
+    it('clamps a non-finite page to 1 and truncates a fractional pageSize', async () => {
+      const res = await svc.list('', Number.NaN, 2.9);
+      expect(res.page).toBe(1);
+      expect(res.pageSize).toBe(2);
+    });
   });
 
   describe('getDetail', () => {
