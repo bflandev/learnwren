@@ -51,11 +51,14 @@ test('admin sees the user directory and opens a user detail', async ({ page }) =
   await page.route('**/api/auth/me', (route) => {
     void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ADMIN_ME_STUB) });
   });
-  await page.route('**/api/admin/users/u1', (route) => {
-    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DETAIL_RESPONSE) });
-  });
+  // Playwright matches route handlers in REVERSE registration order, so the
+  // broad list glob is registered FIRST and the specific detail route LAST —
+  // otherwise the glob (which also matches /users/u1) would shadow the detail.
   await page.route('**/api/admin/users**', (route) => {
     void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(LIST_RESPONSE) });
+  });
+  await page.route('**/api/admin/users/u1', (route) => {
+    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(DETAIL_RESPONSE) });
   });
 
   await page.goto('/admin/users');
