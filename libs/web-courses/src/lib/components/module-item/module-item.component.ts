@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import type { CourseId, Lesson, Module, VideoState } from '@learnwren/shared-data-models';
@@ -10,7 +11,7 @@ import { LessonListComponent } from '../lesson-list/lesson-list.component';
 @Component({
   selector: 'lib-module-item',
   standalone: true,
-  imports: [FormsModule, LessonListComponent, LwButtonDirective, LwCardComponent, LwInputDirective],
+  imports: [DatePipe, FormsModule, LessonListComponent, LwButtonDirective, LwCardComponent, LwInputDirective],
   templateUrl: './module-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -18,6 +19,7 @@ export class ModuleItemComponent {
   readonly module = input.required<Module>();
   readonly lessons = input.required<Lesson[]>();
   readonly courseId = input.required<CourseId>();
+  readonly coursePublished = input<boolean>(false);
   readonly renameModule = output<string>();
   readonly deleteModule = output<void>();
   readonly addLesson = output<string>();
@@ -26,6 +28,12 @@ export class ModuleItemComponent {
   readonly reorderLessons = output<string[]>();
   readonly videoChanged = output<void>();
   readonly videoStateChanged = output<VideoState>();
+  readonly notifyModule = output<void>();
+
+  readonly alreadyNotified = computed(() => this.module().studentsNotifiedAt != null);
+  readonly canNotify = computed(
+    () => this.coursePublished() && this.lessons().length > 0 && !this.alreadyNotified(),
+  );
 
   readonly editing = signal(false);
   readonly draftTitle = signal('');

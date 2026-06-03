@@ -711,7 +711,7 @@ RFC-4180-compliant CSV file generated entirely in the browser (no extra API call
 > (status `WITHDRAWN`) are not shown. This page is visible to the course owner only —
 > visiting it as a non-owner returns a `403`.
 
-New-module notifications (US-07-03) are deferred to a later EP-07 slice.
+New-module notifications (US-07-03) shipped in EP-07 Slice C — see [2.22 Notifying students of a new module](#222-notifying-students-of-a-new-module).
 
 ---
 
@@ -758,6 +758,14 @@ Below the summary, a table lists every lesson in the course with:
 - **Computed live** — analytics are calculated fresh on each page load from the current
   enrollment and progress data. There is no caching or scheduled aggregation job, so the
   figures always reflect the latest state.
+
+---
+
+## 2.22 Notifying students of a new module (EP-07 Slice C, US-07-03)
+
+### Notifying students of a new module
+
+When you add a new module to a **published** course, enrolled students are not told automatically. Once the module has at least one lesson and is ready, click **Notify students** on that module in the course editor to email every active enrollee a short note with a link to the course. This can be done **once per module** — after notifying, the button is replaced with "Students notified ⟨date⟩". Minor edits (renaming, editing lessons, replacing a video, updating materials) never email students.
 
 ---
 
@@ -1107,7 +1115,7 @@ These are specified in `docs/epics/` and `docs/use-cases/` but **not yet impleme
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll are
   live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than 90 days is
   not implemented.
-- **Instructor dashboard, remaining slice (EP-07 Slice C)** — new-module notifications (US-07-03) are deferred. The enrolled-students roster (US-07-01, Slice A) and course analytics (US-07-02, Slice B) are shipped.
+- **EP-07 Instructor Dashboard** — fully shipped across three slices: enrolled-students roster (US-07-01, Slice A), course analytics (US-07-02, Slice B), and new-module notifications (US-07-03, Slice C).
 - **Remaining EP-08 admin features** — Manage Users, Manage Categories, and Monitor Platform Health are deferred post-MVP. The admin instructor-application review queue (US-08-03) is shipped.
 - **Account management sub-flows** — account deletion, social auth, and App Check are out of scope for MVP. UC-01-03 (manage profile) is now fully implemented across Slices A–D (text profile, picture, email change, password change).
 

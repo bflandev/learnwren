@@ -13,6 +13,7 @@ export {
   EMAIL_TRANSPORT,
   type EmailTransport,
   type EmailChangeVerificationEmailInput,
+  type NewModuleEmailInput,
 } from './lib/email-transport/email-transport';
 export { PasswordPolicyService } from './lib/password-policy.service';
 export type { PolicyRequirement, PasswordPolicyResult } from './lib/password-policy.service';

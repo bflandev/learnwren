@@ -31,6 +31,21 @@
     >
       Delete module
     </button>
+    @if (canNotify()) {
+      <button
+        lwButton
+        variant="ghost"
+        data-testid="module-notify"
+        type="button"
+        (click)="notifyModule.emit()"
+      >
+        Notify students
+      </button>
+    } @else if (coursePublished() && alreadyNotified()) {
+      <span class="text-xs text-ink-3" data-testid="module-notified">
+        Students notified {{ module().studentsNotifiedAt | date: 'mediumDate' }}
+      </span>
+    }
   </header>
 
   <lib-lesson-list

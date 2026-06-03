@@ -55,6 +55,7 @@
       <lib-module-tree
         [nodes]="nodes()"
         [courseId]="cid()"
+        [coursePublished]="tree()?.course?.status === 'PUBLISHED'"
         (reorderModules)="onReorderModules($event)"
         (renameModule)="onRenameModule($event)"
         (deleteModule)="requestDeleteModule($event)"
@@ -64,6 +65,7 @@
         (reorderLessons)="onReorderLessons($event)"
         (videoChanged)="refresh()"
         (videoStateChanged)="onVideoStateChanged($event)"
+        (notifyModule)="onNotifyModule($event)"
       ></lib-module-tree>
     </div>
   }
@@ -71,6 +73,12 @@
   @if (error()) {
     <p class="error mt-4 text-sm text-bad" data-testid="editor-error" role="alert">
       {{ error() }}
+    </p>
+  }
+
+  @if (notice()) {
+    <p class="mt-4 text-sm text-good" data-testid="editor-notice" role="status">
+      {{ notice() }}
     </p>
   }
 

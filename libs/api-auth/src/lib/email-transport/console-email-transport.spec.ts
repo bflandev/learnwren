@@ -175,3 +175,20 @@ describe('ConsoleEmailTransport — instructor decision emails', () => {
     expect(t.lastSentTo('b@example.com', 'instructor-declined')).toBeDefined();
   });
 });
+
+describe('ConsoleEmailTransport.sendNewModuleEmail', () => {
+  it('records a new-module email in the outbox with the course URL', async () => {
+    const t = new ConsoleEmailTransport();
+    await t.sendNewModuleEmail({
+      to: 'ada@example.com',
+      studentName: 'Ada',
+      courseTitle: 'Intro to Wren',
+      moduleTitle: 'Module 1',
+      courseUrl: 'http://localhost:4200/catalog/c1',
+    });
+    const entry = t.lastSentTo('ada@example.com', 'new-module');
+    expect(entry).toBeDefined();
+    expect(entry?.kind).toBe('new-module');
+    expect(entry?.url).toBe('http://localhost:4200/catalog/c1');
+  });
+});

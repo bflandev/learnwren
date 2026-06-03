@@ -152,7 +152,8 @@ export class AuthController {
   @Get('_test/last-email')
   async lastTestEmail(
     @Query('to') to: string,
-    @Query('kind') kind: 'unlock' | 'verification' | 'password-reset' | 'email-change' | 'password-changed',
+    @Query('kind')
+    kind: 'unlock' | 'verification' | 'password-reset' | 'email-change' | 'password-changed' | 'new-module',
   ): Promise<{ url: string; sentAt: string }> {
     if (process.env['NODE_ENV'] === 'production') {
       throw new NotFoundException();

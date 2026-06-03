@@ -10,6 +10,7 @@ import type { Course, VideoState } from '@learnwren/shared-data-models';
 import { CourseEditorPageComponent } from './course-editor-page.component';
 import { CoursePublishBarComponent } from '../publish/course-publish-bar.component';
 import { PublishEligibilityService } from '../publish/publish-eligibility.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const TS = '2026-05-12T00:00:00.000Z';
 
@@ -77,6 +78,7 @@ function internals(component: CourseEditorPageComponent): EditorInternals {
 
 describe('CourseEditorPageComponent', () => {
   let http: HttpTestingController;
+  const notifications = { notifyModule: vi.fn() };
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -91,6 +93,7 @@ describe('CourseEditorPageComponent', () => {
             paramMap: of(new Map([['id', 'cid-1']]) as unknown as import('@angular/router').ParamMap),
           },
         },
+        { provide: NotificationsService, useValue: notifications },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -670,6 +673,32 @@ describe('CourseEditorPageComponent', () => {
       const fixture = await initEditor();
       fixture.componentInstance.requestDeleteLesson({ moduleId: 'mid-1', lessonId: 'lid-1' });
       expect(fixture.componentInstance.confirmMessage()).toContain('Delete this lesson');
+    });
+  });
+
+  describe('onNotifyModule', () => {
+    it('notifies and shows a confirmation message', async () => {
+      notifications.notifyModule.mockResolvedValue({ notifiedCount: 5 });
+      const fixture = await initEditor();
+
+      const pending = fixture.componentInstance.onNotifyModule('mid-1');
+      // Let the notifyModule promise settle so refresh() is called and issues the GET
+      await fixture.whenStable();
+      // flush the refresh GET triggered by the successful notify
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+
+      expect(notifications.notifyModule).toHaveBeenCalledWith('cid-1', 'mid-1');
+      expect(fixture.componentInstance.notice()).toContain('Notified 5 students');
+    });
+
+    it('shows an error when the call fails', async () => {
+      notifications.notifyModule.mockRejectedValue(new Error('boom'));
+      const fixture = await initEditor();
+
+      await fixture.componentInstance.onNotifyModule('mid-1');
+
+      expect(fixture.componentInstance.error()).toBeTruthy();
     });
   });
 });

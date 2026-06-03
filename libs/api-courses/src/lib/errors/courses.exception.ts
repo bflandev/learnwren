@@ -92,3 +92,29 @@ export class NotEnrolledException extends CoursesException {
     super('NOT_ENROLLED', 'You are not enrolled in this course.', 404);
   }
 }
+
+export class CourseNotPublishedForNotifyException extends CoursesException {
+  constructor() {
+    super(
+      'COURSE_NOT_PUBLISHED_FOR_NOTIFY',
+      'Only a published course can notify its enrolled students.',
+      409,
+    );
+  }
+}
+
+export class ModuleHasNoLessonsException extends CoursesException {
+  constructor() {
+    super(
+      'MODULE_HAS_NO_LESSONS',
+      'A module must have at least one lesson before students are notified.',
+      409,
+    );
+  }
+}
+
+export class ModuleAlreadyNotifiedException extends CoursesException {
+  constructor() {
+    super('MODULE_ALREADY_NOTIFIED', 'Students have already been notified about this module.', 409);
+  }
+}

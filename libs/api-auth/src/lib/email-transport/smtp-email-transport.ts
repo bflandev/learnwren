@@ -6,6 +6,7 @@ import type {
   EmailTransport,
   InstructorApplicationApprovedEmailInput,
   InstructorApplicationDeclinedEmailInput,
+  NewModuleEmailInput,
   PasswordChangedEmailInput,
   PasswordResetEmailInput,
   UnlockEmailInput,
@@ -184,6 +185,28 @@ export class SmtpEmailTransport implements EmailTransport {
       this.logger.log(`[instructor-declined-email] sent to=${input.to}`);
     } catch (err) {
       this.logger.error(`[instructor-declined-email] send failed to=${input.to}: ${String(err)}`);
+      throw err;
+    }
+  }
+
+  async sendNewModuleEmail(input: NewModuleEmailInput): Promise<void> {
+    const text =
+      `Hi ${input.studentName},\n\n` +
+      `A new module — "${input.moduleTitle}" — was added to "${input.courseTitle}".\n\n` +
+      `Continue learning here:\n\n` +
+      `${input.courseUrl}\n\n` +
+      `Happy learning,\nThe Learn Wren team`;
+
+    try {
+      await this.transporter.sendMail({
+        from: this.config.from,
+        to: input.to,
+        subject: `New module in "${input.courseTitle}"`,
+        text,
+      });
+      this.logger.log(`[new-module-email] sent to=${input.to}`);
+    } catch (err) {
+      this.logger.error(`[new-module-email] send failed to=${input.to}: ${String(err)}`);
       throw err;
     }
   }

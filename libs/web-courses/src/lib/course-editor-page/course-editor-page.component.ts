@@ -12,6 +12,7 @@ import { CoursesService, type CourseTree, type UpdateCourseInput } from '../cour
 import { CoursePublishBarComponent } from '../publish/course-publish-bar.component';
 import { PublishEligibilityPanelComponent } from '../publish/publish-eligibility-panel.component';
 import { PublishEligibilityService } from '../publish/publish-eligibility.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { LwButtonDirective } from '@learnwren/web-ui';
 
 type PendingConfirm =
@@ -33,11 +34,13 @@ export class CourseEditorPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly publishSvc = inject(PublishEligibilityService);
+  private readonly notifications = inject(NotificationsService);
 
   private readonly paramMap = toSignal(this.route.paramMap);
   readonly cid = computed(() => (this.paramMap()?.get('id') ?? '') as CourseId);
   readonly tree = signal<CourseTree | null>(null);
   readonly error = signal<string | null>(null);
+  readonly notice = signal<string | null>(null);
   readonly pendingConfirm = signal<PendingConfirm | null>(null);
 
   @ViewChild(CoursePublishBarComponent) protected publishBar?: CoursePublishBarComponent;
@@ -59,6 +62,7 @@ export class CourseEditorPageComponent {
       this.publishSvc.bindToCourse(cid);
       this.publishSvc.refresh();
     } catch {
+      this.notice.set(null);
       this.error.set('Failed to load course.');
     }
   }
@@ -139,6 +143,7 @@ export class CourseEditorPageComponent {
       }
       await this.refresh();
     } catch {
+      this.notice.set(null);
       this.error.set('Delete failed — refresh to see current state.');
     }
   }
@@ -171,6 +176,18 @@ export class CourseEditorPageComponent {
       () => this.service.updateLesson(this.cid(), args.moduleId, args.lessonId, { title: args.title }),
       'Failed to rename lesson.',
     );
+  }
+
+  async onNotifyModule(moduleId: string): Promise<void> {
+    this.error.set(null);
+    this.notice.set(null);
+    try {
+      const { notifiedCount } = await this.notifications.notifyModule(this.cid(), moduleId);
+      this.notice.set(`Notified ${notifiedCount} student${notifiedCount === 1 ? '' : 's'}.`);
+      await this.refresh();
+    } catch {
+      this.error.set('Failed to notify students.');
+    }
   }
 
   async onReorderModules(ids: string[]): Promise<void> {
@@ -217,6 +234,7 @@ export class CourseEditorPageComponent {
       await commit();
     } catch {
       this.tree.set(snapshot);
+      this.notice.set(null);
       this.error.set('Reorder failed — reverted.');
       await this.refresh();
     }
@@ -232,6 +250,7 @@ export class CourseEditorPageComponent {
       await op();
       await this.refresh();
     } catch {
+      this.notice.set(null);
       this.error.set(errorMessage);
     }
   }

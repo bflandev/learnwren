@@ -32,6 +32,8 @@ import { AnalyticsController } from './analytics/analytics.controller';
 import { AnalyticsService } from './analytics/analytics.service';
 import { RosterController } from './roster/roster.controller';
 import { RosterService } from './roster/roster.service';
+import { NotificationsController } from './notifications/notifications.controller';
+import { NotificationsService } from './notifications/notifications.service';
 import { MaterialsModule } from './materials/materials.module';
 import { VideoModule } from './video/video.module';
 
@@ -42,7 +44,7 @@ import { VideoModule } from './video/video.module';
 // NestJS resolves both cycles with forwardRef.
 @Module({
   imports: [AuthModule, forwardRef(() => VideoModule), forwardRef(() => MaterialsModule)],
-  controllers: [CoursesController, CatalogController, EnrollmentController, LearnController, CoverController, RosterController, AnalyticsController],
+  controllers: [CoursesController, CatalogController, EnrollmentController, LearnController, CoverController, RosterController, AnalyticsController, NotificationsController],
   providers: [
     CoursesService,
     CoursesRepository,
@@ -59,6 +61,7 @@ import { VideoModule } from './video/video.module';
     LessonEnrollmentGuard,
     RosterService,
     AnalyticsService,
+    NotificationsService,
     CoverImageService,
     CoverExceptionFilter,
     FirebaseCoverStorageAdapter,
