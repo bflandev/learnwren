@@ -38,10 +38,4 @@ export class InstructorDirectory {
       }),
     );
   }
-
-  /** @deprecated Prefer `instructorRefsFor`. Retained as a thin shim for now. */
-  async displayNamesFor(uids: UserId[]): Promise<Map<UserId, string>> {
-    const refs = await this.instructorRefsFor(uids);
-    return new Map([...refs].map(([uid, ref]) => [uid, ref.displayName]));
-  }
 }

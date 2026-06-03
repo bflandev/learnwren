@@ -1,11 +1,11 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   Course,
   CourseCategory,
   CourseDifficulty,
   CourseId,
-  ISODateString,
   Lesson,
   LessonId,
   Module,
@@ -38,10 +38,6 @@ export interface UpdateCourseInput {
   longDescription?: string;
   category?: CourseCategory;
   difficulty?: CourseDifficulty;
-}
-
-function nowIso(): ISODateString {
-  return new Date().toISOString() as ISODateString;
 }
 
 @Injectable()

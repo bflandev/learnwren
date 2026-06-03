@@ -8,10 +8,10 @@ import {
   readStoredUserProfiles,
 } from '@learnwren/api-firebase';
 import { EMAIL_TRANSPORT, type EmailTransport } from '@learnwren/api-auth';
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   InstructorApplication,
   InstructorApplicationView,
-  ISODateString,
   PendingInstructorApplicationsResponse,
   PendingInstructorApplicationView,
   UserId,
@@ -23,12 +23,9 @@ import {
   ApplicationNotFoundException,
   ApplicationNotPendingException,
 } from './errors/admin-instructor-application.exception';
+import { INSTRUCTOR_APPLICATIONS_COLLECTION } from './instructor-applications.constants';
 
-const COLLECTION = 'instructorApplications';
-
-function nowIso(): ISODateString {
-  return new Date().toISOString() as ISODateString;
-}
+const COLLECTION = INSTRUCTOR_APPLICATIONS_COLLECTION;
 
 @Injectable()
 export class AdminInstructorApplicationService {

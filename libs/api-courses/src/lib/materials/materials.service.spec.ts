@@ -198,8 +198,8 @@ describe('MaterialsService.complete', () => {
   });
 
   it('accepts a file exactly at the tolerance boundary (size === MAX * 1.05) without throwing', async () => {
-    // MATERIAL_MAX_SIZE_BYTES * SIZE_TOLERANCE exactly — condition is `> tolerance`, not `>=`,
-    // so exact boundary should succeed. This distinguishes `>` from `>=`.
+    // MATERIAL_MAX_SIZE_BYTES * UPLOAD_SIZE_TOLERANCE exactly — condition is `> tolerance`, not
+    // `>=`, so exact boundary should succeed. This distinguishes `>` from `>=`.
     const repo = fakeRepo();
     await repo.create(seedMaterial('m1'));
     const exactLimit = Math.floor(MATERIAL_MAX_SIZE_BYTES * 1.05);

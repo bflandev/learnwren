@@ -105,6 +105,39 @@ test('register rejects a weak password with WEAK_PASSWORD and unmetRequirements'
   expect(body.error.details.unmetRequirements).toContain('MIN_LENGTH');
 });
 
+test('register rejects an over-long email with EMAIL_TOO_LONG', async ({ request }) => {
+  // Validates through the real global ValidationPipe: the @MaxLength(254) DTO
+  // decorator was removed, so the service must emit the typed code (not a
+  // generic pipe BAD_REQUEST).
+  const longEmail = `${'a'.repeat(250)}@x.co`; // 255 chars, valid format
+  const reg = await request.post(`${API_BASE}/auth/register`, {
+    data: { email: longEmail, password: 'Aa1!aaaaaaaa', displayName: 'X' },
+  });
+  expect(reg.status()).toBe(400);
+  expect((await reg.json()).error.code).toBe('EMAIL_TOO_LONG');
+});
+
+test('register rejects an over-long password with PASSWORD_TOO_LONG', async ({ request }) => {
+  const email = uniqueEmail();
+  const longPassword = `Aa1!${'a'.repeat(260)}`; // 264 chars, satisfies complexity but > 256
+  const reg = await request.post(`${API_BASE}/auth/register`, {
+    data: { email, password: longPassword, displayName: 'X' },
+  });
+  expect(reg.status()).toBe(400);
+  expect((await reg.json()).error.code).toBe('PASSWORD_TOO_LONG');
+});
+
+test('register rejects an over-long display name with the typed INVALID_DISPLAY_NAME code', async ({ request }) => {
+  // Previously @MaxLength(80) produced a generic 400 with no code; the service
+  // now owns the check and returns the feature's typed code.
+  const email = uniqueEmail();
+  const reg = await request.post(`${API_BASE}/auth/register`, {
+    data: { email, password: 'Aa1!aaaaaaaa', displayName: 'a'.repeat(81) },
+  });
+  expect(reg.status()).toBe(400);
+  expect((await reg.json()).error.code).toBe('INVALID_DISPLAY_NAME');
+});
+
 test('lockout flow: 3 wrong passwords → 423 → unlock token works → login succeeds', async ({ request }) => {
   const email = uniqueEmail();
   const password = 'Aa1!aaaaaaaa';

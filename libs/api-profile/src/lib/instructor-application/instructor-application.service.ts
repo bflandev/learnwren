@@ -1,10 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   InstructorApplication,
   InstructorApplicationView,
-  ISODateString,
   SubmitInstructorApplicationRequest,
   UserId,
   UserRole,
@@ -15,13 +15,10 @@ import {
   InstructorApplicationExistsException,
   InstructorApplicationInvalidException,
 } from './errors/instructor-application.exception';
+import { INSTRUCTOR_APPLICATIONS_COLLECTION } from './instructor-applications.constants';
 
-const COLLECTION = 'instructorApplications';
+const COLLECTION = INSTRUCTOR_APPLICATIONS_COLLECTION;
 const MAX_FIELD_LENGTH = 2000;
-
-function nowIso(): ISODateString {
-  return new Date().toISOString() as ISODateString;
-}
 
 @Injectable()
 export class InstructorApplicationService {

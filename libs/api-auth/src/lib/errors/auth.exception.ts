@@ -35,6 +35,18 @@ export class InvalidEmailException extends AuthException {
   }
 }
 
+export class EmailTooLongException extends AuthException {
+  constructor() {
+    super('EMAIL_TOO_LONG', 'Email address must be 254 characters or fewer.', 400);
+  }
+}
+
+export class PasswordTooLongException extends AuthException {
+  constructor() {
+    super('PASSWORD_TOO_LONG', 'Password must be 256 characters or fewer.', 400);
+  }
+}
+
 export class InvalidDisplayNameException extends AuthException {
   constructor() {
     super('INVALID_DISPLAY_NAME', 'Display name is required and must be 80 characters or fewer.', 400);

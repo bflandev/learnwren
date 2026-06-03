@@ -3,6 +3,7 @@ import type { firestore as adminFirestore } from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   Course,
   CourseId,
@@ -27,10 +28,6 @@ const COURSES = 'courses';
  * read budget.
  */
 const MAX_CATALOG_SCAN = 500;
-
-function nowIso(): ISODateString {
-  return new Date().toISOString() as ISODateString;
-}
 
 /**
  * Next free `order` value for an append: `max(existing) + 1`, or 0 when empty.

@@ -13,7 +13,11 @@
   @if (isInstructor()) {
     <h2 class="mb-4 text-xl text-ink">My courses</h2>
 
-    @if (courses() === null) {
+    @if (error()) {
+      <lw-card class="p-8 text-center">
+        <p class="text-ink-2" data-testid="courses-error">{{ error() }}</p>
+      </lw-card>
+    } @else if (courses() === null) {
       <p class="text-sm text-ink-3">Loading…</p>
     } @else if (courses()!.length === 0) {
       <lw-card class="p-8 text-center">

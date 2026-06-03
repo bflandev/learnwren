@@ -1,4 +1,5 @@
 export * from './lib/common';
+export * from './lib/time';
 export * from './lib/user';
 export * from './lib/course';
 export * from './lib/module';
@@ -14,6 +15,7 @@ export * from './lib/catalog';
 export * from './lib/auth';
 export * from './lib/wire';
 export * from './lib/profile';
+export * from './lib/password-policy';
 export * from './lib/instructor-application';
 export * from './lib/notify';
 export * from './lib/api-error';

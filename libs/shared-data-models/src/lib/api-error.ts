@@ -43,7 +43,9 @@ export type CoursesApiErrorBody = ApiErrorBody<CoursesApiErrorCode>;
 /** Authoritative auth-domain error codes (the `code` of every AuthException). */
 export type AuthErrorCode =
   | 'INVALID_EMAIL'
+  | 'EMAIL_TOO_LONG'
   | 'WEAK_PASSWORD'
+  | 'PASSWORD_TOO_LONG'
   | 'INVALID_DISPLAY_NAME'
   | 'EMAIL_ALREADY_EXISTS'
   | 'INVALID_ID_TOKEN'
