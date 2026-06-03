@@ -74,7 +74,7 @@
         }
       }
       @if (actionSuccess(); as msg) {
-        <p class="text-sm text-green-800" data-testid="action-success">{{ msg }}</p>
+        <p class="text-sm text-green-800" role="status" data-testid="action-success">{{ msg }}</p>
       }
       @if (actionError(); as msg) {
         <p class="text-sm text-red-600" role="alert" data-testid="action-error">{{ msg }}</p>
