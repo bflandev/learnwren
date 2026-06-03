@@ -64,3 +64,14 @@ export type AuthErrorCode =
 export type ApiAuthErrorCode = AuthErrorCode;
 
 export type ApiAuthErrorBody = ApiErrorBody<ApiAuthErrorCode>;
+
+/** Authoritative admin-users-domain error codes (the `code` of every AdminUsersException). */
+export type AdminUsersErrorCode = 'USER_NOT_FOUND' | 'INTERNAL';
+
+/**
+ * Codes a web client may receive from an admin-users endpoint: the domain codes
+ * plus the cross-cutting guard codes those ADMIN-guarded routes surface.
+ */
+export type AdminUsersApiErrorCode = AdminUsersErrorCode | 'INSUFFICIENT_ROLE' | 'UNAUTHENTICATED';
+
+export type AdminUsersApiErrorBody = ApiErrorBody<AdminUsersApiErrorCode>;
