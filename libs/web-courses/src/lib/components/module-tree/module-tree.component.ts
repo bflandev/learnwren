@@ -25,8 +25,10 @@ export interface ModuleNode {
 export class ModuleTreeComponent {
   readonly nodes = input.required<ModuleNode[]>();
   readonly courseId = input.required<CourseId>();
+  readonly coursePublished = input<boolean>(false);
 
   readonly reorderModules = output<string[]>();
+  readonly notifyModule = output<string>();
   readonly renameModule = output<{ moduleId: string; title: string }>();
   readonly deleteModule = output<string>();
   readonly addLesson = output<{ moduleId: string; title: string }>();

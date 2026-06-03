@@ -16,6 +16,8 @@
         (renameLesson)="renameLesson.emit({ moduleId: node.module.id, lessonId: $event.lessonId, title: $event.title })"
         (deleteLesson)="deleteLesson.emit({ moduleId: node.module.id, lessonId: $event })"
         (reorderLessons)="reorderLessons.emit({ moduleId: node.module.id, lessonIds: $event })"
+        [coursePublished]="coursePublished()"
+        (notifyModule)="notifyModule.emit(node.module.id)"
         (videoChanged)="videoChanged.emit()"
         (videoStateChanged)="videoStateChanged.emit($event)"
       ></lib-module-item>
