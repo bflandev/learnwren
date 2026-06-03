@@ -10,4 +10,9 @@ export {
   type FirebaseWebApiKey,
 } from './lib/firebase.tokens';
 export { FirebaseAdminModule } from './lib/firebase-admin.module';
-export { readStoredUserProfiles, type StoredUserProfile } from './lib/user-profile.reader';
+export {
+  readStoredUserProfiles,
+  scanStoredUserProfiles,
+  type StoredUserProfile,
+  type StoredUserRecord,
+} from './lib/user-profile.reader';

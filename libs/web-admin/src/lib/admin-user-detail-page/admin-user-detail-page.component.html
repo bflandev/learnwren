@@ -1,0 +1,52 @@
+<section class="mx-auto max-w-3xl px-6 py-8">
+  <a routerLink="/admin/users" class="text-sm text-muted hover:text-ink">← Back to users</a>
+
+  @if (loading()) {
+    <p class="mt-6 text-sm text-muted">Loading…</p>
+  } @else if (notFound()) {
+    <p class="mt-6 text-sm text-muted" data-testid="not-found">User not found.</p>
+  } @else if (user(); as u) {
+    <div class="mt-6 flex items-center gap-4">
+      <lw-avatar [photoUrl]="u.photoUrl" [displayName]="u.displayName" [userId]="u.id" size="md" />
+      <div>
+        <h1 class="text-xl font-semibold text-ink">{{ u.displayName }}</h1>
+        <p class="text-sm text-muted">{{ u.email }}</p>
+      </div>
+      <span class="ml-auto rounded bg-bg-2 px-2 py-0.5 text-xs text-muted">{{ u.role }}</span>
+    </div>
+
+    <dl class="mt-6 grid grid-cols-[8rem_1fr] gap-2 text-sm">
+      <dt class="text-muted">Registered</dt>
+      <dd class="text-ink">{{ u.createdAt | date: 'mediumDate' }}</dd>
+      <dt class="text-muted">Biography</dt>
+      <dd class="text-ink">{{ u.biography || 'No biography.' }}</dd>
+    </dl>
+
+    @if (u.enrollments.length > 0) {
+      <h2 class="mt-8 text-sm font-semibold text-ink">Enrollment history</h2>
+      <ul class="mt-2 flex flex-col divide-y divide-line" data-testid="enrollments">
+        @for (e of u.enrollments; track e.courseId) {
+          <li class="flex items-baseline justify-between gap-4 py-2 text-sm">
+            <span class="text-ink">{{ e.courseTitle }}</span>
+            <span class="flex items-center gap-3">
+              <span class="rounded bg-bg-2 px-2 py-0.5 text-xs text-muted">{{ e.status }}</span>
+              <span class="text-xs text-muted">{{ e.enrolledAt | date: 'mediumDate' }}</span>
+            </span>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (u.authoredCourses.length > 0) {
+      <h2 class="mt-8 text-sm font-semibold text-ink">Authored courses</h2>
+      <ul class="mt-2 flex flex-col divide-y divide-line" data-testid="authored-courses">
+        @for (c of u.authoredCourses; track c.courseId) {
+          <li class="flex items-baseline justify-between gap-4 py-2 text-sm">
+            <span class="text-ink">{{ c.title }}</span>
+            <span class="rounded bg-bg-2 px-2 py-0.5 text-xs text-muted">{{ c.status }}</span>
+          </li>
+        }
+      </ul>
+    }
+  }
+</section>

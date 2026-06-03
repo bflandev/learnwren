@@ -1,3 +1,5 @@
+import { FieldPath } from 'firebase-admin/firestore';
+
 import type { FirestoreHandle } from './firebase.tokens';
 
 const USERS = 'users';
@@ -15,6 +17,10 @@ export interface StoredUserProfile {
   email?: string;
   photoUrl?: string;
   biography?: string;
+  /** Persisted role; absent on very old/partial docs. */
+  role?: string;
+  /** Account registration timestamp (ISO string). */
+  createdAt?: string;
 }
 
 /**
@@ -25,9 +31,9 @@ export interface StoredUserProfile {
  *
  * This is the ONLY place the API reads the identity-owned `users` collection.
  * Centralizing it removes three drifting re-implementations (roster, instructor
- * directory, admin application review) and collapses the admin review's former
- * sequential per-application read (an O(N) round-trip loop) into one parallel
- * fan-out.
+ * directory, admin application review, admin user management) and collapses the
+ * admin review's former sequential per-application read (an O(N) round-trip
+ * loop) into one parallel fan-out.
  */
 export async function readStoredUserProfiles(
   firestore: FirestoreHandle,
@@ -48,4 +54,23 @@ export async function readStoredUserProfiles(
     if (data) map.set(uid, data);
   }
   return map;
+}
+
+/** A scanned user profile combined with its document key (the uid). */
+export interface StoredUserRecord extends StoredUserProfile {
+  id: string;
+}
+
+/**
+ * Scan up to `limit` `users/{uid}` documents ordered by document id. The cap
+ * bounds the cost of the ADMIN user directory until cursor pagination is wired
+ * in; callers detect truncation by requesting one past their page size. The
+ * uid is the document key (not a stored field), so it is merged in here.
+ */
+export async function scanStoredUserProfiles(
+  firestore: FirestoreHandle,
+  limit: number,
+): Promise<StoredUserRecord[]> {
+  const snap = await firestore.collection(USERS).orderBy(FieldPath.documentId()).limit(limit).get();
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as StoredUserProfile) }));
 }

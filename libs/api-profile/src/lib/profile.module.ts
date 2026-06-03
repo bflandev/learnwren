@@ -21,6 +21,10 @@ import { AdminInstructorApplicationController } from './instructor-application/a
 import { AdminInstructorApplicationExceptionFilter } from './instructor-application/admin-instructor-application.exception-filter';
 import { AdminInstructorApplicationService } from './instructor-application/admin-instructor-application.service';
 import { InstructorApplicationController } from './instructor-application/instructor-application.controller';
+import { AdminUsersController } from './users/admin-users.controller';
+import { AdminUsersExceptionFilter } from './users/admin-users.exception-filter';
+import { AdminUsersRepository } from './users/admin-users.repository';
+import { AdminUsersService } from './users/admin-users.service';
 import { InstructorApplicationExceptionFilter } from './instructor-application/instructor-application.exception-filter';
 import { InstructorApplicationService } from './instructor-application/instructor-application.service';
 import { ProfileController } from './profile.controller';
@@ -29,7 +33,7 @@ import { ProfileService } from './profile.service';
 
 @Module({
   imports: [AuthModule], // pulls in FirebaseSessionGuard
-  controllers: [ProfileController, ProfilePictureController, EmailChangeController, PasswordChangeController, InstructorApplicationController, AdminInstructorApplicationController],
+  controllers: [ProfileController, ProfilePictureController, EmailChangeController, PasswordChangeController, InstructorApplicationController, AdminInstructorApplicationController, AdminUsersController],
   providers: [
     ProfileService,
     ProfileExceptionFilter,
@@ -43,6 +47,9 @@ import { ProfileService } from './profile.service';
     AdminInstructorApplicationExceptionFilter,
     InstructorApplicationService,
     InstructorApplicationExceptionFilter,
+    AdminUsersService,
+    AdminUsersRepository,
+    AdminUsersExceptionFilter,
     FirebasePictureStorageAdapter,
     { provide: PICTURE_CONFIG, useFactory: () => readPictureConfigFromEnv(process.env) },
     {

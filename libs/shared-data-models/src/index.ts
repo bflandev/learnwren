@@ -19,3 +19,4 @@ export * from './lib/password-policy';
 export * from './lib/instructor-application';
 export * from './lib/notify';
 export * from './lib/api-error';
+export * from './lib/admin-user';
