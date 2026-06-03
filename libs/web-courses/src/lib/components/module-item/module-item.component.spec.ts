@@ -209,4 +209,11 @@ describe('ModuleItemComponent — notify button', () => {
     (f.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-testid="module-notify"]')!.click();
     expect(emitted).toHaveBeenCalled();
   });
+
+  it('shows neither the button nor the label on a draft course, even when already notified', () => {
+    const f = setup({ coursePublished: false, module: mod({ studentsNotifiedAt: T0 as never }) });
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="module-notify"]')).toBeFalsy();
+    expect(el.querySelector('[data-testid="module-notified"]')).toBeFalsy();
+  });
 });
