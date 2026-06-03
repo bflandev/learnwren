@@ -1,5 +1,7 @@
 import type { UserId } from '@learnwren/shared-data-models';
 
+import { INSTRUCTOR_APPLICATIONS_COLLECTION } from './instructor-applications.constants';
+
 /** Minimal structural slice of the Firebase Admin Auth handle. */
 export interface PromotionAuthLike {
   setCustomUserClaims(uid: string, claims: object | null): Promise<unknown>;
@@ -31,7 +33,7 @@ export async function promoteUserToInstructor(
   await auth.setCustomUserClaims(uid, { role: 'INSTRUCTOR' });
   await firestore.collection('users').doc(uid).update({ role: 'INSTRUCTOR' });
 
-  const appRef = firestore.collection('instructorApplications').doc(uid);
+  const appRef = firestore.collection(INSTRUCTOR_APPLICATIONS_COLLECTION).doc(uid);
   const snap = await appRef.get();
   if (snap.exists && snap.data()?.['status'] === 'PENDING') {
     await appRef.update({ status: 'APPROVED', resolvedAt: nowIso });

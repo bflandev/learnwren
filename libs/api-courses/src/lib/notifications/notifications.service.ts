@@ -2,7 +2,8 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { EMAIL_TRANSPORT, type EmailTransport } from '@learnwren/api-auth';
 import { FIRESTORE, type FirestoreHandle, readStoredUserProfiles } from '@learnwren/api-firebase';
-import type { Course, ISODateString, ModuleId, NotifyModuleResult, UserId } from '@learnwren/shared-data-models';
+import { nowIso } from '@learnwren/shared-data-models';
+import type { Course, ModuleId, NotifyModuleResult, UserId } from '@learnwren/shared-data-models';
 
 import { CoursesRepository } from '../courses.repository';
 import { EnrollmentRepository } from '../enrollment/enrollment.repository';
@@ -18,10 +19,6 @@ const FALLBACK_NAME = 'Student';
 interface Recipient {
   email: string;
   displayName: string;
-}
-
-function nowIso(): ISODateString {
-  return new Date().toISOString() as ISODateString;
 }
 
 @Injectable()

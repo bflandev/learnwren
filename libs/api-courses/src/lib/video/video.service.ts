@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   CourseId,
   ISODateString,
@@ -31,8 +32,8 @@ import {
   VideoStorageAdapter,
   type VideoStoragePort,
 } from './video-storage.adapter';
+import { UPLOAD_SIZE_TOLERANCE } from '../upload-tolerance';
 
-const SIZE_TOLERANCE = 1.05;
 const MAX_SUBMIT_ATTEMPTS = 3;
 const BACKOFF_MS = [1_000, 2_000, 4_000];
 
@@ -66,10 +67,6 @@ export interface CreateUploadSessionResult {
 
 export interface VideoServiceDeps {
   sleep?: (ms: number) => Promise<void>;
-}
-
-function nowIso(): ISODateString {
-  return new Date().toISOString() as ISODateString;
 }
 
 @Injectable()
@@ -171,7 +168,7 @@ export class VideoService {
     const head = await this.storage.headObject({ bucket: v.source.bucket, path: v.source.path });
     if (!head) throw new UploadObjectMissingException();
     const declared = v.source.sizeBytes ?? 0;
-    if (head.size > declared * SIZE_TOLERANCE) {
+    if (head.size > declared * UPLOAD_SIZE_TOLERANCE) {
       await this.storage
         .deleteObject({ bucket: v.source.bucket, path: v.source.path })
         .catch(() => undefined);

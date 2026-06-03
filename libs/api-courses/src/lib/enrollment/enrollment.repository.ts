@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   Course,
   CourseId,
@@ -19,10 +20,6 @@ import {
 
 const ENROLLMENTS = 'enrollments';
 const COURSES = 'courses';
-
-function nowIso(): ISODateString {
-  return new Date().toISOString() as ISODateString;
-}
 
 /**
  * Validates that a course exists, is PUBLISHED, and the caller is not its
@@ -198,7 +195,7 @@ export class EnrollmentRepository {
     userId: UserId,
     courseId: CourseId,
     lessonId: LessonId,
-    nowIso: ISODateString,
+    accessedAt: ISODateString,
   ): Promise<void> {
     const enrollmentRef = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
 
@@ -210,8 +207,8 @@ export class EnrollmentRepository {
       }
       t.update(enrollmentRef, {
         lastAccessedLessonId: lessonId,
-        lastAccessedAt: nowIso,
-        updatedAt: nowIso,
+        lastAccessedAt: accessedAt,
+        updatedAt: accessedAt,
       });
     });
   }

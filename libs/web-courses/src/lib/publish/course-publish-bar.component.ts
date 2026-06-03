@@ -8,7 +8,12 @@ import {
   signal,
 } from '@angular/core';
 
-import type { Course, CourseStatus } from '@learnwren/shared-data-models';
+import type {
+  Course,
+  CourseStatus,
+  CoursesApiErrorBody,
+  PublishNotEligibleDetails,
+} from '@learnwren/shared-data-models';
 
 import { LwButtonDirective, LwPillComponent } from '@learnwren/web-ui';
 
@@ -93,11 +98,12 @@ export class CoursePublishBarComponent {
       const updated = await call();
       this.courseUpdated.emit(updated);
     } catch (e: unknown) {
-      const err = e as { error?: { code?: string; details?: { reasons?: unknown[] } } };
+      const err = e as Partial<CoursesApiErrorBody>;
       const code = err.error?.code;
       if (code === 'PUBLISH_NOT_ELIGIBLE') {
-        const reasons = err.error?.details?.reasons ?? [];
-        this.publishSvc.setEligibility({ eligible: false, reasons: reasons as never });
+        const details = err.error?.details as PublishNotEligibleDetails | undefined;
+        const reasons = details?.reasons ?? [];
+        this.publishSvc.setEligibility({ eligible: false, reasons });
       } else if (code === 'INVALID_TRANSITION') {
         this.genericError.set('The course state changed — please refresh.');
       } else {

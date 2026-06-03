@@ -32,3 +32,13 @@ export type PublishBlockReason =
 export type PublishEligibility =
   | { eligible: true; reasons: [] }
   | { eligible: false; reasons: PublishBlockReason[] };
+
+/**
+ * The shape the API emits in `details` for the `PUBLISH_NOT_ELIGIBLE` error
+ * code (structurally matching `PublishNotEligibleException`'s payload), and the
+ * contract the web client narrows `err.error.details` to — replaces the
+ * previous untyped `reasons as never` cast on the client.
+ */
+export interface PublishNotEligibleDetails {
+  reasons: PublishBlockReason[];
+}

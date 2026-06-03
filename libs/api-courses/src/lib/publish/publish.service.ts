@@ -2,6 +2,7 @@ import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import type { firestore as adminFirestore } from 'firebase-admin';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   Course,
   CourseId,
@@ -25,10 +26,6 @@ import {
 import { composeReasons } from './publish-eligibility';
 import { VideoNotFoundException } from '../video/errors/video.exception';
 import { VideoService } from '../video/video.service';
-
-function nowIso(): ISODateString {
-  return new Date().toISOString() as ISODateString;
-}
 
 function isVideoNotFound(e: unknown): boolean {
   // An orphan lesson.videoId — one pointing at a deleted Video — folds into a

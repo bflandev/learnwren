@@ -14,10 +14,12 @@ import {
   AccountLockedException,
   EmailAlreadyExistsException,
   EmailNotVerifiedException,
+  EmailTooLongException,
   InvalidCredentialsException,
   InvalidDisplayNameException,
   InvalidEmailException,
   InternalAuthException,
+  PasswordTooLongException,
   WeakPasswordException,
 } from './errors/auth.exception';
 
@@ -256,6 +258,35 @@ describe('AuthService.register', () => {
     await expect(
       service.register({ ...validInput, displayName: tooLong }),
     ).rejects.toBeInstanceOf(InvalidDisplayNameException);
+    expect(auth.createUser).not.toHaveBeenCalled();
+  });
+
+  it('rejects with EmailTooLongException when the email exceeds 254 characters', async () => {
+    // The @MaxLength(254) DTO decorator was removed; the service now owns this
+    // guard and emits the typed code instead of a generic pipe BAD_REQUEST.
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+    const longEmail = `${'a'.repeat(250)}@x.co`; // 255 chars, valid format
+
+    await expect(
+      service.register({ ...validInput, email: longEmail }),
+    ).rejects.toBeInstanceOf(EmailTooLongException);
+    expect(auth.createUser).not.toHaveBeenCalled();
+  });
+
+  it('rejects with PasswordTooLongException when the password exceeds 256 characters', async () => {
+    // The @MaxLength(256) DTO decorator was removed; the service now owns this
+    // guard. The password is otherwise policy-valid, so only the length check
+    // can reject it.
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+    const longPassword = `Aa1!${'a'.repeat(260)}`; // 264 chars, satisfies complexity
+
+    await expect(
+      service.register({ ...validInput, password: longPassword }),
+    ).rejects.toBeInstanceOf(PasswordTooLongException);
     expect(auth.createUser).not.toHaveBeenCalled();
   });
 

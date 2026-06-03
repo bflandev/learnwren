@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type {
   CourseId,
-  ISODateString,
   LessonId,
   Material,
   MaterialId,
@@ -12,6 +11,7 @@ import type {
 import {
   MATERIAL_CONTENT_TYPE_BY_EXTENSION,
   MATERIAL_MAX_SIZE_BYTES,
+  nowIso,
   SUPPORTED_MATERIAL_EXTENSIONS,
 } from '@learnwren/shared-data-models';
 
@@ -28,13 +28,7 @@ import {
   MaterialsStorageAdapter,
   type MaterialsStoragePort,
 } from './materials-storage.adapter';
-
-/** Actual-vs-limit tolerance at upload-complete (covers minor storage overhead). */
-const SIZE_TOLERANCE = 1.05;
-
-function nowIso(): ISODateString {
-  return new Date().toISOString() as ISODateString;
-}
+import { UPLOAD_SIZE_TOLERANCE } from '../upload-tolerance';
 
 /** Parse + validate the file extension from a filename. The browser-reported
  *  MIME type is unreliable for Office formats, so the extension is authoritative. */
@@ -181,7 +175,7 @@ export class MaterialsService {
       path: m.storage.path,
     });
     if (!head) throw new UploadObjectMissingException();
-    if (head.size > MATERIAL_MAX_SIZE_BYTES * SIZE_TOLERANCE) {
+    if (head.size > MATERIAL_MAX_SIZE_BYTES * UPLOAD_SIZE_TOLERANCE) {
       await this.bestEffortDeleteStoredObject(m);
       throw new UploadObjectSizeMismatchException();
     }

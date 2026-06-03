@@ -10,6 +10,9 @@ import type {
   VideoTranscoder,
 } from './transcoder.port';
 
+// Canonical gRPC status code for NOT_FOUND (see google.rpc.Code).
+const GRPC_NOT_FOUND = 5;
+
 // Minimal structural type for the subset of TranscoderServiceClient we use.
 export interface TranscoderClient {
   createJob(req: { parent: string; job: { config: unknown } }): Promise<[{ name?: string | null }]>;
@@ -93,7 +96,7 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
       await this.opts.client.cancelJob({ name: jobName });
     } catch (err) {
       const code = (err as { code?: number }).code;
-      if (code === 5) return; // gRPC NOT_FOUND — tolerate.
+      if (code === GRPC_NOT_FOUND) return; // already deleted/never existed — tolerate.
       throw err;
     }
   }

@@ -43,10 +43,6 @@ export class PublishEligibilityPanelComponent {
     return e && !e.eligible ? e.reasons.length : 0;
   });
 
-  protected isEligible(): boolean {
-    return this.eligibility()?.eligible === true;
-  }
-
   protected jumpLinkVisible(r: PublishBlockReason): 'lesson' | 'module' | null {
     if (r.kind === 'MODULE_HAS_NO_LESSONS') return 'module';
     if (r.kind === 'LESSON_HAS_NO_VIDEO') return 'lesson';
