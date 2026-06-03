@@ -118,4 +118,19 @@ describe('NotificationsService', () => {
     expect(result).toEqual({ notifiedCount: 1 });
     expect(courses.updateModule).toHaveBeenCalledWith(CID, MID, { studentsNotifiedAt: expect.any(String) });
   });
+
+  it('stamps the module even when every send fails, returning notifiedCount 0', async () => {
+    email.sendNewModuleEmail.mockRejectedValue(new Error('smtp down'));
+    const result = await service.notifyNewModule(course(), MID);
+    expect(result).toEqual({ notifiedCount: 0 });
+    expect(courses.updateModule).toHaveBeenCalledWith(CID, MID, { studentsNotifiedAt: expect.any(String) });
+  });
+
+  it('stamps with notifiedCount 0 when there are no active enrollees', async () => {
+    enrollments.listActiveByCourse.mockResolvedValue([]);
+    const result = await service.notifyNewModule(course(), MID);
+    expect(email.sendNewModuleEmail).not.toHaveBeenCalled();
+    expect(result).toEqual({ notifiedCount: 0 });
+    expect(courses.updateModule).toHaveBeenCalledWith(CID, MID, { studentsNotifiedAt: expect.any(String) });
+  });
 });
