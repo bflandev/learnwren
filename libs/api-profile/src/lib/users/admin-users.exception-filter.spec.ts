@@ -5,7 +5,7 @@ import type { ArgumentsHost } from '@nestjs/common';
 import { AuthException, InsufficientRoleException } from '@learnwren/api-auth';
 
 import { AdminUsersExceptionFilter } from './admin-users.exception-filter';
-import { UserNotFoundException } from './errors/admin-users.exception';
+import { InvalidRoleTransitionException, UserNotFoundException } from './errors/admin-users.exception';
 
 function mockHost() {
   const json = vi.fn();
@@ -52,5 +52,21 @@ describe('AdminUsersExceptionFilter', () => {
     new AdminUsersExceptionFilter().catch(new HttpException('nope', 403), host);
     expect(status).toHaveBeenCalledWith(403);
     expect(json).toHaveBeenCalledWith({ error: { code: 'FORBIDDEN', message: 'nope' } });
+  });
+
+  it('renders InvalidRoleTransitionException as HTTP 409 with code + details', () => {
+    const { host, status, json } = mockHost();
+    new AdminUsersExceptionFilter().catch(
+      new InvalidRoleTransitionException('ADMIN', 'INSTRUCTOR'),
+      host,
+    );
+    expect(status).toHaveBeenCalledWith(409);
+    expect(json).toHaveBeenCalledWith({
+      error: {
+        code: 'INVALID_ROLE_TRANSITION',
+        message: 'Invalid role transition.',
+        details: { currentRole: 'ADMIN', attempted: 'INSTRUCTOR' },
+      },
+    });
   });
 });

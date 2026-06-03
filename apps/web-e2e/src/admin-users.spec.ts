@@ -99,3 +99,89 @@ test('non-admin (STUDENT) navigating to /admin/users is redirected to /dashboard
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
   await expect(page.getByTestId('user-list')).toHaveCount(0);
 });
+
+test('admin promotes a student from the detail page', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => {
+    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ADMIN_ME_STUB) });
+  });
+  await page.route('**/api/admin/users**', (route) => {
+    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(LIST_RESPONSE) });
+  });
+  await page.route('**/api/admin/users/u1', (route) => {
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...DETAIL_RESPONSE, role: 'STUDENT' }),
+    });
+  });
+  await page.route('**/api/admin/users/u1/promote', (route) => {
+    void route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'u1', role: 'INSTRUCTOR' }),
+    });
+  });
+
+  await page.goto('/admin/users/u1');
+  await expect(page.getByTestId('promote-btn')).toBeVisible();
+  await page.getByTestId('promote-btn').click();
+  await expect(page.getByTestId('demote-btn')).toBeVisible();
+  await expect(page.getByTestId('action-success')).toContainText('Promoted to Instructor');
+});
+
+test('admin demotes an instructor via the inline confirm', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => {
+    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ADMIN_ME_STUB) });
+  });
+  await page.route('**/api/admin/users**', (route) => {
+    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(LIST_RESPONSE) });
+  });
+  await page.route('**/api/admin/users/u1', (route) => {
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...DETAIL_RESPONSE, role: 'INSTRUCTOR' }),
+    });
+  });
+  await page.route('**/api/admin/users/u1/demote', (route) => {
+    void route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'u1', role: 'STUDENT' }),
+    });
+  });
+
+  await page.goto('/admin/users/u1');
+  await page.getByTestId('demote-btn').click();
+  await expect(page.getByTestId('demote-confirm')).toBeVisible();
+  await page.getByTestId('demote-confirm-btn').click();
+  await expect(page.getByTestId('promote-btn')).toBeVisible();
+  await expect(page.getByTestId('action-success')).toContainText('Demoted to Student');
+});
+
+test('a stale role change surfaces an inline error', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => {
+    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ADMIN_ME_STUB) });
+  });
+  await page.route('**/api/admin/users**', (route) => {
+    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(LIST_RESPONSE) });
+  });
+  await page.route('**/api/admin/users/u1', (route) => {
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...DETAIL_RESPONSE, role: 'STUDENT' }),
+    });
+  });
+  await page.route('**/api/admin/users/u1/promote', (route) => {
+    void route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'INVALID_ROLE_TRANSITION', message: 'Invalid role transition.' } }),
+    });
+  });
+
+  await page.goto('/admin/users/u1');
+  await page.getByTestId('promote-btn').click();
+  await expect(page.getByTestId('action-error')).toContainText('changed elsewhere');
+});

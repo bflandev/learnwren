@@ -118,3 +118,112 @@ test('non-admin is forbidden from the user directory', async () => {
     await ctx.dispose();
   }
 });
+
+test('admin promotes a student to instructor', async () => {
+  const ctx = await apiRequest.newContext();
+  try {
+    const student = await registerStudent(ctx);
+    const adminSession = await registerAndPromoteAdmin(ctx);
+    const hdr = { Cookie: adminSession.cookieHeader };
+
+    const res = await ctx.post(`${API_BASE}/admin/users/${student.uid}/promote`, { headers: hdr });
+    expect(res.status()).toBe(201);
+    expect((await res.json()).role).toBe('INSTRUCTOR');
+
+    const detail = await ctx.get(`${API_BASE}/admin/users/${student.uid}`, { headers: hdr });
+    expect((await detail.json()).role).toBe('INSTRUCTOR');
+  } finally {
+    await ctx.dispose();
+  }
+});
+
+test('admin demotes an instructor to student', async () => {
+  const ctx = await apiRequest.newContext();
+  try {
+    const instructor = await registerAndPromoteInstructor(ctx);
+    const adminSession = await registerAndPromoteAdmin(ctx);
+    const hdr = { Cookie: adminSession.cookieHeader };
+
+    const res = await ctx.post(`${API_BASE}/admin/users/${instructor.uid}/demote`, { headers: hdr });
+    expect(res.status()).toBe(201);
+    expect((await res.json()).role).toBe('STUDENT');
+
+    const detail = await ctx.get(`${API_BASE}/admin/users/${instructor.uid}`, { headers: hdr });
+    expect((await detail.json()).role).toBe('STUDENT');
+  } finally {
+    await ctx.dispose();
+  }
+});
+
+test('promote on a non-student is 409 INVALID_ROLE_TRANSITION', async () => {
+  const ctx = await apiRequest.newContext();
+  try {
+    const instructor = await registerAndPromoteInstructor(ctx);
+    const adminSession = await registerAndPromoteAdmin(ctx);
+    const res = await ctx.post(`${API_BASE}/admin/users/${instructor.uid}/promote`, {
+      headers: { Cookie: adminSession.cookieHeader },
+    });
+    expect(res.status()).toBe(409);
+    expect((await res.json()).error.code).toBe('INVALID_ROLE_TRANSITION');
+  } finally {
+    await ctx.dispose();
+  }
+});
+
+test('demote on a non-instructor is 409 INVALID_ROLE_TRANSITION', async () => {
+  const ctx = await apiRequest.newContext();
+  try {
+    const student = await registerStudent(ctx);
+    const adminSession = await registerAndPromoteAdmin(ctx);
+    const res = await ctx.post(`${API_BASE}/admin/users/${student.uid}/demote`, {
+      headers: { Cookie: adminSession.cookieHeader },
+    });
+    expect(res.status()).toBe(409);
+    expect((await res.json()).error.code).toBe('INVALID_ROLE_TRANSITION');
+  } finally {
+    await ctx.dispose();
+  }
+});
+
+test('non-admin cannot promote or demote (403)', async () => {
+  const ctx = await apiRequest.newContext();
+  try {
+    const instructor = await registerAndPromoteInstructor(ctx);
+    const student = await registerStudent(ctx);
+    const res = await ctx.post(`${API_BASE}/admin/users/${student.uid}/promote`, {
+      headers: { Cookie: instructor.cookieHeader },
+    });
+    expect(res.status()).toBe(403);
+  } finally {
+    await ctx.dispose();
+  }
+});
+
+// Skipped: the Firebase Auth emulator does not enforce session-cookie revocation
+// (verifySessionCookie checkRevoked) the way production does — a cookie minted at
+// ~the same second as revokeRefreshTokens' second-granularity validSince still
+// verifies, so this returns 200 against the emulator. The revoke effect itself is
+// covered by the unit assertion in role-mutation.spec.ts (revokeRefreshTokens is
+// called on demote); immediate session invalidation is a manual-verify item against
+// real Firebase. See the plan's Task 6 fallback note.
+test.skip('demotion revokes the instructor session (next request 401) [timing-sensitive]', async () => {
+  const ctx = await apiRequest.newContext();
+  try {
+    const instructor = await registerAndPromoteInstructor(ctx);
+    const adminSession = await registerAndPromoteAdmin(ctx);
+
+    // The live instructor session can reach a FirebaseSessionGuard-protected route.
+    const before = await ctx.get(`${API_BASE}/profile`, { headers: { Cookie: instructor.cookieHeader } });
+    expect(before.status()).toBe(200);
+
+    await ctx.post(`${API_BASE}/admin/users/${instructor.uid}/demote`, {
+      headers: { Cookie: adminSession.cookieHeader },
+    });
+
+    // After revocation, the same cookie fails verifySessionCookie(checkRevoked=true).
+    const after = await ctx.get(`${API_BASE}/profile`, { headers: { Cookie: instructor.cookieHeader } });
+    expect(after.status()).toBe(401);
+  } finally {
+    await ctx.dispose();
+  }
+});

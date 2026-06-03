@@ -15,6 +15,72 @@
       <span class="ml-auto rounded bg-bg-2 px-2 py-0.5 text-xs text-muted">{{ u.role }}</span>
     </div>
 
+    <div class="mt-4 flex flex-col gap-2" data-testid="role-actions">
+      @if (u.role === 'STUDENT') {
+        <div>
+          <button
+            type="button"
+            class="lw-btn lw-btn-primary"
+            data-testid="promote-btn"
+            [disabled]="busy()"
+            (click)="promote()"
+          >
+            Promote to Instructor
+          </button>
+        </div>
+      } @else if (u.role === 'INSTRUCTOR') {
+        @if (confirmingDemote()) {
+          <div class="rounded bg-bg-2 p-3" data-testid="demote-confirm">
+            <p class="text-sm text-ink">
+              Demote {{ u.displayName }} to Student?
+              @if (u.authoredCourses.length > 0) {
+                They will keep {{ u.authoredCourses.length }} authored course(s) but lose the
+                ability to edit or create courses.
+              }
+            </p>
+            <div class="mt-2 flex gap-2">
+              <button
+                type="button"
+                class="lw-btn lw-btn-primary"
+                data-testid="demote-confirm-btn"
+                [disabled]="busy()"
+                (click)="confirmDemote()"
+              >
+                Confirm demotion
+              </button>
+              <button
+                type="button"
+                class="lw-btn lw-btn-ghost"
+                data-testid="demote-cancel-btn"
+                [disabled]="busy()"
+                (click)="cancelDemote()"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        } @else {
+          <div>
+            <button
+              type="button"
+              class="lw-btn lw-btn-secondary"
+              data-testid="demote-btn"
+              [disabled]="busy()"
+              (click)="startDemote()"
+            >
+              Demote to Student
+            </button>
+          </div>
+        }
+      }
+      @if (actionSuccess(); as msg) {
+        <p class="text-sm text-green-800" role="status" data-testid="action-success">{{ msg }}</p>
+      }
+      @if (actionError(); as msg) {
+        <p class="text-sm text-red-600" role="alert" data-testid="action-error">{{ msg }}</p>
+      }
+    </div>
+
     <dl class="mt-6 grid grid-cols-[8rem_1fr] gap-2 text-sm">
       <dt class="text-muted">Registered</dt>
       <dd class="text-ink">{{ u.createdAt | date: 'mediumDate' }}</dd>

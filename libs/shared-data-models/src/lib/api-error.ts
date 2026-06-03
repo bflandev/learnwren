@@ -66,7 +66,7 @@ export type ApiAuthErrorCode = AuthErrorCode;
 export type ApiAuthErrorBody = ApiErrorBody<ApiAuthErrorCode>;
 
 /** Authoritative admin-users-domain error codes (the `code` of every AdminUsersException). */
-export type AdminUsersErrorCode = 'USER_NOT_FOUND' | 'INTERNAL';
+export type AdminUsersErrorCode = 'USER_NOT_FOUND' | 'INVALID_ROLE_TRANSITION' | 'INTERNAL';
 
 /**
  * Codes a web client may receive from an admin-users endpoint: the domain codes
