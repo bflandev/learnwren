@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { readStoredUserProfiles } from './user-profile.reader';
+import { readStoredUserProfiles, scanStoredUserProfiles } from './user-profile.reader';
+import type { StoredUserRecord } from './user-profile.reader';
 import type { FirestoreHandle } from './firebase.tokens';
 
 function makeFirestore(
@@ -58,5 +59,51 @@ describe('readStoredUserProfiles', () => {
     } as unknown as FirestoreHandle;
     const map = await readStoredUserProfiles(firestore, ['u1']);
     expect(map.get('u1')).toEqual({ displayName: 'Ada' });
+  });
+});
+
+describe('scanStoredUserProfiles', () => {
+  function fakeFirestore(docs: Array<{ id: string; data: Record<string, unknown> }>) {
+    let capturedLimit = -1;
+    const handle = {
+      collection: () => ({
+        orderBy: () => ({
+          limit: (n: number) => {
+            capturedLimit = n;
+            return {
+              get: async () => ({
+                docs: docs.slice(0, n).map((d) => ({ id: d.id, data: () => d.data })),
+              }),
+            };
+          },
+        }),
+      }),
+      get capturedLimit() {
+        return capturedLimit;
+      },
+    };
+    return handle as unknown as Parameters<typeof scanStoredUserProfiles>[0] & {
+      capturedLimit: number;
+    };
+  }
+
+  it('maps each doc to a record carrying the doc key as id plus its fields', async () => {
+    const fs = fakeFirestore([
+      { id: 'u1', data: { displayName: 'Ada', email: 'ada@x.com', role: 'STUDENT', createdAt: '2026-06-01T00:00:00.000Z' } },
+      { id: 'u2', data: { displayName: 'Bob', email: 'bob@x.com', role: 'INSTRUCTOR', createdAt: '2026-06-02T00:00:00.000Z' } },
+    ]);
+    const records: StoredUserRecord[] = await scanStoredUserProfiles(fs, 5001);
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({ id: 'u1', displayName: 'Ada', role: 'STUDENT' });
+    expect(records[1]?.id).toBe('u2');
+    expect(fs.capturedLimit).toBe(5001);
+  });
+
+  it('honours the limit argument', async () => {
+    const fs = fakeFirestore(
+      Array.from({ length: 10 }, (_, i) => ({ id: `u${i}`, data: { email: `u${i}@x.com` } })),
+    );
+    const records = await scanStoredUserProfiles(fs, 3);
+    expect(records).toHaveLength(3);
   });
 });
