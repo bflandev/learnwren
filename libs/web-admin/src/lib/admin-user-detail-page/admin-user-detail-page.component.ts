@@ -4,7 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 
 import { LwAvatarComponent } from '@learnwren/web-ui';
-import type { AdminUserDetail } from '@learnwren/shared-data-models';
+import type { AdminUserDetail, AdminUserRoleResponse } from '@learnwren/shared-data-models';
 
 import { AdminUsersService } from '../admin-users.service';
 
@@ -22,6 +22,10 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
   readonly user = signal<AdminUserDetail | undefined>(undefined);
   readonly loading = signal(true);
   readonly notFound = signal(false);
+  readonly busy = signal(false);
+  readonly actionError = signal<string | undefined>(undefined);
+  readonly actionSuccess = signal<string | undefined>(undefined);
+  readonly confirmingDemote = signal(false);
 
   private sub?: Subscription;
 
@@ -34,6 +38,54 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
+  }
+
+  startDemote(): void {
+    this.actionError.set(undefined);
+    this.actionSuccess.set(undefined);
+    this.confirmingDemote.set(true);
+  }
+
+  cancelDemote(): void {
+    this.confirmingDemote.set(false);
+  }
+
+  async promote(): Promise<void> {
+    await this.changeRole(() => this.svc.promote(this.user()!.id), 'Promoted to Instructor.');
+  }
+
+  async confirmDemote(): Promise<void> {
+    await this.changeRole(() => this.svc.demote(this.user()!.id), 'Demoted to Student.');
+  }
+
+  private async changeRole(
+    action: () => Promise<AdminUserRoleResponse>,
+    successMsg: string,
+  ): Promise<void> {
+    this.busy.set(true);
+    this.actionError.set(undefined);
+    this.actionSuccess.set(undefined);
+    try {
+      const res = await action();
+      this.user.update((u) => (u ? { ...u, role: res.role } : u));
+      this.confirmingDemote.set(false);
+      this.actionSuccess.set(successMsg);
+    } catch (err) {
+      this.actionError.set(this.messageFor(err));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  private messageFor(err: unknown): string {
+    const code = (err as { error?: { error?: { code?: string } } })?.error?.error?.code;
+    if (code === 'INVALID_ROLE_TRANSITION') {
+      return "This user's role changed elsewhere. Refresh to see the current role.";
+    }
+    if (code === 'USER_NOT_FOUND') {
+      return 'This user no longer exists.';
+    }
+    return 'Something went wrong. Please try again.';
   }
 
   private async load(uid: string): Promise<void> {

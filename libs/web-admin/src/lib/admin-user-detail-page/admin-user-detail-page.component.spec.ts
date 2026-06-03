@@ -21,7 +21,11 @@ function detail(over: Record<string, unknown> = {}) {
 }
 
 describe('AdminUserDetailPageComponent', () => {
-  let svc: { getDetail: ReturnType<typeof vi.fn> };
+  let svc: {
+    getDetail: ReturnType<typeof vi.fn>;
+    promote: ReturnType<typeof vi.fn>;
+    demote: ReturnType<typeof vi.fn>;
+  };
 
   async function setup(uid = 'u1') {
     TestBed.configureTestingModule({
@@ -40,7 +44,11 @@ describe('AdminUserDetailPageComponent', () => {
   }
 
   beforeEach(() => {
-    svc = { getDetail: vi.fn(async () => detail()) };
+    svc = {
+      getDetail: vi.fn(async () => detail()),
+      promote: vi.fn(async () => ({ id: 'u1', role: 'INSTRUCTOR' })),
+      demote: vi.fn(async () => ({ id: 'u1', role: 'STUDENT' })),
+    };
   });
 
   it('loads the user by route param and renders profile + role', async () => {
@@ -77,5 +85,64 @@ describe('AdminUserDetailPageComponent', () => {
     });
     const fixture = await setup('nope');
     expect(fixture.nativeElement.querySelector('[data-testid="not-found"]')).toBeTruthy();
+  });
+
+  it('shows Promote for a STUDENT and no Demote', async () => {
+    svc.getDetail = vi.fn(async () => detail({ role: 'STUDENT' }));
+    const fixture = await setup();
+    expect(fixture.nativeElement.querySelector('[data-testid="promote-btn"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="demote-btn"]')).toBeNull();
+  });
+
+  it('shows Demote for an INSTRUCTOR and no Promote', async () => {
+    svc.getDetail = vi.fn(async () => detail({ role: 'INSTRUCTOR' }));
+    const fixture = await setup();
+    expect(fixture.nativeElement.querySelector('[data-testid="demote-btn"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="promote-btn"]')).toBeNull();
+  });
+
+  it('shows no role actions for an ADMIN', async () => {
+    svc.getDetail = vi.fn(async () => detail({ role: 'ADMIN' }));
+    const fixture = await setup();
+    expect(fixture.nativeElement.querySelector('[data-testid="promote-btn"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="demote-btn"]')).toBeNull();
+  });
+
+  it('promotes a student and swaps the action to Demote + shows success', async () => {
+    svc.getDetail = vi.fn(async () => detail({ role: 'STUDENT' }));
+    const fixture = await setup();
+    fixture.nativeElement.querySelector('[data-testid="promote-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(svc.promote).toHaveBeenCalledWith('u1');
+    expect(fixture.nativeElement.querySelector('[data-testid="demote-btn"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="action-success"]')?.textContent).toContain('Promoted');
+  });
+
+  it('demote requires the inline confirm before calling the service', async () => {
+    svc.getDetail = vi.fn(async () => detail({ role: 'INSTRUCTOR' }));
+    const fixture = await setup();
+    fixture.nativeElement.querySelector('[data-testid="demote-btn"]').click();
+    fixture.detectChanges();
+    expect(svc.demote).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('[data-testid="demote-confirm"]')).toBeTruthy();
+
+    fixture.nativeElement.querySelector('[data-testid="demote-confirm-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(svc.demote).toHaveBeenCalledWith('u1');
+    expect(fixture.nativeElement.querySelector('[data-testid="promote-btn"]')).toBeTruthy();
+  });
+
+  it('renders a "changed elsewhere" error on INVALID_ROLE_TRANSITION', async () => {
+    svc.getDetail = vi.fn(async () => detail({ role: 'STUDENT' }));
+    svc.promote = vi.fn(async () => {
+      throw { error: { error: { code: 'INVALID_ROLE_TRANSITION' } } };
+    });
+    const fixture = await setup();
+    fixture.nativeElement.querySelector('[data-testid="promote-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="action-error"]')?.textContent).toContain('changed elsewhere');
   });
 });
