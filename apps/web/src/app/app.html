@@ -10,6 +10,7 @@
         }
         @if (auth.currentUser()?.role === 'ADMIN') {
           <a routerLink="/admin/instructor-applications" class="lw-btn lw-btn-ghost">Admin</a>
+          <a routerLink="/admin/users" class="lw-btn lw-btn-ghost">Users</a>
         }
       }
     </nav>

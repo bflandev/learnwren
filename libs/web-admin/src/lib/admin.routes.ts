@@ -8,6 +8,20 @@ export const adminRoutes: Route[] = [
     canActivate: [adminRoleGuard],
     children: [
       {
+        path: 'users',
+        loadComponent: () =>
+          import('./admin-users-page/admin-users-page.component').then(
+            (m) => m.AdminUsersPageComponent,
+          ),
+      },
+      {
+        path: 'users/:uid',
+        loadComponent: () =>
+          import('./admin-user-detail-page/admin-user-detail-page.component').then(
+            (m) => m.AdminUserDetailPageComponent,
+          ),
+      },
+      {
         path: 'instructor-applications',
         loadComponent: () =>
           import(
