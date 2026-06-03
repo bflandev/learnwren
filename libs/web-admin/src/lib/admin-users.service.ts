@@ -2,7 +2,11 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
-import type { AdminUserDetail, AdminUserListResponse } from '@learnwren/shared-data-models';
+import type {
+  AdminUserDetail,
+  AdminUserListResponse,
+  AdminUserRoleResponse,
+} from '@learnwren/shared-data-models';
 
 const BASE = '/api/admin/users';
 
@@ -20,5 +24,13 @@ export class AdminUsersService {
 
   getDetail(uid: string): Promise<AdminUserDetail> {
     return firstValueFrom(this.http.get<AdminUserDetail>(`${BASE}/${uid}`));
+  }
+
+  promote(uid: string): Promise<AdminUserRoleResponse> {
+    return firstValueFrom(this.http.post<AdminUserRoleResponse>(`${BASE}/${uid}/promote`, {}));
+  }
+
+  demote(uid: string): Promise<AdminUserRoleResponse> {
+    return firstValueFrom(this.http.post<AdminUserRoleResponse>(`${BASE}/${uid}/demote`, {}));
   }
 }
