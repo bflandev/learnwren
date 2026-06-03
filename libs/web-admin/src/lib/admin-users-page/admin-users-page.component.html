@@ -1,0 +1,64 @@
+<section class="mx-auto max-w-3xl px-6 py-8">
+  <h1 class="text-xl font-semibold text-ink">Users</h1>
+
+  <input
+    type="search"
+    class="mt-4 w-full rounded-lg border border-line px-3 py-2 text-sm"
+    placeholder="Search by name or email"
+    data-testid="user-search"
+    [value]="search()"
+    (input)="onSearchInput($any($event.target).value)"
+  />
+
+  @if (capped()) {
+    <p class="mt-3 text-xs text-amber-700" role="status" data-testid="capped-banner">
+      Showing the first {{ pageSize }} of a capped result set — more than 5000 users exist, so some
+      may be omitted from search.
+    </p>
+  }
+
+  @if (loading()) {
+    <p class="mt-6 text-sm text-muted">Loading…</p>
+  } @else if (users().length === 0) {
+    <p class="mt-6 text-sm text-muted" data-testid="empty-state">No users found.</p>
+  } @else {
+    <ul class="mt-6 flex flex-col divide-y divide-line" data-testid="user-list">
+      @for (u of users(); track u.id) {
+        <li data-testid="user-row" [attr.data-uid]="u.id">
+          <a [routerLink]="[u.id]" class="flex items-baseline justify-between gap-4 py-3 hover:bg-surface">
+            <span>
+              <span class="font-medium text-ink">{{ u.displayName }}</span>
+              <span class="ml-2 text-sm text-muted">{{ u.email }}</span>
+            </span>
+            <span class="flex items-center gap-3">
+              <span class="rounded bg-surface px-2 py-0.5 text-xs text-muted">{{ u.role }}</span>
+              <span class="text-xs text-muted">{{ u.createdAt | date: 'mediumDate' }}</span>
+            </span>
+          </a>
+        </li>
+      }
+    </ul>
+
+    <div class="mt-6 flex items-center justify-between text-sm">
+      <button
+        type="button"
+        class="lw-btn lw-btn-ghost"
+        data-testid="prev-page"
+        [disabled]="!canPrev()"
+        (click)="goToPage(page() - 1)"
+      >
+        Previous
+      </button>
+      <span class="text-muted" data-testid="page-indicator">Page {{ page() }} of {{ totalPages() }}</span>
+      <button
+        type="button"
+        class="lw-btn lw-btn-ghost"
+        data-testid="next-page"
+        [disabled]="!canNext()"
+        (click)="goToPage(page() + 1)"
+      >
+        Next
+      </button>
+    </div>
+  }
+</section>
