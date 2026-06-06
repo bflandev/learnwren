@@ -252,4 +252,31 @@ describe('CatalogPageComponent', () => {
     expect(fixture.componentInstance.error()).toBe(false);
     expect(fixture.componentInstance.result()).not.toBeNull();
   });
+
+  it('ignores a stale catalogue response that resolves after a newer request', async () => {
+    // Race guard: the HTTP wrapper returns a non-cancellable Promise. If the
+    // user paginates while an earlier request is still in flight and the older
+    // response arrives last, it must NOT overwrite the newer page's data.
+    await router.navigate(['/catalog'], { queryParams: { page: 1 } });
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    fixture.detectChanges();
+    // Request A (page 1) is in flight — capture without flushing.
+    const reqA = http.expectOne((r) => r.url === '/api/catalog' && r.params.get('page') === '1');
+
+    // The user clicks to page 2 before page 1 resolves -> request B.
+    fixture.componentInstance.goToPage(2);
+    await fixture.whenStable();
+    const reqB = http.expectOne((r) => r.url === '/api/catalog' && r.params.get('page') === '2');
+
+    // The newer request (B) resolves FIRST with page-2 data.
+    reqB.flush(page({ page: 2, total: 40, totalPages: 2 }));
+    await fixture.whenStable();
+
+    // Then the STALE request (A) resolves with page-1 data — must be discarded.
+    reqA.flush(page({ page: 1, total: 40, totalPages: 2 }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.result()?.page).toBe(2);
+  });
 });

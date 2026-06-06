@@ -35,6 +35,15 @@ export class CatalogPageComponent {
   readonly sort = signal<CatalogSort>('NEWEST');
   readonly filtersActive = signal(false);
 
+  /**
+   * Monotonic token identifying the most recent load(). The HTTP wrapper returns
+   * a non-cancellable Promise, so a slow earlier request can resolve AFTER a
+   * newer one (rapid filter change / pagination click). Stamping each load and
+   * discarding any result whose token is stale prevents an old response from
+   * overwriting newer course data.
+   */
+  private loadToken = 0;
+
   constructor() {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       void this.load(params);
@@ -42,6 +51,7 @@ export class CatalogPageComponent {
   }
 
   private async load(params: ParamMap): Promise<void> {
+    const token = ++this.loadToken;
     const category = (params.get('category') as CourseCategory | null) ?? undefined;
     const difficulty = (params.get('difficulty') as CourseDifficulty | null) ?? undefined;
     const sort = (params.get('sort') as CatalogSort | null) ?? 'NEWEST';
@@ -55,8 +65,11 @@ export class CatalogPageComponent {
     this.error.set(false);
 
     try {
-      this.result.set(await this.service.getCatalogue({ page, sort, category, difficulty }));
+      const result = await this.service.getCatalogue({ page, sort, category, difficulty });
+      if (token !== this.loadToken) return; // superseded by a newer load
+      this.result.set(result);
     } catch {
+      if (token !== this.loadToken) return; // superseded by a newer load
       this.error.set(true);
     }
   }

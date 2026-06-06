@@ -183,32 +183,40 @@ export class VideoStorageAdapter implements VideoStoragePort {
     return this.storage.bucket(input.bucket).file(input.path);
   }
 
+  // Mirror the REAL GCP Transcoder HLS layout: a master `manifest.m3u8` whose
+  // variant URIs are flat `hls_<rendition>.m3u8` filenames, and each variant
+  // playlist whose segment URIs are flat `hls_<rendition>NNNNNNNNNN.ts`
+  // filenames in the same directory. (This previously invented a fictional
+  // `<rendition>/playlist.m3u8` subdirectory layout, which masked the
+  // playback-layer naming bug from every test and from local dev.)
   private fakeReadManifest(p: string): string {
-    if (p.endsWith('/manifest.m3u8')) {
+    const base = p.slice(p.lastIndexOf('/') + 1);
+    if (base === 'manifest.m3u8') {
       return [
         '#EXTM3U',
         '#EXT-X-VERSION:6',
         '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080',
-        '1080p/playlist.m3u8',
+        'hls_1080p.m3u8',
         '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720',
-        '720p/playlist.m3u8',
+        'hls_720p.m3u8',
         '#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480',
-        '480p/playlist.m3u8',
+        'hls_480p.m3u8',
         '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360',
-        '360p/playlist.m3u8',
+        'hls_360p.m3u8',
         '',
       ].join('\n');
     }
-    if (p.endsWith('/playlist.m3u8')) {
+    if (base.startsWith('hls_') && base.endsWith('.m3u8')) {
+      const muxKey = base.slice(0, -'.m3u8'.length); // e.g. 'hls_720p'
       return [
         '#EXTM3U',
         '#EXT-X-VERSION:6',
         '#EXT-X-TARGETDURATION:6',
         '#EXT-X-KEY:METHOD=AES-128,URI="https://example.invalid/k",IV=0xABCDEF0123456789ABCDEF0123456789',
         '#EXTINF:6.000,',
-        'segment_001.ts',
+        `${muxKey}0000000000.ts`,
         '#EXTINF:6.000,',
-        'segment_002.ts',
+        `${muxKey}0000000001.ts`,
         '#EXT-X-ENDLIST',
         '',
       ].join('\n');

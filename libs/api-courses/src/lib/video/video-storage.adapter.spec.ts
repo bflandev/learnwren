@@ -364,24 +364,26 @@ describe('VideoStorageAdapter — playback storage fake mode', () => {
         '#EXTM3U',
         '#EXT-X-VERSION:6',
         '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080',
-        '1080p/playlist.m3u8',
+        'hls_1080p.m3u8',
         '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720',
-        '720p/playlist.m3u8',
+        'hls_720p.m3u8',
         '#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480',
-        '480p/playlist.m3u8',
+        'hls_480p.m3u8',
         '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360',
-        '360p/playlist.m3u8',
+        'hls_360p.m3u8',
         '',
       ].join('\n'),
     );
   });
 
-  it('readManifestObject returns a deterministic rendition m3u8 for /playlist.m3u8 paths', async () => {
+  it('readManifestObject returns a deterministic variant m3u8 for hls_<rendition>.m3u8 paths', async () => {
     const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
     const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
     const adapter = new VideoStorageAdapter(fakeStorage, cfg);
-    const body = await adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/720p/playlist.m3u8' });
-    // Pin the exact rendition playlist — the AES-128 key line, segment names,
+    // Real GCP shape: the variant playlist sits flat at the output root, named
+    // after the mux-stream key, with flat segment filenames.
+    const body = await adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/hls_720p.m3u8' });
+    // Pin the exact variant playlist — the AES-128 key line, segment names,
     // and #EXT-X-ENDLIST are all load-bearing for the player/key flow.
     expect(body).toBe(
       [
@@ -390,9 +392,9 @@ describe('VideoStorageAdapter — playback storage fake mode', () => {
         '#EXT-X-TARGETDURATION:6',
         '#EXT-X-KEY:METHOD=AES-128,URI="https://example.invalid/k",IV=0xABCDEF0123456789ABCDEF0123456789',
         '#EXTINF:6.000,',
-        'segment_001.ts',
+        'hls_720p0000000000.ts',
         '#EXTINF:6.000,',
-        'segment_002.ts',
+        'hls_720p0000000001.ts',
         '#EXT-X-ENDLIST',
         '',
       ].join('\n'),
@@ -403,8 +405,8 @@ describe('VideoStorageAdapter — playback storage fake mode', () => {
     const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
     const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
     const adapter = new VideoStorageAdapter(fakeStorage, cfg);
-    const url = await adapter.signObjectUrl({ bucket: 'b', path: 'videos/v1/hls/720p/segment_001.ts', ttlSec: 14400 });
-    expect(url).toBe('gs-stub://b/videos/v1/hls/720p/segment_001.ts?ttl=14400');
+    const url = await adapter.signObjectUrl({ bucket: 'b', path: 'videos/v1/hls/hls_720p0000000000.ts', ttlSec: 14400 });
+    expect(url).toBe('gs-stub://b/videos/v1/hls/hls_720p0000000000.ts?ttl=14400');
   });
 
   it('readManifestObject throws when the path is unknown to the fake', async () => {

@@ -1,6 +1,7 @@
 import type { VideoId } from '@learnwren/shared-data-models';
 
 import { ManifestParseFailedException } from '../errors/video.exception';
+import { MUX_KEY_PREFIX } from '../hls-naming';
 
 export const ALLOWED_RENDITIONS = ['1080p', '720p', '480p', '360p'] as const;
 export type RenditionName = (typeof ALLOWED_RENDITIONS)[number];
@@ -16,14 +17,26 @@ function assertM3u8Header(body: string): void {
 }
 
 function renditionNameFromUri(uri: string): string {
-  // Expect 'X/playlist.m3u8' (single segment), produced by Transcoder API.
-  const slash = uri.indexOf('/');
-  if (slash <= 0) {
+  // GCP Transcoder writes each HLS variant playlist FLAT at the output root,
+  // named after the mux-stream key: `hls_<rendition>.m3u8` (see hls-naming.ts).
+  // Tolerate an unexpected leading directory, then strip the `hls_` prefix and
+  // the `.m3u8` extension to recover the rendition name.
+  const base = uri.slice(uri.lastIndexOf('/') + 1);
+  if (!base.endsWith('.m3u8')) {
     throw new ManifestParseFailedException(
       `cannot extract rendition name from URI "${uri}"`,
     );
   }
-  return uri.slice(0, slash);
+  const stem = base.slice(0, -'.m3u8'.length);
+  const rendition = stem.startsWith(MUX_KEY_PREFIX)
+    ? stem.slice(MUX_KEY_PREFIX.length)
+    : stem;
+  if (!rendition) {
+    throw new ManifestParseFailedException(
+      `cannot extract rendition name from URI "${uri}"`,
+    );
+  }
+  return rendition;
 }
 
 export function rewriteMaster(masterBody: string, videoId: VideoId): string {

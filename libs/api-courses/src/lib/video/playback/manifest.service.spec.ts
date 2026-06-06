@@ -20,10 +20,11 @@ const VIDEO: Video = {
   updatedAt: 'now' as Video['updatedAt'],
 };
 
+// Real GCP master shape: flat `hls_<rendition>.m3u8` variant URIs.
 const MASTER = `#EXTM3U
 #EXT-X-VERSION:6
 #EXT-X-STREAM-INF:BANDWIDTH=5000000
-1080p/playlist.m3u8
+hls_1080p.m3u8
 `;
 
 const RENDITION_720 = `#EXTM3U
@@ -55,7 +56,7 @@ describe('ManifestService.fetchMaster', () => {
     const svc = new ManifestService(storage, CFG);
     const out = await svc.fetchMaster(VIDEO);
     expect(out).toContain(`/api/playback/manifest/${VIDEO.id}/rendition/1080p`);
-    expect(out).not.toMatch(/playlist\.m3u8/);
+    expect(out).not.toMatch(/hls_\d+p\.m3u8/);
   });
 
   it('reads from video.output.bucket + manifestPath', async () => {
@@ -80,21 +81,23 @@ describe('ManifestService.fetchMaster', () => {
 });
 
 describe('ManifestService.fetchRendition', () => {
-  it('reads the rendition playlist from the right path', async () => {
+  it('reads the variant playlist from the flat GCP `hls_<rendition>.m3u8` path', async () => {
     const read = vi.fn().mockResolvedValue(RENDITION_720);
     const storage = makeStorage((b, p) => read(b, p));
     const svc = new ManifestService(storage, CFG);
     await svc.fetchRendition(VIDEO, '720p');
-    expect(read).toHaveBeenCalledWith('out', 'videos/v1/hls/720p/playlist.m3u8');
+    expect(read).toHaveBeenCalledWith('out', 'videos/v1/hls/hls_720p.m3u8');
   });
 
-  it('signs each segment with bucket=output, path=<dir>/<rendition>/<segment>, ttl=cfg', async () => {
+  it('signs each segment with bucket=output, path=<dir>/<segment>, ttl=cfg', async () => {
+    // Segments live FLAT alongside the variant playlist (real GCP layout), so
+    // they sign against baseDir directly — not a per-rendition subdirectory.
     const sign = vi.fn(async (b: string, p: string, t: number) => `signed:${b}|${p}|${t}`);
     const storage = makeStorage(async () => RENDITION_720, sign);
     const svc = new ManifestService(storage, CFG);
     const out = await svc.fetchRendition(VIDEO, '720p');
-    expect(sign).toHaveBeenCalledWith('out', 'videos/v1/hls/720p/segment_001.ts', 14400);
-    expect(out).toContain('signed:out|videos/v1/hls/720p/segment_001.ts|14400');
+    expect(sign).toHaveBeenCalledWith('out', 'videos/v1/hls/segment_001.ts', 14400);
+    expect(out).toContain('signed:out|videos/v1/hls/segment_001.ts|14400');
   });
 
   it('rewrites the key directive to /api/playback/keys/:vid and preserves IV', async () => {

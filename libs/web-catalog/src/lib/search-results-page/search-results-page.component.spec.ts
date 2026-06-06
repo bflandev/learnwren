@@ -124,4 +124,30 @@ describe('SearchResultsPageComponent', () => {
 
     expect(router.url).toContain('page=2');
   });
+
+  it('ignores a stale search response that resolves after a newer request', async () => {
+    // Race guard: a slow earlier page request must not overwrite the newer one.
+    await router.navigate(['/search'], { queryParams: { q: 'rust', page: 1 } });
+    const fixture = TestBed.createComponent(SearchResultsPageComponent);
+    fixture.detectChanges();
+    const reqA = http.expectOne(
+      (r) => r.url === '/api/catalog/search' && r.params.get('page') === '1',
+    );
+
+    // Paginate before the first request resolves -> request B.
+    fixture.componentInstance.goToPage(2);
+    await fixture.whenStable();
+    const reqB = http.expectOne(
+      (r) => r.url === '/api/catalog/search' && r.params.get('page') === '2',
+    );
+
+    // Newer (B) resolves first, then the stale (A) resolves last.
+    reqB.flush({ items: [], page: 2, pageSize: 20, total: 40, totalPages: 2 });
+    await fixture.whenStable();
+    reqA.flush({ items: [], page: 1, pageSize: 20, total: 40, totalPages: 2 });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.result()?.page).toBe(2);
+  });
 });
