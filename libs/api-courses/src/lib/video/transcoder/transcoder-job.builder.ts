@@ -1,3 +1,4 @@
+import { hlsMuxKey } from '../hls-naming';
 import type { TranscoderJobInput } from './transcoder.port';
 
 export const RENDITIONS = [
@@ -73,7 +74,9 @@ export function buildJobConfig(input: TranscoderJobInput): JobConfig {
   ];
 
   const muxStreams: MuxStream[] = renditions.map((r) => ({
-    key: `hls_${r.name}`,
+    // GCP names the variant playlist after this key (`hls_1080p.m3u8`); the
+    // playback layer recovers the rendition from it via the same helper.
+    key: hlsMuxKey(r.name),
     container: 'ts',
     elementaryStreams: [`video_${r.name}`, 'audio_aac'],
     segmentSettings: { segmentDuration: { seconds: SEGMENT_DURATION_S } },

@@ -12,17 +12,21 @@ import {
 
 const VID = 'v123' as VideoId;
 
+// Real GCP Transcoder master shape: flat `hls_<rendition>.m3u8` variant URIs
+// (named after the mux-stream key), NOT a `<rendition>/playlist.m3u8`
+// subdirectory. This is the layout the production transcoder job actually
+// produces — see hls-naming.ts.
 const MASTER = `#EXTM3U
 #EXT-X-VERSION:6
 #EXT-X-INDEPENDENT-SEGMENTS
 #EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,CODECS="avc1.640028,mp4a.40.2"
-1080p/playlist.m3u8
+hls_1080p.m3u8
 #EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720,CODECS="avc1.4d4028,mp4a.40.2"
-720p/playlist.m3u8
+hls_720p.m3u8
 #EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480,CODECS="avc1.4d401e,mp4a.40.2"
-480p/playlist.m3u8
+hls_480p.m3u8
 #EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,CODECS="avc1.4d401e,mp4a.40.2"
-360p/playlist.m3u8
+hls_360p.m3u8
 `;
 
 describe('ALLOWED_RENDITIONS', () => {
@@ -39,7 +43,20 @@ describe('rewriteMaster', () => {
     expect(lines).toContain(`/api/playback/manifest/${VID}/rendition/720p`);
     expect(lines).toContain(`/api/playback/manifest/${VID}/rendition/480p`);
     expect(lines).toContain(`/api/playback/manifest/${VID}/rendition/360p`);
-    expect(out).not.toMatch(/playlist\.m3u8/);
+    // The flat GCP variant filenames must all be replaced by proxy paths.
+    expect(out).not.toMatch(/hls_\d+p\.m3u8/);
+  });
+
+  it('recovers the rendition from the flat GCP `hls_<rendition>.m3u8` variant name', () => {
+    // Regression pin for the real-GCP layout: the master references each variant
+    // playlist by its flat mux-key filename (`hls_720p.m3u8`), NOT a
+    // `720p/playlist.m3u8` subdirectory. The original bug rejected this exact
+    // shape (no slash -> ManifestParseFailedException), breaking all real
+    // playback while the fake adapter's invented subdirectory layout hid it.
+    const body = `#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nhls_720p.m3u8\n`;
+    const out = rewriteMaster(body, VID);
+    expect(out).toContain(`/api/playback/manifest/${VID}/rendition/720p`);
+    expect(out).not.toContain('hls_720p.m3u8');
   });
 
   it('preserves #EXTM3U, version, and comment directives', () => {
@@ -64,16 +81,25 @@ describe('rewriteMaster', () => {
   it('throws when a rendition is outside the allow-list', () => {
     const body = `#EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=1
-240p/playlist.m3u8
+hls_240p.m3u8
 `;
     expect(() => rewriteMaster(body, VID)).toThrow(/240p/);
   });
 
-  it('throws when the URI line starts with a leading slash (slash position 0)', () => {
-    // Defends `slash <= 0` boundary in renditionNameFromUri.
+  it('throws when the variant URI has no .m3u8 extension', () => {
+    // Defends the `endsWith('.m3u8')` guard in renditionNameFromUri.
     const body = `#EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=1
-/playlist.m3u8
+hls_1080p.ts
+`;
+    expect(() => rewriteMaster(body, VID)).toThrow(/cannot extract rendition name/);
+  });
+
+  it('throws when the variant URI is just the prefix with no rendition (hls_.m3u8)', () => {
+    // Defends the empty-after-prefix branch: stripping `hls_` leaves nothing.
+    const body = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1
+hls_.m3u8
 `;
     expect(() => rewriteMaster(body, VID)).toThrow(/cannot extract rendition name/);
   });

@@ -15,6 +15,8 @@ import type {
   VideoState,
 } from '@learnwren/shared-data-models';
 
+import { InvalidVideoStateException } from './errors/video.exception';
+
 @Injectable()
 export class VideoRepository {
   constructor(@Inject(FIRESTORE) private readonly db: FirestoreHandle) {}
@@ -134,6 +136,19 @@ export class VideoRepository {
 
     return this.db.runTransaction(async (tx) => {
       const current = await this.requireVideoInTxn(tx, videoRef);
+      // Concurrency guard: completeUpload validates PENDING_UPLOAD outside any
+      // transaction, then submits a transcoder job, then finalizes here. Two
+      // overlapping completeUpload calls (double-click / client retry) would both
+      // pass that pre-check and race this transaction — without re-asserting the
+      // state, the second commit would overwrite the first's transcoderJobName,
+      // orphaning the first job. Re-checking inside the transaction makes the
+      // first writer win and the loser fail with a 409 instead of corrupting the
+      // record. (A residual duplicate transcoder submit is still possible on a
+      // true simultaneous race; fully eliminating it needs a pre-submit atomic
+      // claim, tracked as a follow-up.)
+      if (current.state !== 'PENDING_UPLOAD') {
+        throw new InvalidVideoStateException(current.state);
+      }
       const lessonSnap = await tx.get(lessonQ);
       if (lessonSnap.empty) throw new Error('Lesson disappeared in transaction.');
       const lessonDocRef = lessonSnap.docs[0]!.ref;

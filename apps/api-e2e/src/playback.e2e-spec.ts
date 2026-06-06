@@ -179,8 +179,10 @@ test('owner can fetch master, rendition, and key', async ({ request }) => {
   const r720Body = await r720.text();
   expect(r720Body).toContain(`URI="/api/playback/keys/${videoId}"`);
   expect(r720Body).toContain('IV=0xABCDEF0123456789ABCDEF0123456789');
-  expect(r720Body).toMatch(/gs-stub:\/\/.+\/720p\/segment_001\.ts/);
-  expect(r720Body).toMatch(/gs-stub:\/\/.+\/720p\/segment_002\.ts/);
+  // Real GCP layout: variant segments are flat `hls_<rendition>NNNNNNNNNN.ts`
+  // files at the output root (not a `<rendition>/` subdirectory).
+  expect(r720Body).toMatch(/gs-stub:\/\/.+\/hls_720p0000000000\.ts/);
+  expect(r720Body).toMatch(/gs-stub:\/\/.+\/hls_720p0000000001\.ts/);
 
   const keyRes = await request.get(`${API_BASE}/playback/keys/${videoId}`, { headers: hdr });
   expect(keyRes.status()).toBe(200);

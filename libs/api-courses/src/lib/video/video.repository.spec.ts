@@ -15,6 +15,7 @@ import type {
   VideoState,
 } from '@learnwren/shared-data-models';
 
+import { InvalidVideoStateException } from './errors/video.exception';
 import { VideoRepository } from './video.repository';
 import { createFakeFirestore, type FakeFirestore } from '../testing/fake-firestore';
 
@@ -141,7 +142,9 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
 
   it('moves the video to TRANSCODING, writes the key, and links the lesson', async () => {
     const fake = createFakeFirestore({
-      'videos/v1': makeVideo({ state: 'UPLOADED' }),
+      // PENDING_UPLOAD is the real pre-finalize state (completeUpload validates
+      // it and never transitions away before finalizing).
+      'videos/v1': makeVideo(),
       [LESSON_PATH]: lessonDoc(),
     });
     const repo = await buildRepo(fake);
@@ -173,12 +176,32 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
   });
 
   it('throws when the lesson disappeared before the transaction ran', async () => {
-    const fake = createFakeFirestore({ 'videos/v1': makeVideo({ state: 'UPLOADED' }) });
+    const fake = createFakeFirestore({ 'videos/v1': makeVideo() });
     const repo = await buildRepo(fake);
 
     await expect(repo.finalizeUploadWithJob(finalizeArgs)).rejects.toThrow(
       'Lesson disappeared in transaction.',
     );
+  });
+
+  it('rejects a second finalize once the video has left PENDING_UPLOAD, preserving the first job name', async () => {
+    // Concurrency guard for the double-submit race: two overlapping
+    // completeUpload calls both pass the non-transactional PENDING_UPLOAD
+    // pre-check and submit their own transcoder jobs. The first finalize wins
+    // (TRANSCODING + job-A); the second must NOT overwrite transcoderJobName
+    // with job-B (which would orphan job-A) — it must throw a 409 instead.
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({ state: 'TRANSCODING', transcoderJobName: 'job-A' }),
+      [LESSON_PATH]: lessonDoc(),
+    });
+    const repo = await buildRepo(fake);
+
+    await expect(
+      repo.finalizeUploadWithJob({ ...finalizeArgs, transcoderJobName: 'job-B' }),
+    ).rejects.toBeInstanceOf(InvalidVideoStateException);
+
+    // The first job's name survives — the loser did not corrupt the record.
+    expect((fake.__store.get('videos/v1') as Video).transcoderJobName).toBe('job-A');
   });
 });
 

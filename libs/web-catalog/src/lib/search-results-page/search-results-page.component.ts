@@ -23,6 +23,15 @@ export class SearchResultsPageComponent {
   readonly result = signal<CourseCatalogPage | null>(null);
   readonly error = signal(false);
 
+  /**
+   * Monotonic token identifying the most recent load(). The HTTP wrapper returns
+   * a non-cancellable Promise, so a slow earlier request can resolve AFTER a
+   * newer one (rapid pagination click). Stamping each load and discarding any
+   * result whose token is stale prevents an old response from overwriting newer
+   * search results.
+   */
+  private loadToken = 0;
+
   constructor() {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       void this.load(params);
@@ -30,6 +39,7 @@ export class SearchResultsPageComponent {
   }
 
   private async load(params: ParamMap): Promise<void> {
+    const token = ++this.loadToken;
     const q = (params.get('q') ?? '').trim();
     if (!q) {
       void this.router.navigate(['/catalog']);
@@ -40,8 +50,11 @@ export class SearchResultsPageComponent {
     this.result.set(null);
     this.error.set(false);
     try {
-      this.result.set(await this.service.search(q, page));
+      const result = await this.service.search(q, page);
+      if (token !== this.loadToken) return; // superseded by a newer load
+      this.result.set(result);
     } catch {
+      if (token !== this.loadToken) return; // superseded by a newer load
       this.error.set(true);
     }
   }
