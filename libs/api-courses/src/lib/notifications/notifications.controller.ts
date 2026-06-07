@@ -1,6 +1,6 @@
 import { Controller, HttpCode, Param, Post, Req, UseFilters, UseGuards } from '@nestjs/common';
 
-import { FirebaseSessionGuard } from '@learnwren/api-auth';
+import { FirebaseSessionGuard, InstructorRoleGuard } from '@learnwren/api-auth';
 import type { ModuleId, NotifyModuleResult } from '@learnwren/shared-data-models';
 
 import { CourseOwnerGuard } from '../course-owner.guard';
@@ -15,7 +15,7 @@ import { NotificationsService } from './notifications.service';
  */
 @Controller('courses')
 @UseFilters(CoursesExceptionFilter)
-@UseGuards(FirebaseSessionGuard)
+@UseGuards(FirebaseSessionGuard, InstructorRoleGuard)
 export class NotificationsController {
   constructor(private readonly service: NotificationsService) {}
 

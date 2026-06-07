@@ -2,7 +2,7 @@ import { Controller, Get, Req, UseFilters, UseGuards } from '@nestjs/common';
 
 import type { CourseRosterView } from '@learnwren/shared-data-models';
 
-import { FirebaseSessionGuard } from '@learnwren/api-auth';
+import { FirebaseSessionGuard, InstructorRoleGuard } from '@learnwren/api-auth';
 
 import { CourseOwnerGuard } from '../course-owner.guard';
 import { CoursesExceptionFilter } from '../courses.exception-filter';
@@ -16,7 +16,7 @@ import { RosterService } from './roster.service';
  */
 @Controller('courses')
 @UseFilters(CoursesExceptionFilter)
-@UseGuards(FirebaseSessionGuard)
+@UseGuards(FirebaseSessionGuard, InstructorRoleGuard)
 export class RosterController {
   constructor(private readonly service: RosterService) {}
 

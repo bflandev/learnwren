@@ -27,6 +27,13 @@ export interface VideoSource {
   bucket: string;
   path: string;
   sizeBytes?: number;
+  /**
+   * Duration in seconds read from the source via ffprobe at upload-complete
+   * time. Used as the authoritative `Video.output.durationSec` because the GCP
+   * Transcoder Job resource exposes no reliable output-duration field. Optional:
+   * absent on documents created before this field existed.
+   */
+  probedDurationSec?: number;
 }
 
 export interface VideoOutput {

@@ -190,6 +190,39 @@ describe('rewriteRendition', () => {
     expect(out).toContain('signed://segment_002.ts');
   });
 
+  it('signs a real flat GCP segment name (hls_720p0000000000.ts) normally', async () => {
+    const seen: string[] = [];
+    const signer = async (s: string) => {
+      seen.push(s);
+      return `signed://${s}`;
+    };
+    const body = `#EXTM3U\n#EXTINF:6.000,\nhls_720p0000000000.ts\n#EXT-X-ENDLIST\n`;
+    const out = await rewriteRendition(body, VID, signer);
+    expect(seen).toEqual(['hls_720p0000000000.ts']);
+    expect(out).toContain('signed://hls_720p0000000000.ts');
+  });
+
+  it('rejects a path-traversal segment name and never signs it', async () => {
+    // Defense in depth: a poisoned playlist line must not mint a signed URL for
+    // an object outside the video's output directory.
+    const signer = vi.fn(async () => 'NEVER_SIGNED');
+    const body = `#EXTM3U\n#EXTINF:6.000,\n../../other/secret.ts\n#EXT-X-ENDLIST\n`;
+    await expect(rewriteRendition(body, VID, signer)).rejects.toBeInstanceOf(
+      ManifestParseFailedException,
+    );
+    await expect(rewriteRendition(body, VID, signer)).rejects.toThrow(/unsafe segment filename/);
+    expect(signer).not.toHaveBeenCalled();
+  });
+
+  it('rejects an absolute-path segment name (/etc/passwd) without signing', async () => {
+    const signer = vi.fn(async () => 'X');
+    const body = `#EXTM3U\n#EXTINF:6.000,\n/etc/passwd\n#EXT-X-ENDLIST\n`;
+    await expect(rewriteRendition(body, VID, signer)).rejects.toBeInstanceOf(
+      ManifestParseFailedException,
+    );
+    expect(signer).not.toHaveBeenCalled();
+  });
+
   it('passes through #EXT-X-KEY:METHOD=NONE unchanged (no URI substitution)', async () => {
     const body = `#EXTM3U\n#EXT-X-KEY:METHOD=NONE\n#EXT-X-ENDLIST\n`;
     const out = await rewriteRendition(body, VID, async () => 'unused');

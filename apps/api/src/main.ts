@@ -39,6 +39,12 @@ async function bootstrap() {
   app.use(helmet());
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
+  // Trust exactly one proxy hop so Express resolves the real client IP from the
+  // X-Forwarded-For header injected by Firebase Hosting / Cloud Functions —
+  // without this the per-IP ThrottlerGuard keys every request on the proxy's
+  // address and collapses all clients into one bucket. A numeric hop count
+  // (not `true`) prevents spoofing via an attacker-chained X-Forwarded-For.
+  app.set('trust proxy', 1);
   app.enableCors({
     origin: readAllowedOrigins(),
     credentials: true,

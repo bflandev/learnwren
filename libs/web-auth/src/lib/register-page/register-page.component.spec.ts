@@ -75,6 +75,28 @@ describe('RegisterPageComponent', () => {
     expect(cmp.error()).toContain('at least one digit');
   });
 
+  for (const { code, message } of [
+    { code: 'INVALID_EMAIL', message: 'Please enter a valid email address.' },
+    { code: 'EMAIL_TOO_LONG', message: 'Email address must be 254 characters or fewer.' },
+    {
+      code: 'INVALID_DISPLAY_NAME',
+      message: 'Display name is required and must be 80 characters or fewer.',
+    },
+    { code: 'PASSWORD_TOO_LONG', message: 'Password must be 256 characters or fewer.' },
+  ] as const) {
+    it(`shows a field-specific message for ${code} (not the generic fallback)`, async () => {
+      const { fixture, httpMock } = setup();
+      const cmp = fixture.componentInstance;
+      cmp.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa', displayName: 'A' });
+      const submitPromise = cmp.submit();
+      httpMock
+        .expectOne('/api/auth/register')
+        .flush({ error: { code } }, { status: 400, statusText: 'Bad Request' });
+      await submitPromise;
+      expect(cmp.error()).toBe(message);
+    });
+  }
+
   it('client-side validator flags an empty display name', () => {
     const { fixture } = setup();
     const cmp = fixture.componentInstance;

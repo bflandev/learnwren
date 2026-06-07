@@ -125,3 +125,22 @@ test('an unauthenticated request is rejected', async ({ request }) => {
     expect(res.status()).toBe(401);
   });
 });
+
+test('a demoted instructor (now STUDENT) is forbidden even on their own course', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const { cid } = await seedCourseWithReadyVideo(instructor.uid);
+
+  await admin.auth().setCustomUserClaims(instructor.uid, { role: 'STUDENT' });
+  await admin.firestore().collection('users').doc(instructor.uid).update({ role: 'STUDENT' });
+  const email = (await admin.auth().getUser(instructor.uid)).email!;
+  const relogin = await request.post(`${API_BASE}/auth/login`, {
+    data: { email, password: 'Aa1!aaaaaaaa' },
+  });
+  expect(relogin.status()).toBe(200);
+  const demotedCookie = `__session=${relogin.headers()['set-cookie']!.match(/__session=([^;]+)/)![1]}`;
+
+  const res = await request.get(`${API_BASE}/courses/${cid}/analytics`, {
+    headers: { cookie: demotedCookie },
+  });
+  expect(res.status()).toBe(403);
+});

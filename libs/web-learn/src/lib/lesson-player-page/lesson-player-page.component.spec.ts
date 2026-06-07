@@ -144,6 +144,28 @@ describe('LessonPlayerPageComponent', () => {
     expect(player.videoId()).toBe('vid-1');
   });
 
+  it('ignores a stale lesson response that resolves after a newer outline navigation', async () => {
+    // Race guard: getLessonView is a non-cancellable Promise. A slow earlier
+    // lesson request resolving last must not overwrite the lesson the user
+    // actually navigated to.
+    const subject = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+    const { fixture, http } = create();
+    const reqA = http.expectOne('/api/learn/courses/c-1/lessons/l-1');
+
+    // Outline click to l-2 before l-1 resolves -> request B.
+    subject.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-2' }));
+    const reqB = http.expectOne('/api/learn/courses/c-1/lessons/l-2');
+
+    // Newer (B) resolves first, then the stale (A) resolves last.
+    reqB.flush(makeView({ id: 'l-2' as LessonView['lesson']['id'], title: 'Lesson B' }));
+    await fixture.whenStable();
+    reqA.flush(makeView({ id: 'l-1' as LessonView['lesson']['id'], title: 'Lesson A' }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.view()?.lesson.title).toBe('Lesson B');
+  });
+
   it('sets state to NOT_FOUND and fires no request when courseId param is missing', async () => {
     configure({ courseId: null });
     const { fixture, http } = create();

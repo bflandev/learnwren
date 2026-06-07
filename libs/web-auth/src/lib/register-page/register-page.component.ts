@@ -80,6 +80,18 @@ export class RegisterPageComponent {
         return `Password must include: ${list}.`;
       }
     }
+    if (result.code === 'INVALID_EMAIL') {
+      return 'Please enter a valid email address.';
+    }
+    if (result.code === 'EMAIL_TOO_LONG') {
+      return 'Email address must be 254 characters or fewer.';
+    }
+    if (result.code === 'INVALID_DISPLAY_NAME') {
+      return 'Display name is required and must be 80 characters or fewer.';
+    }
+    if (result.code === 'PASSWORD_TOO_LONG') {
+      return 'Password must be 256 characters or fewer.';
+    }
     return 'Something went wrong. Please try again.';
   }
 }

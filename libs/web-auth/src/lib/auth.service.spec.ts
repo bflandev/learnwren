@@ -105,6 +105,21 @@ describe('AuthService.register', () => {
     expect(await promise).toEqual({ ok: true });
     expect(svc.currentUser()?.emailVerified).toBe(false);
   });
+
+  for (const code of [
+    'INVALID_EMAIL',
+    'EMAIL_TOO_LONG',
+    'INVALID_DISPLAY_NAME',
+    'PASSWORD_TOO_LONG',
+  ] as const) {
+    it(`maps a 400 ${code} from register to the same code (not INTERNAL)`, async () => {
+      const promise = svc.register({ email: 'a@b.c', password: 'pw', displayName: 'A' });
+      httpMock
+        .expectOne('/api/auth/register')
+        .flush({ error: { code } }, { status: 400, statusText: 'Bad Request' });
+      expect(await promise).toEqual({ ok: false, code });
+    });
+  }
 });
 
 describe('AuthService.resendVerification / requestPasswordReset / unlock', () => {

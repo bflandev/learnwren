@@ -91,6 +91,10 @@ describe('AdminUserRoleService', () => {
       expect(demoteMock.mock.calls[0][0]).toBe('u1');
       expect(demoteMock.mock.calls[0][1]).toBe(auth);
       expect(demoteMock.mock.calls[0][2]).toBe(firestore);
+      // Fourth arg is nowIso() — a non-empty ISO timestamp string used for the
+      // users/{uid}.updatedAt write.
+      expect(typeof demoteMock.mock.calls[0][3]).toBe('string');
+      expect(demoteMock.mock.calls[0][3]).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(res).toEqual({ id: 'u1', role: 'STUDENT' });
     });
   });

@@ -68,9 +68,13 @@ test('GET /catalog filters by category', async ({ request }) => {
   expect(items.every((i) => i.category === 'PROGRAMMING')).toBe(true);
 });
 
-test('GET /catalog rejects an invalid sort with 400', async ({ request }) => {
+test('GET /catalog rejects an invalid sort with 400 and the canonical envelope', async ({ request }) => {
   const res = await request.get(`${API_BASE}/catalog?sort=TRENDING`);
   expect(res.status()).toBe(400);
+  // The per-feature filter renders DTO validation failures as the canonical
+  // ApiErrorBody { error: { code, ... } } that the web client narrows on — not
+  // Nest's raw { statusCode, message, error } shape.
+  expect((await res.json()).error.code).toBe('VALIDATION_FAILED');
 });
 
 test('GET /catalog/search matches the keyword and returns 200', async ({ request }) => {
@@ -83,9 +87,10 @@ test('GET /catalog/search matches the keyword and returns 200', async ({ request
   expect(ids).toContain(id);
 });
 
-test('GET /catalog/search rejects an empty query with 400', async ({ request }) => {
+test('GET /catalog/search rejects an empty query with 400 and the canonical envelope', async ({ request }) => {
   const res = await request.get(`${API_BASE}/catalog/search?q=`);
   expect(res.status()).toBe(400);
+  expect((await res.json()).error.code).toBe('VALIDATION_FAILED');
 });
 
 test('GET /catalog/:cid returns detail for a published course', async ({ request }) => {

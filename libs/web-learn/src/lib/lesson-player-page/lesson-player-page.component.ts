@@ -105,6 +105,13 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
 
   private saver: PositionSaver | null = null;
   private hasResumed = false;
+  /**
+   * Monotonic token identifying the most recent load(). getLessonView is a
+   * non-cancellable Promise, so a slow earlier request can resolve AFTER a newer
+   * one (rapid outline clicks). Discarding any result whose token is stale stops
+   * an old lesson's response overwriting the current lesson's view/state.
+   */
+  private loadToken = 0;
   private readonly onPageHide = (): void => this.saver?.flushBeacon();
   private readonly onVisibilityChange = (): void => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
@@ -165,9 +172,11 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   }
 
   private async load(): Promise<void> {
+    const token = ++this.loadToken;
     this.state.set('LOADING');
     try {
       const view = await this.learn.getLessonView(this.courseId, this.lessonId);
+      if (token !== this.loadToken) return; // superseded by a newer load
       this.view.set(view);
       const v = view.lesson;
       if (v.videoId && v.videoState === 'READY') {
@@ -177,6 +186,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
         this.state.set('PROCESSING');
       }
     } catch (err) {
+      if (token !== this.loadToken) return; // superseded by a newer load
       if (err instanceof HttpErrorResponse) {
         if (err.status === 403) {
           this.state.set('NOT_ENROLLED');

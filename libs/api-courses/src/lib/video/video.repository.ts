@@ -126,6 +126,7 @@ export class VideoRepository {
     vid: VideoId;
     lid: LessonId;
     actualSizeBytes: number;
+    probedDurationSec: number;
     key: { id: VideoKeyId; bytes: Uint8Array };
     transcoderJobName: string;
     nowIso: string;
@@ -156,7 +157,11 @@ export class VideoRepository {
       const updated: Video = {
         ...current,
         state: 'TRANSCODING',
-        source: { ...current.source, sizeBytes: args.actualSizeBytes },
+        source: {
+          ...current.source,
+          sizeBytes: args.actualSizeBytes,
+          probedDurationSec: args.probedDurationSec,
+        },
         keyId: args.key.id,
         transcoderJobName: args.transcoderJobName,
         updatedAt: args.nowIso as Video['updatedAt'],
@@ -228,7 +233,12 @@ export class VideoRepository {
               output: {
                 bucket: args.outcome.outputBucket,
                 manifestPath: args.outcome.manifestPath,
-                durationSec: args.outcome.durationSec,
+                // Prefer the ffprobe source duration captured at upload-complete
+                // time; the GCP Transcoder job exposes no reliable output
+                // duration so args.outcome.durationSec is 0 in production. Fall
+                // back to it only when no probed duration was stored (legacy
+                // documents) or the probe returned 0.
+                durationSec: current.source.probedDurationSec || args.outcome.durationSec,
               },
               updatedAt: args.nowIso as Video['updatedAt'],
             }

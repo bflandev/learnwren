@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter, convertToParamMap } from '@angular/router';
-import { of } from 'rxjs';
+import { ActivatedRoute, type ParamMap, provideRouter, convertToParamMap } from '@angular/router';
+import { BehaviorSubject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AdminUsersService } from '../admin-users.service';
@@ -39,6 +39,22 @@ describe('AdminUserDetailPageComponent', () => {
     const fixture = TestBed.createComponent(AdminUserDetailPageComponent);
     fixture.detectChanges();
     await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  // Variant that drives the route paramMap from a subject so a test can push a
+  // second uid while the first getDetail is still in flight.
+  function createWithParamSubject(subject: BehaviorSubject<ParamMap>) {
+    TestBed.configureTestingModule({
+      imports: [AdminUserDetailPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AdminUsersService, useValue: svc },
+        { provide: ActivatedRoute, useValue: { paramMap: subject.asObservable() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(AdminUserDetailPageComponent);
     fixture.detectChanges();
     return fixture;
   }
@@ -144,5 +160,79 @@ describe('AdminUserDetailPageComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[data-testid="action-error"]')?.textContent).toContain('changed elsewhere');
+  });
+
+  it('ignores a stale getDetail response that resolves after a newer navigation', async () => {
+    // Race guard: getDetail is a non-cancellable Promise; an older user's
+    // response resolving last must not overwrite the current user.
+    let resolveA!: (v: unknown) => void;
+    let resolveB!: (v: unknown) => void;
+    svc.getDetail = vi.fn((uid: string) =>
+      uid === 'u1'
+        ? new Promise((r) => { resolveA = r; })
+        : new Promise((r) => { resolveB = r; }),
+    );
+    const subject = new BehaviorSubject<ParamMap>(convertToParamMap({ uid: 'u1' }));
+    const fixture = createWithParamSubject(subject);
+
+    // load(u1) in flight; navigate to u2 -> load(u2) in flight.
+    subject.next(convertToParamMap({ uid: 'u2' }));
+
+    // Newer (u2) resolves first, then the stale (u1) resolves last.
+    resolveB(detail({ id: 'u2', displayName: 'Bob' }));
+    await fixture.whenStable();
+    resolveA(detail({ id: 'u1', displayName: 'Ada' }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.user()?.displayName).toBe('Bob');
+  });
+
+  it('keeps loading true when a stale (older) request resolves before the current one', async () => {
+    // A superseded load must not flip the spinner off while the current request
+    // is still in flight — the finally is guarded by the load token.
+    let resolveA!: (v: unknown) => void;
+    let resolveB!: (v: unknown) => void;
+    svc.getDetail = vi.fn((uid: string) =>
+      uid === 'u1'
+        ? new Promise((r) => { resolveA = r; })
+        : new Promise((r) => { resolveB = r; }),
+    );
+    const subject = new BehaviorSubject<ParamMap>(convertToParamMap({ uid: 'u1' }));
+    const fixture = createWithParamSubject(subject);
+
+    subject.next(convertToParamMap({ uid: 'u2' })); // load(u2) now the current load
+
+    // The STALE load (u1) resolves FIRST, while u2 is still in flight.
+    resolveA(detail({ id: 'u1', displayName: 'Ada' }));
+    await fixture.whenStable();
+    expect(fixture.componentInstance.loading()).toBe(true);
+
+    // The current load (u2) resolves and clears the spinner.
+    resolveB(detail({ id: 'u2', displayName: 'Bob' }));
+    await fixture.whenStable();
+    expect(fixture.componentInstance.loading()).toBe(false);
+    expect(fixture.componentInstance.user()?.displayName).toBe('Bob');
+  });
+
+  it('clears the previous user action banner when navigating to a different user', async () => {
+    svc.getDetail = vi.fn(async (uid: string) =>
+      detail({ id: uid, role: uid === 'u1' ? 'STUDENT' : 'INSTRUCTOR' }),
+    );
+    const subject = new BehaviorSubject<ParamMap>(convertToParamMap({ uid: 'u1' }));
+    const fixture = createWithParamSubject(subject);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Promote u1 → an action-success banner appears.
+    fixture.nativeElement.querySelector('[data-testid="promote-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.actionSuccess()).toBeTruthy();
+
+    // Navigating to u2 clears the banner synchronously at the start of load().
+    subject.next(convertToParamMap({ uid: 'u2' }));
+    expect(fixture.componentInstance.actionSuccess()).toBeUndefined();
+    await fixture.whenStable();
   });
 });

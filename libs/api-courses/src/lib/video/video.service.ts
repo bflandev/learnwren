@@ -144,6 +144,10 @@ export class VideoService {
       vid,
       lid: v.lessonId,
       actualSizeBytes: actualSize,
+      // Persist the ffprobe source duration now; applyTranscoderResult uses it
+      // for Video.output.durationSec because the GCP Transcoder job returns no
+      // reliable output duration.
+      probedDurationSec: probe.value.durationSec,
       key,
       transcoderJobName: submit.jobName,
       nowIso: nowIso(),
@@ -168,7 +172,11 @@ export class VideoService {
     const head = await this.storage.headObject({ bucket: v.source.bucket, path: v.source.path });
     if (!head) throw new UploadObjectMissingException();
     const declared = v.source.sizeBytes ?? 0;
-    if (head.size > declared * UPLOAD_SIZE_TOLERANCE) {
+    // When no size was declared (declared falsy), the tolerance check is
+    // meaningless — a zero baseline would reject every non-empty upload. Skip it
+    // rather than guarantee a spurious rejection. The DTO requires sizeBytes
+    // today, so this is a latent-safety path only.
+    if (declared && head.size > declared * UPLOAD_SIZE_TOLERANCE) {
       await this.storage
         .deleteObject({ bucket: v.source.bucket, path: v.source.path })
         .catch(() => undefined);
@@ -179,7 +187,9 @@ export class VideoService {
 
   private async tryProbeSource(
     v: Video,
-  ): Promise<{ ok: true; value: { height: number } } | { ok: false; error: string }> {
+  ): Promise<
+    { ok: true; value: { height: number; durationSec: number } } | { ok: false; error: string }
+  > {
     try {
       const probe = await this.storage.probeSource({ bucket: v.source.bucket, path: v.source.path });
       return { ok: true, value: probe };

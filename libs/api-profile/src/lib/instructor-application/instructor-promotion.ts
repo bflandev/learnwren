@@ -31,7 +31,7 @@ export async function promoteUserToInstructor(
   nowIso: string,
 ): Promise<void> {
   await auth.setCustomUserClaims(uid, { role: 'INSTRUCTOR' });
-  await firestore.collection('users').doc(uid).update({ role: 'INSTRUCTOR' });
+  await firestore.collection('users').doc(uid).update({ role: 'INSTRUCTOR', updatedAt: nowIso });
 
   const appRef = firestore.collection(INSTRUCTOR_APPLICATIONS_COLLECTION).doc(uid);
   const snap = await appRef.get();
