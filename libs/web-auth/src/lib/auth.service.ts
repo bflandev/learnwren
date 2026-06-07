@@ -18,6 +18,12 @@ export type LoginErrorCode =
   | 'ACCOUNT_LOCKED'
   | 'WEAK_PASSWORD'
   | 'EMAIL_ALREADY_EXISTS'
+  // Register-specific 400s the API can throw; surfaced so the register page can
+  // show actionable field messages instead of a generic INTERNAL fallback.
+  | 'INVALID_EMAIL'
+  | 'EMAIL_TOO_LONG'
+  | 'INVALID_DISPLAY_NAME'
+  | 'PASSWORD_TOO_LONG'
   | 'INTERNAL';
 
 export type LoginResult =
@@ -134,7 +140,11 @@ export class AuthService {
         code === 'EMAIL_NOT_VERIFIED' ||
         code === 'ACCOUNT_LOCKED' ||
         code === 'WEAK_PASSWORD' ||
-        code === 'EMAIL_ALREADY_EXISTS'
+        code === 'EMAIL_ALREADY_EXISTS' ||
+        code === 'INVALID_EMAIL' ||
+        code === 'EMAIL_TOO_LONG' ||
+        code === 'INVALID_DISPLAY_NAME' ||
+        code === 'PASSWORD_TOO_LONG'
       ) {
         return { ok: false, code, details: body?.error?.details };
       }

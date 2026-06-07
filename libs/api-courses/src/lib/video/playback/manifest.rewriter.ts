@@ -69,6 +69,24 @@ export function rewriteMaster(masterBody: string, videoId: VideoId): string {
 
 export type SegmentSigner = (filename: string) => Promise<string>;
 
+/**
+ * A safe HLS segment filename is a FLAT object name in the video's output
+ * directory: only [A-Za-z0-9._-] plus a `.ts`/`.m4s`/`.mp4` extension — no
+ * slash, backslash, `..`, scheme, leading slash, or query string. GCP writes
+ * exactly this shape (e.g. `hls_720p0000000000.ts`, see hls-naming.ts) and the
+ * fake adapter mirrors it. Anything else would be a capability-URL-minting
+ * path traversal once interpolated into `${baseDir}/${filename}` and signed, so
+ * it is rejected. Defense in depth: the playlist body is trusted (GCP output
+ * bucket) today, but the signer mints credentialed read URLs.
+ */
+const SAFE_SEGMENT_NAME = /^[A-Za-z0-9._-]+\.(ts|m4s|mp4)$/;
+
+function assertSafeSegmentName(name: string): void {
+  if (!SAFE_SEGMENT_NAME.test(name)) {
+    throw new ManifestParseFailedException(`unsafe segment filename "${name}"`);
+  }
+}
+
 function isSegmentUri(line: string): boolean {
   const t = line.trim();
   if (!t) return false;
@@ -94,7 +112,9 @@ export async function rewriteRendition(
     if (line.startsWith('#EXT-X-KEY')) {
       out.push(rewriteKeyDirective(line, videoId));
     } else if (isSegmentUri(line)) {
-      out.push(await signSegment(line.trim()));
+      const name = line.trim();
+      assertSafeSegmentName(name);
+      out.push(await signSegment(name));
     } else {
       out.push(line);
     }

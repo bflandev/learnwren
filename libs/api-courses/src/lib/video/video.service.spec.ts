@@ -540,6 +540,29 @@ describe('VideoService.completeUpload — slice B', () => {
     );
   });
 
+  it('threads the probed source duration into finalizeUploadWithJob', async () => {
+    // Without the fix, tryProbeSource narrowed durationSec away, so the probe
+    // value never reached the repo and Video.output.durationSec stayed 0.
+    const { svc, repo } = makeServiceWithTranscoder({ probe: { height: 720, durationSec: 30 } });
+    await svc.completeUpload('v1' as VideoId);
+    expect(repo.finalizeUploadWithJob).toHaveBeenCalledWith(
+      expect.objectContaining({ probedDurationSec: 30 }),
+    );
+  });
+
+  it('accepts the upload when no source size was declared (sizeBytes absent)', async () => {
+    // declared = sizeBytes ?? 0 = 0; without the fix `head.size > 0 * 1.05` is
+    // true for any real upload and every such upload is wrongly rejected.
+    const { svc, repo, storage } = makeServiceWithTranscoder();
+    repo.getVideo.mockResolvedValue(baseVideo({ source: { bucket: 'src-bucket', path: 'p' } }));
+    storage.headObject.mockResolvedValue({ size: 5000 });
+
+    const video = await svc.completeUpload('v1' as VideoId);
+
+    expect(video.state).toBe('TRANSCODING');
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+  });
+
   it('ffprobe failure → markFailedFromSubmission with SOURCE_PROBE_FAILED', async () => {
     const { svc, repo, transcoder } = makeServiceWithTranscoder({
       probeThrows: new Error('bad source'),

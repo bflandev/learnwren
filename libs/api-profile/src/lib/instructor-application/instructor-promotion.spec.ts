@@ -30,7 +30,7 @@ describe('promoteUserToInstructor', () => {
     await promoteUserToInstructor('u1' as UserId, { setCustomUserClaims }, firestore as never, NOW);
 
     expect(setCustomUserClaims).toHaveBeenCalledWith('u1', { role: 'INSTRUCTOR' });
-    expect(userUpdate).toHaveBeenCalledWith({ role: 'INSTRUCTOR' });
+    expect(userUpdate).toHaveBeenCalledWith({ role: 'INSTRUCTOR', updatedAt: NOW });
     expect(appUpdate).toHaveBeenCalledWith({ status: 'APPROVED', resolvedAt: NOW });
   });
 

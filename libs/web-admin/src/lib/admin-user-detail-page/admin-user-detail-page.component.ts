@@ -27,6 +27,13 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
   readonly actionSuccess = signal<string | undefined>(undefined);
   readonly confirmingDemote = signal(false);
 
+  /**
+   * Monotonic token identifying the most recent load(). getDetail is a
+   * non-cancellable Promise, so a slow earlier request can resolve AFTER a newer
+   * one (rapid navigation between users). Discarding any result whose token is
+   * stale stops an old user's response overwriting the current one.
+   */
+  private loadToken = 0;
   private sub?: Subscription;
 
   ngOnInit(): void {
@@ -89,18 +96,29 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
   }
 
   private async load(uid: string): Promise<void> {
+    // Clear the previous user's action banners / open confirm before the await
+    // so they never linger on the incoming user's detail view.
+    this.actionSuccess.set(undefined);
+    this.actionError.set(undefined);
+    this.confirmingDemote.set(false);
+    const token = ++this.loadToken;
     this.loading.set(true);
     this.notFound.set(false);
     try {
-      this.user.set(await this.svc.getDetail(uid));
+      const detail = await this.svc.getDetail(uid);
+      if (token !== this.loadToken) return; // superseded by a newer load
+      this.user.set(detail);
     } catch (err) {
+      if (token !== this.loadToken) return; // superseded by a newer load
       const code = (err as { error?: { error?: { code?: string } } })?.error?.error?.code;
       if (code === 'USER_NOT_FOUND') {
         this.notFound.set(true);
       }
       this.user.set(undefined);
     } finally {
-      this.loading.set(false);
+      // Only the most recent load clears the spinner; a superseded stale call
+      // must not flip loading off while the current request is still in flight.
+      if (token === this.loadToken) this.loading.set(false);
     }
   }
 }

@@ -132,6 +132,7 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
     vid: 'v1' as VideoId,
     lid: 'l1' as LessonId,
     actualSizeBytes: 5000,
+    probedDurationSec: 42,
     key: {
       id: 'k1' as VideoKeyId,
       bytes: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
@@ -164,6 +165,18 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
 
     // Lesson now points back at the video.
     expect((fake.__store.get(LESSON_PATH) as { videoId?: string }).videoId).toBe('v1');
+  });
+
+  it('persists the probed source duration on Video.source for later READY output', async () => {
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo(),
+      [LESSON_PATH]: lessonDoc(),
+    });
+    const repo = await buildRepo(fake);
+
+    await repo.finalizeUploadWithJob({ ...finalizeArgs, probedDurationSec: 99 });
+
+    expect((fake.__store.get('videos/v1') as Video).source.probedDurationSec).toBe(99);
   });
 
   it('throws when the video disappeared before the transaction ran', async () => {
@@ -327,6 +340,49 @@ describe('VideoRepository.applyTranscoderResult', () => {
       durationSec: 123,
     });
     expect(stored.updatedAt).toBe(NOW_ISO);
+  });
+
+  it('uses the probed source duration for output when the transcoder duration is 0 (real-GCP case)', async () => {
+    // The GCP Transcoder job returns no reliable output duration, so the event
+    // carries 0; the authoritative duration is the ffprobe value persisted on
+    // the source at upload-complete time.
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({
+        state: 'TRANSCODING',
+        transcoderJobName: JOB_NAME,
+        source: { bucket: 'src-bucket', path: 'uploads/v1', probedDurationSec: 77 },
+      }),
+    });
+    const repo = await buildRepo(fake);
+
+    await repo.applyTranscoderResult({
+      videoId: 'v1' as VideoId,
+      jobName: JOB_NAME,
+      outcome: { ...readyOutcome, durationSec: 0 },
+      nowIso: NOW_ISO,
+    });
+
+    expect((fake.__store.get('videos/v1') as Video).output?.durationSec).toBe(77);
+  });
+
+  it('prefers the probed source duration over a non-zero transcoder duration', async () => {
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({
+        state: 'TRANSCODING',
+        transcoderJobName: JOB_NAME,
+        source: { bucket: 'src-bucket', path: 'uploads/v1', probedDurationSec: 55 },
+      }),
+    });
+    const repo = await buildRepo(fake);
+
+    await repo.applyTranscoderResult({
+      videoId: 'v1' as VideoId,
+      jobName: JOB_NAME,
+      outcome: { ...readyOutcome, durationSec: 60 },
+      nowIso: NOW_ISO,
+    });
+
+    expect((fake.__store.get('videos/v1') as Video).output?.durationSec).toBe(55);
   });
 
   it('applies a FAILED outcome: state FAILED with a prefixed failure reason', async () => {
