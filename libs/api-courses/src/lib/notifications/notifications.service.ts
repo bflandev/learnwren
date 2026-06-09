@@ -9,7 +9,6 @@ import { CoursesRepository } from '../courses.repository';
 import { EnrollmentRepository } from '../enrollment/enrollment.repository';
 import {
   CourseNotPublishedForNotifyException,
-  ModuleAlreadyNotifiedException,
   ModuleHasNoLessonsException,
   ModuleNotFoundException,
 } from '../errors/courses.exception';
@@ -48,9 +47,6 @@ export class NotificationsService {
     if (!moduleDoc) {
       throw new ModuleNotFoundException();
     }
-    if (moduleDoc.studentsNotifiedAt) {
-      throw new ModuleAlreadyNotifiedException();
-    }
 
     const lessons = await this.courses.listLessonsByModule(course.id, mid);
     if (lessons.length === 0) {
@@ -60,6 +56,10 @@ export class NotificationsService {
     const enrollments = await this.enrollments.listActiveByCourse(course.id);
     const recipients = await this.loadRecipients(enrollments.map((e) => e.userId));
     const deliverable = recipients.filter((r) => r.email !== '');
+
+    // Stamp-before-send is deliberate: duplicate mass-email is worse than a
+    // lost retry on email failure, and sends are already best-effort.
+    await this.courses.claimModuleNotification(course.id, mid, nowIso());
 
     const courseUrl = this.continueUrl(`/catalog/${course.id}`);
     const settled = await Promise.allSettled(
@@ -85,7 +85,6 @@ export class NotificationsService {
       }
     }
 
-    await this.courses.updateModule(course.id, mid, { studentsNotifiedAt: nowIso() });
     return { notifiedCount };
   }
 

@@ -101,6 +101,28 @@ describe('PositionSaver', () => {
     expect(service.savePosition).not.toHaveBeenCalled();
   });
 
+  it('in-flight flush → stop() → 403 response: onRevoked is NOT called (cancelled saver must not signal revocation)', async () => {
+    let rejectSave!: (err: unknown) => void;
+    const inflight = new Promise<{ lastWatchedSeconds: number }>((_res, rej) => { rejectSave = rej; });
+    const { saver, onRevoked } = makeSaver({ savePosition: () => inflight });
+
+    saver.start(() => 10);
+    const flushPromise = saver.flush(); // kick off in-flight request
+    saver.stop();                        // cancel while request is in flight
+    rejectSave(new HttpErrorResponse({ status: 403, statusText: 'Forbidden' }));
+    await flushPromise;
+
+    expect(onRevoked).not.toHaveBeenCalled();
+  });
+
+  it('no stop() → 403 → onRevoked IS called (existing behavior preserved)', async () => {
+    const err = new HttpErrorResponse({ status: 403, statusText: 'Forbidden' });
+    const { saver, onRevoked } = makeSaver({ savePosition: async () => { throw err; } });
+    saver.start(() => 10);
+    await saver.flush();
+    expect(onRevoked).toHaveBeenCalledTimes(1);
+  });
+
   it('flushBeacon uses navigator.sendBeacon when available and updates lastSent on success', () => {
     const beacon = vi.fn(() => true);
     Object.defineProperty(globalThis, 'navigator', {

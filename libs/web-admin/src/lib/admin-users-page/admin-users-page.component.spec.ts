@@ -133,4 +133,89 @@ describe('AdminUsersPageComponent', () => {
     expect(fixture.componentInstance.canPrev()).toBe(false);
     expect(fixture.componentInstance.canNext()).toBe(true);
   });
+
+  it('ignores a stale list response that resolves after a newer reload', async () => {
+    // Race guard: a 300ms-debounced search and an immediate goToPage() can
+    // both be in flight; the FIRST-issued (stale) response resolving LAST must
+    // not overwrite the state set by the newer response.
+    // Use two deferred promises; call retry() as the second (newer) reload so
+    // no goToPage guard can block the setup.
+    let resolveFirst!: (v: unknown) => void;
+    let resolveSecond!: (v: unknown) => void;
+    let callCount = 0;
+
+    svc.list = vi.fn(() => {
+      callCount += 1;
+      return callCount === 1
+        ? new Promise((r) => { resolveFirst = r; })
+        : new Promise((r) => { resolveSecond = r; });
+    });
+
+    TestBed.configureTestingModule({
+      imports: [AdminUsersPageComponent],
+      providers: [provideRouter([]), { provide: AdminUsersService, useValue: svc }],
+    });
+    const fixture = TestBed.createComponent(AdminUsersPageComponent);
+    fixture.detectChanges(); // ngOnInit -> 1st reload in flight
+
+    // Trigger a second (newer) reload while the first is still in flight.
+    void fixture.componentInstance.retry();
+
+    // Newer (second) reload resolves first.
+    resolveSecond({ users: [user('new-u1')], total: 10, page: 1, pageSize: 20, capped: false });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.users()[0]?.id).toBe('new-u1');
+    expect(fixture.componentInstance.total()).toBe(10);
+
+    // Stale (first) reload resolves last — must be discarded.
+    resolveFirst({ users: [user('stale-u1'), user('stale-u2')], total: 99, page: 1, pageSize: 20, capped: true });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // State must still reflect the second (newer) result.
+    expect(fixture.componentInstance.users()[0]?.id).toBe('new-u1');
+    expect(fixture.componentInstance.total()).toBe(10);
+    expect(fixture.componentInstance.capped()).toBe(false);
+    expect(fixture.componentInstance.loading()).toBe(false);
+  });
+
+  it('keeps loading true when a stale reload resolves before the current one', async () => {
+    // A superseded reload must not flip the spinner off while the current
+    // request is still in flight — the finally must be guarded by the token.
+    let resolveFirst!: (v: unknown) => void;
+    let resolveSecond!: (v: unknown) => void;
+    let callCount = 0;
+
+    svc.list = vi.fn(() => {
+      callCount += 1;
+      return callCount === 1
+        ? new Promise((r) => { resolveFirst = r; })
+        : new Promise((r) => { resolveSecond = r; });
+    });
+
+    TestBed.configureTestingModule({
+      imports: [AdminUsersPageComponent],
+      providers: [provideRouter([]), { provide: AdminUsersService, useValue: svc }],
+    });
+    const fixture = TestBed.createComponent(AdminUsersPageComponent);
+    fixture.detectChanges(); // ngOnInit -> 1st reload in flight
+
+    // Trigger second (newer) reload while first is still in flight.
+    void fixture.componentInstance.retry();
+
+    // Stale (first) resolves FIRST while second is still in flight.
+    resolveFirst({ users: [user('stale-u1')], total: 5, page: 1, pageSize: 20, capped: false });
+    await fixture.whenStable();
+
+    // Spinner must still be on — the current (second) request hasn't settled.
+    expect(fixture.componentInstance.loading()).toBe(true);
+
+    // Current (second) resolves — now spinner turns off.
+    resolveSecond({ users: [user('new-u1')], total: 10, page: 1, pageSize: 20, capped: false });
+    await fixture.whenStable();
+    expect(fixture.componentInstance.loading()).toBe(false);
+    expect(fixture.componentInstance.users()[0]?.id).toBe('new-u1');
+  });
 });

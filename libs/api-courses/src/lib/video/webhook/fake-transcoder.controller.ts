@@ -1,6 +1,7 @@
-import { Body, Controller, NotFoundException, Param, Post, Res } from '@nestjs/common';
+import { Body, Controller, NotFoundException, Param, Post, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 
+import { FirebaseSessionGuard } from '@learnwren/api-auth';
 import type { VideoId } from '@learnwren/shared-data-models';
 
 import { VideoRepository } from '../video.repository';
@@ -24,7 +25,14 @@ function envelope(payload: object): {
   };
 }
 
+/**
+ * Dev/e2e-only trigger for fake transcoder state transitions.
+ * Defense-in-depth: gate behind the standard session cookie so a misconfigured
+ * staging/preview deploy (fake flag set, real network) cannot have video state
+ * driven by an unauthenticated caller who knows a videoId.
+ */
 @Controller('internal/fake-transcoder')
+@UseGuards(FirebaseSessionGuard)
 export class FakeTranscoderController {
   constructor(
     private readonly real: TranscoderEventsController,

@@ -70,6 +70,24 @@ curl http://localhost:3333/api/health
 The Emulator UI is at `http://127.0.0.1:4000` — inspect Firestore data, manage
 Auth users, and browse Storage buckets while the apps run.
 
+### Firestore rules: two files, two configs
+
+There are two Firestore rules files and they must not be confused:
+
+- `firestore.rules` — the **deploy-safe** rules. This is what `firebase.json`
+  references, so it is what `firebase deploy --only firestore:rules` and
+  `firebase emulators:exec` (default config) use. Deny-by-default; the API uses
+  the Admin SDK and bypasses rules entirely.
+- `firestore.emulator.rules` — identical to `firestore.rules` **except** it adds
+  a world-writable `match /_smoke/{docId}` block, a dev-only wire smoke test for
+  the Emulator UI. It is referenced **only** by `firebase.emulator.json`.
+
+`pnpm emulators` runs `firebase emulators:start --config firebase.emulator.json`,
+so the local UI flow keeps the `_smoke` escape hatch. The `_smoke` block must
+never reach `firestore.rules` (it would be an unauthenticated public write
+sink); a static guard in `apps/api-e2e/src/firestore-rules.e2e-spec.ts` fails the
+build if it does, and that suite locks `firestore.rules` (the deploy file).
+
 ## Scripts
 
 All scripts run from the repo root and delegate to Nx.
@@ -78,7 +96,7 @@ All scripts run from the repo root and delegate to Nx.
 | :--- | :--- |
 | `pnpm start` | Serve `web` (4200) and `api` (3333) in parallel. |
 | `pnpm start:web` / `pnpm start:api` | Serve a single app. |
-| `pnpm emulators` | Start the Firebase Emulator Suite (Auth, Firestore, Storage, UI). |
+| `pnpm emulators` | Start the Firebase Emulator Suite (Auth, Firestore, Storage, UI) using `firebase.emulator.json`. |
 | `pnpm build` | Build all buildable projects to `dist/`. |
 | `pnpm test` | Run all unit tests (Vitest). |
 | `pnpm lint` / `pnpm typecheck` | Lint / type-check all projects. |
@@ -124,6 +142,10 @@ pnpm nx e2e api-e2e
 # or one-shot (boots the emulators, runs the suite, tears them down):
 pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e api-e2e'
 ```
+
+`emulators:exec` uses the default config (`firebase.json` → `firestore.rules`),
+not `firebase.emulator.json`. The rules spec also loads `firestore.rules`
+directly via `readFileSync`, so the gate always validates the deploy-safe rules.
 
 The whole `api-e2e` suite runs credential-free — the video upload / transcode /
 playback path is exercised through the fake source-probe seam

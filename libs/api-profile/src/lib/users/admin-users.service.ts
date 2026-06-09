@@ -19,6 +19,8 @@ const ADMIN_USER_SCAN_CAP = 5000;
 const FALLBACK_DISPLAY_NAME = '(no display name)';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
+/** Maximum length of a search query; excess chars are silently truncated. */
+const MAX_SEARCH_LENGTH = 200;
 
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
@@ -45,7 +47,7 @@ export class AdminUsersService {
       createdAt: (r.createdAt ?? '') as ISODateString,
     }));
 
-    const q = search.trim().toLowerCase();
+    const q = search.slice(0, MAX_SEARCH_LENGTH).trim().toLowerCase();
     const filtered = q
       ? rows.filter(
           (u) => u.displayName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),

@@ -16,6 +16,7 @@ import type {
   PendingInstructorApplicationView,
   UserId,
 } from '@learnwren/shared-data-models';
+import type { DocumentReference } from 'firebase-admin/firestore';
 
 import { promoteUserToInstructor, type PromotionFirestoreLike } from './instructor-promotion';
 import {
@@ -58,13 +59,43 @@ export class AdminInstructorApplicationService {
   }
 
   async approve(uid: UserId): Promise<InstructorApplicationView> {
-    const app = await this.requirePending(uid);
     const user = await this.auth.getUser(uid);
     if (!user.emailVerified) {
       throw new ApplicantNotVerifiedException();
     }
 
-    await promoteUserToInstructor(uid, this.auth, this.firestore as unknown as PromotionFirestoreLike, nowIso());
+    const appRef = this.firestore.collection(COLLECTION).doc(uid) as unknown as DocumentReference<Record<string, unknown>>;
+
+    // Atomically claim the transition PENDING → APPROVED so that two concurrent
+    // approve requests cannot both succeed (the loser re-reads a non-PENDING
+    // status inside the transaction and receives ApplicationNotPendingException).
+    const app = await this.firestore.runTransaction(async (txn) => {
+      const snap = await txn.get(appRef);
+      if (!snap.exists) {
+        throw new ApplicationNotFoundException();
+      }
+      const data = snap.data() as unknown as InstructorApplication;
+      if (data.status !== 'PENDING') {
+        throw new ApplicationNotPendingException();
+      }
+      txn.update(appRef, { status: 'APPROVED', resolvedAt: nowIso() });
+      return data;
+    });
+
+    // Side effects run only after the transaction commits so only the winning
+    // request promotes the user; ordering: security write (claim) before data
+    // write (users doc), revert the status claim on failure so admin can retry.
+    try {
+      await promoteUserToInstructor(uid, this.auth, this.firestore as unknown as PromotionFirestoreLike, nowIso());
+    } catch (err) {
+      // Transaction committed APPROVED but the promotion failed; revert to
+      // PENDING so the admin can retry rather than leaving the application
+      // permanently stuck in a claimed-but-unpromoted APPROVED state.
+      await appRef.update({ status: 'PENDING' }).catch((revertErr: unknown) => {
+        this.logger.error(`[admin] approval revert failed uid=${uid}: ${String(revertErr)}`);
+      });
+      throw err;
+    }
 
     // Best-effort: the promotion is already committed, so a notification failure
     // must not fail the request (that would mislead the admin into retrying).
@@ -76,21 +107,33 @@ export class AdminInstructorApplicationService {
 
     this.logger.log(`[admin] instructor application approved uid=${uid}`);
 
-    return this.viewOf(app, 'APPROVED');
+    return this.viewOf(app as InstructorApplication, 'APPROVED');
   }
 
   async decline(uid: UserId): Promise<InstructorApplicationView> {
-    const app = await this.requirePending(uid);
-    await this.firestore
-      .collection(COLLECTION)
-      .doc(uid)
-      .update({ status: 'DECLINED', resolvedAt: nowIso() });
+    const appRef = this.firestore.collection(COLLECTION).doc(uid) as unknown as DocumentReference<Record<string, unknown>>;
 
-    const user = await this.auth.getUser(uid);
+    // Atomically claim the transition PENDING → DECLINED so that concurrent
+    // approve/decline or decline/decline requests cannot interleave.
+    const app = await this.firestore.runTransaction(async (txn) => {
+      const snap = await txn.get(appRef);
+      if (!snap.exists) {
+        throw new ApplicationNotFoundException();
+      }
+      const data = snap.data() as unknown as InstructorApplication;
+      if (data.status !== 'PENDING') {
+        throw new ApplicationNotPendingException();
+      }
+      txn.update(appRef, { status: 'DECLINED', resolvedAt: nowIso() });
+      return data;
+    });
 
-    // Best-effort: the decline is already committed, so a notification failure
-    // must not fail the request (that would mislead the admin into retrying).
+    // Best-effort: the decline is already committed, so any failure here
+    // (including getUser — e.g. the user was deleted between submission and
+    // review) must not fail the request (that would mislead the admin into
+    // retrying a decline that already succeeded).
     try {
+      const user = await this.auth.getUser(uid);
       await this.email.sendInstructorApplicationDeclinedEmail({ to: user.email ?? '' });
     } catch (err) {
       this.logger.error(`[admin] decline notice failed uid=${uid}: ${String(err)}`);
@@ -98,19 +141,7 @@ export class AdminInstructorApplicationService {
 
     this.logger.log(`[admin] instructor application declined uid=${uid}`);
 
-    return this.viewOf(app, 'DECLINED');
-  }
-
-  private async requirePending(uid: UserId): Promise<InstructorApplication> {
-    const snap = await this.firestore.collection(COLLECTION).doc(uid).get();
-    if (!snap.exists) {
-      throw new ApplicationNotFoundException();
-    }
-    const app = snap.data() as InstructorApplication;
-    if (app.status !== 'PENDING') {
-      throw new ApplicationNotPendingException();
-    }
-    return app;
+    return this.viewOf(app as InstructorApplication, 'DECLINED');
   }
 
   // Builds the response view from the just-resolved application; the request is the sole writer, so the in-memory snapshot + new status is authoritative.

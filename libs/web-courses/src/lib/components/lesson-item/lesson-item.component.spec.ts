@@ -318,6 +318,82 @@ describe('LessonItemComponent video render switch', () => {
   });
 });
 
+describe('LessonItemComponent effect memoization (ANG-3)', () => {
+  const LESSON_WITH_VIDEO: Lesson = { ...LESSON, videoId: 'v1' as VideoId };
+
+  function bootstrap(
+    getVideo: ReturnType<typeof vi.fn>,
+    lesson: Lesson,
+  ): ComponentFixture<LessonItemComponent> {
+    const materialsStub = { listMaterials: vi.fn().mockReturnValue(of([])) };
+    TestBed.configureTestingModule({
+      imports: [LessonItemComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: VideoService, useValue: { getVideo } },
+        { provide: MaterialsService, useValue: materialsStub },
+      ],
+    });
+    const fixture = TestBed.createComponent(LessonItemComponent);
+    fixture.componentRef.setInput('lesson', lesson);
+    fixture.componentRef.setInput('courseId', 'c1' as CourseId);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('does NOT call getVideo again when a new Lesson object has the SAME videoId', () => {
+    const mockVideo: Video = {
+      id: 'v1' as VideoId,
+      ownerInstructorId: 'u1' as UserId,
+      courseId: 'c1' as CourseId,
+      lessonId: 'lid-1' as LessonId,
+      state: 'UPLOADED',
+      source: { bucket: 'b', path: 'p' },
+      createdAt: '2026-05-12T00:00:00.000Z' as Video['createdAt'],
+      updatedAt: '2026-05-12T00:00:00.000Z' as Video['updatedAt'],
+    };
+    const getVideo = vi.fn().mockReturnValue(of(mockVideo));
+    const fixture = bootstrap(getVideo, LESSON_WITH_VIDEO);
+    // Initial effect fires once on construction.
+    expect(getVideo).toHaveBeenCalledTimes(1);
+
+    // Produce a new Lesson object identity but same videoId (e.g. parent re-renders).
+    const sameVideoId: Lesson = { ...LESSON_WITH_VIDEO, title: 'Renamed' };
+    fixture.componentRef.setInput('lesson', sameVideoId);
+    TestBed.flushEffects();
+
+    // Still exactly one call — memoized on videoId string.
+    expect(getVideo).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls getVideo exactly once more when lesson changes to a DIFFERENT videoId', () => {
+    const v1: Video = {
+      id: 'v1' as VideoId,
+      ownerInstructorId: 'u1' as UserId,
+      courseId: 'c1' as CourseId,
+      lessonId: 'lid-1' as LessonId,
+      state: 'UPLOADED',
+      source: { bucket: 'b', path: 'p' },
+      createdAt: '2026-05-12T00:00:00.000Z' as Video['createdAt'],
+      updatedAt: '2026-05-12T00:00:00.000Z' as Video['updatedAt'],
+    };
+    const v2: Video = { ...v1, id: 'v2' as VideoId };
+    const getVideo = vi.fn()
+      .mockReturnValueOnce(of(v1))
+      .mockReturnValueOnce(of(v2));
+    const fixture = bootstrap(getVideo, LESSON_WITH_VIDEO);
+    expect(getVideo).toHaveBeenCalledTimes(1);
+
+    const differentVideoId: Lesson = { ...LESSON_WITH_VIDEO, videoId: 'v2' as VideoId };
+    fixture.componentRef.setInput('lesson', differentVideoId);
+    TestBed.flushEffects();
+
+    expect(getVideo).toHaveBeenCalledTimes(2);
+    expect(getVideo).toHaveBeenLastCalledWith('v2');
+  });
+});
+
 describe('LessonItemComponent video-state refetch + effect branches', () => {
   const UPLOADED: Video = {
     id: 'v1' as VideoId,

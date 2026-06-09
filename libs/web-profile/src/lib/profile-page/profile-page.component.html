@@ -1,6 +1,21 @@
 <section class="mx-auto max-w-2xl px-6 py-10">
   <h1 class="text-2xl font-serif mb-6">Profile settings</h1>
 
+  @if (loadingProfile()) {
+    <p class="mt-6 text-sm text-muted" data-testid="profile-loading">Loading…</p>
+  } @else if (profileLoadError()) {
+    <div class="mt-6" role="alert" data-testid="profile-load-error">
+      <p class="text-sm text-ink-2">Couldn't load your profile. Check your connection and try again.</p>
+      <button
+        type="button"
+        class="lw-btn lw-btn-ghost mt-2"
+        data-testid="profile-retry-button"
+        (click)="retryLoad()"
+      >
+        Retry
+      </button>
+    </div>
+  } @else {
   <section class="mb-6">
     <h2 class="text-lg font-serif mb-2">Profile picture</h2>
     <lib-profile-picture-uploader />
@@ -222,6 +237,8 @@
         </form>
       }
     </section>
+  }
+
   }
 
   <lib-instructor-application />

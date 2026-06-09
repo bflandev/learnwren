@@ -15,6 +15,15 @@ type DocStub = {
 function makeFirestore() {
   const docs: Record<string, DocStub> = {};
   const queryDocs: Array<{ data: () => unknown }> = [];
+  // Transaction object: delegates get/update to the underlying doc stubs so
+  // the transaction path exercises the same in-memory registry as direct calls.
+  const txn = {
+    get: vi.fn(async (ref: DocStub) => ref.get()),
+    update: vi.fn((ref: DocStub, data: Record<string, unknown>) => {
+      void ref.update(data);
+      return txn;
+    }),
+  };
   const firestore = {
     collection: vi.fn((name: string) => ({
       doc: vi.fn((id: string) => {
@@ -24,14 +33,16 @@ function makeFirestore() {
       }),
       where: vi.fn(() => ({ get: vi.fn(async () => ({ docs: queryDocs })) })),
     })),
+    runTransaction: vi.fn(async (fn: (t: typeof txn) => Promise<unknown>) => fn(txn)),
   };
-  return { firestore, docs, queryDocs };
+  return { firestore, docs, queryDocs, txn };
 }
 
 describe('AdminInstructorApplicationService', () => {
   let firestore: ReturnType<typeof makeFirestore>['firestore'];
   let docs: Record<string, DocStub>;
   let queryDocs: Array<{ data: () => unknown }>;
+  let txn: ReturnType<typeof makeFirestore>['txn'];
   let auth: { getUser: ReturnType<typeof vi.fn>; setCustomUserClaims: ReturnType<typeof vi.fn> };
   let email: {
     sendInstructorApplicationApprovedEmail: ReturnType<typeof vi.fn>;
@@ -40,7 +51,7 @@ describe('AdminInstructorApplicationService', () => {
   let svc: AdminInstructorApplicationService;
 
   beforeEach(() => {
-    ({ firestore, docs, queryDocs } = makeFirestore());
+    ({ firestore, docs, queryDocs, txn } = makeFirestore());
     auth = {
       getUser: vi.fn(async () => ({ email: 'ada@example.com', emailVerified: true })),
       setCustomUserClaims: vi.fn(async () => undefined),
@@ -100,6 +111,24 @@ describe('AdminInstructorApplicationService', () => {
     expect(view.status).toBe('APPROVED');
   });
 
+  it('approve: verified pending -> status claimed APPROVED inside the transaction', async () => {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => undefined),
+    };
+
+    await svc.approve('u1' as never);
+
+    // The transaction must write the status claim before any side effects run.
+    expect(txn.update).toHaveBeenCalledWith(
+      docs['instructorApplications/u1'],
+      expect.objectContaining({ status: 'APPROVED' }),
+    );
+  });
+
   it('approve: missing app -> ApplicationNotFoundException', async () => {
     docs['instructorApplications/u1'] = {
       get: vi.fn(async () => ({ exists: false, data: () => undefined })),
@@ -116,6 +145,20 @@ describe('AdminInstructorApplicationService', () => {
     await expect(svc.approve('u1' as never)).rejects.toThrow(ApplicationNotPendingException);
   });
 
+  // Simulates the losing request in a concurrent approve/approve race:
+  // the first request committed APPROVED; the second's transaction re-reads
+  // and finds a non-PENDING status → typed error, no promotion, no email.
+  it('approve: concurrent loser sees APPROVED status inside txn -> ApplicationNotPendingException, no promotion', async () => {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({ exists: true, data: () => ({ status: 'APPROVED' }) })),
+      update: vi.fn(async () => undefined),
+    };
+
+    await expect(svc.approve('u1' as never)).rejects.toThrow(ApplicationNotPendingException);
+    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(email.sendInstructorApplicationApprovedEmail).not.toHaveBeenCalled();
+  });
+
   it('approve: unverified applicant -> ApplicantNotVerifiedException, no claim set', async () => {
     auth.getUser = vi.fn(async () => ({ email: 'ada@example.com', emailVerified: false }));
     docs['instructorApplications/u1'] = {
@@ -124,6 +167,31 @@ describe('AdminInstructorApplicationService', () => {
     };
     await expect(svc.approve('u1' as never)).rejects.toThrow(ApplicantNotVerifiedException);
     expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+  });
+
+  // If promoteUserToInstructor fails after the transaction committed APPROVED,
+  // the service must revert the application status to PENDING so the admin can
+  // retry, then rethrow the original error.
+  it('approve: side-effect failure after transaction -> status reverted to PENDING and error propagates', async () => {
+    const appUpdate = vi.fn(async () => undefined);
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: appUpdate,
+    };
+    const promotionError = new Error('Firebase Auth unavailable');
+    auth.setCustomUserClaims = vi.fn(async () => {
+      throw promotionError;
+    });
+
+    await expect(svc.approve('u1' as never)).rejects.toThrow(promotionError);
+
+    // The revert must write PENDING back so the admin can retry.
+    expect(appUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'PENDING' }));
+    // Email must NOT be sent (error happened before email step).
+    expect(email.sendInstructorApplicationApprovedEmail).not.toHaveBeenCalled();
   });
 
   it('decline: pending -> DECLINED view + email', async () => {
@@ -149,6 +217,18 @@ describe('AdminInstructorApplicationService', () => {
       update: vi.fn(),
     };
     await expect(svc.decline('u1' as never)).rejects.toThrow(ApplicationNotPendingException);
+  });
+
+  // Simulates the losing request in a concurrent approve/decline or
+  // decline/decline race.
+  it('decline: concurrent loser sees non-PENDING status inside txn -> ApplicationNotPendingException, no email', async () => {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({ exists: true, data: () => ({ status: 'APPROVED' }) })),
+      update: vi.fn(async () => undefined),
+    };
+
+    await expect(svc.decline('u1' as never)).rejects.toThrow(ApplicationNotPendingException);
+    expect(email.sendInstructorApplicationDeclinedEmail).not.toHaveBeenCalled();
   });
 
   it('approve: email failure does not fail the operation', async () => {
@@ -186,5 +266,30 @@ describe('AdminInstructorApplicationService', () => {
 
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: 'DECLINED' }));
     expect(view.status).toBe('DECLINED');
+  });
+
+  // The claim (PENDING→DECLINED) is committed before getUser is called.  If
+  // getUser throws (e.g. the user was deleted between submission and review),
+  // the decline must still resolve — the comment already says "a notification
+  // failure must not fail the request".  No email attempt should be made when
+  // the user record cannot be fetched.
+  it('decline: getUser failure after the claim does not propagate', async () => {
+    const update = vi.fn(async () => undefined);
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update,
+    };
+    const getUserError = new Error('auth/user-not-found');
+    auth.getUser = vi.fn(async () => {
+      throw getUserError;
+    });
+
+    const view = await svc.decline('u1' as never);
+
+    expect(view.status).toBe('DECLINED');
+    expect(email.sendInstructorApplicationDeclinedEmail).not.toHaveBeenCalled();
   });
 });

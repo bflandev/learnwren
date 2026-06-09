@@ -20,6 +20,8 @@ export class PositionSaver {
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastSent: number | null = null;
   private getTime: (() => number) | null = null;
+  // A stopped saver must never signal revocation for a lesson it no longer represents.
+  private cancelled = false;
 
   constructor(opts: PositionSaverOptions) {
     this.learn = opts.learn;
@@ -41,8 +43,10 @@ export class PositionSaver {
     if (this.lastSent === seconds) return;
     try {
       const out = await this.learn.savePosition(this.courseId, this.lessonId, seconds);
+      if (this.cancelled) return;
       this.lastSent = out.lastWatchedSeconds;
     } catch (err) {
+      if (this.cancelled) return;
       if (err instanceof HttpErrorResponse && err.status === 403) {
         this.stop();
         this.onRevoked();
@@ -76,5 +80,6 @@ export class PositionSaver {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.getTime = null;
+    this.cancelled = true;
   }
 }

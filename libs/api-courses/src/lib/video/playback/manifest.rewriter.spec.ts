@@ -256,6 +256,46 @@ https://storage.googleapis.com/b/segment_001.ts?signature=xyz
     ).rejects.toBeInstanceOf(ManifestParseFailedException);
   });
 
+  // ARC-2: #EXT-X-MAP handling — fMP4 init segment rewrite + traversal guard
+  it('rewrites #EXT-X-MAP URI through the sign callback like a segment', async () => {
+    const signed: string[] = [];
+    const signer = async (s: string) => {
+      signed.push(s);
+      return `signed://${s}`;
+    };
+    const body = `#EXTM3U\n#EXT-X-MAP:URI="init.mp4"\n#EXTINF:6.000,\nsegment_001.m4s\n#EXT-X-ENDLIST\n`;
+    const out = await rewriteRendition(body, VID, signer);
+    expect(signed).toContain('init.mp4');
+    expect(out).toContain('#EXT-X-MAP:URI="signed://init.mp4"');
+    expect(out).not.toContain('#EXT-X-MAP:URI="init.mp4"');
+  });
+
+  it('preserves non-URI attributes on #EXT-X-MAP when rewriting', async () => {
+    const signer = async (s: string) => `signed://${s}`;
+    const body = `#EXTM3U\n#EXT-X-MAP:URI="init.mp4",BYTERANGE="1000@0"\n#EXT-X-ENDLIST\n`;
+    const out = await rewriteRendition(body, VID, signer);
+    expect(out).toContain('BYTERANGE="1000@0"');
+    expect(out).toContain('URI="signed://init.mp4"');
+  });
+
+  it('rejects a traversal-style URI in #EXT-X-MAP without signing it', async () => {
+    const signer = vi.fn(async () => 'NEVER_SIGNED');
+    const body = `#EXTM3U\n#EXT-X-MAP:URI="../../etc/passwd"\n#EXT-X-ENDLIST\n`;
+    await expect(rewriteRendition(body, VID, signer)).rejects.toBeInstanceOf(
+      ManifestParseFailedException,
+    );
+    await expect(rewriteRendition(body, VID, signer)).rejects.toThrow(/unsafe segment filename/);
+    expect(signer).not.toHaveBeenCalled();
+  });
+
+  it('existing TS-manifest fixture rewrites byte-identically after ARC-2 (no EXT-X-MAP present)', async () => {
+    // Regression pin: adding EXT-X-MAP handling must not alter output for TS manifests.
+    const out = await rewriteRendition(RENDITION_720, VID, async (s) => `signed://${s}`);
+    expect(out).toContain('signed://segment_001.ts');
+    expect(out).toContain('signed://segment_002.ts');
+    expect(out).not.toContain('#EXT-X-MAP');
+  });
+
   it('trims whitespace off segment URIs before signing', async () => {
     // Defends the `.trim()` mutation in `signSegment(line.trim())` at the call site.
     const body = `#EXTM3U\n#EXTINF:6.000,\n\tsegment_001.ts\t\n#EXT-X-ENDLIST\n`;

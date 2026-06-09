@@ -145,6 +145,7 @@ async function uploadAndTranscode(
   await request.post(`${API_BASE}/videos/${sess.videoId}/upload-complete`, { headers: hdr });
   const fake = await request.post(
     `${API_BASE}/internal/fake-transcoder/complete/${sess.videoId}`,
+    { headers: hdr },
   );
   // 204 — the event handler acted on the TRANSCODING → READY transition.
   expect(fake.status()).toBe(204);

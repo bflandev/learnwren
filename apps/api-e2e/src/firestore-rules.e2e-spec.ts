@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import {
   initializeTestEnvironment,
   RulesTestEnvironment,
@@ -24,7 +24,7 @@ test.beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
     projectId: PROJECT_ID,
     firestore: {
-      rules: readFileSync(resolve(__dirname, '../../../firestore.emulator.rules'), 'utf8'),
+      rules: readFileSync(resolve(__dirname, '../../../firestore.rules'), 'utf8'),
       host: '127.0.0.1',
       port: 8080,
     },
@@ -272,4 +272,55 @@ test('authenticated client cannot read or write /enrollments/{id}', async () => 
   await assertFails(
     setDoc(ref, { id: 'student-A__course-1', userId: 'student-A', courseId: 'course-1' }),
   );
+});
+
+// --- Static config guards (no emulator needed) ---
+// These lock SEC-1: firebase.json must deploy the safe rules file, the safe
+// rules file must not carry the world-writable _smoke escape hatch, and the
+// emulator-only rules file may differ from it ONLY by that _smoke block.
+const REPO_ROOT = resolve(__dirname, '../../..');
+const SMOKE_TOKEN = '_smoke';
+const WORLD_WRITABLE = 'allow read, write: if true';
+
+function readRepoFile(relativePath: string): string {
+  return readFileSync(resolve(REPO_ROOT, relativePath), 'utf8');
+}
+
+// Non-comment, non-blank lines, trimmed — the semantic content of a rules file.
+function meaningfulLines(rulesSource: string): string[] {
+  return rulesSource
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('//'));
+}
+
+// Remove the `match /_smoke/{...} { ... }` block (and its leading comment lines)
+// from the emulator rules so the remainder can be compared to the deploy file.
+function stripSmokeBlock(emulatorRules: string): string[] {
+  const lines = meaningfulLines(emulatorRules);
+  const start = lines.findIndex((line) => line.includes(SMOKE_TOKEN));
+  expect(start).toBeGreaterThanOrEqual(0);
+  // The _smoke block is `match … {`, one `allow` line, and its closing `}`.
+  const end = lines.indexOf('}', start);
+  expect(end).toBeGreaterThan(start);
+  expect(lines.slice(start, end + 1).join('\n')).toContain(WORLD_WRITABLE);
+  return [...lines.slice(0, start), ...lines.slice(end + 1)];
+}
+
+test('firebase.json deploys the safe rules file (not the emulator file)', () => {
+  const firebaseConfig = JSON.parse(readRepoFile('firebase.json'));
+  expect(firebaseConfig.firestore.rules).toBe('firestore.rules');
+  expect(firebaseConfig.firestore.rules).not.toMatch(/emulator/);
+});
+
+test('firestore.rules carries no _smoke escape hatch and no world-writable block', () => {
+  const deployRules = readRepoFile('firestore.rules');
+  expect(deployRules).not.toContain(SMOKE_TOKEN);
+  expect(deployRules).not.toContain(WORLD_WRITABLE);
+});
+
+test('firestore.emulator.rules differs from firestore.rules ONLY by the _smoke block', () => {
+  const deployLines = meaningfulLines(readRepoFile('firestore.rules'));
+  const emulatorWithoutSmoke = stripSmokeBlock(readRepoFile('firestore.emulator.rules'));
+  expect(emulatorWithoutSmoke).toEqual(deployLines);
 });

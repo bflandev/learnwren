@@ -50,8 +50,11 @@ export class LessonItemComponent {
   readonly video = signal<Video | undefined>(undefined);
   readonly captionsMeta = signal<VideoCaptionsMeta | null>(null);
 
+  // Memoized by string value: same videoId on a new Lesson object reference does not re-fire the effect.
+  private readonly videoId = computed(() => this.lesson().videoId);
+
   readonly captionsTrack = computed(() => {
-    const videoId = this.lesson().videoId;
+    const videoId = this.videoId();
     const meta = this.captionsMeta();
     if (!videoId || !meta) return null;
     return { src: `/api/playback/captions/${videoId}`, srclang: meta.language, label: meta.label };
@@ -59,7 +62,7 @@ export class LessonItemComponent {
 
   constructor() {
     effect(() => {
-      const vid = this.lesson().videoId;
+      const vid = this.videoId();
       if (!vid) {
         untracked(() => this.video.set(undefined));
         return;

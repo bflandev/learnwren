@@ -1,6 +1,10 @@
+import 'reflect-metadata';
+
 import { NotFoundException } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it, vi } from 'vitest';
 
+import { FirebaseSessionGuard } from '@learnwren/api-auth';
 import type { Video, VideoId } from '@learnwren/shared-data-models';
 
 import { FakeTranscoderController } from './fake-transcoder.controller';
@@ -36,6 +40,12 @@ function decodeEnvelope(eventsController: { handle: ReturnType<typeof vi.fn> }) 
 }
 
 describe('FakeTranscoderController', () => {
+  it('is guarded by FirebaseSessionGuard at the class level (defense-in-depth)', () => {
+    // @UseGuards on the class sets GUARDS_METADATA on the constructor itself.
+    const guards: unknown[] = Reflect.getMetadata(GUARDS_METADATA, FakeTranscoderController) ?? [];
+    expect(guards).toContain(FirebaseSessionGuard);
+  });
+
   it('complete: builds a SUCCEEDED Pub/Sub envelope and delegates to the real handler', async () => {
     const { c, eventsController } = build();
     await c.complete('v1' as VideoId, res() as never);
