@@ -51,6 +51,22 @@ describe('App', () => {
     expect(header!.querySelector('lib-course-search-bar')).not.toBeNull();
   });
 
+  it('provides a skip-to-content link targeting the focusable main region', async () => {
+    configure(null);
+    await TestBed.inject(Router).navigateByUrl('/catalog');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const skip = el.querySelector('a[href="#main-content"]');
+    expect(skip, 'skip-to-content link').not.toBeNull();
+    expect(skip!.textContent).toContain('Skip to content');
+    const main = el.querySelector('main#main-content') as HTMLElement | null;
+    expect(main, 'main#main-content target').not.toBeNull();
+    // tabindex=-1 makes the region programmatically focusable so activating the
+    // skip link moves focus into the content (keyboard/SR users bypass the nav).
+    expect(main!.getAttribute('tabindex')).toBe('-1');
+  });
+
   it('shows Log in / Register for a guest', async () => {
     configure(null);
     await TestBed.inject(Router).navigateByUrl('/catalog');

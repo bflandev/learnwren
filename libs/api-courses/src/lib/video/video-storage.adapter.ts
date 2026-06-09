@@ -6,9 +6,24 @@ import { Inject, Injectable } from '@nestjs/common';
 import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-firebase';
 import type { ISODateString } from '@learnwren/shared-data-models';
 
+import { hlsVariantPlaylistName, MUX_KEY_PREFIX } from './hls-naming';
 import { VIDEO_CONFIG, type VideoConfig } from './video.config';
 
 const promisifiedExecFile = promisify(nodeExecFile);
+
+/**
+ * Renditions the fake playback storage emits, mirroring the production ladder.
+ * The variant playlist + segment NAMES are derived from `hls-naming.ts` (the
+ * same seam the transcoder job builder and the playback rewriter use) so the
+ * fake can never drift from the real GCP output shape — the drift that once
+ * broke real playback while a hand-invented fake layout masked it.
+ */
+const FAKE_RENDITIONS: ReadonlyArray<{ name: string; streamInf: string }> = [
+  { name: '1080p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080' },
+  { name: '720p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720' },
+  { name: '480p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480' },
+  { name: '360p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360' },
+];
 
 let ffprobeBinaryPath: string;
 try {
@@ -195,18 +210,11 @@ export class VideoStorageAdapter implements VideoStoragePort {
       return [
         '#EXTM3U',
         '#EXT-X-VERSION:6',
-        '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080',
-        'hls_1080p.m3u8',
-        '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720',
-        'hls_720p.m3u8',
-        '#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480',
-        'hls_480p.m3u8',
-        '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360',
-        'hls_360p.m3u8',
+        ...FAKE_RENDITIONS.flatMap((r) => [r.streamInf, hlsVariantPlaylistName(r.name)]),
         '',
       ].join('\n');
     }
-    if (base.startsWith('hls_') && base.endsWith('.m3u8')) {
+    if (base.startsWith(MUX_KEY_PREFIX) && base.endsWith('.m3u8')) {
       const muxKey = base.slice(0, -'.m3u8'.length); // e.g. 'hls_720p'
       return [
         '#EXTM3U',

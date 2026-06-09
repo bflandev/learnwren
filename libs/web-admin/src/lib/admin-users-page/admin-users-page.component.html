@@ -19,6 +19,18 @@
 
   @if (loading()) {
     <p class="mt-6 text-sm text-muted">Loading…</p>
+  } @else if (error()) {
+    <div class="mt-6" role="alert" data-testid="error-state">
+      <p class="text-sm text-ink-2">Couldn’t load users. Check your connection and try again.</p>
+      <button
+        type="button"
+        class="lw-btn lw-btn-ghost mt-2"
+        data-testid="retry-button"
+        (click)="retry()"
+      >
+        Retry
+      </button>
+    </div>
   } @else if (users().length === 0) {
     <p class="mt-6 text-sm text-muted" data-testid="empty-state">No users found.</p>
   } @else {

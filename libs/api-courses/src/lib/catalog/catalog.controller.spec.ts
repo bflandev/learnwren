@@ -44,4 +44,25 @@ describe('CatalogController', () => {
     expect(svc.getCourseDetail).toHaveBeenCalledWith('c-1');
     expect(result).toBe(detail);
   });
+
+  // The catalog is public, read-only, and identical for every anonymous
+  // visitor, so it is the one surface worth caching at the browser/CDN edge —
+  // otherwise every hit re-runs listPublished() inside a cold-start-prone
+  // function. `@Header` attaches Nest's HEADERS_METADATA ('__headers__') to the
+  // route method; assert it directly rather than bootstrapping the full app.
+  function cacheControlOf(method: (...args: never[]) => unknown): string | undefined {
+    const headers =
+      (Reflect.getMetadata('__headers__', method) as { name: string; value: string }[] | undefined) ??
+      [];
+    return headers.find((h) => h.name.toLowerCase() === 'cache-control')?.value;
+  }
+
+  it('sets a public, time-bounded Cache-Control header on every read endpoint', () => {
+    for (const method of [controller.list, controller.search, controller.detail]) {
+      const value = cacheControlOf(method);
+      expect(value, `Cache-Control on ${method.name}`).toBeDefined();
+      expect(value).toContain('public');
+      expect(value).toMatch(/max-age=\d+/);
+    }
+  });
 });

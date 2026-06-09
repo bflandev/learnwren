@@ -24,6 +24,7 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
   readonly page = signal(1);
   readonly capped = signal(false);
   readonly loading = signal(true);
+  readonly error = signal(false);
   readonly search = signal('');
 
   readonly pageSize = PAGE_SIZE;
@@ -62,13 +63,23 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
     await this.reload();
   }
 
+  /** Re-run the current query after a load failure. */
+  retry(): Promise<void> {
+    return this.reload();
+  }
+
   private async reload(): Promise<void> {
     this.loading.set(true);
+    this.error.set(false);
     try {
       const res = await this.svc.list(this.search(), this.page(), PAGE_SIZE);
       this.users.set(res.users);
       this.total.set(res.total);
       this.capped.set(res.capped);
+    } catch {
+      // Without this, a rejected load leaves users() empty and the template
+      // renders the empty state — a failed fetch reads as "no users exist".
+      this.error.set(true);
     } finally {
       this.loading.set(false);
     }

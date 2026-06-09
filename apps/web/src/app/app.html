@@ -1,3 +1,9 @@
+<a
+  href="#main-content"
+  class="sr-only rounded bg-bg-2 px-4 py-2 text-ink shadow focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:outline-none focus:ring-2 focus:ring-ochre"
+>
+  Skip to content
+</a>
 @if (showHeader()) {
   <header class="sticky top-0 z-10 flex items-center gap-6 border-b border-line bg-bg px-6 py-3.5">
     <a routerLink="/catalog"><lw-wordmark [size]="20" /></a>
@@ -37,11 +43,15 @@
       <a routerLink="/register" class="lw-btn lw-btn-primary">Register</a>
     }
   </header>
-  <main class="bg-bg text-ink">
+  <main id="main-content" tabindex="-1" class="bg-bg text-ink outline-none">
     <router-outlet />
   </main>
 } @else {
-  <main class="flex min-h-screen flex-col items-center justify-center bg-bg text-ink">
+  <main
+    id="main-content"
+    tabindex="-1"
+    class="flex min-h-screen flex-col items-center justify-center bg-bg text-ink outline-none"
+  >
     <router-outlet />
   </main>
 }
