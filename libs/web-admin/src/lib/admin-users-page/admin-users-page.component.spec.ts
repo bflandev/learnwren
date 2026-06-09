@@ -54,6 +54,31 @@ describe('AdminUsersPageComponent', () => {
     expect(text).toContain('u2@example.com');
   });
 
+  it('shows an error state with a retry when the load fails (not a silent empty state)', async () => {
+    svc.list = vi.fn(async () => {
+      throw new Error('network down');
+    });
+    const fixture = await setup();
+    const el = fixture.nativeElement as HTMLElement;
+    // The bug this guards: a rejected load left users() empty and the template
+    // rendered "No users found." — indistinguishable from a real empty result.
+    expect(el.querySelector('[data-testid="error-state"]')).toBeTruthy();
+    expect(el.querySelector('[data-testid="empty-state"]')).toBeFalsy();
+
+    // Retry recovers: the service is called again and rows render.
+    svc.list = vi.fn(async () => ({
+      users: [user('u9')],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      capped: false,
+    }));
+    await fixture.componentInstance.retry();
+    fixture.detectChanges();
+    expect(el.textContent).toContain('u9@example.com');
+    expect(el.querySelector('[data-testid="error-state"]')).toBeFalsy();
+  });
+
   it('shows the empty state when there are no users', async () => {
     svc.list = vi.fn(async () => ({ users: [], total: 0, page: 1, pageSize: 20, capped: false }));
     const fixture = await setup();

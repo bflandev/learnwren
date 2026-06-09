@@ -61,6 +61,24 @@ describe('AdminInstructorApplicationsPageComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('No pending applications');
   });
 
+  it('shows a load-error state with a retry when the initial list fails', async () => {
+    svc.list = vi.fn(async () => {
+      throw new Error('network down');
+    });
+    const fixture = await setup();
+    const el = fixture.nativeElement as HTMLElement;
+    // Guards the silent failure: a rejected ngOnInit load left applications()
+    // empty and rendered "No pending applications." as if the queue were clear.
+    expect(el.querySelector('[data-testid="load-error"]')).toBeTruthy();
+    expect(el.querySelector('[data-testid="empty-state"]')).toBeFalsy();
+
+    svc.list = vi.fn(async () => ({ applications: [row('u1')] }));
+    await fixture.componentInstance.retry();
+    fixture.detectChanges();
+    expect(el.textContent).toContain('ada@example.com');
+    expect(el.querySelector('[data-testid="load-error"]')).toBeFalsy();
+  });
+
   it('approve removes the row on success', async () => {
     const fixture = await setup();
     const comp = fixture.componentInstance;

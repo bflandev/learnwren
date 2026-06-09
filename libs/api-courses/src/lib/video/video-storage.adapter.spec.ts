@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { type FirebaseStorageHandle } from '@learnwren/api-firebase';
 
+import { hlsVariantPlaylistName } from './hls-naming';
 import { type VideoConfig } from './video.config';
 import { VideoStorageAdapter } from './video-storage.adapter';
 
@@ -399,6 +400,23 @@ describe('VideoStorageAdapter — playback storage fake mode', () => {
         '',
       ].join('\n'),
     );
+  });
+
+  it('derives the fake master variant names from the hls-naming seam (drift guard)', async () => {
+    // Contract pin: the fake MUST reference each rendition via
+    // `hlsVariantPlaylistName()` — the same seam the real transcoder job builder
+    // and the playback rewriter use — so the fake can never silently diverge
+    // from the real GCP output shape (the divergence that once broke real
+    // playback). If someone re-hardcodes a literal that drifts from the seam,
+    // this fails.
+    const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
+    const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
+    const adapter = new VideoStorageAdapter(fakeStorage, cfg);
+    const body = await adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/manifest.m3u8' });
+    const lines = body.split('\n');
+    for (const rendition of ['1080p', '720p', '480p', '360p']) {
+      expect(lines).toContain(hlsVariantPlaylistName(rendition));
+    }
   });
 
   it('signObjectUrl returns a gs-stub:// URL with bucket, path, and ttl', async () => {

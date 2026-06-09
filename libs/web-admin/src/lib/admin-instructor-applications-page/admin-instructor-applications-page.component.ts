@@ -22,13 +22,29 @@ export class AdminInstructorApplicationsPageComponent implements OnInit {
 
   readonly applications = signal<PendingInstructorApplicationView[]>([]);
   readonly loading = signal(true);
+  readonly loadError = signal(false);
   readonly busy = signal<Set<string>>(new Set());
   private readonly errors = signal<Record<string, string>>({});
 
   async ngOnInit(): Promise<void> {
+    await this.reload();
+  }
+
+  /** Re-run the queue load after a failure. */
+  retry(): Promise<void> {
+    return this.reload();
+  }
+
+  private async reload(): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(false);
     try {
       const res = await this.svc.list();
       this.applications.set(res.applications);
+    } catch {
+      // Without this catch a rejected load left the queue empty and rendered
+      // "No pending applications." — a failed fetch reads as an empty queue.
+      this.loadError.set(true);
     } finally {
       this.loading.set(false);
     }

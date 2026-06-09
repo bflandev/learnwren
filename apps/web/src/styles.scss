@@ -22,3 +22,24 @@ h4 {
   margin: 0;
   text-wrap: balance;
 }
+
+/*
+ * Keyboard focus ring (WCAG 2.4.7). `lwInput` sets `outline-none` and the
+ * ghost buttons / custom rows fall back to the UA outline, which the dark
+ * earth-tone theme washes out — keyboard users lose the focus indicator.
+ * `:focus-visible` shows the ring only for keyboard interaction (not mouse
+ * clicks), and the element selectors out-specify Tailwind's `.outline-none`
+ * utility. Scoped to genuinely interactive elements so it never rings the
+ * `tabindex="-1"` content region targeted by the skip link.
+ */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid var(--lw-ochre);
+  outline-offset: 2px;
+  border-radius: var(--lw-r);
+}
