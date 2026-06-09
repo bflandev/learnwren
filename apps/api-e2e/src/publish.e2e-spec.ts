@@ -81,6 +81,7 @@ test(
 
     const fakeRes = await request.post(
       `${API_BASE}/internal/fake-transcoder/complete/${videoId}`,
+      { headers: hdr },
     );
     expect(fakeRes.status()).toBe(204);
 
@@ -344,7 +345,7 @@ async function preparePublishableCourse(
   });
 
   await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
-  await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+  await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`, { headers: hdr });
 
   return { courseId: course.id, videoId };
 }

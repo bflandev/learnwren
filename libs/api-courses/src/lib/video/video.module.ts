@@ -39,9 +39,9 @@ function makeTranscoder(cfg: VideoConfig): VideoTranscoder {
   });
 }
 
-// The fake transcoder webhook accepts unauthenticated state transitions for any
-// videoId — only safe in dev/test. Require BOTH `NODE_ENV !== 'production'`
-// AND the explicit fake transcoder flag before mounting. A staging/preview
+// The fake transcoder webhook is gated behind FirebaseSessionGuard (any valid
+// session cookie) AND two env-var guards: NODE_ENV !== 'production' AND the
+// explicit fake transcoder flag. Both guards are required — a staging/preview
 // deploy that forgets to set NODE_ENV would otherwise inherit the .env.tpl
 // default and expose the endpoint.
 const fakeTranscoderEnabled =

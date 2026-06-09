@@ -14,6 +14,26 @@ so reviewers don't re-flag deliberate design decisions as gaps. Maps to
 - Logout revokes refresh tokens (bumps `validSince`), so the session cookie is
   rejected on the next verification regardless of its remaining TTL.
 
+## Firestore security rules — which file deploys (SEC-1, 2026-06-09)
+
+- **`firestore.rules` is the only file that deploys.** `firebase.json` references
+  it, so `firebase deploy --only firestore:rules` and the default
+  `firebase emulators:exec` both use it. It is deny-by-default; the API runs on
+  the Admin SDK and bypasses rules, and the web app has no Firebase client SDK,
+  so no legitimate path needs client read/write.
+- **`firestore.emulator.rules` is dev-only and never deploys.** It is identical
+  to `firestore.rules` except it adds a world-writable `match /_smoke/{docId}`
+  block (a wire smoke test for the local Emulator UI). It is referenced **only**
+  by `firebase.emulator.json`, which `pnpm emulators` selects via
+  `--config firebase.emulator.json`.
+- Previously `firebase.json` pointed at `firestore.emulator.rules`, so a deploy
+  would have shipped the `_smoke` block as an unauthenticated public write sink
+  (SEC-1). Fixed by splitting the configs. Static guards in
+  `apps/api-e2e/src/firestore-rules.e2e-spec.ts` fail the build if `firebase.json`
+  ever deploys an emulator-flavored rules file, if `firestore.rules` regains a
+  `_smoke`/world-writable block, or if the two rules files diverge by anything
+  other than that block.
+
 ## CSRF protection — audited 2026-05-30
 
 **Status: protected. No CSRF-token middleware (`csurf`) is used or needed.**

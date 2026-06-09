@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserId } from '@learnwren/shared-data-models';
 
 import { AdminUserRoleService } from './admin-user-role.service';
-import { InvalidRoleTransitionException, UserNotFoundException } from './errors/admin-users.exception';
+import {
+  AdminUsersException,
+  InvalidRoleTransitionException,
+  UserNotFoundException,
+} from './errors/admin-users.exception';
 import type { AdminUsersRepository } from './admin-users.repository';
 
 const { promoteMock, demoteMock } = vi.hoisted(() => ({
@@ -63,6 +67,15 @@ describe('AdminUserRoleService', () => {
       expect(promoteMock.mock.calls[0][2]).toBe(firestore);
       expect(res).toEqual({ id: 'u1', role: 'INSTRUCTOR' });
     });
+
+    it('wraps an unexpected error from the promotion effect into AdminUsersException INTERNAL', async () => {
+      repo.getUser.mockResolvedValue({ id: 'u1', role: 'STUDENT' });
+      promoteMock.mockRejectedValue(new Error('Firebase exploded'));
+      const err = await svc.promote('u1' as UserId).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AdminUsersException);
+      expect((err as AdminUsersException).code).toBe('INTERNAL');
+      expect((err as AdminUsersException).status).toBe(500);
+    });
   });
 
   describe('demote', () => {
@@ -96,6 +109,15 @@ describe('AdminUserRoleService', () => {
       expect(typeof demoteMock.mock.calls[0][3]).toBe('string');
       expect(demoteMock.mock.calls[0][3]).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(res).toEqual({ id: 'u1', role: 'STUDENT' });
+    });
+
+    it('wraps an unexpected error from the demotion effect into AdminUsersException INTERNAL', async () => {
+      repo.getUser.mockResolvedValue({ id: 'u1', role: 'INSTRUCTOR' });
+      demoteMock.mockRejectedValue(new Error('Firestore unavailable'));
+      const err = await svc.demote('u1' as UserId).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AdminUsersException);
+      expect((err as AdminUsersException).code).toBe('INTERNAL');
+      expect((err as AdminUsersException).status).toBe(500);
     });
   });
 });

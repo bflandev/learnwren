@@ -42,7 +42,7 @@ describe('NotificationsService', () => {
   let courses: {
     getModule: ReturnType<typeof vi.fn>;
     listLessonsByModule: ReturnType<typeof vi.fn>;
-    updateModule: ReturnType<typeof vi.fn>;
+    claimModuleNotification: ReturnType<typeof vi.fn>;
   };
   let enrollments: { listActiveByCourse: ReturnType<typeof vi.fn> };
   let firestore: { collection: ReturnType<typeof vi.fn> };
@@ -53,7 +53,8 @@ describe('NotificationsService', () => {
     courses = {
       getModule: vi.fn().mockResolvedValue(moduleDoc()),
       listLessonsByModule: vi.fn().mockResolvedValue([lesson('l1')]),
-      updateModule: vi.fn().mockResolvedValue(undefined),
+      // By default the atomic claim succeeds (module not yet notified).
+      claimModuleNotification: vi.fn().mockResolvedValue(undefined),
     };
     enrollments = { listActiveByCourse: vi.fn().mockResolvedValue([enrollment('u1'), enrollment('u2')]) };
     firestore = {
@@ -77,9 +78,16 @@ describe('NotificationsService', () => {
     expect(result).toEqual({ notifiedCount: 2 });
   });
 
-  it('stamps studentsNotifiedAt on the module', async () => {
+  it('claims the notification stamp atomically before sending emails', async () => {
+    let claimCalledBeforeSend = false;
+    courses.claimModuleNotification.mockImplementation(async () => {
+      claimCalledBeforeSend = true;
+    });
+    email.sendNewModuleEmail.mockImplementation(async () => {
+      expect(claimCalledBeforeSend, 'claimModuleNotification must be called before any send').toBe(true);
+    });
     await service.notifyNewModule(course(), MID);
-    expect(courses.updateModule).toHaveBeenCalledWith(CID, MID, { studentsNotifiedAt: expect.any(String) });
+    expect(courses.claimModuleNotification).toHaveBeenCalledWith(CID, MID, expect.any(String));
   });
 
   it('rejects when the course is not published and sends nothing', async () => {
@@ -93,10 +101,10 @@ describe('NotificationsService', () => {
     await expect(service.notifyNewModule(course(), MID)).rejects.toBeInstanceOf(ModuleNotFoundException);
   });
 
-  it('rejects (and does not stamp) when the module was already notified', async () => {
-    courses.getModule.mockResolvedValue(moduleDoc({ studentsNotifiedAt: T0 }));
+  it('rejects when the module was already notified (claim throws ModuleAlreadyNotifiedException)', async () => {
+    courses.claimModuleNotification.mockRejectedValue(new ModuleAlreadyNotifiedException());
     await expect(service.notifyNewModule(course(), MID)).rejects.toBeInstanceOf(ModuleAlreadyNotifiedException);
-    expect(courses.updateModule).not.toHaveBeenCalled();
+    expect(email.sendNewModuleEmail).not.toHaveBeenCalled();
   });
 
   it('rejects when the module has no lessons', async () => {
@@ -112,25 +120,53 @@ describe('NotificationsService', () => {
     expect(result).toEqual({ notifiedCount: 1 });
   });
 
-  it('is best-effort: a failed send is counted out, the rest send, and the stamp is still written', async () => {
+  it('is best-effort: a failed send is counted out, the rest send, and the stamp was already written', async () => {
     email.sendNewModuleEmail.mockRejectedValueOnce(new Error('smtp down')).mockResolvedValueOnce(undefined);
     const result = await service.notifyNewModule(course(), MID);
     expect(result).toEqual({ notifiedCount: 1 });
-    expect(courses.updateModule).toHaveBeenCalledWith(CID, MID, { studentsNotifiedAt: expect.any(String) });
+    // The stamp is written atomically before sends, not after.
+    expect(courses.claimModuleNotification).toHaveBeenCalledWith(CID, MID, expect.any(String));
   });
 
-  it('stamps the module even when every send fails, returning notifiedCount 0', async () => {
+  it('sends no emails and returns notifiedCount 0 when every send fails, stamp already committed', async () => {
     email.sendNewModuleEmail.mockRejectedValue(new Error('smtp down'));
     const result = await service.notifyNewModule(course(), MID);
     expect(result).toEqual({ notifiedCount: 0 });
-    expect(courses.updateModule).toHaveBeenCalledWith(CID, MID, { studentsNotifiedAt: expect.any(String) });
+    expect(courses.claimModuleNotification).toHaveBeenCalledWith(CID, MID, expect.any(String));
   });
 
-  it('stamps with notifiedCount 0 when there are no active enrollees', async () => {
+  it('stamps and returns notifiedCount 0 when there are no active enrollees', async () => {
     enrollments.listActiveByCourse.mockResolvedValue([]);
     const result = await service.notifyNewModule(course(), MID);
     expect(email.sendNewModuleEmail).not.toHaveBeenCalled();
     expect(result).toEqual({ notifiedCount: 0 });
-    expect(courses.updateModule).toHaveBeenCalledWith(CID, MID, { studentsNotifiedAt: expect.any(String) });
+    expect(courses.claimModuleNotification).toHaveBeenCalledWith(CID, MID, expect.any(String));
+  });
+
+  it('concurrent calls: first wins, second gets ModuleAlreadyNotifiedException with no duplicate emails', async () => {
+    // Simulate two concurrent notifyNewModule calls racing the atomic claim.
+    // The first call's claim succeeds; the second sees the stamp and throws.
+    let callCount = 0;
+    courses.claimModuleNotification.mockImplementation(async () => {
+      callCount += 1;
+      if (callCount > 1) {
+        throw new ModuleAlreadyNotifiedException();
+      }
+    });
+
+    const [first, second] = await Promise.allSettled([
+      service.notifyNewModule(course(), MID),
+      service.notifyNewModule(course(), MID),
+    ]);
+
+    // Exactly one call succeeds.
+    expect(first.status).toBe('fulfilled');
+    // The other call fails with the already-notified error (not a double-email).
+    expect(second.status).toBe('rejected');
+    if (second.status === 'rejected') {
+      expect(second.reason).toBeInstanceOf(ModuleAlreadyNotifiedException);
+    }
+    // Only the winning call's emails are sent (2 enrollees, 1 batch).
+    expect(email.sendNewModuleEmail).toHaveBeenCalledTimes(2);
   });
 });

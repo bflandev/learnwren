@@ -10,7 +10,11 @@ import { nowIso } from '@learnwren/shared-data-models';
 import type { AdminUserRoleResponse, UserId, UserRole } from '@learnwren/shared-data-models';
 
 import { AdminUsersRepository } from './admin-users.repository';
-import { InvalidRoleTransitionException, UserNotFoundException } from './errors/admin-users.exception';
+import {
+  AdminUsersException,
+  InvalidRoleTransitionException,
+  UserNotFoundException,
+} from './errors/admin-users.exception';
 import {
   promoteUserToInstructor,
   type PromotionFirestoreLike,
@@ -35,12 +39,19 @@ export class AdminUserRoleService {
     if (user.role !== 'STUDENT') {
       throw new InvalidRoleTransitionException(user.role as UserRole, 'INSTRUCTOR');
     }
-    await promoteUserToInstructor(
-      uid,
-      this.auth,
-      this.firestore as unknown as PromotionFirestoreLike,
-      nowIso(),
-    );
+    try {
+      await promoteUserToInstructor(
+        uid,
+        this.auth,
+        this.firestore as unknown as PromotionFirestoreLike,
+        nowIso(),
+      );
+    } catch (err) {
+      this.logger.error(
+        `Promotion of uid=${uid} failed: ${(err as Error).message}`,
+      );
+      throw new AdminUsersException('INTERNAL', 'An internal error occurred during promotion.', 500, undefined, { cause: err });
+    }
     return { id: uid, role: 'INSTRUCTOR' };
   }
 
@@ -62,13 +73,12 @@ export class AdminUserRoleService {
     } catch (err) {
       // A partial failure may leave Auth/Firestore role state out of sync (and,
       // worst case, refresh tokens un-revoked). Surface it loudly so it can be
-      // remediated rather than failing silently — then rethrow so the admin
-      // sees the error and can retry (the user stays INSTRUCTOR in Firestore,
-      // so a retry is permitted).
+      // remediated rather than failing silently — the admin can retry (the user
+      // stays INSTRUCTOR in Firestore until the Firestore write succeeds).
       this.logger.error(
         `Demotion of uid=${uid} failed partway; verify the Auth claim, token revocation, and Firestore role: ${(err as Error).message}`,
       );
-      throw err;
+      throw new AdminUsersException('INTERNAL', 'An internal error occurred during demotion.', 500, undefined, { cause: err });
     }
     this.logger.log(`Demoted uid=${uid} to STUDENT`);
     return { id: uid, role: 'STUDENT' };

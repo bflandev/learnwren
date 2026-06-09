@@ -30,6 +30,12 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
   readonly pageSize = PAGE_SIZE;
   readonly totalPages = computed(() => Math.max(1, Math.ceil(this.total() / PAGE_SIZE)));
 
+  /**
+   * Monotonic token identifying the most recent reload(). A slow page-1 request
+   * can resolve after a page-2 request that was issued later; discarding any
+   * result whose token is stale stops old data overwriting the current view.
+   */
+  private loadToken = 0;
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   async ngOnInit(): Promise<void> {
@@ -69,19 +75,24 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
   }
 
   private async reload(): Promise<void> {
+    const token = ++this.loadToken;
     this.loading.set(true);
     this.error.set(false);
     try {
       const res = await this.svc.list(this.search(), this.page(), PAGE_SIZE);
+      if (token !== this.loadToken) return; // superseded by a newer reload
       this.users.set(res.users);
       this.total.set(res.total);
       this.capped.set(res.capped);
     } catch {
+      if (token !== this.loadToken) return; // superseded by a newer reload
       // Without this, a rejected load leaves users() empty and the template
       // renders the empty state — a failed fetch reads as "no users exist".
       this.error.set(true);
     } finally {
-      this.loading.set(false);
+      // Only the most recent reload clears the spinner; a superseded stale call
+      // must not flip loading off while the current request is still in flight.
+      if (token === this.loadToken) this.loading.set(false);
     }
   }
 }

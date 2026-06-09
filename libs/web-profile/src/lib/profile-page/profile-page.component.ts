@@ -49,6 +49,15 @@ export class ProfilePageComponent implements OnInit {
   readonly status = signal<Status>('idle');
   readonly readonly = signal<{ email: string; role: ProfileView['role'] } | null>(null);
 
+  readonly loadingProfile = signal(true);
+  readonly profileLoadError = signal(false);
+
+  /**
+   * Monotonic token: a slow first load resolving after a retry must not
+   * overwrite the newer result (matches the admin-user-detail-page pattern).
+   */
+  private loadToken = 0;
+
   readonly emailForm = this.fb.nonNullable.group({
     // server is authoritative; email Validators give fast client feedback only
     newEmail: ['', [Validators.required, Validators.email]],
@@ -156,10 +165,31 @@ export class ProfilePageComponent implements OnInit {
     }
   }
 
-  async ngOnInit(): Promise<void> {
-    const me = await this.profileSvc.getProfile();
-    this.form.setValue({ displayName: me.displayName, biography: me.biography });
-    this.readonly.set({ email: me.email, role: me.role });
+  ngOnInit(): void {
+    void this.load();
+  }
+
+  /** Called by the template's retry button; also guards against re-entrancy. */
+  retryLoad(): Promise<void> {
+    return this.load();
+  }
+
+  private async load(): Promise<void> {
+    const token = ++this.loadToken;
+    this.loadingProfile.set(true);
+    this.profileLoadError.set(false);
+    try {
+      const me = await this.profileSvc.getProfile();
+      if (token !== this.loadToken) return;
+      this.form.setValue({ displayName: me.displayName, biography: me.biography });
+      this.readonly.set({ email: me.email, role: me.role });
+    } catch {
+      if (token !== this.loadToken) return;
+      this.profileLoadError.set(true);
+    } finally {
+      // Only the most recent load clears the spinner.
+      if (token === this.loadToken) this.loadingProfile.set(false);
+    }
   }
 
   async save(): Promise<void> {

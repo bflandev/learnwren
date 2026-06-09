@@ -16,7 +16,11 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
-import { CourseNotFoundException } from './errors/courses.exception';
+import {
+  CourseNotFoundException,
+  ModuleAlreadyNotifiedException,
+  ModuleNotFoundException,
+} from './errors/courses.exception';
 import { assertReorderSetMatches } from './reorder.util';
 
 const COURSES = 'courses';
@@ -253,6 +257,29 @@ export class CoursesRepository {
         t.update(lessonsRef.doc(lid), { order: index, updatedAt: now });
       });
       t.update(this.courseRef(cid), { updatedAt: now });
+    });
+  }
+
+  /**
+   * Atomically claim the one-shot notification stamp for a module.
+   *
+   * Runs a Firestore transaction: re-reads the module doc, throws
+   * ModuleAlreadyNotifiedException if studentsNotifiedAt is already set, else
+   * writes it inside the transaction. Callers must send emails ONLY after this
+   * resolves — stamp-before-send is deliberate: duplicate mass-email is worse
+   * than a lost retry on email failure, and sends are already best-effort.
+   */
+  async claimModuleNotification(
+    cid: CourseId,
+    mid: ModuleId,
+    notifiedAt: ISODateString,
+  ): Promise<void> {
+    await this.firestore.runTransaction(async (t) => {
+      const snap = await t.get(this.moduleRef(cid, mid));
+      if (!snap.exists) throw new ModuleNotFoundException();
+      const doc = snap.data() as Module;
+      if (doc.studentsNotifiedAt) throw new ModuleAlreadyNotifiedException();
+      t.update(this.moduleRef(cid, mid), { studentsNotifiedAt: notifiedAt, updatedAt: notifiedAt });
     });
   }
 

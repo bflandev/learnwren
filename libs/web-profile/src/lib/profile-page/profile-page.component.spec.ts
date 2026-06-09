@@ -451,6 +451,128 @@ describe('ProfilePageComponent — change email', () => {
   });
 });
 
+describe('ProfilePageComponent — load state (ANG-1)', () => {
+  let fixture: ComponentFixture<ProfilePageComponent>;
+  let http: HttpTestingController;
+
+  beforeEach(() => {
+    instructorApplicationServiceStub.getApplication.mockResolvedValue({ status: 'NONE' });
+    TestBed.configureTestingModule({
+      imports: [ProfilePageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: InstructorApplicationService, useValue: instructorApplicationServiceStub },
+      ],
+    });
+    fixture = TestBed.createComponent(ProfilePageComponent);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  it('shows a loading state before getProfile() resolves', () => {
+    fixture.detectChanges(); // triggers ngOnInit; request is now in-flight
+    // The loading signal should be true and the loading indicator should be rendered
+    expect(fixture.componentInstance.loadingProfile()).toBe(true);
+    http.expectOne('/api/profile'); // consume the request so afterEach teardown passes
+  });
+
+  it('clears the loading state after a successful load', async () => {
+    fixture.detectChanges();
+    http.expectOne('/api/profile').flush(MOCK_PROFILE);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.loadingProfile()).toBe(false);
+    expect(fixture.componentInstance.profileLoadError()).toBe(false);
+  });
+
+  it('sets profileLoadError and clears loading on a failed GET /api/profile', async () => {
+    fixture.detectChanges();
+    http.expectOne('/api/profile').flush(
+      { error: { code: 'UNAUTHORIZED' } },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.loadingProfile()).toBe(false);
+    expect(fixture.componentInstance.profileLoadError()).toBe(true);
+  });
+
+  it('renders the error UI (data-testid="profile-load-error") on failure', async () => {
+    fixture.detectChanges();
+    http.expectOne('/api/profile').flush(
+      { error: { code: 'UNAUTHORIZED' } },
+      { status: 500, statusText: 'Internal Server Error' },
+    );
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="profile-load-error"]')).toBeTruthy();
+  });
+
+  it('hides the main form while loading (no form rendered during loading state)', () => {
+    fixture.detectChanges(); // loading = true, request in-flight
+    const el = fixture.nativeElement as HTMLElement;
+    // The main profile form must NOT be in the DOM while the load is in-flight
+    expect(el.querySelector('form')).toBeNull();
+    // The loading indicator must be present
+    expect(el.querySelector('[data-testid="profile-loading"]')).toBeTruthy();
+    http.expectOne('/api/profile'); // consume
+  });
+
+  it('retry() re-issues GET /api/profile and succeeds on the second attempt', async () => {
+    fixture.detectChanges();
+    // First request fails
+    http.expectOne('/api/profile').flush(
+      { error: { code: 'NETWORK_ERROR' } },
+      { status: 503, statusText: 'Service Unavailable' },
+    );
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.profileLoadError()).toBe(true);
+
+    // Trigger retry
+    const cmp = fixture.componentInstance;
+    const retryPromise = cmp.retryLoad();
+    fixture.detectChanges();
+    expect(cmp.loadingProfile()).toBe(true);
+    expect(cmp.profileLoadError()).toBe(false);
+
+    // Second request succeeds
+    http.expectOne('/api/profile').flush(MOCK_PROFILE);
+    await retryPromise;
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(cmp.loadingProfile()).toBe(false);
+    expect(cmp.profileLoadError()).toBe(false);
+    expect(cmp.readonly()).toEqual({ email: 'a@b.c', role: 'STUDENT' });
+    expect(cmp.form.getRawValue()).toEqual({ displayName: 'Etta', biography: 'hi' });
+  });
+
+  it('loadToken prevents a stale response from overwriting a newer load result', async () => {
+    fixture.detectChanges();
+    // Capture the first (slow) request
+    const slowReq = http.expectOne('/api/profile');
+
+    // Immediately retry (simulated via calling retryLoad() directly)
+    const retryPromise = fixture.componentInstance.retryLoad();
+    const fastReq = http.expectOne('/api/profile');
+    // The fast request completes first
+    fastReq.flush(MOCK_PROFILE);
+    await retryPromise;
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Now the slow (stale) request resolves — it must be discarded
+    slowReq.flush({ ...MOCK_PROFILE, email: 'stale@b.c' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // The component should have the result from the fast (newer) request
+    expect(fixture.componentInstance.readonly()?.email).toBe('a@b.c');
+  });
+});
+
 describe('ProfilePageComponent — change password', () => {
   let fixture: ComponentFixture<ProfilePageComponent>;
   let http: HttpTestingController;

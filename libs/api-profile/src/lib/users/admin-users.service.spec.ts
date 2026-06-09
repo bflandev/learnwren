@@ -119,6 +119,42 @@ describe('AdminUsersService', () => {
       expect(res.page).toBe(1);
       expect(res.pageSize).toBe(2);
     });
+
+    it('clamps a 250-char search to 200 chars so the truncated prefix matches a 200-char displayName', async () => {
+      // displayName is exactly 200 'a' chars; search is 250 'a' chars.
+      // Without .slice(): 250-char needle can never appear in a 200-char string → 0 results.
+      // With .slice(0, 200): needle becomes 200 'a' chars which exactly equals displayName → 1 result.
+      repo.scanUsers = vi.fn(async () => [userRecord('x', { displayName: 'a'.repeat(200) })]);
+      const res = await svc.list('a'.repeat(250), 1, 20);
+      expect(res.total).toBe(1);
+    });
+
+    it('clamps a 300-char search to 200 chars so the truncated prefix matches a 200-char displayName', async () => {
+      // Same falsifiability proof at a larger needle (300 chars).
+      // Without .slice(): 300-char needle never matches 200-char string → 0 results.
+      // With .slice(0, 200): matches → 1 result.
+      repo.scanUsers = vi.fn(async () => [userRecord('x', { displayName: 'a'.repeat(200) })]);
+      const res = await svc.list('a'.repeat(300), 1, 20);
+      expect(res.total).toBe(1);
+    });
+
+    it('does NOT clamp a search of exactly 200 chars (boundary: no truncation, matches intact)', async () => {
+      // Verifies the boundary: a 200-char search is passed through unchanged.
+      // Without .slice(): identical result — passes either way, confirming the boundary
+      // is at >200 (not >=200).  Paired with the 201-char canonical test below, the
+      // boundary is pinned from both sides.
+      repo.scanUsers = vi.fn(async () => [userRecord('x', { displayName: 'a'.repeat(200) })]);
+      const res = await svc.list('a'.repeat(200), 1, 20);
+      expect(res.total).toBe(1);
+    });
+
+    it('a search longer than 200 chars is clamped to 200 before matching', async () => {
+      repo.scanUsers = vi.fn(async () => [userRecord('x', { displayName: 'a'.repeat(200) })]);
+      // 201-char search of all 'a' — the 201-char needle can never appear in a
+      // 200-char displayName, so without truncation we get 0; with truncation we get 1.
+      const res = await svc.list('a'.repeat(201), 1, 20);
+      expect(res.total).toBe(1);
+    });
   });
 
   describe('getDetail', () => {

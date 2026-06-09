@@ -100,6 +100,25 @@ function rewriteKeyDirective(line: string, videoId: VideoId): string {
   return line.replace(/URI="[^"]*"/, `URI="/api/playback/keys/${videoId}"`);
 }
 
+/**
+ * Rewrite an #EXT-X-MAP line: extract the URI attribute, run it through the
+ * same assertSafeSegmentName + sign path as regular segment URIs, then
+ * re-emit the line with the rewritten URI, preserving any other attributes
+ * (e.g. BYTERANGE). This closes the latent traversal gap that would open if
+ * the transcoder job is ever switched to fMP4 output.
+ */
+async function rewriteMapDirective(line: string, signSegment: SegmentSigner): Promise<string> {
+  const match = line.match(/URI="([^"]*)"/);
+  if (!match) {
+    // No URI attribute — pass through unchanged (spec allows URI-less MAP?).
+    return line;
+  }
+  const uri = match[1]!;
+  assertSafeSegmentName(uri);
+  const signed = await signSegment(uri);
+  return line.replace(/URI="[^"]*"/, `URI="${signed}"`);
+}
+
 export async function rewriteRendition(
   renditionBody: string,
   videoId: VideoId,
@@ -111,6 +130,8 @@ export async function rewriteRendition(
   for (const line of lines) {
     if (line.startsWith('#EXT-X-KEY')) {
       out.push(rewriteKeyDirective(line, videoId));
+    } else if (line.startsWith('#EXT-X-MAP')) {
+      out.push(await rewriteMapDirective(line, signSegment));
     } else if (isSegmentUri(line)) {
       const name = line.trim();
       assertSafeSegmentName(name);

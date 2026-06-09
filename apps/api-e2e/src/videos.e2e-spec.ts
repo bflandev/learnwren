@@ -206,7 +206,7 @@ test('upload → transcoding → READY via fake completer', async ({ request }) 
   expect(afterComplete.keyId).toBeTruthy();
   expect(afterComplete.transcoderJobName).toBeTruthy();
 
-  const completeRes = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+  const completeRes = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`, { headers: hdr });
   // 204 — the event handler ACTED on the transition (TRANSCODING → READY).
   // A 200 would signal a no-op (e.g. JOB_NAME_MISMATCH / ALREADY_APPLIED).
   expect(completeRes.status()).toBe(204);
@@ -235,6 +235,7 @@ test('fake-transcoder fail path → FAILED with reason', async ({ request }) => 
   await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
 
   await request.post(`${API_BASE}/internal/fake-transcoder/fail/${videoId}`, {
+    headers: hdr,
     data: { reason: 'unsupported codec' },
   });
 
@@ -260,12 +261,12 @@ test('fake-completer is idempotent — second call is a no-op', async ({ request
   });
   await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
 
-  const first = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+  const first = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`, { headers: hdr });
   // First call acts on TRANSCODING → READY (204).
   expect(first.status()).toBe(204);
 
   // Second call is a no-op: the video is already READY (200 + ALREADY_APPLIED).
-  const second = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+  const second = await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`, { headers: hdr });
   expect(second.status()).toBe(200);
   const body = (await second.json()) as { acked: boolean; reason: string };
   expect(body.reason).toBe('ALREADY_APPLIED');
@@ -289,7 +290,9 @@ test('webhook auth — production-style route rejects unsigned envelopes', async
 });
 
 test('webhook event for non-existent video is acknowledged + dropped', async ({ request }) => {
-  const r = await request.post(`${API_BASE}/internal/fake-transcoder/complete/does-not-exist`);
+  const instructor = await registerAndPromoteInstructor(request);
+  const hdr = { Cookie: instructor.cookieHeader };
+  const r = await request.post(`${API_BASE}/internal/fake-transcoder/complete/does-not-exist`, { headers: hdr });
   expect(r.status()).toBe(200);
   const body = (await r.json()) as { reason: string };
   expect(body.reason).toBe('VIDEO_NOT_FOUND');
@@ -310,7 +313,7 @@ test('lesson-delete cascades a READY video — output bucket cleaned', async ({ 
     data: FIXTURE_BYTES,
   });
   await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
-  await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`);
+  await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`, { headers: hdr });
 
   const delLesson = await request.delete(
     `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}`,
