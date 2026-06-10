@@ -16,10 +16,11 @@ import type {
   PendingInstructorApplicationView,
   UserId,
 } from '@learnwren/shared-data-models';
-import type { DocumentReference } from 'firebase-admin/firestore';
+import { FieldValue, type DocumentReference } from 'firebase-admin/firestore';
 
 import { promoteUserToInstructor, type PromotionFirestoreLike } from './instructor-promotion';
 import {
+  AdminInstructorApplicationException,
   ApplicantNotVerifiedException,
   ApplicationNotFoundException,
   ApplicationNotPendingException,
@@ -88,13 +89,25 @@ export class AdminInstructorApplicationService {
     try {
       await promoteUserToInstructor(uid, this.auth, this.firestore as unknown as PromotionFirestoreLike, nowIso());
     } catch (err) {
-      // Transaction committed APPROVED but the promotion failed; revert to
-      // PENDING so the admin can retry rather than leaving the application
-      // permanently stuck in a claimed-but-unpromoted APPROVED state.
-      await appRef.update({ status: 'PENDING' }).catch((revertErr: unknown) => {
-        this.logger.error(`[admin] approval revert failed uid=${uid}: ${String(revertErr)}`);
-      });
-      throw err;
+      // Transaction committed APPROVED but the promotion failed; revert to a
+      // clean PENDING state (resolvedAt cleared) so the admin can retry rather
+      // than leaving the application stuck in a claimed-but-unpromoted
+      // APPROVED state.
+      await appRef
+        .update({ status: 'PENDING', resolvedAt: FieldValue.delete() })
+        .catch((revertErr: unknown) => {
+          this.logger.error(`[admin] approval revert failed uid=${uid}: ${String(revertErr)}`);
+        });
+      this.logger.error(`[admin] promotion failed uid=${uid}: ${String(err)}`);
+      // Wrap: a raw SDK error would escape the feature filter's @Catch list
+      // and be rendered without the {error:{code}} envelope.
+      throw new AdminInstructorApplicationException(
+        'INTERNAL',
+        'An internal error occurred during promotion.',
+        500,
+        undefined,
+        { cause: err },
+      );
     }
 
     // Best-effort: the promotion is already committed, so a notification failure
