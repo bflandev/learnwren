@@ -35,7 +35,7 @@ Vault: `learnwren`. The table below mirrors `.env.tpl` — when you add a new
 |---|---|---|---|---|
 | `Workspace` | `name` | `WORKSPACE_NAME` | Canary; non-secret value `learnwren-dev` proves the pipeline works | render-time sanity check |
 | `Admin SDK Config` | `projectId` | `LEARNWREN_API_FIREBASE_PROJECT_ID` | Real Firebase project ID for the Admin SDK | `LEARNWREN_FIREBASE_TARGET=production` |
-| `Web SDK Config` | `apiKey` | `FIREBASE_WEB_API_KEY` | Firebase Web API key used server-side by `FirebaseAuthRestClient` to verify passwords via the Identity Toolkit REST API (the web bundle has no Firebase client SDK) | `LEARNWREN_FIREBASE_TARGET=production` |
+| `Web SDK Config` | `apiKey` | `LEARNWREN_FIREBASE_WEB_API_KEY` | Firebase Web API key used server-side by `FirebaseAuthRestClient` to verify passwords via the Identity Toolkit REST API (the web bundle has no Firebase client SDK) | `LEARNWREN_FIREBASE_TARGET=production` |
 | `dev` | `LEARNWREN_VIDEO_SOURCE_BUCKET` | same | Cloud Storage bucket for raw instructor uploads | `NODE_ENV=production` |
 | `dev` | `LEARNWREN_VIDEO_OUTPUT_BUCKET` | same | Cloud Storage bucket for transcoded HLS output | `NODE_ENV=production` |
 | `dev` | `LEARNWREN_MATERIALS_BUCKET` | same | Cloud Storage bucket for lesson materials | `NODE_ENV=production` |

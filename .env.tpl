@@ -19,7 +19,7 @@ LEARNWREN_API_FIREBASE_PROJECT_ID=op://learnwren/Admin SDK Config/projectId
 # passwords against identitytoolkit.googleapis.com. Public-by-design
 # value (Firebase publishes it); rendered through 1Password for parity
 # with other Firebase config.
-FIREBASE_WEB_API_KEY=op://learnwren/Web SDK Config/apiKey
+LEARNWREN_FIREBASE_WEB_API_KEY=op://learnwren/Web SDK Config/apiKey
 
 # ── Email transport (unlock email only) ──────────────────────────────
 # Verification + password-reset emails are sent by Firebase. The unlock

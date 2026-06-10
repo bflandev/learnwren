@@ -104,10 +104,13 @@ export class FirebaseAdminModule {
         {
           provide: FIREBASE_WEB_API_KEY,
           useFactory: () => {
-            const key = process.env['FIREBASE_WEB_API_KEY'];
+            // NOTE: env key is LEARNWREN_-prefixed because FIREBASE_ is a
+            // reserved prefix in Cloud Functions deploys — a FIREBASE_* key in
+            // the deploy .env aborts `firebase deploy` entirely.
+            const key = process.env['LEARNWREN_FIREBASE_WEB_API_KEY'];
             if (mode === 'production' && !key) {
               throw new Error(
-                '[FirebaseAdminModule] LEARNWREN_FIREBASE_TARGET=production requires FIREBASE_WEB_API_KEY to be set.',
+                '[FirebaseAdminModule] LEARNWREN_FIREBASE_TARGET=production requires LEARNWREN_FIREBASE_WEB_API_KEY to be set.',
               );
             }
             // In emulator mode, the Auth emulator accepts any key string.
