@@ -1,0 +1,11 @@
+[
+  {
+    "origin": [
+      "https://learn-wren.web.app",
+      "https://learn-wren.firebaseapp.com"
+    ],
+    "method": ["GET", "HEAD", "OPTIONS"],
+    "responseHeader": ["Content-Type", "Range"],
+    "maxAgeSeconds": 3600
+  }
+]
