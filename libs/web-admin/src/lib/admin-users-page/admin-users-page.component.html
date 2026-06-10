@@ -44,6 +44,12 @@
             </span>
             <span class="flex items-center gap-3">
               <span class="rounded bg-bg-2 px-2 py-0.5 text-xs text-muted">{{ u.role }}</span>
+              @if (u.status === 'SUSPENDED') {
+                <span
+                  class="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                  data-testid="status-badge"
+                >SUSPENDED</span>
+              }
               <span class="text-xs text-muted">{{ u.createdAt | date: 'mediumDate' }}</span>
             </span>
           </a>

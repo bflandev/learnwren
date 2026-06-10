@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 
 import { LwAvatarComponent } from '@learnwren/web-ui';
-import type { AdminUserDetail, AdminUserRoleResponse } from '@learnwren/shared-data-models';
+import type { AdminUserDetail, AdminUserRoleResponse, AdminUserStatusResponse } from '@learnwren/shared-data-models';
 
 import { AdminUsersService } from '../admin-users.service';
 
@@ -18,6 +18,7 @@ import { AdminUsersService } from '../admin-users.service';
 export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
   private readonly svc = inject(AdminUsersService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   readonly user = signal<AdminUserDetail | undefined>(undefined);
   readonly loading = signal(true);
@@ -26,6 +27,7 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
   readonly actionError = signal<string | undefined>(undefined);
   readonly actionSuccess = signal<string | undefined>(undefined);
   readonly confirmingDemote = signal(false);
+  readonly confirmingDelete = signal(false);
 
   /**
    * Monotonic token identifying the most recent load(). getDetail is a
@@ -57,12 +59,45 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
     this.confirmingDemote.set(false);
   }
 
+  startDelete(): void {
+    this.actionError.set(undefined);
+    this.actionSuccess.set(undefined);
+    this.confirmingDelete.set(true);
+  }
+
+  cancelDelete(): void {
+    this.confirmingDelete.set(false);
+  }
+
   async promote(): Promise<void> {
     await this.changeRole(() => this.svc.promote(this.user()!.id), 'Promoted to Instructor.');
   }
 
   async confirmDemote(): Promise<void> {
     await this.changeRole(() => this.svc.demote(this.user()!.id), 'Demoted to Student.');
+  }
+
+  async suspend(): Promise<void> {
+    await this.changeStatus(() => this.svc.suspend(this.user()!.id), 'User suspended.');
+  }
+
+  async unsuspend(): Promise<void> {
+    await this.changeStatus(() => this.svc.unsuspend(this.user()!.id), 'User unsuspended.');
+  }
+
+  async confirmDelete(): Promise<void> {
+    this.busy.set(true);
+    this.actionError.set(undefined);
+    this.actionSuccess.set(undefined);
+    this.confirmingDelete.set(false);
+    try {
+      await this.svc.deleteUser(this.user()!.id);
+      await this.router.navigate(['/admin/users'], { state: { deleted: true } });
+    } catch (err) {
+      this.actionError.set(this.messageFor(err));
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   private async changeRole(
@@ -84,13 +119,42 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
     }
   }
 
+  private async changeStatus(
+    action: () => Promise<AdminUserStatusResponse>,
+    successMsg: string,
+  ): Promise<void> {
+    this.busy.set(true);
+    this.actionError.set(undefined);
+    this.actionSuccess.set(undefined);
+    try {
+      const res = await action();
+      this.user.update((u) => (u ? { ...u, status: res.status } : u));
+      this.actionSuccess.set(successMsg);
+    } catch (err) {
+      this.actionError.set(this.messageFor(err));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
   private messageFor(err: unknown): string {
-    const code = (err as { error?: { error?: { code?: string } } })?.error?.error?.code;
-    if (code === 'INVALID_ROLE_TRANSITION') {
-      return "This user's role changed elsewhere. Refresh to see the current role.";
+    const body = (err as { error?: { error?: { code?: string; details?: Record<string, unknown> } } })?.error?.error;
+    const code = body?.code;
+    if (code === 'INVALID_ROLE_TRANSITION' || code === 'INVALID_STATUS_TRANSITION') {
+      return "This user's status changed elsewhere. Refresh to see the current state.";
     }
     if (code === 'USER_NOT_FOUND') {
       return 'This user no longer exists.';
+    }
+    if (code === 'CANNOT_ACT_ON_SELF') {
+      return 'You cannot perform this action on yourself.';
+    }
+    if (code === 'LAST_ADMIN') {
+      return 'Cannot perform this action: this user is the last admin.';
+    }
+    if (code === 'USER_HAS_COURSES') {
+      const count = body?.details?.['courseCount'];
+      return `Cannot delete: this user owns ${count ?? 'one or more'} course(s). Transfer or delete their courses first.`;
     }
     return 'Something went wrong. Please try again.';
   }
@@ -101,6 +165,7 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
     this.actionSuccess.set(undefined);
     this.actionError.set(undefined);
     this.confirmingDemote.set(false);
+    this.confirmingDelete.set(false);
     const token = ++this.loadToken;
     this.loading.set(true);
     this.notFound.set(false);

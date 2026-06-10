@@ -1,16 +1,30 @@
-import { Controller, Get, Param, Post, Query, UseFilters, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseFilters,
+  UseGuards,
+} from '@nestjs/common';
 
-import { FirebaseSessionGuard, AdminRoleGuard } from '@learnwren/api-auth';
+import { FirebaseSessionGuard, AdminRoleGuard, type AuthenticatedRequest } from '@learnwren/api-auth';
 import type {
   AdminUserDetail,
   AdminUserListResponse,
   AdminUserRoleResponse,
+  AdminUserStatusResponse,
   UserId,
 } from '@learnwren/shared-data-models';
 
 import { AdminUsersExceptionFilter } from './admin-users.exception-filter';
 import { AdminUsersService } from './admin-users.service';
 import { AdminUserRoleService } from './admin-user-role.service';
+import { AdminUserStatusService } from './admin-user-status.service';
+import { AdminUserDeleteService } from './admin-user-delete.service';
 
 @Controller('admin/users')
 @UseFilters(AdminUsersExceptionFilter)
@@ -19,6 +33,8 @@ export class AdminUsersController {
   constructor(
     private readonly svc: AdminUsersService,
     private readonly roleSvc: AdminUserRoleService,
+    private readonly statusSvc: AdminUserStatusService,
+    private readonly deleteSvc: AdminUserDeleteService,
   ) {}
 
   @Get()
@@ -43,5 +59,32 @@ export class AdminUsersController {
   @Post(':uid/demote')
   demote(@Param('uid') uid: string): Promise<AdminUserRoleResponse> {
     return this.roleSvc.demote(uid as UserId);
+  }
+
+  @Post(':uid/suspend')
+  @HttpCode(200)
+  suspend(
+    @Req() req: AuthenticatedRequest,
+    @Param('uid') uid: string,
+  ): Promise<AdminUserStatusResponse> {
+    return this.statusSvc.suspend(req.user!.uid, uid as UserId);
+  }
+
+  @Post(':uid/unsuspend')
+  @HttpCode(200)
+  unsuspend(
+    @Req() req: AuthenticatedRequest,
+    @Param('uid') uid: string,
+  ): Promise<AdminUserStatusResponse> {
+    return this.statusSvc.unsuspend(req.user!.uid, uid as UserId);
+  }
+
+  @Delete(':uid')
+  @HttpCode(204)
+  deleteUser(
+    @Req() req: AuthenticatedRequest,
+    @Param('uid') uid: string,
+  ): Promise<void> {
+    return this.deleteSvc.delete(req.user!.uid, uid as UserId);
   }
 }

@@ -9,6 +9,7 @@ import type {
   ISODateString,
   UserId,
   UserRole,
+  UserStatus,
 } from '@learnwren/shared-data-models';
 
 import { AdminUsersRepository } from './admin-users.repository';
@@ -27,6 +28,12 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.trunc(value)));
 }
 
+/** Absent status field means ACTIVE (backward-compatible with pre-existing documents). */
+function resolveStatus(raw?: string): UserStatus {
+  if (raw === 'SUSPENDED' || raw === 'DELETED') return raw;
+  return 'ACTIVE';
+}
+
 @Injectable()
 export class AdminUsersService {
   constructor(private readonly repo: AdminUsersRepository) {}
@@ -39,11 +46,15 @@ export class AdminUsersService {
     const capped = records.length > ADMIN_USER_SCAN_CAP;
     const bounded = capped ? records.slice(0, ADMIN_USER_SCAN_CAP) : records;
 
-    const rows: AdminUserListRow[] = bounded.map((r) => ({
+    // Exclude DELETED accounts from the directory — they are tombstone documents only.
+    const visible = bounded.filter((r) => resolveStatus(r.status) !== 'DELETED');
+
+    const rows: AdminUserListRow[] = visible.map((r) => ({
       id: r.id as UserId,
       displayName: (r.displayName ?? '').trim() || FALLBACK_DISPLAY_NAME,
       email: r.email ?? '',
       role: (r.role ?? 'STUDENT') as UserRole,
+      status: resolveStatus(r.status),
       createdAt: (r.createdAt ?? '') as ISODateString,
     }));
 
@@ -68,7 +79,8 @@ export class AdminUsersService {
 
   async getDetail(uid: UserId): Promise<AdminUserDetail> {
     const rec = await this.repo.getUser(uid);
-    if (!rec) {
+    // Treat DELETED accounts as non-existent for the detail view.
+    if (!rec || resolveStatus(rec.status) === 'DELETED') {
       throw new UserNotFoundException();
     }
 
@@ -97,6 +109,7 @@ export class AdminUsersService {
       biography: rec.biography ?? '',
       photoUrl: rec.photoUrl,
       role: (rec.role ?? 'STUDENT') as UserRole,
+      status: resolveStatus(rec.status),
       createdAt: (rec.createdAt ?? '') as ISODateString,
       enrollments,
       authoredCourses,
