@@ -50,4 +50,26 @@ describe('readCoverConfigFromEnv', () => {
       }),
     ).toThrow(/LEARNWREN_COVER_PUBLIC_BASE_URL/);
   });
+
+  it('defaults impl to "firebase" in production when LEARNWREN_COVER_STORAGE is unset', () => {
+    // Without this, production would silently run the in-memory fake adapter
+    // while the public base URL points at a real bucket that never gets objects.
+    const cfg = readCoverConfigFromEnv({
+      NODE_ENV: 'production',
+      LEARNWREN_COVER_BUCKET: 'b',
+      LEARNWREN_COVER_PUBLIC_BASE_URL: 'https://storage.googleapis.com/b',
+    });
+    expect(cfg.impl).toBe('firebase');
+  });
+
+  it('rejects an explicit LEARNWREN_COVER_STORAGE=fake in production', () => {
+    expect(() =>
+      readCoverConfigFromEnv({
+        NODE_ENV: 'production',
+        LEARNWREN_COVER_BUCKET: 'b',
+        LEARNWREN_COVER_PUBLIC_BASE_URL: 'https://storage.googleapis.com/b',
+        LEARNWREN_COVER_STORAGE: 'fake',
+      }),
+    ).toThrow(/LEARNWREN_COVER_STORAGE=fake is rejected when NODE_ENV=production/);
+  });
 });

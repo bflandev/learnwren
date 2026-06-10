@@ -47,4 +47,24 @@ describe('readPictureConfigFromEnv', () => {
       }),
     ).toThrow(/LEARNWREN_PICTURE_PUBLIC_BASE_URL/);
   });
+
+  it('defaults impl to "firebase" in production when LEARNWREN_PICTURE_STORAGE is unset', () => {
+    const cfg = readPictureConfigFromEnv({
+      NODE_ENV: 'production',
+      LEARNWREN_PICTURE_BUCKET: 'b',
+      LEARNWREN_PICTURE_PUBLIC_BASE_URL: 'https://storage.googleapis.com/b',
+    });
+    expect(cfg.impl).toBe('firebase');
+  });
+
+  it('rejects an explicit LEARNWREN_PICTURE_STORAGE=fake in production', () => {
+    expect(() =>
+      readPictureConfigFromEnv({
+        NODE_ENV: 'production',
+        LEARNWREN_PICTURE_BUCKET: 'b',
+        LEARNWREN_PICTURE_PUBLIC_BASE_URL: 'https://storage.googleapis.com/b',
+        LEARNWREN_PICTURE_STORAGE: 'fake',
+      }),
+    ).toThrow(/LEARNWREN_PICTURE_STORAGE=fake is rejected when NODE_ENV=production/);
+  });
 });
