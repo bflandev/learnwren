@@ -18,6 +18,12 @@ pnpm secrets:render
 
 Re-run after rotating a secret or adding a new entry to `.env.tpl`.
 
+Render the production deploy env (`.env.learn-wren`, consumed by `pnpm deploy:prod`):
+
+```bash
+pnpm secrets:render:deploy
+```
+
 Run a one-off command with secrets injected at the process boundary (never written to disk):
 
 ```bash
@@ -43,10 +49,15 @@ Vault: `learnwren`. The table below mirrors `.env.tpl` — when you add a new
 | `dev` | `LEARNWREN_TRANSCODER_TOPIC` | same | Pub/Sub topic for Transcoder job events | `LEARNWREN_VIDEO_TRANSCODER=gcp` |
 | `dev` | `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` | same | Expected audience on the Pub/Sub push token | `LEARNWREN_VIDEO_TRANSCODER=gcp` |
 | `dev` | `LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL` | same | Service account allowed to push transcoder events | `LEARNWREN_VIDEO_TRANSCODER=gcp` |
+| `prod` | `SMTP_USER` | same | SES SMTP access key id (us-east-1; the SMTP password lives in Cloud Secret Manager, NOT in the vault/env) | production deploys |
+| `prod` | `LEARNWREN_PUBLIC_URL` | same | Public origin: pins video-upload session origins + email links. Phased web.app → learnwren.com (see deployment.md) | production deploys |
+| `prod` | `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` | same | Exact push-endpoint URL (`<serviceConfig.uri>/api/internal/transcoder-events`) — printed by `tools/deploy/provision-pubsub.sh` | production deploys |
 
 Outside production the video and materials stacks default to their
 credential-free `fake` modes — none of the `dev/*` items are required for
 `pnpm start` against the emulators.
+
+The production deploy template is `.env.deploy.tpl` → rendered to `.env.learn-wren` (gitignored). Non-secret production values (bucket names, origins, project IDs) are committed literals in the template; only genuinely secret/varying values go through `op://` references.
 
 ## Adding a secret
 
