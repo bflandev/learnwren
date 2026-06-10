@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
@@ -23,6 +23,8 @@ import { assertReorderSetMatches } from './reorder.util';
 import type { CourseTree } from './types/loaded-course';
 import { MaterialsService } from './materials/materials.service';
 import { VideoService } from './video/video.service';
+import { CoverImageService } from './cover/cover-image.service';
+import { EnrollmentRepository } from './enrollment/enrollment.repository';
 
 export interface CreateCourseInput {
   title: string;
@@ -42,6 +44,8 @@ export interface UpdateCourseInput {
 
 @Injectable()
 export class CoursesService {
+  private readonly logger = new Logger('CoursesService');
+
   constructor(
     private readonly repo: CoursesRepository,
     // forwardRef resolves the CoursesModule ↔ VideoModule runtime cycle.
@@ -50,6 +54,8 @@ export class CoursesService {
     // forwardRef resolves the CoursesModule ↔ MaterialsModule runtime cycle.
     @Inject(forwardRef(() => MaterialsService))
     private readonly materialsSvc: MaterialsService,
+    private readonly coverSvc: CoverImageService,
+    private readonly enrollmentRepo: EnrollmentRepository,
   ) {}
 
   async createCourse(uid: UserId, input: CreateCourseInput): Promise<Course> {
@@ -99,7 +105,39 @@ export class CoursesService {
     await this.repo.updateCourse(cid, patch);
   }
 
+  /**
+   * Full cascade delete for a course. Children are destroyed first; the course
+   * doc (the retry gate) is removed last so a failed mid-cascade request can be
+   * retried safely — all steps are idempotent.
+   *
+   * Order:
+   *   1. Video + materials cascade for every lesson across all modules.
+   *   2. Cover image (best-effort — a missing cover must not abort the delete).
+   *   3. Enrollment docs for all students.
+   *   4. repo.deleteCourseRecursive — modules/lessons/course doc in Firestore.
+   */
   async deleteCourse(cid: CourseId): Promise<void> {
+    // Step 1: enumerate all modules + lessons, then cascade per lesson.
+    const modules = await this.repo.listModulesByCourse(cid);
+    for (const mod of modules) {
+      const lessons = await this.repo.listLessonsByModule(cid, mod.id);
+      for (const lesson of lessons) {
+        await this.videoSvc.deleteForLesson(lesson.id);
+        await this.materialsSvc.deleteForLesson(lesson.id);
+      }
+    }
+
+    // Step 2: cover image — best-effort (a course may never have had a cover).
+    await this.coverSvc.removeCover(cid).catch((err: unknown) => {
+      this.logger.warn(
+        `removeCover best-effort ignored for course ${cid}: ${(err as Error).message}`,
+      );
+    });
+
+    // Step 3: delete all enrollment docs (ACTIVE + WITHDRAWN) for this course.
+    await this.enrollmentRepo.deleteAllForCourse(cid);
+
+    // Step 4: recursive Firestore delete — course doc + modules/lessons subcollections.
     await this.repo.deleteCourseRecursive(cid);
   }
 
