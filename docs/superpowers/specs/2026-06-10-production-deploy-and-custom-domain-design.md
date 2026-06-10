@@ -14,7 +14,7 @@ Done means:
 - The NestJS API serves production traffic as the gen2 Cloud Function `api` behind the Hosting `/api/**` rewrite — same-origin from the browser's perspective.
 - End-to-end features work against real infrastructure: register/login (session cookies), course authoring + publish, video upload → GCP Transcoder → AES-128 HLS playback, lesson-material upload/download, cover-image and profile-picture upload, admin surfaces.
 - Transactional email (verification, password reset, password changed, new-module notification) delivers from `noreply@learnwren.com` via Amazon SES SMTP.
-- Deploys remain manual: `pnpm deploy` / `pnpm deploy:preview` from a developer machine.
+- Deploys remain manual: `pnpm deploy:prod` / `pnpm deploy:preview` from a developer machine. *(Renamed from `deploy` by plan verification: `deploy` is a pnpm builtin that shadows package scripts — `pnpm deploy` exits `ERR_PNPM_NOTHING_TO_DEPLOY` without ever running firebase, verified on this workspace's pnpm 10.33.2.)*
 
 ## Non-Goals (deferred, with reasons)
 
@@ -60,6 +60,9 @@ Verified 2026-06-10 against current official docs and, where marked *(empirical)
 8. **Custom domain (Quick Setup)**: apex ownership TXT (permanent — authorizes cert renewal) + a single console-provided A record per host (current docs show `199.36.158.100`; copy the console's values). `www` needs its own A record; the redirect is a wizard checkbox. Pre-existing **AAAA records (or A/CNAME to other providers) block SSL provisioning entirely**. CAA, if present, must allow both `letsencrypt.org` and `pki.goog`. Certs mint within hours (up to 24 h); an invalid-cert interstitial during provisioning is normal. Route 53: plain non-alias A records at the apex are fine; only one TXT record *set* per name (merge values). → §6.
 9. **SES**: Easy DKIM = 3 CNAMEs, one-click publishable to Route 53 (same account); sandbox limits to verified recipients / 200 msgs/day until production access (short form; first response typically <24 h; quota accounting is per *recipient* — one course-notify fan-out can exhaust the sandbox cap). SMTP password is **derived** from the IAM secret key, per-region — not the secret key itself. GCP blocks only port 25 egress; 587/465 are open. → §7.
 10. **ffprobe/sharp in the cloud build**: `dist/apps/api/package.json` (NxAppWebpackPlugin `generatePackageJson`) externalizes `@ffprobe-installer/ffprobe` and `sharp`; the GCF buildpack installs linux-x64 binaries via optionalDependencies. No code change needed; verified by Phase C playback/probe checks.
+11. **pnpm builtin shadowing** *(empirical, plan verification)*: `deploy` is a pnpm builtin that takes precedence over package scripts — on this workspace's pnpm 10.33.2, `pnpm deploy` runs the builtin and exits `ERR_PNPM_NOTHING_TO_DEPLOY`; the firebase script never executes. Script renamed `deploy:prod`. (`deploy:preview`/`smoke` are unaffected — not builtin names.)
+12. **Cover/picture silent-fake fallback** *(plan verification)*: `cover.config.ts`/`picture.config.ts` selected the adapter with `raw === 'firebase' ? 'firebase' : 'fake'` and no production guard — unset vars meant in-memory fakes in production with broken image URLs. Fixed in §1.3b; env inventory gains `LEARNWREN_COVER_STORAGE`/`LEARNWREN_PICTURE_STORAGE`.
+13. **Resumable-session origin pinning beats bucket CORS** *(plan verification)*: the API creates GCS resumable upload sessions with `origin = LEARNWREN_PUBLIC_URL`; the browser's chunk PUTs are answered from the *session* origin, not bucket CORS — so the Phase C video check must run from an origin equal to `LEARNWREN_PUBLIC_URL`, which forces the phased value (web.app → learnwren.com at Phase D).
 
 ## 1. Repo Changes (one branch; lands before any cloud work)
 
@@ -78,6 +81,10 @@ Verified 2026-06-10 against current official docs and, where marked *(empirical)
 ### 1.3 Fix `SmtpEmailTransport` TLS mode
 
 - `libs/api-auth/src/lib/email-transport/smtp-email-transport.ts`: `secure: port === 465`, `requireTLS: true` when not secure. Mirror in spec.
+
+### 1.3b Cover/picture storage production guards *(added by plan verification 2026-06-10)*
+
+- `libs/api-courses/src/lib/cover/cover.config.ts` + `libs/api-profile/src/lib/picture/picture.config.ts`: the `'firebase'`-or-fake adapter selection has **no production guard** — an unset `LEARNWREN_COVER_STORAGE`/`LEARNWREN_PICTURE_STORAGE` silently runs in-memory fake adapters in production while the public base URLs point at real buckets (broken images). Mirror `video.config.ts`: production defaults to the real adapter; explicit fake is rejected at boot. TDD in both spec files.
 
 ### 1.4 `apps/api/src/main.ts` onRequest options
 
@@ -117,7 +124,7 @@ Verified 2026-06-10 against current official docs and, where marked *(empirical)
 | `LEARNWREN_API_FIREBASE_PROJECT_ID` | `learn-wren` |
 | `LEARNWREN_FIREBASE_WEB_API_KEY` | from vault (`Web SDK Config/apiKey`) |
 | `LEARNWREN_CORS_ORIGINS` | `https://learnwren.com,https://www.learnwren.com,https://learn-wren.web.app,https://learn-wren.firebaseapp.com` |
-| `LEARNWREN_PUBLIC_URL` | `https://learnwren.com` (drives email links **and** resumable-upload session origin) |
+| `LEARNWREN_PUBLIC_URL` | **Phased** (vault-held): `https://learn-wren.web.app` for Phases B–C, flipped to `https://learnwren.com` in Phase D + functions redeploy. Drives email links **and pins the GCS resumable video-upload session origin** — browser video uploads only work from a page origin byte-equal to this value; bucket CORS does not override the session origin. *(Sequencing fix from plan verification: the original day-one `learnwren.com` value would have made the Phase C video check impossible — the domain doesn't serve until Phase D.)* |
 | `LEARNWREN_EMAIL_TRANSPORT` | `smtp` (set `console` until SES production access is granted, if deploying earlier) |
 | `LEARNWREN_EMAIL_FROM` | `noreply@learnwren.com` |
 | `SMTP_HOST` | `email-smtp.us-east-1.amazonaws.com` |
@@ -132,6 +139,8 @@ Verified 2026-06-10 against current official docs and, where marked *(empirical)
 | `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` | `<serviceConfig.uri>/api/internal/transcoder-events` (Phase C; provisional value at first deploy) |
 | `LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL` | `learn-wren-transcoder-invoker@learn-wren.iam.gserviceaccount.com` |
 | `LEARNWREN_MATERIALS_BUCKET` | `learn-wren-materials` |
+| `LEARNWREN_COVER_STORAGE` | `firebase` *(omission found by plan verification: without it — pre-§1.3b — production silently ran the fake adapter)* |
+| `LEARNWREN_PICTURE_STORAGE` | `firebase` *(same)* |
 | `LEARNWREN_COVER_BUCKET` | `learn-wren-cover` |
 | `LEARNWREN_COVER_PUBLIC_BASE_URL` | `https://storage.googleapis.com/learn-wren-cover` |
 | `LEARNWREN_PICTURE_BUCKET` | `learn-wren-picture` |
@@ -145,12 +154,12 @@ Optional tuning vars keep their defaults.
 2. Run `tools/deploy/provision-buckets.sh` (enables `transcoder.googleapis.com`, `pubsub.googleapis.com`, `iamcredentials.googleapis.com`; creates buckets; applies CORS; IAM grants incl. the runtime-SA self-grant of `tokenCreator`).
 3. Console one-timers: provision the default Firebase Storage bucket (required or the `storage.rules` deploy target errors); confirm Firestore (Native, region noted) and Auth (Email/Password) are enabled — expected done per the 2026-04-30 connection spec, verify only.
 4. **SES (parallel track, us-east-1)**: create the `learnwren.com` domain identity (Easy DKIM 2048) → one-click publish the 3 DKIM CNAMEs to Route 53; **submit the production-access request now** (mail type Transactional, site URL `https://learnwren.com`); create SMTP credentials (IAM); add `_dmarc.learnwren.com` TXT `v=DMARC1; p=none; rua=mailto:bflan1972@gmail.com`; `firebase functions:secrets:set SMTP_PASS`.
-5. Populate the new `prod` 1Password vault item; `pnpm secrets:render:deploy`.
+5. Populate the new `prod` 1Password vault item (`SMTP_USER`, `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` placeholder, `LEARNWREN_PUBLIC_URL=https://learn-wren.web.app`); `pnpm secrets:render:deploy`.
 
 ## 4. Phase B — First Deploy
 
-1. `pnpm deploy` (predeploy builds api + web, patches the package, copies `.env.learn-wren`).
-2. Smoke against `https://learn-wren.web.app`: `/api/health` 200; register → login → session cookie; course create + publish; cover upload; material upload (exercises the new CORS); admin login.
+1. `pnpm deploy:prod` (predeploy builds api + web, patches the package, copies `.env.learn-wren`).
+2. Smoke against `https://learn-wren.web.app`: `/api/health` 200 (JSON contains `"status":"ok"` plus version/serverTime); register → login → session cookie; course create + publish; cover upload (confirm it serves from the real bucket); material upload (exercises the new CORS); bootstrap an admin via `pnpm tools:promote-to-admin` (production mode + ADC) and verify `/admin` loads.
 3. `node tools/deploy/verify-gcs-cors.mjs` with a real signed URL from the deployed API.
 
 ## 5. Phase C — Pub/Sub Wiring + Video Verification
@@ -158,7 +167,7 @@ Optional tuning vars keep their defaults.
 1. `FUNCTION_ORIGIN=$(gcloud functions describe api --region=us-central1 --format='value(serviceConfig.uri)')`.
 2. Run `tools/deploy/provision-pubsub.sh` with `PUSH_ENDPOINT=${FUNCTION_ORIGIN}/api/internal/transcoder-events` — the same string goes into the subscription's `--push-auth-token-audience` and `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` (the guard compares byte-for-byte, scheme/host/path/trailing-slash included).
 3. Update `.env.learn-wren` (via the vault + re-render) and `pnpm deploy:preview` (functions-only redeploy).
-4. Verify: real video upload → transcode completes (watch the dead-letter sub stays empty) → playback on `learn-wren.web.app`.
+4. Verify: real video upload → transcode completes (watch the dead-letter sub stays empty) → playback on `learn-wren.web.app`. The upload works from web.app only because `LEARNWREN_PUBLIC_URL` is still `https://learn-wren.web.app` at this stage — the resumable session is origin-pinned to it.
 
 ## 6. Phase D — Custom Domain (Firebase Wizard + Route 53)
 
@@ -167,6 +176,7 @@ Optional tuning vars keep their defaults.
 3. Add custom domain → `www.learnwren.com` with "redirect to learnwren.com": add its A record.
 4. Wait for cert (hours, ≤24 h; invalid-cert interstitial during provisioning is normal — no action).
 5. Verify: `https://learnwren.com` full walkthrough **including video playback** (page origin changes; bucket CORS already allows it), `www` → apex 301, `dig` A/TXT records.
+6. **Flip `LEARNWREN_PUBLIC_URL`** to `https://learnwren.com` (vault edit → re-render → `pnpm deploy:preview`) and verify one more video upload → playback on the custom domain. From here on, video uploads are origin-pinned to learnwren.com (the canonical origin) and email links use the custom domain.
 
 ## 7. Phase E — Email Live
 
