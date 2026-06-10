@@ -437,14 +437,24 @@ test('unauthenticated requests to suspend/unsuspend/delete return 401', async ()
     const student = await registerStudent(ctx);
     const uid = student.uid;
 
-    const [s, u, d] = await Promise.all([
-      ctx.post(`${API_BASE}/admin/users/${uid}/suspend`),
-      ctx.post(`${API_BASE}/admin/users/${uid}/unsuspend`),
-      ctx.delete(`${API_BASE}/admin/users/${uid}`),
-    ]);
-    expect(s.status()).toBe(401);
-    expect(u.status()).toBe(401);
-    expect(d.status()).toBe(401);
+    // registerStudent left a __session cookie on `ctx`; over http://127.0.0.1
+    // (a secure context) Playwright's request jar DOES retain a Secure cookie,
+    // so calls on `ctx` would be authenticated-as-student → 403, not the 401
+    // we want to assert. Use a fresh, cookie-less context for the truly
+    // unauthenticated calls.
+    const anonCtx = await apiRequest.newContext();
+    try {
+      const [s, u, d] = await Promise.all([
+        anonCtx.post(`${API_BASE}/admin/users/${uid}/suspend`),
+        anonCtx.post(`${API_BASE}/admin/users/${uid}/unsuspend`),
+        anonCtx.delete(`${API_BASE}/admin/users/${uid}`),
+      ]);
+      expect(s.status()).toBe(401);
+      expect(u.status()).toBe(401);
+      expect(d.status()).toBe(401);
+    } finally {
+      await anonCtx.dispose();
+    }
   } finally {
     await ctx.dispose();
   }

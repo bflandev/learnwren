@@ -52,13 +52,19 @@ export class AdminUsersController {
   }
 
   @Post(':uid/promote')
-  promote(@Param('uid') uid: string): Promise<AdminUserRoleResponse> {
-    return this.roleSvc.promote(uid as UserId);
+  promote(
+    @Req() req: AuthenticatedRequest,
+    @Param('uid') uid: string,
+  ): Promise<AdminUserRoleResponse> {
+    return this.roleSvc.promote(req.user!.uid, uid as UserId);
   }
 
   @Post(':uid/demote')
-  demote(@Param('uid') uid: string): Promise<AdminUserRoleResponse> {
-    return this.roleSvc.demote(uid as UserId);
+  demote(
+    @Req() req: AuthenticatedRequest,
+    @Param('uid') uid: string,
+  ): Promise<AdminUserRoleResponse> {
+    return this.roleSvc.demote(req.user!.uid, uid as UserId);
   }
 
   @Post(':uid/suspend')

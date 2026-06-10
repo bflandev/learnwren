@@ -1,6 +1,5 @@
 import type { ExecutionContext, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import axios from 'axios';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
@@ -167,38 +166,30 @@ async function buildApp(opts: {
   return app;
 }
 
-/** GET url via axios, return { status, body }. Throws are swallowed (axios 4xx). */
+/** GET url via native fetch, return { status, body }. */
 async function httpGet(
   app: INestApplication,
   path: string,
 ): Promise<{ status: number; body: unknown }> {
   const port = (app.getHttpServer().address() as { port: number }).port;
-  try {
-    const res = await axios.get(`http://localhost:${port}${path}`);
-    return { status: res.status, body: res.data };
-  } catch (err: unknown) {
-    if (axios.isAxiosError(err) && err.response) {
-      return { status: err.response.status, body: err.response.data };
-    }
-    throw err;
-  }
+  const res = await fetch(`http://localhost:${port}${path}`);
+  const body = await res.json().catch(() => null);
+  return { status: res.status, body };
 }
 
-/** POST url via axios, return { status, body }. */
+/** POST url via native fetch, return { status, body }. */
 async function httpPost(
   app: INestApplication,
   path: string,
 ): Promise<{ status: number; body: unknown }> {
   const port = (app.getHttpServer().address() as { port: number }).port;
-  try {
-    const res = await axios.post(`http://localhost:${port}${path}`, {});
-    return { status: res.status, body: res.data };
-  } catch (err: unknown) {
-    if (axios.isAxiosError(err) && err.response) {
-      return { status: err.response.status, body: err.response.data };
-    }
-    throw err;
-  }
+  const res = await fetch(`http://localhost:${port}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  const body = await res.json().catch(() => null);
+  return { status: res.status, body };
 }
 
 // ─── Direct controller tests (GET) ─────────────────────────────────────────
