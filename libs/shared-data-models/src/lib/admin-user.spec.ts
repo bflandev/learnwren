@@ -7,6 +7,7 @@ import type {
   AdminUserEnrollmentRow,
   AdminUserListResponse,
   AdminUserListRow,
+  AdminUserStatusResponse,
 } from './admin-user';
 
 describe('admin-user model', () => {
@@ -16,9 +17,11 @@ describe('admin-user model', () => {
       displayName: 'Ada Lovelace',
       email: 'ada@example.com',
       role: 'STUDENT',
+      status: 'ACTIVE',
       createdAt: '2026-06-01T00:00:00.000Z' as ISODateString,
     };
     expect(row.role).toBe('STUDENT');
+    expect(row.status).toBe('ACTIVE');
   });
 
   it('accepts an AdminUserListResponse with paging + capped', () => {
@@ -50,11 +53,17 @@ describe('admin-user model', () => {
       email: 'ada@example.com',
       biography: '',
       role: 'INSTRUCTOR',
+      status: 'ACTIVE',
       createdAt: '2026-06-01T00:00:00.000Z' as ISODateString,
       enrollments: [enrolment],
       authoredCourses: [authored],
     };
     expect(detail.enrollments[0]?.status).toBe('ACTIVE');
     expect(detail.authoredCourses[0]?.status).toBe('PUBLISHED');
+  });
+
+  it('accepts an AdminUserStatusResponse', () => {
+    const res: AdminUserStatusResponse = { id: 'u1' as UserId, status: 'SUSPENDED' };
+    expect(res.status).toBe('SUSPENDED');
   });
 });

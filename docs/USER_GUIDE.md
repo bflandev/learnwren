@@ -679,8 +679,71 @@ pnpm tools:promote-to-admin <email>
 - Sets the Firebase Auth custom claim `role: ADMIN` and updates `users/{uid}.role`.
 - **The user must sign out and sign back in** for the admin role to take effect.
 
-The remaining EP-08 admin features (Manage Users, Manage Categories, Monitor Platform
-Health) are deferred post-MVP.
+The remaining EP-08 admin features (Manage Categories, Monitor Platform Health) are
+deferred post-MVP.
+
+---
+
+## 2.19b Admin: user directory and account management (US-08-01)
+
+Platform ADMINs can browse, search, and manage every user account. The API surfaces the
+following operations (UI for these endpoints is deferred — they are accessible via the
+API directly or via a future admin dashboard):
+
+### Browsing users
+
+`GET /api/admin/users` returns a paginated, searchable list of all non-deleted accounts.
+Each row includes `id`, `displayName`, `email`, `role`, `status`, and `createdAt`.
+Deleted accounts are excluded from all list and detail responses.
+
+`GET /api/admin/users/:uid` returns the full detail for a single account, including
+enrollment history and authored courses. Returns `404 USER_NOT_FOUND` for accounts that
+do not exist or have been deleted.
+
+### Role changes
+
+`POST /api/admin/users/:uid/promote` — promote a STUDENT to INSTRUCTOR.
+`POST /api/admin/users/:uid/demote` — demote an INSTRUCTOR to STUDENT.
+
+See [2.19 Admin: reviewing instructor applications](#219-admin-reviewing-instructor-applications)
+for the self-service route students use to request the INSTRUCTOR role.
+
+### Suspending and unsuspending
+
+`POST /api/admin/users/:uid/suspend` — suspend an account:
+- Sets `status = SUSPENDED` on the user's Firestore document.
+- Disables the Firebase Auth account (blocks new sign-ins immediately).
+- Revokes all active refresh tokens (any existing session cookie is rejected by the
+  session guard on the next request, because `verifySessionCookie` runs with
+  `checkRevoked = true`).
+- Returns `200 { id, status: "SUSPENDED" }`.
+
+`POST /api/admin/users/:uid/unsuspend` — lift the suspension:
+- Sets `status = ACTIVE`.
+- Re-enables the Firebase Auth account.
+- Returns `200 { id, status: "ACTIVE" }`.
+
+**Guards:** administrators cannot suspend or unsuspend their own account
+(`409 CANNOT_ACT_ON_SELF`). An operation that would leave zero active administrators
+is rejected (`409 LAST_ADMIN`).
+
+### Permanently deleting
+
+`DELETE /api/admin/users/:uid` — permanently delete an account and anonymise its data:
+- **Blocked if the user is an instructor who owns courses** (`409 USER_HAS_COURSES` with
+  `{ courseCount, courseIds }` in details). The admin must resolve those courses first
+  (delete or transfer) using the course-management tools.
+- On success (`204 No Content`):
+  - Revokes refresh tokens and deletes the Firebase Auth account.
+  - Anonymises the Firestore profile: `displayName = "Deleted user"`, email/biography
+    cleared, photo removed. The document is retained as a tombstone (preserving `id`,
+    `role`, and `createdAt` for referential integrity).
+  - Deletes the profile picture from storage.
+  - Deletes all enrollment documents for the user.
+  - Deletes the instructor application document if present.
+- **Idempotent:** a second `DELETE` on an already-deleted account returns `204` and
+  re-runs all post-commit cleanup steps (each step tolerates already-done).
+- **Guards:** same self/last-admin rules as suspend.
 
 ---
 
@@ -893,6 +956,24 @@ Error codes specific to enrollment:
 
 All admin endpoints require a valid session cookie **and** the `ADMIN` role
 (`FirebaseSessionGuard` + `AdminRoleGuard`).
+
+### User directory (US-08-01)
+
+| Method | Path | Body | Response | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/admin/users` | — | `200 AdminUserListResponse` | Paginated user list (`?search=`, `?page=`, `?pageSize=`). Excludes DELETED accounts. |
+| `GET` | `/api/admin/users/:uid` | — | `200 AdminUserDetail` | Full user detail including enrollments and authored courses. |
+| `POST` | `/api/admin/users/:uid/promote` | — | `201 AdminUserRoleResponse` | Promote a STUDENT to INSTRUCTOR. |
+| `POST` | `/api/admin/users/:uid/demote` | — | `201 AdminUserRoleResponse` | Demote an INSTRUCTOR to STUDENT. |
+| `POST` | `/api/admin/users/:uid/suspend` | — | `200 AdminUserStatusResponse` | Suspend the account (disables Auth + revokes sessions). |
+| `POST` | `/api/admin/users/:uid/unsuspend` | — | `200 AdminUserStatusResponse` | Lift the suspension. |
+| `DELETE` | `/api/admin/users/:uid` | — | `204` | Permanently delete and anonymise the account. Blocked if the user owns courses (`409 USER_HAS_COURSES`). Idempotent. |
+
+**Error codes** specific to the user-directory domain: `USER_NOT_FOUND` (404),
+`INVALID_ROLE_TRANSITION` (409), `CANNOT_ACT_ON_SELF` (409), `LAST_ADMIN` (409),
+`USER_HAS_COURSES` (409), `INVALID_STATUS_TRANSITION` (409).
+
+### Instructor applications (US-08-03)
 
 | Method | Path | Purpose |
 | :--- | :--- | :--- |

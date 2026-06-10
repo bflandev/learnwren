@@ -13,6 +13,7 @@ function detail(over: Record<string, unknown> = {}) {
     email: 'ada@example.com',
     biography: 'Mathematician',
     role: 'INSTRUCTOR',
+    status: 'ACTIVE',
     createdAt: '2026-06-01T00:00:00.000Z',
     enrollments: [],
     authoredCourses: [],
@@ -25,6 +26,9 @@ describe('AdminUserDetailPageComponent', () => {
     getDetail: ReturnType<typeof vi.fn>;
     promote: ReturnType<typeof vi.fn>;
     demote: ReturnType<typeof vi.fn>;
+    suspend: ReturnType<typeof vi.fn>;
+    unsuspend: ReturnType<typeof vi.fn>;
+    deleteUser: ReturnType<typeof vi.fn>;
   };
 
   async function setup(uid = 'u1') {
@@ -64,6 +68,9 @@ describe('AdminUserDetailPageComponent', () => {
       getDetail: vi.fn(async () => detail()),
       promote: vi.fn(async () => ({ id: 'u1', role: 'INSTRUCTOR' })),
       demote: vi.fn(async () => ({ id: 'u1', role: 'STUDENT' })),
+      suspend: vi.fn(async () => ({ id: 'u1', status: 'SUSPENDED' })),
+      unsuspend: vi.fn(async () => ({ id: 'u1', status: 'ACTIVE' })),
+      deleteUser: vi.fn(async () => undefined),
     };
   });
 
@@ -234,5 +241,133 @@ describe('AdminUserDetailPageComponent', () => {
     subject.next(convertToParamMap({ uid: 'u2' }));
     expect(fixture.componentInstance.actionSuccess()).toBeUndefined();
     await fixture.whenStable();
+  });
+
+  // ─── Suspend / Unsuspend ────────────────────────────────────────────────────
+
+  it('shows Suspend button for an ACTIVE user', async () => {
+    svc.getDetail = vi.fn(async () => detail({ status: 'ACTIVE' }));
+    const fixture = await setup();
+    expect(fixture.nativeElement.querySelector('[data-testid="suspend-btn"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="unsuspend-btn"]')).toBeNull();
+  });
+
+  it('shows Unsuspend button for a SUSPENDED user', async () => {
+    svc.getDetail = vi.fn(async () => detail({ status: 'SUSPENDED' }));
+    const fixture = await setup();
+    expect(fixture.nativeElement.querySelector('[data-testid="unsuspend-btn"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="suspend-btn"]')).toBeNull();
+  });
+
+  it('suspend calls service and updates status badge', async () => {
+    svc.getDetail = vi.fn(async () => detail({ status: 'ACTIVE' }));
+    const fixture = await setup();
+    fixture.nativeElement.querySelector('[data-testid="suspend-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(svc.suspend).toHaveBeenCalledWith('u1');
+    expect(fixture.nativeElement.querySelector('[data-testid="action-success"]')?.textContent).toContain('suspended');
+    // After suspend the user's status badge reflects SUSPENDED.
+    expect(fixture.nativeElement.querySelector('[data-testid="status-badge"]')?.textContent?.trim()).toBe('SUSPENDED');
+  });
+
+  it('unsuspend calls service and updates status badge back to ACTIVE', async () => {
+    svc.getDetail = vi.fn(async () => detail({ status: 'SUSPENDED' }));
+    const fixture = await setup();
+    fixture.nativeElement.querySelector('[data-testid="unsuspend-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(svc.unsuspend).toHaveBeenCalledWith('u1');
+    expect(fixture.nativeElement.querySelector('[data-testid="action-success"]')?.textContent).toContain('unsuspended');
+    expect(fixture.nativeElement.querySelector('[data-testid="status-badge"]')?.textContent?.trim()).toBe('ACTIVE');
+  });
+
+  it('maps CANNOT_ACT_ON_SELF error code to descriptive copy', async () => {
+    svc.getDetail = vi.fn(async () => detail({ status: 'ACTIVE' }));
+    svc.suspend = vi.fn(async () => {
+      throw { error: { error: { code: 'CANNOT_ACT_ON_SELF' } } };
+    });
+    const fixture = await setup();
+    fixture.nativeElement.querySelector('[data-testid="suspend-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="action-error"]')?.textContent).toContain('yourself');
+  });
+
+  it('maps LAST_ADMIN error code to descriptive copy', async () => {
+    svc.getDetail = vi.fn(async () => detail({ status: 'ACTIVE', role: 'ADMIN' }));
+    svc.suspend = vi.fn(async () => {
+      throw { error: { error: { code: 'LAST_ADMIN' } } };
+    });
+    const fixture = await setup();
+    // ADMIN users should have a suspend button
+    fixture.nativeElement.querySelector('[data-testid="suspend-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="action-error"]')?.textContent).toContain('last admin');
+  });
+
+  it('maps INVALID_STATUS_TRANSITION error code to descriptive copy', async () => {
+    svc.getDetail = vi.fn(async () => detail({ status: 'ACTIVE' }));
+    svc.suspend = vi.fn(async () => {
+      throw { error: { error: { code: 'INVALID_STATUS_TRANSITION' } } };
+    });
+    const fixture = await setup();
+    fixture.nativeElement.querySelector('[data-testid="suspend-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="action-error"]')?.textContent).toContain('changed elsewhere');
+  });
+
+  // ─── Delete ─────────────────────────────────────────────────────────────────
+
+  it('shows a Delete button and an inline confirm panel when clicked', async () => {
+    const fixture = await setup();
+    // Delete button should be present.
+    expect(fixture.nativeElement.querySelector('[data-testid="delete-btn"]')).toBeTruthy();
+    // Confirm panel not yet visible.
+    expect(fixture.nativeElement.querySelector('[data-testid="delete-confirm"]')).toBeNull();
+
+    // Clicking opens the inline confirm.
+    fixture.nativeElement.querySelector('[data-testid="delete-btn"]').click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="delete-confirm"]')).toBeTruthy();
+    // Service not yet called.
+    expect(svc.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('cancel on the delete confirm closes the panel without calling the service', async () => {
+    const fixture = await setup();
+    fixture.nativeElement.querySelector('[data-testid="delete-btn"]').click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[data-testid="delete-cancel-btn"]').click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="delete-confirm"]')).toBeNull();
+    expect(svc.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('confirm delete calls service and navigates back to the user list', async () => {
+    const fixture = await setup();
+    fixture.nativeElement.querySelector('[data-testid="delete-btn"]').click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[data-testid="delete-confirm-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(svc.deleteUser).toHaveBeenCalledWith('u1');
+  });
+
+  it('maps USER_HAS_COURSES error code with course count to descriptive copy', async () => {
+    svc.deleteUser = vi.fn(async () => {
+      throw { error: { error: { code: 'USER_HAS_COURSES', details: { courseCount: 3 } } } };
+    });
+    const fixture = await setup();
+    fixture.nativeElement.querySelector('[data-testid="delete-btn"]').click();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[data-testid="delete-confirm-btn"]').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const errorText = fixture.nativeElement.querySelector('[data-testid="action-error"]')?.textContent ?? '';
+    expect(errorText).toContain('3');
+    expect(errorText).toContain('course');
   });
 });

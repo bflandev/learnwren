@@ -12,7 +12,20 @@
         <h1 class="text-xl font-semibold text-ink">{{ u.displayName }}</h1>
         <p class="text-sm text-muted">{{ u.email }}</p>
       </div>
-      <span class="ml-auto rounded bg-bg-2 px-2 py-0.5 text-xs text-muted">{{ u.role }}</span>
+      <span class="ml-auto flex items-center gap-2">
+        <span class="rounded bg-bg-2 px-2 py-0.5 text-xs text-muted">{{ u.role }}</span>
+        @if (u.status && u.status !== 'ACTIVE') {
+          <span
+            class="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+            data-testid="status-badge"
+          >{{ u.status }}</span>
+        } @else {
+          <span
+            class="rounded bg-bg-2 px-2 py-0.5 text-xs text-muted"
+            data-testid="status-badge"
+          >ACTIVE</span>
+        }
+      </span>
     </div>
 
     <div class="mt-4 flex flex-col gap-2" data-testid="role-actions">
@@ -73,6 +86,78 @@
           </div>
         }
       }
+
+      <!-- Suspend / Unsuspend — status-aware toggle, available for all roles -->
+      @if (!confirmingDelete()) {
+        @if (!u.status || u.status === 'ACTIVE') {
+          <div>
+            <button
+              type="button"
+              class="lw-btn lw-btn-secondary"
+              data-testid="suspend-btn"
+              [disabled]="busy()"
+              (click)="suspend()"
+            >
+              Suspend account
+            </button>
+          </div>
+        } @else if (u.status === 'SUSPENDED') {
+          <div>
+            <button
+              type="button"
+              class="lw-btn lw-btn-secondary"
+              data-testid="unsuspend-btn"
+              [disabled]="busy()"
+              (click)="unsuspend()"
+            >
+              Unsuspend account
+            </button>
+          </div>
+        }
+      }
+
+      <!-- Delete — guarded by inline confirm -->
+      @if (confirmingDelete()) {
+        <div class="rounded bg-bg-2 p-3" data-testid="delete-confirm">
+          <p class="text-sm text-ink">
+            Permanently delete {{ u.displayName }}? This cannot be undone. If the user owns courses,
+            the delete will fail — remove or transfer their courses first.
+          </p>
+          <div class="mt-2 flex gap-2">
+            <button
+              type="button"
+              class="lw-btn lw-btn-primary"
+              data-testid="delete-confirm-btn"
+              [disabled]="busy()"
+              (click)="confirmDelete()"
+            >
+              Delete permanently
+            </button>
+            <button
+              type="button"
+              class="lw-btn lw-btn-ghost"
+              data-testid="delete-cancel-btn"
+              [disabled]="busy()"
+              (click)="cancelDelete()"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      } @else {
+        <div>
+          <button
+            type="button"
+            class="lw-btn lw-btn-ghost text-red-600 hover:bg-red-50"
+            data-testid="delete-btn"
+            [disabled]="busy()"
+            (click)="startDelete()"
+          >
+            Delete account
+          </button>
+        </div>
+      }
+
       @if (actionSuccess(); as msg) {
         <p class="text-sm text-green-800" role="status" data-testid="action-success">{{ msg }}</p>
       }

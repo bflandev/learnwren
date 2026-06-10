@@ -1,5 +1,5 @@
 import type { CourseId, ISODateString, UserId } from './common';
-import type { UserRole } from './user';
+import type { UserRole, UserStatus } from './user';
 import type { CourseStatus } from './course';
 import type { EnrollmentStatus } from './enrollment';
 
@@ -10,6 +10,8 @@ export interface AdminUserListRow {
   displayName: string;
   email: string;
   role: UserRole;
+  /** Absent means ACTIVE; included so the UI can badge suspended users. */
+  status: UserStatus;
   createdAt: ISODateString;
 }
 
@@ -49,6 +51,8 @@ export interface AdminUserDetail {
   biography: string;
   photoUrl?: string;
   role: UserRole;
+  /** Absent means ACTIVE; included so the UI can badge suspended users. */
+  status: UserStatus;
   createdAt: ISODateString;
   /** Enrollment history (ACTIVE + WITHDRAWN), newest first. */
   enrollments: AdminUserEnrollmentRow[];
@@ -60,4 +64,13 @@ export interface AdminUserDetail {
 export interface AdminUserRoleResponse {
   id: UserId;
   role: UserRole;
+}
+
+/**
+ * Result of an admin status mutation
+ * (POST /api/admin/users/:uid/suspend | .../unsuspend).
+ */
+export interface AdminUserStatusResponse {
+  id: UserId;
+  status: UserStatus;
 }

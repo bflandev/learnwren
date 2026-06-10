@@ -6,6 +6,7 @@ import type {
   AdminUserDetail,
   AdminUserListResponse,
   AdminUserRoleResponse,
+  AdminUserStatusResponse,
 } from '@learnwren/shared-data-models';
 
 const BASE = '/api/admin/users';
@@ -32,5 +33,23 @@ export class AdminUsersService {
 
   demote(uid: string): Promise<AdminUserRoleResponse> {
     return firstValueFrom(this.http.post<AdminUserRoleResponse>(`${BASE}/${uid}/demote`, {}));
+  }
+
+  suspend(uid: string): Promise<AdminUserStatusResponse> {
+    return firstValueFrom(this.http.post<AdminUserStatusResponse>(`${BASE}/${uid}/suspend`, {}));
+  }
+
+  unsuspend(uid: string): Promise<AdminUserStatusResponse> {
+    return firstValueFrom(this.http.post<AdminUserStatusResponse>(`${BASE}/${uid}/unsuspend`, {}));
+  }
+
+  /**
+   * DELETE /api/admin/users/:uid — success is 204 No Content.
+   * Uses { observe: 'response' } so Angular does not error on an empty body.
+   */
+  deleteUser(uid: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete(`${BASE}/${uid}`, { observe: 'response' }),
+    ).then(() => undefined);
   }
 }

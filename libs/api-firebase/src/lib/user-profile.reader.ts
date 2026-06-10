@@ -21,6 +21,13 @@ export interface StoredUserProfile {
   role?: string;
   /** Account registration timestamp (ISO string). */
   createdAt?: string;
+  /**
+   * Account lifecycle status. Absent on pre-existing documents; treat as
+   * 'ACTIVE' when missing. Introduced for US-08-01 Slices C/D (suspend/delete).
+   */
+  status?: string;
+  /** Last-write timestamp (ISO string). */
+  updatedAt?: string;
 }
 
 /**

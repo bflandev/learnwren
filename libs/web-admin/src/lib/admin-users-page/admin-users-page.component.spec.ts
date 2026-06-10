@@ -181,6 +181,21 @@ describe('AdminUsersPageComponent', () => {
     expect(fixture.componentInstance.loading()).toBe(false);
   });
 
+  it('shows a SUSPENDED badge on a suspended user row', async () => {
+    svc.list = vi.fn(async () => ({
+      users: [user('u1', { status: 'SUSPENDED' }), user('u2', { status: 'ACTIVE' })],
+      total: 2,
+      page: 1,
+      pageSize: 20,
+      capped: false,
+    }));
+    const fixture = await setup();
+    const el = fixture.nativeElement as HTMLElement;
+    const badges = el.querySelectorAll('[data-testid="status-badge"]');
+    const suspendedBadge = Array.from(badges).find((b) => b.textContent?.trim() === 'SUSPENDED');
+    expect(suspendedBadge).toBeTruthy();
+  });
+
   it('keeps loading true when a stale reload resolves before the current one', async () => {
     // A superseded reload must not flip the spinner off while the current
     // request is still in flight — the finally must be guarded by the token.
