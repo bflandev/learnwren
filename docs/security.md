@@ -79,10 +79,33 @@ A "CORS error on the video player page" was reported and investigated. **It was 
 
 - **The app's own API is same-origin.** The web app calls the API with relative `/api/...` URLs: in dev the Angular dev server proxies `/api` → `:3333` (`apps/web/proxy.conf.json`); in the planned deploy Firebase Hosting rewrites `/api` to the function. So auth, captions delivery (`/api/playback/captions/:vid`), and HLS manifests/keys are all same-origin — no CORS applies to them. The server-side CORS allowlist (`app.enableCors`, prod refuses to boot without `LEARNWREN_CORS_ORIGINS`) is defense-in-depth for any genuinely cross-origin XHR.
 - **The reported error was a dev-only artifact.** In local **fake playback-storage mode** the player's HLS segment URLs are stubs (`gs-stub://…`). The browser blocks any request whose scheme isn't http/https/data/etc. and *phrases that scheme rejection as a "blocked by CORS policy" error*. It was hls.js failing to fetch fake segments — not a real cross-origin request. Fixed by skipping hls.js in fake mode and showing a dev placeholder (merge `947d074`); production is unaffected.
-- **One genuine cross-origin path to validate at deploy (pre-existing, EP-03):** in production, HLS **video segments** are real `https://storage.googleapis.com` signed URLs (cross-origin), and the `<video crossorigin="use-credentials">` element + hls.js `xhr.withCredentials = true` send them as credentialed cross-origin fetches. That requires the GCS bucket's CORS config to allow the web origin **with credentials** (no `Access-Control-Allow-Origin: *`), and the credentials are functionally pointless there (the signed URL is what authorizes). This predates the captions/placeholder work; see the open item below.
+- **One genuine cross-origin path, now anonymous (EP-03, code-resolved):** in production, HLS **video segments** are real `https://storage.googleapis.com` signed URLs (cross-origin). These are fetched **anonymously**: the `<video>` element uses `crossorigin="anonymous"` (`libs/web-video/src/lib/player/video-player.component.html:6`) and hls.js scopes `xhr.withCredentials = true` to **same-origin `/api` requests only** — the manifest and DRM-key endpoints — via the `xhrSetup` callback that gates on `isSameOrigin(url)` (`libs/web-video/src/lib/player/video-player.service.ts:56–66`). Segment fetches therefore carry no cookie; the signed URL in the segment URL is the authorization. **Consequence: the output bucket needs only *simple* CORS** (a specific-origin or wildcard `Access-Control-Allow-Origin`); credentialed CORS is explicitly **not** needed and **must not** be configured (credentialed CORS forbids `*` and would only matter for cookie-bearing fetches, which no longer occur). The one remaining deploy-time step is in the open item below.
+- **Other storage origins — out of CORS scope.** Only the **video output bucket** serves cross-origin browser *fetches* (the hls.js segment XHRs above). The other Cloud Storage flows are not CORS-governed:
+  - **Materials** are delivered as signed object URLs that the browser opens via a top-level navigation — `window.open(downloadUrl, '_blank', 'noopener')` on the learn page (`libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:293`) and an `<a download>` click in the authoring UI (`libs/web-courses/src/lib/materials/materials-list.component.ts`). The same-origin `GET /api/materials/:matId/download-url` that *mints* the signed URL is an XHR to the app's own API, not to GCS. Navigations are not subject to CORS, so the materials bucket needs no CORS policy.
+  - **Cover images and profile pictures** are public object URLs (`https://storage.googleapis.com/<bucket>/…`, see `cover.config.ts` / `picture.config.ts`) rendered in plain `<img>` elements with **no `crossorigin` attribute** (`libs/web-ui/src/lib/avatar/lw-avatar.component.ts`, cover preview). A no-`crossorigin` `<img>` load is not a CORS request — the browser displays it without any `Access-Control-Allow-Origin` check (the app never reads their pixels back through a canvas). So the cover and picture buckets need no CORS policy either.
+  - Net: `tools/deploy/gcs-cors.json` targets **only** `$LEARNWREN_VIDEO_OUTPUT_BUCKET`.
 
 ## Open items (tracked, not yet done)
 
 - A basic **OWASP Top 10** review before initial deployment (US-09-02).
 - Reconcile the 24h session-token requirement (caveat 2 above).
-- **Production HLS segment CORS:** decide whether to drop `withCredentials` on segment fetches (signed URLs don't need it) or to configure credentialed CORS on the output bucket, and verify real playback cross-origin before deploy (see CORS posture above).
+- **Production HLS segment CORS — one deploy-time step remains.** The code side is done (segments are anonymous; see CORS posture above), so only the bucket needs configuring at first deploy:
+  1. Apply the simple-CORS policy to the video output bucket:
+
+     ```sh
+     gcloud storage buckets update gs://$LEARNWREN_VIDEO_OUTPUT_BUCKET \
+       --cors-file=tools/deploy/gcs-cors.json
+     ```
+
+  2. Verify it with a real **signed segment URL** pasted from an actual playback manifest (no gcloud needed; pure HTTP, anonymous requests):
+
+     ```sh
+     node tools/deploy/verify-gcs-cors.mjs '<signed-segment-url>'
+     # or, before any object exists, against the bucket itself:
+     node tools/deploy/verify-gcs-cors.mjs "$LEARNWREN_VIDEO_OUTPUT_BUCKET"
+     ```
+
+     It asserts the GET ACAO echo and the OPTIONS preflight (GET + `Range`) and exits non-zero with the apply command if CORS is missing.
+  3. Watch one real cross-origin playback end to end.
+
+  When a custom domain is added, append its origin(s) to the `origin` array in `tools/deploy/gcs-cors.json` and re-apply (step 1). The default policy lists only the Firebase Hosting origins `https://learn-wren.web.app` and `https://learn-wren.firebaseapp.com` (from `.firebaserc` production project `learn-wren`).
