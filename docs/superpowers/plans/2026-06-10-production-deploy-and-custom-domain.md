@@ -231,7 +231,7 @@ tightened to the real call shape so mocks can't mask it again."
 
 ## Task 3: Fix `SmtpEmailTransport` — explicit TLS mode
 
-nodemailer does not infer `secure` from port 465 (a 465 config would hang), and without `requireTLS` STARTTLS on 587 is only opportunistic. Production uses SES on 587.
+Make the TLS mode explicit instead of relying on nodemailer's undefined-`secure` port-465 inference; without `requireTLS`, STARTTLS on 587 is only opportunistic — that is the genuine behavioral fix. Production uses SES on 587. *(Execution note: verified during review that nodemailer 8.0.7 does infer implicit TLS on 465 when `secure` is undefined — the original "465 would hang" claim was wrong; comment wording corrected accordingly.)*
 
 **Files:**
 - Modify: `libs/api-auth/src/lib/email-transport/smtp-email-transport.spec.ts` (the `passes host/port/auth…` test, ~line 35)
@@ -275,10 +275,10 @@ In `smtp-email-transport.ts`, replace the constructor body (lines 29–35):
 
 ```ts
   constructor(private readonly config: SmtpEmailTransportConfig) {
-    // nodemailer does NOT infer TLS mode from the port: 465 without
-    // secure:true hangs. 587 uses STARTTLS — requireTLS makes it mandatory
-    // rather than opportunistic (a STARTTLS-stripping MITM would otherwise
-    // surface as a confusing auth failure).
+    // Be explicit about TLS mode rather than relying on nodemailer's
+    // undefined-`secure` port-465 inference. 587 uses STARTTLS — requireTLS
+    // makes it mandatory rather than opportunistic (a STARTTLS-stripping
+    // MITM would otherwise surface as a confusing auth failure).
     const secure = config.port === 465;
     this.transporter = createTransport({
       host: config.host,
@@ -301,8 +301,9 @@ Expected: PASS.
 git add libs/api-auth/src/lib/email-transport/smtp-email-transport.ts libs/api-auth/src/lib/email-transport/smtp-email-transport.spec.ts
 git commit -m "fix(api-auth): set explicit TLS mode on the SMTP transport
 
-secure:true for implicit-TLS 465 (was: hang — nodemailer doesn't infer it),
-requireTLS for the 587 STARTTLS path."
+secure:true for implicit-TLS 465 (explicit, rather than relying on
+nodemailer's undefined-secure port inference); requireTLS makes the 587
+STARTTLS path mandatory instead of opportunistic."
 ```
 
 ---
