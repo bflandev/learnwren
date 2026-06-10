@@ -5,6 +5,16 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # Manual trigger: set full_mutation=true to sweep ALL 15 libs in one run
+  # instead of only the affected subset. Useful after a bulk refactor or to
+  # re-baseline after a Stryker upgrade.
+  workflow_dispatch:
+    inputs:
+      full_mutation:
+        description: 'Run mutation on ALL libs (not just affected)'
+        required: false
+        default: 'false'
+        type: boolean
 
 # nrwl/nx-set-shas reads past workflow runs to derive the affected base, which
 # needs actions:read. Declared explicitly (least privilege) — both jobs are
@@ -120,3 +130,155 @@ jobs:
       # target's dependsOn so the api bundle exists before Playwright spawns it.
       - name: Run web-e2e against the Firebase emulators
         run: pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e web-e2e'
+
+  # ---------------------------------------------------------------------------
+  # Mutation gate
+  #
+  # WHY this job exists: lint/test/build/typecheck (the 'affected' job) can pass
+  # even when new code is untested — the tests compile and run but assert nothing
+  # on the changed lines. The mutation gate catches that: Stryker injects tiny
+  # code changes and checks whether any test fails. NoCoverage mutants (lines no
+  # test reaches at all) count in the denominator, so the adjusted-score gate
+  # doubles as a coverage gate — no separate coverage-threshold config needed.
+  #
+  # SCOPE: on pull_request / push the job runs only for affected libs (those
+  # whose source files changed relative to the Nx base SHA). On workflow_dispatch
+  # with full_mutation=true it sweeps all 15 libs. The affected list is
+  # intersected with libs that have a stryker.<lib>.config.mjs at the repo root,
+  # so app projects and libs without a config are silently skipped.
+  #
+  # INCREMENTAL CACHE: each lib's incremental file (written by Stryker on first
+  # run, read on subsequent runs) is cached per-lib per-SHA. A cache miss (new
+  # branch, first run, or SHA rotation) falls back to a full mutation run — the
+  # incremental flag is a pure speed optimisation, never a correctness risk. The
+  # cache restore-keys prefix means a run that hits a prior SHA's cache still
+  # gets a warm start on the diff-only portion.
+  #
+  # THRESHOLD: tools/mutation/state.json .threshold (currently 80). All 15 libs
+  # clear this bar. check.mjs exits 1 on any failure, which fails the step and
+  # the job. fail-fast is disabled so all affected libs are checked in one run.
+
+  mutation-affected:
+    name: Compute affected libs for mutation gate
+    runs-on: ubuntu-latest
+    # No timeout needed — this job only computes the list, it does not run Stryker.
+    outputs:
+      libs: ${{ steps.compute.outputs.libs }}
+      has-libs: ${{ steps.compute.outputs.has-libs }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Derive Nx affected base
+        uses: nrwl/nx-set-shas@v4
+
+      - name: Compute lib list
+        id: compute
+        # full_mutation=true (workflow_dispatch) → all libs with a stryker config.
+        # Otherwise → affected libs intersected with libs that have a stryker config.
+        # The list is emitted as a JSON array for the downstream matrix strategy.
+        # inputs.full_mutation is routed through an env var (boolean, but good hygiene).
+        env:
+          FULL_MUTATION: ${{ inputs.full_mutation }}
+        run: |
+          # Collect every lib that has a root-level stryker.<lib>.config.mjs.
+          ALL_CONFIGS=$(ls stryker.*.config.mjs 2>/dev/null | sed 's/^stryker\.\(.*\)\.config\.mjs$/\1/' | sort)
+
+          if [ "$FULL_MUTATION" = "true" ]; then
+            CANDIDATE_LIBS="$ALL_CONFIGS"
+          else
+            # Affected libs only (honoring NX_BASE / NX_HEAD set by nx-set-shas above).
+            AFFECTED=$(pnpm exec nx show projects --affected --type lib 2>/dev/null | tr '\n' ' ')
+            # Intersect: keep only affected libs that also have a stryker config.
+            CANDIDATE_LIBS=""
+            for lib in $ALL_CONFIGS; do
+              if echo " $AFFECTED " | grep -q " $lib "; then
+                CANDIDATE_LIBS="$CANDIDATE_LIBS $lib"
+              fi
+            done
+          fi
+
+          # Build a compact JSON array (e.g. ["api-auth","web-catalog"]).
+          JSON_ARRAY=$(echo $CANDIDATE_LIBS | tr ' ' '\n' | grep -v '^$' | jq -Rcs 'split("\n")[:-1]')
+
+          if [ -z "$CANDIDATE_LIBS" ]; then
+            JSON_ARRAY="[]"
+          fi
+
+          echo "libs=$JSON_ARRAY" >> "$GITHUB_OUTPUT"
+          if [ "$JSON_ARRAY" = "[]" ]; then
+            echo "has-libs=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-libs=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Mutation lib list: $JSON_ARRAY"
+
+  mutation:
+    name: Mutation gate — ${{ matrix.lib }}
+    needs: mutation-affected
+    if: needs.mutation-affected.outputs.has-libs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        lib: ${{ fromJson(needs.mutation-affected.outputs.libs) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Stryker incremental cache: stores the per-lib incremental file so
+      # repeated runs on the same SHA skip already-tested mutants. A cold
+      # cache (new branch, first run, SHA rotation) is a full run — correctness
+      # is never compromised. The restore-key prefix lets the next run warm-start
+      # from the nearest prior SHA's incremental data.
+      - name: Restore Stryker incremental cache
+        uses: actions/cache@v4
+        with:
+          path: reports/mutation/${{ matrix.lib }}/incremental.json
+          key: stryker-incremental-${{ matrix.lib }}-${{ github.sha }}
+          restore-keys: |
+            stryker-incremental-${{ matrix.lib }}-
+
+      - name: Run Stryker
+        env:
+          LIB: ${{ matrix.lib }}
+        run: |
+          pnpm exec stryker run "stryker.${LIB}.config.mjs" \
+            --incremental \
+            --incrementalFile "reports/mutation/${LIB}/incremental.json"
+
+      - name: Check mutation score
+        env:
+          LIB: ${{ matrix.lib }}
+        run: node tools/mutation/check.mjs "$LIB"

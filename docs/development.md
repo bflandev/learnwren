@@ -155,6 +155,65 @@ previously `test.fixme`-quarantined; those were all restored in 2026-05 and no
 `test.fixme` remain.) CI runs this suite on every push and PR
 (`.github/workflows/ci.yml`, the `e2e` job — which uses the one-shot form above).
 
+## CI mutation gate
+
+The `.github/workflows/ci.yml` `mutation` job enforces a minimum **adjusted
+mutation score of 80** (the bar in `tools/mutation/state.json`) on every PR and
+push to `main`.
+
+### How it works
+
+1. A `mutation-affected` job computes the list of affected libs by intersecting
+   `pnpm exec nx show projects --affected --type lib` against the set of libs
+   that have a `stryker.<lib>.config.mjs` at the repo root. Any lib with no
+   Stryker config is silently skipped.
+2. A `mutation` matrix job runs one Stryker process per affected lib, stores the
+   result in `reports/mutation/<lib>/mutation.json`, then calls
+   `node tools/mutation/check.mjs <lib>`. `check.mjs` exits 1 if the adjusted
+   score is below the threshold, failing the job.
+3. `fail-fast: false` means all affected libs are checked in the same run, even
+   when one fails.
+
+### The adjusted score as a coverage gate
+
+NoCoverage mutants — lines no test reaches at all — count in the adjusted-score
+denominator. A new function with zero test coverage contributes uncovered mutants
+that drag the adjusted score down. Passing the 80-adjusted bar therefore implies
+meaningful branch and line coverage, with no need for a separate coverage
+threshold.
+
+### Incremental cache
+
+Each lib's Stryker incremental file (`reports/mutation/<lib>/incremental.json`)
+is cached in GitHub Actions per lib per SHA. A cache miss (first run on a branch,
+or a SHA rotation) triggers a full mutation run — correctness is never affected.
+The incremental flag is a pure speed optimisation.
+
+### Full sweep
+
+To run mutation testing on all 15 libs at once (e.g. after a bulk refactor or
+Stryker upgrade), trigger the workflow manually via the GitHub Actions UI and set
+**Run mutation on ALL libs** to `true`. This overrides the affected-only scope.
+
+### Running locally after a Stryker run
+
+After `pnpm exec stryker run stryker.<lib>.config.mjs` finishes and writes
+`reports/mutation/<lib>/mutation.json`, you can check the score with:
+
+```bash
+node tools/mutation/check.mjs <lib>
+```
+
+Pass multiple lib names to check several at once:
+
+```bash
+node tools/mutation/check.mjs api-auth api-courses web-catalog
+```
+
+Exit 0 means all named libs pass 80 adjusted. Exit 1 means at least one failed
+(the output includes top surviving mutant file:line hints). Exit 2 means no args
+were supplied.
+
 ## Real-project mode
 
 `apps/web` and `apps/api` read `LEARNWREN_FIREBASE_TARGET` at startup. When the

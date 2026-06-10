@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "1.0",
+  "projectRoot": "/repo",
+  "files": {
+    "libs/fixture-passing/src/lib/service.ts": {
+      "language": "typescript",
+      "source": "export function add(a: number, b: number): number {\n  return a + b;\n}\n\nexport function isPositive(n: number): boolean {\n  return n > 0;\n}\n",
+      "mutants": [
+        {
+          "id": "1",
+          "mutatorName": "ArithmeticOperator",
+          "replacement": "a - b",
+          "status": "Killed",
+          "static": false,
+          "location": { "start": { "line": 2, "column": 10 }, "end": { "line": 2, "column": 15 } }
+        },
+        {
+          "id": "2",
+          "mutatorName": "RelationalOperator",
+          "replacement": "n >= 0",
+          "status": "Killed",
+          "static": false,
+          "location": { "start": { "line": 6, "column": 10 }, "end": { "line": 6, "column": 15 } }
+        },
+        {
+          "id": "3",
+          "mutatorName": "RelationalOperator",
+          "replacement": "n < 0",
+          "status": "Killed",
+          "static": false,
+          "location": { "start": { "line": 6, "column": 10 }, "end": { "line": 6, "column": 15 } }
+        },
+        {
+          "id": "4",
+          "mutatorName": "BooleanLiteral",
+          "replacement": "false",
+          "status": "Killed",
+          "static": false,
+          "location": { "start": { "line": 6, "column": 10 }, "end": { "line": 6, "column": 15 } }
+        },
+        {
+          "id": "5",
+          "mutatorName": "ArithmeticOperator",
+          "replacement": "a * b",
+          "status": "Killed",
+          "static": false,
+          "location": { "start": { "line": 2, "column": 10 }, "end": { "line": 2, "column": 15 } }
+        },
+        {
+          "id": "6",
+          "mutatorName": "ArithmeticOperator",
+          "replacement": "a / b",
+          "status": "Killed",
+          "static": false,
+          "location": { "start": { "line": 2, "column": 10 }, "end": { "line": 2, "column": 15 } }
+        }
+      ]
+    }
+  }
+}

@@ -12,6 +12,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import {
+  SKIP_STATUSES,
+  KILLED_STATUSES,
+  SURVIVOR_STATUSES,
+  readSourceLine,
+  isLikelyEquivalent,
+} from './score.mjs';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
@@ -21,10 +28,6 @@ const PER_LIB_REPORT = (lib) =>
   path.join(REPO_ROOT, 'docs', 'quality', `mutation-report-${lib}.md`);
 
 const CLUSTER_GAP = 5; // lines
-
-const SKIP_STATUSES = new Set(['Ignored']);
-const KILLED_STATUSES = new Set(['Killed', 'Timeout', 'RuntimeError']);
-const SURVIVOR_STATUSES = new Set(['Survived', 'NoCoverage']);
 
 // Library-specific guidance for thresholds. Lifted from the mutation-testing skill:
 // auth code → 90%+; core domain → 75–85%; glue/orchestration → 50–70%.
@@ -50,10 +53,6 @@ const LIB_GUIDANCE = {
     target: 60,
   },
 };
-
-function readSourceLine(source, line) {
-  return source.split('\n')[line - 1] ?? '';
-}
 
 // Plain-English description of what a surviving mutant of this kind tells you.
 function diagnosisFor(mutator, replacement, originalLine) {
@@ -173,88 +172,6 @@ function clusterMutants(mutants, source, filePath) {
     c.functionHint = inferFunctionHint(source, c.startLine);
   }
   return clusters;
-}
-
-function isLikelyLoggerLine(source, line) {
-  return /(logger|console|log)\.(log|warn|error|info|debug)\(/.test(readSourceLine(source, line));
-}
-
-// Walk backward up to 8 lines looking for an unclosed `logger.X(` call. Used
-// to detect string literals / logical operators inside multi-line logger
-// invocations, where the mutant line itself doesn't contain `logger.`.
-function isInsideLoggerCall(source, line) {
-  const lines = source.split('\n');
-  let openParens = 0;
-  for (let i = line - 1; i >= Math.max(0, line - 8); i--) {
-    const l = lines[i] ?? '';
-    for (const ch of l) {
-      if (ch === ')') openParens -= 1;
-      else if (ch === '(') openParens += 1;
-    }
-    if (openParens > 0 && /(logger|console|log)\.(log|warn|error|info|debug)\(/.test(l)) {
-      return true;
-    }
-    // If we crossed a non-comment statement terminator without finding logger, stop.
-    if (i < line - 1 && /;\s*$/.test(l)) break;
-  }
-  return false;
-}
-
-// Detect catch blocks whose entire body is a single logger.X(...) call. A
-// BlockStatement mutant emptying such a catch is observably equivalent —
-// both versions silently swallow the error.
-function isCatchWithOnlyLogging(source, line) {
-  const lines = source.split('\n');
-  if (!/}?\s*catch(\s|\()/.test(lines[line - 1] ?? '')) return false;
-  // Body starts on the line after the catch header. We assume depth=1 right
-  // inside the catch and walk until matching `}`.
-  let depth = 1;
-  let sawLogger = false;
-  let sawNonLogger = false;
-  for (let i = line; i < Math.min(lines.length, line + 14); i++) {
-    const l = lines[i] ?? '';
-    if (/(logger|console|log)\.(log|warn|error|info|debug)\(/.test(l)) {
-      sawLogger = true;
-    } else if (/\S/.test(l)) {
-      // Allow lines that are just continuations (closing brackets, commas,
-      // string literals on their own line) of a multi-line logger call.
-      const stripped = l.trim();
-      const isContinuation =
-        /^[)\]},;]/.test(stripped) || /^['"`]/.test(stripped) || /^\/\//.test(stripped);
-      if (!isContinuation) sawNonLogger = true;
-    }
-    for (const ch of l) {
-      if (ch === '{') depth += 1;
-      else if (ch === '}') depth -= 1;
-    }
-    if (depth <= 0) break;
-  }
-  return sawLogger && !sawNonLogger;
-}
-
-function isLikelyEquivalent(mutant, source) {
-  const line = readSourceLine(source, mutant.location.start.line);
-
-  // Class-name string passed to `new Logger(...)`.
-  if (mutant.mutatorName === 'StringLiteral' && /new\s+Logger\(/.test(line)) return true;
-
-  // String literal directly inside a logger call (single-line) or inside a
-  // multi-line logger call.
-  if (
-    (mutant.mutatorName === 'StringLiteral' || mutant.mutatorName === 'LogicalOperator' ||
-      mutant.mutatorName === 'MethodExpression') &&
-    (isLikelyLoggerLine(source, mutant.location.start.line) ||
-      isInsideLoggerCall(source, mutant.location.start.line))
-  ) {
-    return true;
-  }
-
-  // BlockStatement on a catch whose body is only logging — swallowing equals swallowing.
-  if (mutant.mutatorName === 'BlockStatement' && isCatchWithOnlyLogging(source, mutant.location.start.line)) {
-    return true;
-  }
-
-  return false;
 }
 
 function equivalenceReason(mutant, source) {
