@@ -28,12 +28,13 @@
     "mutate:report": "node tools/mutation/report.mjs",
     "mutate": "pnpm mutate:api-auth && pnpm mutate:api-courses && pnpm mutate:web-catalog && pnpm mutate:web-enrollment && pnpm mutate:web-ui && pnpm mutate:report",
     "emulators": "firebase emulators:start --config firebase.emulator.json",
-    "deploy": "firebase deploy --config firebase.deploy.json -P production",
+    "deploy:prod": "firebase deploy --config firebase.deploy.json -P production",
     "deploy:preview": "firebase deploy --config firebase.deploy.json -P production --except hosting",
     "smoke": "node tools/deploy/smoke.mjs",
     "tools:promote-to-instructor": "tsx tools/promote-to-instructor.ts",
     "tools:promote-to-admin": "tsx tools/promote-to-admin.ts",
     "secrets:render": "op inject -i .env.tpl -o .env",
+    "secrets:render:deploy": "op inject -i .env.deploy.tpl -o .env.learn-wren",
     "secrets:run": "op run --env-file=.env.tpl"
   },
   "pnpm": {
