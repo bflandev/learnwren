@@ -18,7 +18,7 @@ function ctx(headers: Record<string, string | string[] | undefined>) {
 function makeGuard(opts: {
   audience: string;
   invokerSaEmail: string;
-  verifier: (token: string) => Promise<{
+  verifier: (options: { idToken: string }) => Promise<{
     getPayload: () => {
       iss?: string;
       aud?: string;
@@ -51,9 +51,11 @@ describe('PubSubPushGuard', () => {
     await expect(
       g.canActivate(ctx({ authorization: 'Bearer  the-token ' })),
     ).resolves.toBe(true);
-    // The "Bearer " prefix and surrounding whitespace must be stripped before
-    // the raw token reaches the verifier.
-    expect(verifier).toHaveBeenCalledWith('the-token');
+    // The "Bearer " prefix and surrounding whitespace must be stripped, and the
+    // raw token must be passed as { idToken } — google-auth-library's
+    // OAuth2Client.verifyIdToken REQUIRES an options object and throws on a
+    // bare string (the production-breaking bug this locks down).
+    expect(verifier).toHaveBeenCalledWith({ idToken: 'the-token' });
   });
 
   it('rejects when Authorization header is missing', async () => {
