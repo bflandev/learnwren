@@ -72,7 +72,7 @@ echo "   ${RUNTIME_SA}: tokenCreator on itself granted"
 echo "== Transcoder service agent =="
 # Needs the gcloud beta component — fail loudly, or the silent failure below
 # surfaces later as a misleading 'service account does not exist'.
-if ! gcloud beta --help >/dev/null 2>&1; then
+if ! gcloud beta --help </dev/null >/dev/null 2>&1; then
   echo "FATAL: gcloud beta component missing — run: gcloud components install beta --quiet" >&2
   exit 1
 fi

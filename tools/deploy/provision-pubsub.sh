@@ -23,9 +23,9 @@ PUBSUB_AGENT="service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com"
 
 # Gen2 function URL — never hand-build cloudfunctions.net (it may not exist
 # for Firebase-deployed v2 functions). The same string is the OIDC audience.
-FUNCTION_ORIGIN=$(gcloud functions describe api --region "${REGION}" \
-  --project "${PROJECT_ID}" --format='value(serviceConfig.uri)')
-if [[ -z "${FUNCTION_ORIGIN}" ]]; then
+if ! FUNCTION_ORIGIN=$(gcloud functions describe api --region "${REGION}" \
+    --project "${PROJECT_ID}" --format='value(serviceConfig.uri)' 2>/dev/null) \
+    || [[ -z "${FUNCTION_ORIGIN}" ]]; then
   echo "FATAL: cannot resolve the api function URL — has the first deploy run?" >&2
   exit 1
 fi
@@ -51,10 +51,12 @@ gcloud iam service-accounts describe "${INVOKER_SA}" --project "${PROJECT_ID}" >
     --display-name="Learn Wren Transcoder Pub/Sub Invoker" --project "${PROJECT_ID}"
 
 echo "== Pub/Sub service agent: mint OIDC tokens as the invoker SA =="
-gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+# Scoped to the invoker SA (not project-wide): the agent only ever needs to
+# mint tokens as this one identity.
+gcloud iam service-accounts add-iam-policy-binding "${INVOKER_SA}" \
   --member="serviceAccount:${PUBSUB_AGENT}" \
-  --role=roles/iam.serviceAccountTokenCreator >/dev/null
-echo "   ${PUBSUB_AGENT}: project tokenCreator granted"
+  --role=roles/iam.serviceAccountTokenCreator --project "${PROJECT_ID}" >/dev/null
+echo "   ${PUBSUB_AGENT}: tokenCreator on ${INVOKER_SA} granted"
 
 echo "== gen2 invoker grant (roles/run.invoker on the underlying Cloud Run service) =="
 # NOTE: the function is public today (Hosting rewrite requirement), so this
