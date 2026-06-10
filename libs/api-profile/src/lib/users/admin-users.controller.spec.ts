@@ -50,7 +50,7 @@ describe('AdminUsersController', () => {
     expect(svc.getDetail).toHaveBeenCalledWith('u1');
   });
 
-  it('promote delegates to the role service with the path uid', async () => {
+  it('promote passes actorUid from req.user and target uid to roleSvc', async () => {
     const roleSvc = {
       promote: vi.fn(async () => ({ id: 'u1', role: 'INSTRUCTOR' })),
       demote: vi.fn(),
@@ -61,11 +61,11 @@ describe('AdminUsersController', () => {
       {} as unknown as AdminUserStatusService,
       {} as unknown as AdminUserDeleteService,
     );
-    await ctrl.promote('u1');
-    expect(roleSvc.promote).toHaveBeenCalledWith('u1');
+    await ctrl.promote(fakeReq('actor'), 'u1');
+    expect(roleSvc.promote).toHaveBeenCalledWith('actor', 'u1');
   });
 
-  it('demote delegates to the role service with the path uid', async () => {
+  it('demote passes actorUid from req.user and target uid to roleSvc', async () => {
     const roleSvc = {
       promote: vi.fn(),
       demote: vi.fn(async () => ({ id: 'u1', role: 'STUDENT' })),
@@ -76,8 +76,8 @@ describe('AdminUsersController', () => {
       {} as unknown as AdminUserStatusService,
       {} as unknown as AdminUserDeleteService,
     );
-    await ctrl.demote('u1');
-    expect(roleSvc.demote).toHaveBeenCalledWith('u1');
+    await ctrl.demote(fakeReq('actor'), 'u1');
+    expect(roleSvc.demote).toHaveBeenCalledWith('actor', 'u1');
   });
 
   it('suspend passes actorUid from req.user and target uid to statusSvc', async () => {

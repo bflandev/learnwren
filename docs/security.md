@@ -85,9 +85,75 @@ A "CORS error on the video player page" was reported and investigated. **It was 
   - **Cover images and profile pictures** are public object URLs (`https://storage.googleapis.com/<bucket>/…`, see `cover.config.ts` / `picture.config.ts`) rendered in plain `<img>` elements with **no `crossorigin` attribute** (`libs/web-ui/src/lib/avatar/lw-avatar.component.ts`, cover preview). A no-`crossorigin` `<img>` load is not a CORS request — the browser displays it without any `Access-Control-Allow-Origin` check (the app never reads their pixels back through a canvas). So the cover and picture buckets need no CORS policy either.
   - Net: `tools/deploy/gcs-cors.json` targets **only** `$LEARNWREN_VIDEO_OUTPUT_BUCKET`.
 
+## Hosting security headers — deployed (CRYPTO-1, 2026-06-10)
+
+**Status: shipped.** All five OWASP-required response headers are now set on every
+response by Firebase Hosting (`firebase.deploy.json` hosting.headers `"source": "**"`).
+The same block is mirrored to `firebase.smoke.json` so `pnpm smoke` asserts them.
+
+| Header | Value |
+|---|---|
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+| `X-Frame-Options` | `DENY` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Content-Security-Policy` | see below |
+
+### CSP policy
+
+```
+default-src 'self';
+base-uri 'self';
+object-src 'none';
+frame-ancestors 'none';
+script-src 'self' 'unsafe-hashes' 'sha256-MhtPZXr7+LpJUY5qtMutB+qWfQtMaPccfe7QXtCcEYc=';
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+font-src 'self' https://fonts.gstatic.com;
+img-src 'self' data: https://storage.googleapis.com https://firebasestorage.googleapis.com;
+connect-src 'self' https://storage.googleapis.com;
+media-src 'self' blob: https://storage.googleapis.com;
+worker-src 'self' blob:
+```
+
+Directive rationale:
+
+- `script-src 'self'` — Angular production build uses no inline scripts or `eval`.
+  `'unsafe-hashes'` + `sha256-MhtPZXr7+...` covers the single inline event handler
+  `this.media='all'` injected by Angular's Beasties CSS inliner for the non-blocking
+  stylesheet load (`<link ... media="print" onload="this.media='all'">`). This is the
+  narrowest possible allowlist; no broad `'unsafe-inline'` is needed on script-src.
+- `style-src 'unsafe-inline'` — Angular injects component styles without a nonce at
+  build time. Eliminating this requires Angular CSP-nonce wiring (see follow-up below).
+- `img-src storage.googleapis.com firebasestorage.googleapis.com` — cover images and
+  profile pictures served from Cloud Storage (see CORS posture section).
+- `connect-src storage.googleapis.com` — hls.js XHRs for HLS segment fetches.
+- `media-src blob: storage.googleapis.com` — hls.js MSE blob: object URLs and direct
+  GCS segment delivery.
+- `worker-src blob:` — hls.js spawns a web worker via `blob:` URL.
+
+### Browser verification (2026-06-10)
+
+Playwright was used to load `http://127.0.0.1:7050/` against the Firebase Hosting
+emulator (`pnpm smoke` ports) after applying the headers. Result:
+
+- Angular root component bootstrapped and navigated to `/catalog`.
+- Nav, search bar, theme toggle, and catalog page heading all rendered.
+- Zero `Content-Security-Policy` violation errors in the browser console.
+- The only console errors were HTTP 404s on `/api/*` (functions emulator not wired in
+  the background run — not a CSP issue).
+
+### Future tightening
+
+- **`style-src 'unsafe-inline'`** can be eliminated by enabling Angular's CSP nonce
+  feature (`@angular/core` v16+). The app must pass a per-request nonce through the
+  HTML `<meta name="csp-nonce">` tag and Angular will attach it to all injected
+  `<style>` elements. This requires server-side rendering or a CDN edge function to
+  inject a fresh nonce per request — a non-trivial change deferred to a dedicated slice.
+
 ## Open items (tracked, not yet done)
 
-- A basic **OWASP Top 10** review before initial deployment (US-09-02).
+- ~~A basic **OWASP Top 10** review before initial deployment (US-09-02).~~ (Security
+  headers shipped 2026-06-10; remaining OWASP items tracked below.)
 - Reconcile the 24h session-token requirement (caveat 2 above).
 - **Production HLS segment CORS — one deploy-time step remains.** The code side is done (segments are anonymous; see CORS posture above), so only the bucket needs configuring at first deploy:
   1. Apply the simple-CORS policy to the video output bucket:

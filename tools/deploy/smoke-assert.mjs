@@ -86,6 +86,47 @@ async function run() {
     if (typeof body.serverTime !== 'string') throw new Error('serverTime missing');
   });
 
+  // (e) Security headers on document response
+  await check('(e) index.html has Content-Security-Policy with frame-ancestors', async () => {
+    const r = await fetch(`http://127.0.0.1:${HOSTING_PORT}/index.html`);
+    const csp = r.headers.get('content-security-policy') ?? '';
+    if (!csp.includes("frame-ancestors 'none'")) {
+      throw new Error(`CSP missing frame-ancestors 'none' — got: "${csp}"`);
+    }
+  });
+
+  await check("(e) index.html has X-Frame-Options: DENY", async () => {
+    const r = await fetch(`http://127.0.0.1:${HOSTING_PORT}/index.html`);
+    const xfo = r.headers.get('x-frame-options') ?? '';
+    if (xfo.toUpperCase() !== 'DENY') {
+      throw new Error(`X-Frame-Options: "${xfo}" (expected DENY)`);
+    }
+  });
+
+  await check('(e) index.html has X-Content-Type-Options: nosniff', async () => {
+    const r = await fetch(`http://127.0.0.1:${HOSTING_PORT}/index.html`);
+    const xcto = r.headers.get('x-content-type-options') ?? '';
+    if (xcto !== 'nosniff') {
+      throw new Error(`X-Content-Type-Options: "${xcto}" (expected nosniff)`);
+    }
+  });
+
+  await check('(e) index.html has Referrer-Policy', async () => {
+    const r = await fetch(`http://127.0.0.1:${HOSTING_PORT}/index.html`);
+    const rp = r.headers.get('referrer-policy') ?? '';
+    if (!rp) {
+      throw new Error('Referrer-Policy header missing');
+    }
+  });
+
+  await check('(e) index.html has Strict-Transport-Security', async () => {
+    const r = await fetch(`http://127.0.0.1:${HOSTING_PORT}/index.html`);
+    const hsts = r.headers.get('strict-transport-security') ?? '';
+    if (!hsts.includes('max-age=')) {
+      throw new Error(`Strict-Transport-Security: "${hsts}" (expected max-age=...)`);
+    }
+  });
+
   // (d) Cache-Control headers
   await check('(d) index.html has no-cache Cache-Control', async () => {
     const r = await fetch(`http://127.0.0.1:${HOSTING_PORT}/index.html`);

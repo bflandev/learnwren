@@ -31,7 +31,7 @@ export class AdminUserRoleService {
     private readonly repo: AdminUsersRepository,
   ) {}
 
-  async promote(uid: UserId): Promise<AdminUserRoleResponse> {
+  async promote(actorUid: UserId, uid: UserId): Promise<AdminUserRoleResponse> {
     const user = await this.repo.getUser(uid);
     if (!user) {
       throw new UserNotFoundException();
@@ -52,10 +52,11 @@ export class AdminUserRoleService {
       );
       throw new AdminUsersException('INTERNAL', 'An internal error occurred during promotion.', 500, undefined, { cause: err });
     }
+    this.logger.log(`Promoted uid=${uid} to INSTRUCTOR by actor=${actorUid}`);
     return { id: uid, role: 'INSTRUCTOR' };
   }
 
-  async demote(uid: UserId): Promise<AdminUserRoleResponse> {
+  async demote(actorUid: UserId, uid: UserId): Promise<AdminUserRoleResponse> {
     const user = await this.repo.getUser(uid);
     if (!user) {
       throw new UserNotFoundException();
@@ -80,7 +81,7 @@ export class AdminUserRoleService {
       );
       throw new AdminUsersException('INTERNAL', 'An internal error occurred during demotion.', 500, undefined, { cause: err });
     }
-    this.logger.log(`Demoted uid=${uid} to STUDENT`);
+    this.logger.log(`Demoted uid=${uid} to STUDENT by actor=${actorUid}`);
     return { id: uid, role: 'STUDENT' };
   }
 }
