@@ -154,3 +154,13 @@ export class CaptionsNotFoundException extends VideoException {
     super('CAPTIONS_NOT_FOUND', 'No captions exist for this video.', 404);
   }
 }
+
+export class UploadCompletionInProgressException extends VideoException {
+  constructor() {
+    super(
+      'UPLOAD_COMPLETION_IN_PROGRESS',
+      'Upload completion is already being processed.',
+      409,
+    );
+  }
+}

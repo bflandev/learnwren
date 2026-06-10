@@ -163,22 +163,70 @@ test('401 unauthenticated, 403 wrong-role, 403 wrong-instructor, 409 already-has
   expect(conflict.body.error.code).toBe('LESSON_ALREADY_HAS_VIDEO');
 });
 
-test('422 upload-object-missing when complete called before any bytes', async ({ request }) => {
+test('422 upload-object-missing when complete called before any bytes; claim released so retry succeeds', async ({
+  request,
+}) => {
   const inst = await registerAndPromoteInstructor(request);
   const hdr = { Cookie: inst.cookieHeader };
   const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
-  const sess = (await (
-    await request.post(
-      `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
-      { headers: hdr, data: { sizeBytes: 100, contentType: 'video/mp4' } },
-    )
-  ).json()) as { videoId: string };
 
+  const sessResp = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+    { headers: hdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
+  );
+  const sess = (await sessResp.json()) as { videoId: string; uploadSessionUri: string };
+
+  // First completeUpload attempt — no bytes uploaded yet, should be 422.
   const r = await request.post(`${API_BASE}/videos/${sess.videoId}/upload-complete`, {
     headers: hdr,
   });
   expect(r.status()).toBe(422);
   expect(((await r.json()) as { error: { code: string } }).error.code).toBe('UPLOAD_OBJECT_MISSING');
+
+  // Now upload the bytes, then retry completeUpload — the claim must have been
+  // released by the first call so this retry gets a fresh claim and succeeds.
+  await request.put(sess.uploadSessionUri, {
+    headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
+    data: FIXTURE_BYTES,
+  });
+  const retry = await request.post(`${API_BASE}/videos/${sess.videoId}/upload-complete`, {
+    headers: hdr,
+  });
+  expect(retry.status()).toBe(200);
+  expect(((await retry.json()) as { state: string }).state).toBe('TRANSCODING');
+});
+
+test('sequential duplicate completeUpload → second call gets 409 (state-machine guard)', async ({
+  request,
+}) => {
+  // After the first completeUpload succeeds, the video is TRANSCODING (not
+  // PENDING_UPLOAD). A sequential second call hits the state-machine check
+  // inside claimUploadCompletion and gets a 409 INVALID_VIDEO_STATE.
+  // True concurrency is tested at the unit level only.
+  const inst = await registerAndPromoteInstructor(request);
+  const hdr = { Cookie: inst.cookieHeader };
+  const { course, mod, lesson } = await createCourseModuleLesson(request, hdr);
+
+  const sess = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${mod.id}/lessons/${lesson.id}/video/upload-session`,
+    { headers: hdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
+  );
+  const { videoId, uploadSessionUri } = (await sess.json()) as {
+    videoId: string;
+    uploadSessionUri: string;
+  };
+  await request.put(uploadSessionUri, {
+    headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
+    data: FIXTURE_BYTES,
+  });
+
+  // First call succeeds.
+  const first = await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
+  expect(first.status()).toBe(200);
+
+  // Second sequential call — video is now TRANSCODING, not PENDING_UPLOAD.
+  const second = await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: hdr });
+  expect(second.status()).toBe(409);
 });
 
 test('upload → transcoding → READY via fake completer', async ({ request }) => {

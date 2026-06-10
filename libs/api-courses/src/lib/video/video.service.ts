@@ -37,6 +37,11 @@ import { UPLOAD_SIZE_TOLERANCE } from '../upload-tolerance';
 const MAX_SUBMIT_ATTEMPTS = 3;
 const BACKOFF_MS = [1_000, 2_000, 4_000];
 
+// Claim TTL for the upload-completion slot. Probe + submit finish well under
+// a minute in production; 10 min is safely beyond any live attempt so a
+// crashed attempt is re-claimable without blocking the instructor indefinitely.
+const CLAIM_TTL_MS = 10 * 60_000;
+
 const EXT_BY_CONTENT_TYPE: Record<SupportedVideoContentType, 'mp4' | 'mov' | 'mkv'> = {
   'video/mp4': 'mp4',
   'video/quicktime': 'mov',
@@ -126,17 +131,36 @@ export class VideoService {
   }
 
   async completeUpload(vid: VideoId): Promise<Video> {
-    const v = await this.getPendingUploadOrThrow(vid);
-    const actualSize = await this.verifyUploadObjectOrThrow(v);
+    const now = nowIso();
+    const staleBefore = new Date(Date.parse(now) - CLAIM_TTL_MS).toISOString() as ISODateString;
+    // Atomically claim the upload-completion slot. Throws
+    // UploadCompletionInProgressException if a concurrent attempt holds a fresh
+    // claim — eliminating the duplicate-transcoder-submit race.
+    const v = await this.repo.claimUploadCompletion(vid, now, staleBefore);
+
+    // Verify the uploaded object. These failures are non-terminal (state stays
+    // PENDING_UPLOAD) so the instructor can retry after fixing the upload.
+    // Release the claim immediately so the retry does not hit a 10-min block.
+    let actualSize: number;
+    try {
+      actualSize = await this.verifyUploadObjectOrThrow(v);
+    } catch (err) {
+      await this.repo.releaseUploadCompletionClaim(vid).catch((e: unknown) => {
+        this.logger.warn(`releaseUploadCompletionClaim failed for ${vid}: ${(e as Error).message}`);
+      });
+      throw err;
+    }
 
     const probe = await this.tryProbeSource(v);
     if (!probe.ok) {
+      // Terminal failure — markFailedFromSubmission strips the claim in its txn.
       return this.recordPipelineFailure(vid, 'SOURCE_PROBE_FAILED', probe.error, actualSize);
     }
 
     const key = this.generateContentKey();
     const submit = await this.submitWithRetry(this.buildTranscoderInput(v, probe.value.height, key));
     if (!submit.ok) {
+      // Terminal failure — markFailedFromSubmission strips the claim in its txn.
       return this.recordPipelineFailure(vid, 'TRANSCODER_SUBMIT_FAILED', submit.lastError, actualSize);
     }
 
@@ -152,14 +176,6 @@ export class VideoService {
       transcoderJobName: submit.jobName,
       nowIso: nowIso(),
     });
-  }
-
-  /** Load the video and ensure it is still in PENDING_UPLOAD; throws otherwise. */
-  private async getPendingUploadOrThrow(vid: VideoId): Promise<Video> {
-    const v = await this.repo.getVideo(vid);
-    if (!v) throw new VideoNotFoundException();
-    if (v.state !== 'PENDING_UPLOAD') throw new InvalidVideoStateException(v.state);
-    return v;
   }
 
   /**
