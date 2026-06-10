@@ -27,9 +27,16 @@ export class SmtpEmailTransport implements EmailTransport {
   private readonly transporter: Transporter;
 
   constructor(private readonly config: SmtpEmailTransportConfig) {
+    // Be explicit about TLS mode rather than relying on nodemailer's
+    // undefined-`secure` port-465 inference. 587 uses STARTTLS — requireTLS
+    // makes it mandatory rather than opportunistic (a STARTTLS-stripping
+    // MITM would otherwise surface as a confusing auth failure).
+    const secure = config.port === 465;
     this.transporter = createTransport({
       host: config.host,
       port: config.port,
+      secure,
+      ...(secure ? {} : { requireTLS: true }),
       auth: { user: config.user, pass: config.password },
     });
   }

@@ -32,6 +32,12 @@ export function readPictureConfigFromEnv(
     : (env['LEARNWREN_PICTURE_PUBLIC_BASE_URL'] ?? `https://storage.googleapis.com/${bucket}`);
 
   const raw = env['LEARNWREN_PICTURE_STORAGE'];
-  const impl: PictureStorageImpl = raw === 'firebase' ? 'firebase' : 'fake';
+  // Mirror video.config.ts: production defaults to the real adapter and
+  // rejects an explicit fake; dev/test default to the credential-free fake.
+  const impl: PictureStorageImpl =
+    raw === 'firebase' || raw === 'fake' ? raw : isProduction ? 'firebase' : 'fake';
+  if (impl === 'fake' && isProduction) {
+    throw new Error('LEARNWREN_PICTURE_STORAGE=fake is rejected when NODE_ENV=production.');
+  }
   return { bucket, publicBaseUrl, impl };
 }

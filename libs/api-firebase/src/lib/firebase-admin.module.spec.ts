@@ -15,7 +15,7 @@ const TARGET_KEYS = [
   'LEARNWREN_FIREBASE_TARGET',
   'LEARNWREN_API_FIREBASE_PROJECT_ID',
   'FIREBASE_SERVICE_ACCOUNT_JSON_PATH',
-  'FIREBASE_WEB_API_KEY',
+  'LEARNWREN_FIREBASE_WEB_API_KEY',
 ] as const;
 
 async function resetEnvAndApps(): Promise<void> {
@@ -88,7 +88,7 @@ describe('FirebaseAdminModule', () => {
     });
 
     it('resolves FIREBASE_WEB_API_KEY to the env var value when it is set', async () => {
-      process.env['FIREBASE_WEB_API_KEY'] = 'caller-provided-key';
+      process.env['LEARNWREN_FIREBASE_WEB_API_KEY'] = 'caller-provided-key';
       const moduleRef = await Test.createTestingModule({
         imports: [FirebaseAdminModule.forRoot()],
       }).compile();
@@ -134,10 +134,10 @@ describe('FirebaseAdminModule', () => {
       ).toThrow(/LEARNWREN_API_FIREBASE_PROJECT_ID/);
     });
 
-    it('throws when FIREBASE_WEB_API_KEY is unset in production mode', async () => {
+    it('throws when LEARNWREN_FIREBASE_WEB_API_KEY is unset in production mode', async () => {
       process.env['LEARNWREN_FIREBASE_TARGET'] = 'production';
       process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] = 'test-prod-id';
-      // Intentionally omit FIREBASE_WEB_API_KEY.
+      // Intentionally omit LEARNWREN_FIREBASE_WEB_API_KEY.
 
       // The throw happens inside the useFactory, so it surfaces when the
       // testing module resolves the provider.
@@ -145,7 +145,7 @@ describe('FirebaseAdminModule', () => {
         Test.createTestingModule({
           imports: [FirebaseAdminModule.forRoot()],
         }).compile(),
-      ).rejects.toThrow(/FIREBASE_WEB_API_KEY/);
+      ).rejects.toThrow(/LEARNWREN_FIREBASE_WEB_API_KEY/);
     });
 
     it('does NOT throw on missing FIREBASE_WEB_API_KEY in emulator mode (key is optional)', async () => {
@@ -160,7 +160,7 @@ describe('FirebaseAdminModule', () => {
     it('resolves FIREBASE_WEB_API_KEY to the env value verbatim in production', async () => {
       process.env['LEARNWREN_FIREBASE_TARGET'] = 'production';
       process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] = 'test-prod-id';
-      process.env['FIREBASE_WEB_API_KEY'] = 'prod-web-api-key-123';
+      process.env['LEARNWREN_FIREBASE_WEB_API_KEY'] = 'prod-web-api-key-123';
 
       const moduleRef = await Test.createTestingModule({
         imports: [FirebaseAdminModule.forRoot()],
@@ -172,7 +172,7 @@ describe('FirebaseAdminModule', () => {
     it('initializes against the real project ID and does NOT set emulator env vars', async () => {
       process.env['LEARNWREN_FIREBASE_TARGET'] = 'production';
       process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] = 'test-prod-id';
-      process.env['FIREBASE_WEB_API_KEY'] = 'test-web-api-key';
+      process.env['LEARNWREN_FIREBASE_WEB_API_KEY'] = 'test-web-api-key';
       // no service-account path → ADC path
 
       const moduleRef = await Test.createTestingModule({
@@ -194,7 +194,7 @@ describe('FirebaseAdminModule', () => {
     it('initializes with cert credential when FIREBASE_SERVICE_ACCOUNT_JSON_PATH is set', async () => {
       process.env['LEARNWREN_FIREBASE_TARGET'] = 'production';
       process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] = 'test-prod-id';
-      process.env['FIREBASE_WEB_API_KEY'] = 'test-web-api-key';
+      process.env['LEARNWREN_FIREBASE_WEB_API_KEY'] = 'test-web-api-key';
       // We don't actually want to read a real file in unit tests. firebase-admin
       // resolves credential.cert lazily — its presence is what we verify.
       process.env['FIREBASE_SERVICE_ACCOUNT_JSON_PATH'] = '/tmp/learnwren-test-sa.json';

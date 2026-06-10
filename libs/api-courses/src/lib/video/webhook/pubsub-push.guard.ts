@@ -8,8 +8,11 @@ import {
 import { VIDEO_CONFIG, type VideoConfig } from '../video.config';
 
 // Minimal structural type satisfied by google-auth-library's OAuth2Client.
+// NOTE: verifyIdToken takes an OPTIONS OBJECT ({ idToken }) — OAuth2Client
+// throws 'The verifyIdToken method requires an ID Token' on a bare string.
+// The interface mirrors the real call shape so spec mocks cannot drift.
 export interface IdTokenVerifier {
-  verifyIdToken(token: string): Promise<{
+  verifyIdToken(options: { idToken: string }): Promise<{
     getPayload():
       | {
           iss?: string;
@@ -55,7 +58,7 @@ export class PubSubPushGuard implements CanActivate {
   private async verifyToken(token: string): Promise<IdTokenPayload> {
     let payload: IdTokenPayload | undefined;
     try {
-      const ticket = await this.verifier.verifyIdToken(token);
+      const ticket = await this.verifier.verifyIdToken({ idToken: token });
       payload = ticket.getPayload();
     } catch (err) {
       throw new PubSubInvalidTokenException((err as Error).message);

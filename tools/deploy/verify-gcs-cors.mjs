@@ -16,6 +16,7 @@
 //
 // Usage:
 //   node tools/deploy/verify-gcs-cors.mjs <target> [--origin <origin>]
+//                                         [--preflight-put] [--endpoint <base>]
 //
 //   <target> is either:
 //     * a full object URL — typically a SIGNED segment URL pasted from a real
@@ -26,6 +27,7 @@
 //
 //   --origin <origin>   Origin to send / expect echoed. Default:
 //                       https://learn-wren.web.app
+//   --preflight-put     Assert a materials-upload PUT preflight instead of the segment GET checks.
 //   --endpoint <base>   TEST-ONLY override of the storage base origin (e.g.
 //                       http://127.0.0.1:PORT). Used by the stub-server tests;
 //                       not for production use.
@@ -40,11 +42,12 @@ function usage(message) {
   if (message) process.stderr.write(`error: ${message}\n\n`);
   process.stderr.write(
     [
-      'Usage: node tools/deploy/verify-gcs-cors.mjs <target> [--origin <origin>] [--endpoint <base>]',
+      'Usage: node tools/deploy/verify-gcs-cors.mjs <target> [--origin <origin>] [--preflight-put] [--endpoint <base>]',
       '',
-      '  <target>      A full signed segment URL, or a bare bucket name.',
-      `  --origin      Origin header to send / expect echoed (default ${DEFAULT_ORIGIN}).`,
-      '  --endpoint    TEST-ONLY storage base override (e.g. http://127.0.0.1:PORT).',
+      '  <target>          A full signed segment URL, or a bare bucket name.',
+      `  --origin          Origin header to send / expect echoed (default ${DEFAULT_ORIGIN}).`,
+      '  --preflight-put   Assert a materials-upload PUT preflight instead of the segment GET checks.',
+      '  --endpoint        TEST-ONLY storage base override (e.g. http://127.0.0.1:PORT).',
       '',
     ].join('\n'),
   );
@@ -54,6 +57,7 @@ function parseArgs(argv) {
   const positionals = [];
   let origin = DEFAULT_ORIGIN;
   let endpoint;
+  let preflightPut = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--origin') {
@@ -62,6 +66,8 @@ function parseArgs(argv) {
     } else if (arg === '--endpoint') {
       endpoint = argv[++i];
       if (endpoint === undefined) return { error: '--endpoint requires a value' };
+    } else if (arg === '--preflight-put') {
+      preflightPut = true;
     } else if (arg === '-h' || arg === '--help') {
       return { help: true };
     } else if (arg.startsWith('--')) {
@@ -73,7 +79,7 @@ function parseArgs(argv) {
   if (positionals.length !== 1) {
     return { error: 'exactly one <target> (object URL or bucket name) is required' };
   }
-  return { target: positionals[0], origin, endpoint };
+  return { target: positionals[0], origin, endpoint, preflightPut };
 }
 
 /** Resolve the <target> into a concrete object URL to probe. */
@@ -96,11 +102,13 @@ function resolveTargetUrl(target, endpoint) {
   return `${base.replace(/\/+$/, '')}/${bucket}/__cors-probe__`;
 }
 
-function applyCmdHint(origin) {
+function applyCmdHint(origin, preflightPut) {
+  const bucketEnv = preflightPut ? 'LEARNWREN_MATERIALS_BUCKET' : 'LEARNWREN_VIDEO_OUTPUT_BUCKET';
+  const corsFile = preflightPut ? 'tools/deploy/gcs-cors-materials.json' : CORS_FILE_PATH;
   return [
     'HINT — apply the bucket CORS policy, then re-run this verifier:',
-    `  gcloud storage buckets update gs://$LEARNWREN_VIDEO_OUTPUT_BUCKET --cors-file=${CORS_FILE_PATH}`,
-    `  (ensure ${CORS_FILE_PATH} lists "${origin}" under "origin")`,
+    `  gcloud storage buckets update gs://$${bucketEnv} --cors-file=${corsFile}`,
+    `  (ensure ${corsFile} lists "${origin}" under "origin")`,
   ].join('\n');
 }
 
@@ -207,6 +215,63 @@ async function checkPreflight(url, origin) {
   };
 }
 
+async function checkUploadPreflight(url, origin) {
+  // Browser material uploads are XHR PUTs with a Content-Type header to a v4
+  // signed URL — always preflighted; GCS answers from the bucket CORS policy.
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: origin,
+        'Access-Control-Request-Method': 'PUT',
+        'Access-Control-Request-Headers': 'content-type',
+      },
+      redirect: 'manual',
+    });
+  } catch (err) {
+    return { pass: false, detail: `preflight request failed: ${err.message}` };
+  }
+  try {
+    await res.arrayBuffer();
+  } catch {
+    /* ignore */
+  }
+  const problems = [];
+  if (res.status < 200 || res.status >= 300) {
+    problems.push(`preflight status ${res.status} is not 2xx`);
+  }
+  const acao = header(res.headers, 'access-control-allow-origin');
+  if (!acaoAllows(acao, origin)) {
+    problems.push(
+      acao
+        ? `access-control-allow-origin "${acao}" does not authorize "${origin}"`
+        : 'access-control-allow-origin missing on preflight',
+    );
+  }
+  const allowMethods = header(res.headers, 'access-control-allow-methods') ?? '';
+  if (!/\bPUT\b/i.test(allowMethods)) {
+    problems.push(
+      allowMethods
+        ? `access-control-allow-methods "${allowMethods}" does not include PUT`
+        : 'access-control-allow-methods missing PUT',
+    );
+  }
+  const allowHeaders = header(res.headers, 'access-control-allow-headers') ?? '';
+  if (!/\bcontent-type\b/i.test(allowHeaders)) {
+    problems.push(
+      allowHeaders
+        ? `access-control-allow-headers "${allowHeaders}" does not allow Content-Type`
+        : 'access-control-allow-headers does not allow Content-Type',
+    );
+  }
+  if (problems.length > 0) return { pass: false, detail: problems.join('; ') };
+  return {
+    pass: true,
+    detail: `preflight 2xx; allow-origin: ${acao}; allow-methods: ${allowMethods}; allow-headers: ${allowHeaders}`,
+  };
+}
+
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
   if (parsed.help) {
@@ -226,14 +291,22 @@ async function main() {
 
   const results = [];
 
-  const getResult = await checkSimpleGet(url, origin);
-  results.push(['(a) GET with Origin → ACAO present and matches', getResult]);
+  if (parsed.preflightPut) {
+    const putResult = await checkUploadPreflight(url, origin);
+    results.push([
+      '(a) OPTIONS preflight (Request-Method PUT, Request-Headers content-type) → 2xx + ACAO + allow PUT/Content-Type',
+      putResult,
+    ]);
+  } else {
+    const getResult = await checkSimpleGet(url, origin);
+    results.push(['(a) GET with Origin → ACAO present and matches', getResult]);
 
-  const preflightResult = await checkPreflight(url, origin);
-  results.push([
-    '(b) OPTIONS preflight (Request-Method GET, Request-Headers range) → 2xx + ACAO + allow GET/Range',
-    preflightResult,
-  ]);
+    const preflightResult = await checkPreflight(url, origin);
+    results.push([
+      '(b) OPTIONS preflight (Request-Method GET, Request-Headers range) → 2xx + ACAO + allow GET/Range',
+      preflightResult,
+    ]);
+  }
 
   let allPass = true;
   for (const [label, result] of results) {
@@ -243,7 +316,7 @@ async function main() {
   }
 
   if (!allPass) {
-    process.stdout.write(`\n${applyCmdHint(origin)}\n`);
+    process.stdout.write(`\n${applyCmdHint(origin, parsed.preflightPut)}\n`);
     process.exit(1);
   }
 

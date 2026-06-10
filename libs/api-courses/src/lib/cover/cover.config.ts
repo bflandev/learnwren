@@ -32,6 +32,12 @@ export function readCoverConfigFromEnv(
     : (env['LEARNWREN_COVER_PUBLIC_BASE_URL'] ?? `https://storage.googleapis.com/${bucket}`);
 
   const raw = env['LEARNWREN_COVER_STORAGE'];
-  const impl: CoverStorageImpl = raw === 'firebase' ? 'firebase' : 'fake';
+  // Mirror video.config.ts: production defaults to the real adapter and
+  // rejects an explicit fake; dev/test default to the credential-free fake.
+  const impl: CoverStorageImpl =
+    raw === 'firebase' || raw === 'fake' ? raw : isProduction ? 'firebase' : 'fake';
+  if (impl === 'fake' && isProduction) {
+    throw new Error('LEARNWREN_COVER_STORAGE=fake is rejected when NODE_ENV=production.');
+  }
   return { bucket, publicBaseUrl, impl };
 }

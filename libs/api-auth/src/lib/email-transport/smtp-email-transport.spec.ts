@@ -32,11 +32,23 @@ describe('SmtpEmailTransport', () => {
     vi.restoreAllMocks();
   });
 
-  it('passes host/port/auth into nodemailer createTransport', () => {
-    new SmtpEmailTransport(baseConfig);
+  it('creates a STARTTLS transport (secure:false, requireTLS:true) for port 587', () => {
+    new SmtpEmailTransport(baseConfig); // baseConfig.port === 587
     expect(mocks.createTransport).toHaveBeenCalledWith({
       host: baseConfig.host,
-      port: baseConfig.port,
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      auth: { user: baseConfig.user, pass: baseConfig.password },
+    });
+  });
+
+  it('creates an implicit-TLS transport (secure:true) for port 465', () => {
+    new SmtpEmailTransport({ ...baseConfig, port: 465 });
+    expect(mocks.createTransport).toHaveBeenCalledWith({
+      host: baseConfig.host,
+      port: 465,
+      secure: true,
       auth: { user: baseConfig.user, pass: baseConfig.password },
     });
   });

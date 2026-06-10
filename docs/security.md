@@ -81,9 +81,9 @@ A "CORS error on the video player page" was reported and investigated. **It was 
 - **The reported error was a dev-only artifact.** In local **fake playback-storage mode** the player's HLS segment URLs are stubs (`gs-stub://…`). The browser blocks any request whose scheme isn't http/https/data/etc. and *phrases that scheme rejection as a "blocked by CORS policy" error*. It was hls.js failing to fetch fake segments — not a real cross-origin request. Fixed by skipping hls.js in fake mode and showing a dev placeholder (merge `947d074`); production is unaffected.
 - **One genuine cross-origin path, now anonymous (EP-03, code-resolved):** in production, HLS **video segments** are real `https://storage.googleapis.com` signed URLs (cross-origin). These are fetched **anonymously**: the `<video>` element uses `crossorigin="anonymous"` (`libs/web-video/src/lib/player/video-player.component.html:6`) and hls.js scopes `xhr.withCredentials = true` to **same-origin `/api` requests only** — the manifest and DRM-key endpoints — via the `xhrSetup` callback that gates on `isSameOrigin(url)` (`libs/web-video/src/lib/player/video-player.service.ts:56–66`). Segment fetches therefore carry no cookie; the signed URL in the segment URL is the authorization. **Consequence: the output bucket needs only *simple* CORS** (a specific-origin or wildcard `Access-Control-Allow-Origin`); credentialed CORS is explicitly **not** needed and **must not** be configured (credentialed CORS forbids `*` and would only matter for cookie-bearing fetches, which no longer occur). The one remaining deploy-time step is in the open item below.
 - **Other storage origins — out of CORS scope.** Only the **video output bucket** serves cross-origin browser *fetches* (the hls.js segment XHRs above). The other Cloud Storage flows are not CORS-governed:
-  - **Materials** are delivered as signed object URLs that the browser opens via a top-level navigation — `window.open(downloadUrl, '_blank', 'noopener')` on the learn page (`libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:293`) and an `<a download>` click in the authoring UI (`libs/web-courses/src/lib/materials/materials-list.component.ts`). The same-origin `GET /api/materials/:matId/download-url` that *mints* the signed URL is an XHR to the app's own API, not to GCS. Navigations are not subject to CORS, so the materials bucket needs no CORS policy.
+  - **Materials downloads** are signed object URLs opened via top-level navigation — `window.open(downloadUrl, '_blank', 'noopener')` on the learn page (`libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:293`) and an `<a download>` click in the authoring UI. Navigations are not subject to CORS. **Materials *uploads*, however, ARE cross-origin XHR PUTs** with a `Content-Type` header to v4 signed URLs (`libs/web-courses/src/lib/materials/material-upload.service.ts`) — always preflighted, answered from bucket CORS. *(Corrected 2026-06-10: the 2026-05-31 audit analyzed only downloads.)* The materials bucket therefore carries a PUT/OPTIONS CORS policy (`tools/deploy/gcs-cors-materials.json`); the video **source** bucket carries a defensive PUT policy too (`gcs-cors-source.json` — resumable-session `origin` behavior is under-documented).
   - **Cover images and profile pictures** are public object URLs (`https://storage.googleapis.com/<bucket>/…`, see `cover.config.ts` / `picture.config.ts`) rendered in plain `<img>` elements with **no `crossorigin` attribute** (`libs/web-ui/src/lib/avatar/lw-avatar.component.ts`, cover preview). A no-`crossorigin` `<img>` load is not a CORS request — the browser displays it without any `Access-Control-Allow-Origin` check (the app never reads their pixels back through a canvas). So the cover and picture buckets need no CORS policy either.
-  - Net: `tools/deploy/gcs-cors.json` targets **only** `$LEARNWREN_VIDEO_OUTPUT_BUCKET`.
+  - Net: three buckets carry CORS policies — `$LEARNWREN_VIDEO_OUTPUT_BUCKET` (`tools/deploy/gcs-cors.json`, segment GETs), `$LEARNWREN_MATERIALS_BUCKET` (`gcs-cors-materials.json`, upload PUTs), `$LEARNWREN_VIDEO_SOURCE_BUCKET` (`gcs-cors-source.json`, resumable upload PUTs). Cover/picture buckets need none.
 
 ## Hosting security headers — deployed (CRYPTO-1, 2026-06-10)
 
@@ -155,23 +155,22 @@ emulator (`pnpm smoke` ports) after applying the headers. Result:
 - ~~A basic **OWASP Top 10** review before initial deployment (US-09-02).~~ (Security
   headers shipped 2026-06-10; remaining OWASP items tracked below.)
 - Reconcile the 24h session-token requirement (caveat 2 above).
-- **Production HLS segment CORS — one deploy-time step remains.** The code side is done (segments are anonymous; see CORS posture above), so only the bucket needs configuring at first deploy:
-  1. Apply the simple-CORS policy to the video output bucket:
+- **Production bucket CORS — one deploy-time step remains.** The code side is done (segments anonymous, materials/source uploads CORS-answered; see CORS posture above). All three CORS policies are applied by `tools/deploy/provision-buckets.sh` at first provisioning:
+  1. Apply all CORS policies (and all other bucket provisioning): `tools/deploy/provision-buckets.sh`
 
-     ```sh
-     gcloud storage buckets update gs://$LEARNWREN_VIDEO_OUTPUT_BUCKET \
-       --cors-file=tools/deploy/gcs-cors.json
-     ```
-
-  2. Verify it with a real **signed segment URL** pasted from an actual playback manifest (no gcloud needed; pure HTTP, anonymous requests):
+  2. Verify the video output bucket with a real **signed segment URL** pasted from an actual playback manifest:
 
      ```sh
      node tools/deploy/verify-gcs-cors.mjs '<signed-segment-url>'
-     # or, before any object exists, against the bucket itself:
-     node tools/deploy/verify-gcs-cors.mjs "$LEARNWREN_VIDEO_OUTPUT_BUCKET"
      ```
 
-     It asserts the GET ACAO echo and the OPTIONS preflight (GET + `Range`) and exits non-zero with the apply command if CORS is missing.
+     Verify the materials bucket upload path:
+
+     ```sh
+     node tools/deploy/verify-gcs-cors.mjs "$LEARNWREN_MATERIALS_BUCKET" --preflight-put
+     ```
+
+     Each verifier asserts the correct ACAO echo / OPTIONS handling and exits non-zero with the apply command if CORS is missing.
   3. Watch one real cross-origin playback end to end.
 
-  When a custom domain is added, append its origin(s) to the `origin` array in `tools/deploy/gcs-cors.json` and re-apply (step 1). The default policy lists only the Firebase Hosting origins `https://learn-wren.web.app` and `https://learn-wren.firebaseapp.com` (from `.firebaserc` production project `learn-wren`).
+  The policy files (`tools/deploy/gcs-cors.json`, `gcs-cors-materials.json`, `gcs-cors-source.json`) already include `https://learnwren.com` and `https://www.learnwren.com` in their `origin` arrays — no re-apply needed when the custom domain goes live.

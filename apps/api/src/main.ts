@@ -108,8 +108,12 @@ if (isFunctionsRuntime) {
   }
 
   // Export the Cloud Function named 'api'. Firebase Hosting rewrites /api/**
-  // to this function. Region + maxInstances provide a cost guard on first
-  // deploy; memory/timeout use v2 defaults (256 MiB / 60 s).
+  // to this function. Region + maxInstances provide a cost guard. memory is
+  // raised from the 256 MiB v2 default — a NestJS monolith bundling
+  // firebase-admin, sharp, nodemailer and ffprobe at the default concurrency
+  // (80) is undersized at 256 MiB. SMTP_PASS binds from Cloud Secret Manager
+  // (`firebase functions:secrets:set SMTP_PASS`) and surfaces as
+  // process.env.SMTP_PASS at runtime; rotation requires a redeploy.
   //
   // Use module.exports (not exports) — webpack bundles the entry in an IIFE
   // where `exports` is the closure-local object, not the Node.js module.exports.
@@ -118,6 +122,8 @@ if (isFunctionsRuntime) {
     {
       region: 'us-central1',
       maxInstances: 10,
+      memory: '512MiB',
+      secrets: ['SMTP_PASS'],
     },
     async (req, res) => {
       await ensureNestInitialized();

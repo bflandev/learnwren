@@ -18,6 +18,12 @@ pnpm secrets:render
 
 Re-run after rotating a secret or adding a new entry to `.env.tpl`.
 
+Render the production deploy env (`.env.learn-wren`, consumed by `pnpm deploy:prod`):
+
+```bash
+pnpm secrets:render:deploy
+```
+
 Run a one-off command with secrets injected at the process boundary (never written to disk):
 
 ```bash
@@ -28,14 +34,15 @@ pnpm secrets:run -- <command>
 
 ## Vault contract
 
-Vault: `learnwren`. The table below mirrors `.env.tpl` — when you add a new
-`op://...` reference there, add the matching row here.
+Vault: `learnwren`. The table below mirrors `.env.tpl` and `.env.deploy.tpl` —
+when you add a new `op://...` reference to either template, add the matching
+row here.
 
 | Item | Field | Env var rendered | Purpose | Required when |
 |---|---|---|---|---|
 | `Workspace` | `name` | `WORKSPACE_NAME` | Canary; non-secret value `learnwren-dev` proves the pipeline works | render-time sanity check |
 | `Admin SDK Config` | `projectId` | `LEARNWREN_API_FIREBASE_PROJECT_ID` | Real Firebase project ID for the Admin SDK | `LEARNWREN_FIREBASE_TARGET=production` |
-| `Web SDK Config` | `apiKey` | `FIREBASE_WEB_API_KEY` | Firebase Web API key used server-side by `FirebaseAuthRestClient` to verify passwords via the Identity Toolkit REST API (the web bundle has no Firebase client SDK) | `LEARNWREN_FIREBASE_TARGET=production` |
+| `Web SDK Config` | `apiKey` | `LEARNWREN_FIREBASE_WEB_API_KEY` | Firebase Web API key used server-side by `FirebaseAuthRestClient` to verify passwords via the Identity Toolkit REST API (the web bundle has no Firebase client SDK) | `LEARNWREN_FIREBASE_TARGET=production` |
 | `dev` | `LEARNWREN_VIDEO_SOURCE_BUCKET` | same | Cloud Storage bucket for raw instructor uploads | `NODE_ENV=production` |
 | `dev` | `LEARNWREN_VIDEO_OUTPUT_BUCKET` | same | Cloud Storage bucket for transcoded HLS output | `NODE_ENV=production` |
 | `dev` | `LEARNWREN_MATERIALS_BUCKET` | same | Cloud Storage bucket for lesson materials | `NODE_ENV=production` |
@@ -43,17 +50,23 @@ Vault: `learnwren`. The table below mirrors `.env.tpl` — when you add a new
 | `dev` | `LEARNWREN_TRANSCODER_TOPIC` | same | Pub/Sub topic for Transcoder job events | `LEARNWREN_VIDEO_TRANSCODER=gcp` |
 | `dev` | `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` | same | Expected audience on the Pub/Sub push token | `LEARNWREN_VIDEO_TRANSCODER=gcp` |
 | `dev` | `LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL` | same | Service account allowed to push transcoder events | `LEARNWREN_VIDEO_TRANSCODER=gcp` |
+| `prod` | `SMTP_USER` | same | SES SMTP access key id (us-east-1; the SMTP password lives in Cloud Secret Manager, NOT in the vault/env) | production deploys |
+| `prod` | `LEARNWREN_PUBLIC_URL` | same | Public origin: pins video-upload session origins + email links. Phased web.app → learnwren.com (see deployment.md) | production deploys |
+| `prod` | `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` | same | Exact push-endpoint URL (`<serviceConfig.uri>/api/internal/transcoder-events`) — printed by `tools/deploy/provision-pubsub.sh` | production deploys |
 
 Outside production the video and materials stacks default to their
 credential-free `fake` modes — none of the `dev/*` items are required for
 `pnpm start` against the emulators.
 
+The production deploy template is `.env.deploy.tpl` → rendered to `.env.learn-wren` (gitignored). Non-secret production values (bucket names, origins, project IDs) are committed literals in the template; only genuinely secret/varying values go through `op://` references.
+
 ## Adding a secret
 
 1. Create the secret in the `learnwren` vault under a clearly-named item.
-2. Add a line to `.env.tpl` of the form `MY_VAR=op://learnwren/Item/field`.
+2. Add a line to `.env.tpl` (dev) or `.env.deploy.tpl` (production deploy) of the
+   form `MY_VAR=op://learnwren/Item/field`.
 3. Append a row to the vault contract table above describing what the secret is and which spec needs it.
-4. Commit `.env.tpl` and this file (`docs/secrets.md`). **Never** commit `.env`.
+4. Commit `.env.tpl`, `.env.deploy.tpl`, and this file (`docs/secrets.md`). **Never** commit `.env` or `.env.learn-wren`.
 
 ## Troubleshooting
 
