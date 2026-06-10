@@ -233,4 +233,225 @@ describe('AdminUsersPageComponent', () => {
     expect(fixture.componentInstance.loading()).toBe(false);
     expect(fixture.componentInstance.users()[0]?.id).toBe('new-u1');
   });
+
+  // ─── Signal initial values (kill BooleanLiteral on signal(true/false)) ───────
+
+  it('loading is true before the initial list resolves', () => {
+    // Stryker BooleanLiteral on loading = signal(true): if it becomes signal(false)
+    // the template shows the content before data arrives.
+    let resolveList!: (v: unknown) => void;
+    svc.list = vi.fn(() => new Promise((r) => { resolveList = r; }));
+    TestBed.configureTestingModule({
+      imports: [AdminUsersPageComponent],
+      providers: [provideRouter([]), { provide: AdminUsersService, useValue: svc }],
+    });
+    const fixture = TestBed.createComponent(AdminUsersPageComponent);
+    fixture.detectChanges();
+    // loading must start true so the spinner renders.
+    expect(fixture.componentInstance.loading()).toBe(true);
+    // Clean up
+    resolveList({ users: [], total: 0, page: 1, pageSize: 20, capped: false });
+  });
+
+  it('error is false and users is empty before any load runs', () => {
+    // BooleanLiteral on error = signal(false): if it starts true the error state
+    // renders before any real failure. ArrayDeclaration on users = signal([]).
+    let resolveList!: (v: unknown) => void;
+    svc.list = vi.fn(() => new Promise((r) => { resolveList = r; }));
+    TestBed.configureTestingModule({
+      imports: [AdminUsersPageComponent],
+      providers: [provideRouter([]), { provide: AdminUsersService, useValue: svc }],
+    });
+    const fixture = TestBed.createComponent(AdminUsersPageComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.error()).toBe(false);
+    expect(fixture.componentInstance.users()).toEqual([]);
+    resolveList({ users: [], total: 0, page: 1, pageSize: 20, capped: false });
+  });
+
+  it('search starts empty and capped starts false', () => {
+    // BooleanLiteral on capped = signal(false) and the search initial string.
+    let resolveList!: (v: unknown) => void;
+    svc.list = vi.fn(() => new Promise((r) => { resolveList = r; }));
+    TestBed.configureTestingModule({
+      imports: [AdminUsersPageComponent],
+      providers: [provideRouter([]), { provide: AdminUsersService, useValue: svc }],
+    });
+    const fixture = TestBed.createComponent(AdminUsersPageComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.search()).toBe('');
+    expect(fixture.componentInstance.capped()).toBe(false);
+    resolveList({ users: [], total: 0, page: 1, pageSize: 20, capped: false });
+  });
+
+  // ─── ngOnDestroy / searchTimer cleanup (kill BlockStatement) ─────────────────
+
+  it('ngOnDestroy clears a pending search timer so a debounced reload never fires after destroy', async () => {
+    vi.useFakeTimers();
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    svc.list.mockClear();
+
+    // Start a debounced search — the timer is now pending.
+    comp.onSearchInput('query');
+
+    // Destroy the component before the 300 ms elapses.
+    fixture.destroy();
+
+    // Advance past the debounce — if ngOnDestroy didn't clear, svc.list would fire.
+    await vi.advanceTimersByTimeAsync(400);
+    expect(svc.list).not.toHaveBeenCalled();
+  });
+
+  // ─── canPrev / canNext (kill ConditionalExpression / EqualityOperator) ────────
+
+  it('canPrev returns false on page 1 and true on page 2', async () => {
+    svc.list = vi.fn(async () => ({ users: [user('u1')], total: 45, page: 1, pageSize: 20, capped: false }));
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    // page starts at 1 after load; canPrev must be false.
+    expect(comp.canPrev()).toBe(false);
+    // Move to page 2; canPrev must be true.
+    await comp.goToPage(2);
+    expect(comp.canPrev()).toBe(true);
+  });
+
+  it('canNext returns false on the last page and true on earlier pages', async () => {
+    svc.list = vi.fn(async () => ({ users: [user('u1')], total: 45, page: 1, pageSize: 20, capped: false }));
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    // totalPages = 3; page = 1 → canNext true
+    expect(comp.canNext()).toBe(true);
+    // Move to last page (3); canNext must be false.
+    await comp.goToPage(3);
+    expect(comp.canNext()).toBe(false);
+  });
+
+  // ─── goToPage boundary guards (kill ConditionalExpression/EqualityOperator) ───
+
+  it('goToPage with page = 0 (below minimum) does not reload', async () => {
+    // Kills: ConditionalExpression/EqualityOperator on `page < 1` guard (L67).
+    const fixture = await setup();
+    svc.list.mockClear();
+    await fixture.componentInstance.goToPage(0);
+    expect(svc.list).not.toHaveBeenCalled();
+  });
+
+  it('goToPage with page exactly equal to totalPages does reload', async () => {
+    // Kills: EqualityOperator changing `>` to `>=` would block the last page.
+    svc.list = vi.fn(async () => ({ users: [user('u1')], total: 45, page: 1, pageSize: 20, capped: false }));
+    const fixture = await setup();
+    svc.list.mockClear();
+    // totalPages = 3; going to page 3 is valid.
+    await fixture.componentInstance.goToPage(3);
+    expect(svc.list).toHaveBeenCalledWith('', 3, 20);
+  });
+
+  it('goToPage with page exactly at totalPages + 1 does not reload', async () => {
+    // Kills: the upper-bound guard `page > totalPages()` (L67 EqualityOperator).
+    svc.list = vi.fn(async () => ({ users: [user('u1')], total: 45, page: 1, pageSize: 20, capped: false }));
+    const fixture = await setup();
+    svc.list.mockClear();
+    // totalPages = 3; page 4 is out of range.
+    await fixture.componentInstance.goToPage(4);
+    expect(svc.list).not.toHaveBeenCalled();
+  });
+
+  // ─── onSearchInput — existing timer cleared before a new one is set ───────────
+
+  it('typing a second character cancels the first timer and issues only one reload', async () => {
+    // Kills ConditionalExpression on `if (this.searchTimer)` (L59).
+    vi.useFakeTimers();
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    svc.list.mockClear();
+
+    comp.onSearchInput('a');
+    // Before the debounce fires, type another character.
+    await vi.advanceTimersByTimeAsync(100);
+    comp.onSearchInput('ab');
+    // Now advance past the full debounce from the SECOND character.
+    await vi.advanceTimersByTimeAsync(300);
+    // Only one reload should have been issued (for 'ab').
+    expect(svc.list).toHaveBeenCalledTimes(1);
+    expect(svc.list).toHaveBeenCalledWith('ab', 1, 20);
+  });
+
+  // ─── UpdateOperator: ++this.loadToken (kill post- vs pre-increment) ───────────
+
+  it('reload increments loadToken before the async call so each call gets a unique token', async () => {
+    // Pre-increment (++this.loadToken) assigns 1 to the first call's token.
+    // Post-increment (this.loadToken++) would assign 0 (the pre-call value).
+    // A second concurrent call must supersede the first — they need distinct tokens.
+    let resolveFirst!: (v: unknown) => void;
+    let resolveSecond!: (v: unknown) => void;
+    let callCount = 0;
+    svc.list = vi.fn(() => {
+      callCount += 1;
+      return callCount === 1
+        ? new Promise((r) => { resolveFirst = r; })
+        : new Promise((r) => { resolveSecond = r; });
+    });
+
+    TestBed.configureTestingModule({
+      imports: [AdminUsersPageComponent],
+      providers: [provideRouter([]), { provide: AdminUsersService, useValue: svc }],
+    });
+    const fixture = TestBed.createComponent(AdminUsersPageComponent);
+    fixture.detectChanges(); // first reload in flight (token 1)
+
+    void fixture.componentInstance.retry(); // second reload in flight (token 2)
+
+    // Resolve the SECOND (newest) first.
+    resolveSecond({ users: [user('current')], total: 1, page: 1, pageSize: 20, capped: false });
+    await fixture.whenStable();
+
+    // Resolve the FIRST (stale) last — must be discarded.
+    resolveFirst({ users: [user('stale')], total: 99, page: 1, pageSize: 20, capped: false });
+    await fixture.whenStable();
+
+    // If post-increment were used (both calls see token 0 and 0) neither would
+    // detect the other as stale, so the stale result could overwrite the current.
+    expect(fixture.componentInstance.users()[0]?.id).toBe('current');
+    expect(fixture.componentInstance.total()).toBe(1);
+  });
+
+  // ─── Stale error response must be discarded (kill ConditionalExpression L88) ──
+
+  it('an error from a stale (superseded) reload does not set the error flag', async () => {
+    // The catch branch has its own `if (token !== this.loadToken) return` guard.
+    // A mutant that removes it would let the stale error overwrite a successful newer result.
+    let rejectFirst!: (e: unknown) => void;
+    let resolveSecond!: (v: unknown) => void;
+    let callCount = 0;
+
+    svc.list = vi.fn(() => {
+      callCount += 1;
+      return callCount === 1
+        ? new Promise<unknown>((_, reject) => { rejectFirst = reject; })
+        : new Promise<unknown>((resolve) => { resolveSecond = resolve; });
+    });
+
+    TestBed.configureTestingModule({
+      imports: [AdminUsersPageComponent],
+      providers: [provideRouter([]), { provide: AdminUsersService, useValue: svc }],
+    });
+    const fixture = TestBed.createComponent(AdminUsersPageComponent);
+    fixture.detectChanges(); // 1st reload (stale) in flight
+
+    void fixture.componentInstance.retry(); // 2nd reload (current) in flight
+
+    // Current (second) resolves successfully first.
+    resolveSecond({ users: [user('ok')], total: 1, page: 1, pageSize: 20, capped: false });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Stale (first) rejects last — error flag must NOT flip.
+    rejectFirst(new Error('stale network error'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.error()).toBe(false);
+    expect(fixture.componentInstance.users()[0]?.id).toBe('ok');
+  });
 });
