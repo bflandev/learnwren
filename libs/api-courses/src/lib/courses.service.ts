@@ -106,6 +106,16 @@ export class CoursesService {
   }
 
   /**
+   * Cascade video + materials deletion for a single lesson.  Shared by
+   * deleteLesson, deleteModule, and deleteCourse — all three call the same
+   * idempotent pair in the same order.
+   */
+  private async deleteLessonCascade(lid: LessonId): Promise<void> {
+    await this.videoSvc.deleteForLesson(lid);
+    await this.materialsSvc.deleteForLesson(lid);
+  }
+
+  /**
    * Full cascade delete for a course. Children are destroyed first; the course
    * doc (the retry gate) is removed last so a failed mid-cascade request can be
    * retried safely — all steps are idempotent.
@@ -122,8 +132,7 @@ export class CoursesService {
     for (const mod of modules) {
       const lessons = await this.repo.listLessonsByModule(cid, mod.id);
       for (const lesson of lessons) {
-        await this.videoSvc.deleteForLesson(lesson.id);
-        await this.materialsSvc.deleteForLesson(lesson.id);
+        await this.deleteLessonCascade(lesson.id);
       }
     }
 
@@ -162,9 +171,26 @@ export class CoursesService {
     await this.repo.updateModule(cid, mid, patch);
   }
 
+  /**
+   * Cascade delete for a module.  Lessons' videos + materials are destroyed
+   * first; the module doc (the retry gate) is removed last so a failed
+   * mid-cascade request can be retried safely — all steps are idempotent.
+   *
+   * Order:
+   *   1. Video + materials cascade for every lesson in the module.
+   *   2. repo.deleteModuleRecursive — lesson docs + module doc in Firestore.
+   */
   async deleteModule(cid: CourseId, mid: ModuleId): Promise<void> {
     const existing = await this.repo.getModule(cid, mid);
     if (!existing) throw new ModuleNotFoundException();
+
+    // Step 1: enumerate lessons in this module, then cascade per lesson.
+    const lessons = await this.repo.listLessonsByModule(cid, mid);
+    for (const lesson of lessons) {
+      await this.deleteLessonCascade(lesson.id);
+    }
+
+    // Step 2: recursive Firestore delete — lesson docs + module doc.
     await this.repo.deleteModuleRecursive(cid, mid);
   }
 
@@ -213,8 +239,7 @@ export class CoursesService {
   async deleteLesson(cid: CourseId, mid: ModuleId, lid: LessonId): Promise<void> {
     const existing = await this.repo.getLesson(cid, mid, lid);
     if (!existing) throw new LessonNotFoundException();
-    await this.videoSvc.deleteForLesson(lid);
-    await this.materialsSvc.deleteForLesson(lid);
+    await this.deleteLessonCascade(lid);
     await this.repo.deleteLesson(cid, mid, lid);
   }
 

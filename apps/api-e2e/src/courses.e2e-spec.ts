@@ -230,6 +230,128 @@ test('validation: missing title returns 400 VALIDATION_FAILED', async ({ request
 });
 
 /**
+ * Module-delete cascade:
+ *   course with TWO modules — module A (lesson with a READY video + material),
+ *   module B (plain lesson); DELETE module A → 204; assert video and material
+ *   are gone, module A's lessons are absent from the tree, course itself still
+ *   200, and module B + its lesson are untouched.
+ */
+test('module delete cascades: video and material removed; sibling module untouched', async ({
+  request,
+}) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const iHdr = { Cookie: instructor.cookieHeader };
+
+  // 1. Create course → two modules.
+  const courseRes = await request.post(`${API_BASE}/courses`, {
+    headers: iHdr,
+    data: { title: 'Module Cascade Course', description: 'module cascade test' },
+  });
+  expect(courseRes.status()).toBe(201);
+  const course = (await courseRes.json()) as { id: string };
+
+  const modARes = await request.post(`${API_BASE}/courses/${course.id}/modules`, {
+    headers: iHdr,
+    data: { title: 'Module A' },
+  });
+  const modA = (await modARes.json()) as { id: string };
+
+  const modBRes = await request.post(`${API_BASE}/courses/${course.id}/modules`, {
+    headers: iHdr,
+    data: { title: 'Module B' },
+  });
+  const modB = (await modBRes.json()) as { id: string };
+
+  // 2. Module A: lesson with video + material.
+  const lessonARes = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${modA.id}/lessons`,
+    { headers: iHdr, data: { title: 'Lesson A1' } },
+  );
+  const lessonA = (await lessonARes.json()) as { id: string };
+
+  // Upload video → READY via fake transcoder.
+  const sessRes = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${modA.id}/lessons/${lessonA.id}/video/upload-session`,
+    { headers: iHdr, data: { sizeBytes: FIXTURE_BYTES.length, contentType: 'video/mp4' } },
+  );
+  expect(sessRes.status()).toBe(201);
+  const { videoId, uploadSessionUri } = (await sessRes.json()) as {
+    videoId: string;
+    uploadSessionUri: string;
+  };
+  await request.put(uploadSessionUri, {
+    headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
+    data: FIXTURE_BYTES,
+  });
+  await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: iHdr });
+  await request.post(`${API_BASE}/internal/fake-transcoder/complete/${videoId}`, {
+    headers: iHdr,
+  });
+  const videoGet = await request.get(`${API_BASE}/videos/${videoId}`, { headers: iHdr });
+  expect(((await videoGet.json()) as { state: string }).state).toBe('READY');
+
+  // Attach a material.
+  const matCreated = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${modA.id}/lessons/${lessonA.id}/materials/upload-url`,
+    { headers: iHdr, data: { filename: 'notes.pdf', sizeBytes: PDF_BYTES.length } },
+  );
+  expect(matCreated.status()).toBe(201);
+  const { materialId, uploadUrl } = (await matCreated.json()) as {
+    materialId: string;
+    uploadUrl: string;
+  };
+  await request.put(absolute(uploadUrl), {
+    headers: { ...iHdr, 'Content-Type': 'application/pdf' },
+    data: PDF_BYTES,
+  });
+  const matComplete = await request.post(`${API_BASE}/materials/${materialId}/complete`, {
+    headers: iHdr,
+  });
+  expect(((await matComplete.json()) as { state: string }).state).toBe('READY');
+
+  // 3. Module B: plain lesson (no video or material).
+  const lessonBRes = await request.post(
+    `${API_BASE}/courses/${course.id}/modules/${modB.id}/lessons`,
+    { headers: iHdr, data: { title: 'Lesson B1' } },
+  );
+  const lessonB = (await lessonBRes.json()) as { id: string };
+
+  // 4. DELETE module A → 204.
+  const del = await request.delete(`${API_BASE}/courses/${course.id}/modules/${modA.id}`, {
+    headers: iHdr,
+  });
+  expect(del.status()).toBe(204);
+
+  // ── Assertions ──────────────────────────────────────────────────────────────
+
+  // Video doc is gone.
+  const afterVideo = await request.get(`${API_BASE}/videos/${videoId}`, { headers: iHdr });
+  expect(afterVideo.status()).toBe(404);
+
+  // Material doc is gone — MaterialOwnerGuard 404s when the doc no longer exists.
+  const afterMaterial = await request.get(`${API_BASE}/materials/${materialId}/download-url`, {
+    headers: iHdr,
+  });
+  expect(afterMaterial.status()).toBe(404);
+
+  // Course itself is still present.
+  const afterCourse = await request.get(`${API_BASE}/courses/${course.id}`, { headers: iHdr });
+  expect(afterCourse.status()).toBe(200);
+
+  // Tree no longer contains module A or its lessons.
+  const tree = (await afterCourse.json()) as {
+    modules: { module: { id: string }; lessons: { id: string }[] }[];
+  };
+  const moduleIds = tree.modules.map((m) => m.module.id);
+  expect(moduleIds).not.toContain(modA.id);
+
+  // Module B and its lesson are untouched.
+  expect(moduleIds).toContain(modB.id);
+  const modBEntry = tree.modules.find((m) => m.module.id === modB.id);
+  expect(modBEntry?.lessons.map((l) => l.id)).toContain(lessonB.id);
+});
+
+/**
  * Full course-delete cascade:
  *   instructor → course + module + lesson + READY video + material + cover
  *   student enrolls; DELETE course → 204; then assert every artefact is gone.

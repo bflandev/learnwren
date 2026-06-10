@@ -431,15 +431,31 @@ describe('CoursesService — module operations', () => {
   });
 
   describe('deleteModule', () => {
-    it('checks existence then recursive-deletes', async () => {
-      repo.getModule.mockResolvedValue({
-        id: 'mid-1' as ModuleId,
+    function makeModuleDoc(id = 'mid-1'): Module {
+      return {
+        id: id as ModuleId,
         courseId: CID,
         title: 'M',
         order: 0,
         createdAt: FIXED_DATE,
         updatedAt: FIXED_DATE,
-      });
+      };
+    }
+
+    function makeLesson(id: string, mid = 'mid-1'): Lesson {
+      return {
+        id: id as LessonId,
+        moduleId: mid as ModuleId,
+        title: id,
+        order: 0,
+        createdAt: FIXED_DATE,
+        updatedAt: FIXED_DATE,
+      };
+    }
+
+    it('checks existence then recursive-deletes (module with no lessons)', async () => {
+      repo.getModule.mockResolvedValue(makeModuleDoc());
+      repo.listLessonsByModule.mockResolvedValue([]);
       await service.deleteModule(CID, 'mid-1' as ModuleId);
       expect(repo.deleteModuleRecursive).toHaveBeenCalledWith(CID, 'mid-1');
     });
@@ -451,6 +467,94 @@ describe('CoursesService — module operations', () => {
         ModuleNotFoundException,
       );
       expect(repo.deleteModuleRecursive).not.toHaveBeenCalled();
+    });
+
+    // ─── cascade tests ──────────────────────────────────────────────────────
+
+    function buildCascadeService() {
+      const videoSvc = buildVideoSvcFake();
+      const materialsSvc = buildMaterialsSvcFake();
+      const fullRepo = buildRepoFake();
+
+      // 2 lessons in the module
+      const lessons: Lesson[] = [makeLesson('lid-a'), makeLesson('lid-b')];
+      fullRepo.getModule.mockResolvedValue(makeModuleDoc());
+      fullRepo.listLessonsByModule.mockResolvedValue(lessons);
+      fullRepo.deleteModuleRecursive.mockResolvedValue(undefined);
+
+      const svc = new CoursesService(
+        fullRepo as unknown as CoursesRepository,
+        videoSvc as never,
+        materialsSvc as never,
+        buildCoverSvcFake() as never,
+        buildEnrollmentRepoFake() as never,
+      );
+      return { svc, videoSvc, materialsSvc, fullRepo };
+    }
+
+    it('calls deleteForLesson on BOTH video and materials services for ALL lessons in the module', async () => {
+      const { svc, videoSvc, materialsSvc } = buildCascadeService();
+      await svc.deleteModule(CID, 'mid-1' as ModuleId);
+
+      for (const lid of ['lid-a', 'lid-b']) {
+        expect(videoSvc.deleteForLesson).toHaveBeenCalledWith(lid);
+        expect(materialsSvc.deleteForLesson).toHaveBeenCalledWith(lid);
+      }
+      expect(videoSvc.deleteForLesson).toHaveBeenCalledTimes(2);
+      expect(materialsSvc.deleteForLesson).toHaveBeenCalledTimes(2);
+    });
+
+    it('calls deleteModuleRecursive LAST — after all per-lesson cascade steps', async () => {
+      const { svc, videoSvc, materialsSvc, fullRepo } = buildCascadeService();
+      await svc.deleteModule(CID, 'mid-1' as ModuleId);
+
+      const deleteModuleCallOrder = fullRepo.deleteModuleRecursive.mock.invocationCallOrder[0] as number;
+      const lastVideoCallOrder = Math.max(
+        ...(videoSvc.deleteForLesson as unknown as { mock: { invocationCallOrder: number[] } })
+          .mock.invocationCallOrder,
+      );
+      const lastMaterialsCallOrder = Math.max(
+        ...(materialsSvc.deleteForLesson as unknown as { mock: { invocationCallOrder: number[] } })
+          .mock.invocationCallOrder,
+      );
+
+      expect(deleteModuleCallOrder).toBeGreaterThan(lastVideoCallOrder);
+      expect(deleteModuleCallOrder).toBeGreaterThan(lastMaterialsCallOrder);
+    });
+
+    it('does NOT call deleteModuleRecursive when videoSvc.deleteForLesson rejects (retryable)', async () => {
+      const { fullRepo, materialsSvc } = buildCascadeService();
+      const failingVideoSvc = { deleteForLesson: vi.fn().mockRejectedValue(new Error('storage down')) };
+      const svc = new CoursesService(
+        fullRepo as unknown as CoursesRepository,
+        failingVideoSvc as never,
+        materialsSvc as never,
+        buildCoverSvcFake() as never,
+        buildEnrollmentRepoFake() as never,
+      );
+
+      await expect(svc.deleteModule(CID, 'mid-1' as ModuleId)).rejects.toThrow('storage down');
+      expect(fullRepo.deleteModuleRecursive).not.toHaveBeenCalled();
+    });
+
+    it('missing module still 404s without any cascade calls', async () => {
+      const { fullRepo, videoSvc, materialsSvc } = buildCascadeService();
+      fullRepo.getModule.mockResolvedValue(null);
+      const svc = new CoursesService(
+        fullRepo as unknown as CoursesRepository,
+        videoSvc as never,
+        materialsSvc as never,
+        buildCoverSvcFake() as never,
+        buildEnrollmentRepoFake() as never,
+      );
+
+      const { ModuleNotFoundException } = await import('./errors/courses.exception');
+      await expect(svc.deleteModule(CID, 'nope' as ModuleId)).rejects.toBeInstanceOf(
+        ModuleNotFoundException,
+      );
+      expect(videoSvc.deleteForLesson).not.toHaveBeenCalled();
+      expect(materialsSvc.deleteForLesson).not.toHaveBeenCalled();
+      expect(fullRepo.deleteModuleRecursive).not.toHaveBeenCalled();
     });
   });
 
