@@ -180,4 +180,74 @@ describe('AdminInstructorApplicationsPageComponent', () => {
     await comp.approve('u1');
     expect(comp.rowError('u1')).toContain('Something went wrong');
   });
+
+  // ─── Signal initial values (kill BooleanLiteral L24/25, ArrayDeclaration L23) ─
+
+  it('applications is empty and loading is true before the list resolves, loadError is false', () => {
+    // BooleanLiteral L24 loading=signal(true): if mutant sets false, spinner never shows.
+    // BooleanLiteral L25 loadError=signal(false): if mutant sets true, error renders before failure.
+    // ArrayDeclaration L23 applications=signal([]): initial value must be empty.
+    let resolveList!: (v: unknown) => void;
+    svc.list = vi.fn(() => new Promise((r) => { resolveList = r; }));
+    TestBed.configureTestingModule({
+      imports: [AdminInstructorApplicationsPageComponent],
+      providers: [{ provide: AdminInstructorApplicationsService, useValue: svc }],
+    });
+    const fixture = TestBed.createComponent(AdminInstructorApplicationsPageComponent);
+    fixture.detectChanges();
+
+    const comp = fixture.componentInstance;
+    expect(comp.loading()).toBe(true);
+    expect(comp.loadError()).toBe(false);
+    expect(comp.applications()).toEqual([]);
+
+    resolveList({ applications: [] });
+  });
+
+  // ─── messageFor: OptionalChaining L83 (null error shape) ─────────────────────
+
+  it('messageFor falls back to generic copy when error has no error.error.code shape', async () => {
+    // OptionalChaining L83: `(err as ...).error?.error?.code` — three optional chains.
+    // Removing any one causes a crash when the error shape is missing.
+    svc.approve = vi.fn(async () => { throw new Error('bare network error'); });
+    const fixture = await setup();
+    await fixture.componentInstance.approve('u1');
+    expect(fixture.componentInstance.rowError('u1')).toContain('Something went wrong');
+  });
+
+  it('messageFor falls back to generic copy when error is null', async () => {
+    svc.approve = vi.fn(async () => { throw null; });
+    const fixture = await setup();
+    await fixture.componentInstance.approve('u1');
+    expect(fixture.componentInstance.rowError('u1')).toContain('Something went wrong');
+  });
+
+  // ─── clearError (kill BlockStatement L102 / ObjectLiteral L104) ───────────────
+
+  it('re-approving clears the previous per-row error before calling the service again', async () => {
+    // BlockStatement L102 empties clearError: the stale error would linger.
+    // ObjectLiteral L104: the `{ ...e }` spread — clearing error must produce a new object.
+    svc.approve = vi.fn(async () => {
+      throw { error: { error: { code: APPLICATION_NOT_PENDING } } };
+    });
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+
+    // First attempt — sets a row error.
+    await comp.approve('u1');
+    expect(comp.rowError('u1')).toBeTruthy();
+
+    // Set up a successful second attempt.
+    svc.approve = vi.fn(async () => ({ status: 'APPROVED' }));
+    // Before the second call resolves the row error must be cleared (clearError runs first).
+    let resolveApprove!: (v: unknown) => void;
+    svc.approve = vi.fn(() => new Promise((r) => { resolveApprove = r; }));
+    const p = comp.approve('u1');
+    // Error must be gone the moment the action starts (clearError ran synchronously before await).
+    expect(comp.rowError('u1')).toBeUndefined();
+    resolveApprove({ status: 'APPROVED' });
+    await p;
+    // Row is removed on success.
+    expect(comp.applications().some((a) => a.uid === 'u1')).toBe(false);
+  });
 });
