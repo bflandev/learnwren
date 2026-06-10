@@ -6,8 +6,8 @@
       "https://learn-wren.web.app",
       "https://learn-wren.firebaseapp.com"
     ],
-    "method": ["GET", "HEAD", "OPTIONS"],
-    "responseHeader": ["Content-Type", "Range"],
+    "method": ["PUT", "OPTIONS"],
+    "responseHeader": ["Content-Type"],
     "maxAgeSeconds": 3600
   }
 ]
