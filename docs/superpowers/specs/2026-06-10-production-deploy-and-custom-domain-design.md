@@ -135,7 +135,7 @@ Verified 2026-06-10 against current official docs and, where marked *(empirical)
 | `LEARNWREN_VIDEO_OUTPUT_BUCKET` | `learn-wren-video-output` |
 | `LEARNWREN_GCP_PROJECT_ID` | `learn-wren` |
 | `LEARNWREN_TRANSCODER_LOCATION` | `us-central1` |
-| `LEARNWREN_TRANSCODER_TOPIC` | `learn-wren-transcoder-events-prod` |
+| `LEARNWREN_TRANSCODER_TOPIC` | `projects/learn-wren/topics/learn-wren-transcoder-events-prod` — full resource path; the code passes it raw into `JobConfig.pubsubDestination` *(short-name bug caught in Task 5 review)* |
 | `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` | `<serviceConfig.uri>/api/internal/transcoder-events` (Phase C; provisional value at first deploy) |
 | `LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL` | `learn-wren-transcoder-invoker@learn-wren.iam.gserviceaccount.com` |
 | `LEARNWREN_MATERIALS_BUCKET` | `learn-wren-materials` |

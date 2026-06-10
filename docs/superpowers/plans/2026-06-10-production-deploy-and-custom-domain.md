@@ -532,7 +532,9 @@ LEARNWREN_VIDEO_SOURCE_BUCKET=learn-wren-video-source
 LEARNWREN_VIDEO_OUTPUT_BUCKET=learn-wren-video-output
 LEARNWREN_GCP_PROJECT_ID=learn-wren
 LEARNWREN_TRANSCODER_LOCATION=us-central1
-LEARNWREN_TRANSCODER_TOPIC=learn-wren-transcoder-events-prod
+# Full resource path — transcoder JobConfig.pubsubDestination requires
+# projects/{project}/topics/{name}, and the code passes this value raw.
+LEARNWREN_TRANSCODER_TOPIC=projects/learn-wren/topics/learn-wren-transcoder-events-prod
 LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE=op://learnwren/prod/LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE
 LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL=learn-wren-transcoder-invoker@learn-wren.iam.gserviceaccount.com
 
@@ -1125,7 +1127,7 @@ cat <<EOF
 Set these in the 1Password 'prod' vault item, re-render (pnpm secrets:render:deploy),
 and redeploy the function (pnpm deploy:preview). The audience must match
 LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE BYTE-FOR-BYTE (scheme/host/path).
-  LEARNWREN_TRANSCODER_TOPIC=${TOPIC}
+  LEARNWREN_TRANSCODER_TOPIC=projects/${PROJECT_ID}/topics/${TOPIC}
   LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE=${PUSH_ENDPOINT}
   LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL=${INVOKER_SA}
 EOF
