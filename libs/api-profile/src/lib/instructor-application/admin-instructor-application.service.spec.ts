@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { FieldValue } from 'firebase-admin/firestore';
 
 import { AdminInstructorApplicationService } from './admin-instructor-application.service';
 import {
+  AdminInstructorApplicationException,
   ApplicationNotFoundException,
   ApplicationNotPendingException,
   ApplicantNotVerifiedException,
@@ -170,9 +172,10 @@ describe('AdminInstructorApplicationService', () => {
   });
 
   // If promoteUserToInstructor fails after the transaction committed APPROVED,
-  // the service must revert the application status to PENDING so the admin can
-  // retry, then rethrow the original error.
-  it('approve: side-effect failure after transaction -> status reverted to PENDING and error propagates', async () => {
+  // the service must revert the application to a clean PENDING state (no stale
+  // resolvedAt) and surface a typed INTERNAL error the feature filter renders
+  // with the {error:{code}} envelope (a raw SDK error would escape @Catch).
+  it('approve: side-effect failure after transaction -> clean PENDING revert and typed INTERNAL error', async () => {
     const appUpdate = vi.fn(async () => undefined);
     docs['instructorApplications/u1'] = {
       get: vi.fn(async () => ({
@@ -186,10 +189,21 @@ describe('AdminInstructorApplicationService', () => {
       throw promotionError;
     });
 
-    await expect(svc.approve('u1' as never)).rejects.toThrow(promotionError);
+    const err: unknown = await svc.approve('u1' as never).then(
+      () => {
+        throw new Error('expected approve to reject');
+      },
+      (e: unknown) => e,
+    );
 
-    // The revert must write PENDING back so the admin can retry.
-    expect(appUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'PENDING' }));
+    expect(err).toBeInstanceOf(AdminInstructorApplicationException);
+    expect((err as AdminInstructorApplicationException).code).toBe('INTERNAL');
+    expect((err as AdminInstructorApplicationException).status).toBe(500);
+    expect((err as Error).cause).toBe(promotionError);
+
+    // The revert must restore a clean PENDING doc: status written back AND the
+    // resolvedAt stamp removed (not left as a stale resolution timestamp).
+    expect(appUpdate).toHaveBeenCalledWith({ status: 'PENDING', resolvedAt: FieldValue.delete() });
     // Email must NOT be sent (error happened before email step).
     expect(email.sendInstructorApplicationApprovedEmail).not.toHaveBeenCalled();
   });

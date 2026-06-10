@@ -66,4 +66,5 @@ export const APPLICANT_NOT_VERIFIED = 'APPLICANT_NOT_VERIFIED';
 export type AdminInstructorApplicationErrorCode =
   | typeof APPLICATION_NOT_FOUND
   | typeof APPLICATION_NOT_PENDING
-  | typeof APPLICANT_NOT_VERIFIED;
+  | typeof APPLICANT_NOT_VERIFIED
+  | 'INTERNAL';
