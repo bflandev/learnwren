@@ -191,6 +191,35 @@ export class EnrollmentRepository {
     });
   }
 
+  /**
+   * Delete all enrollment documents for the given course, regardless of status.
+   * Uses batched deletes (Firestore batch limit 500) to handle courses with large
+   * student lists. Progress and position data live on the enrollment docs and are
+   * therefore cleaned up automatically.
+   *
+   * Idempotent: if no enrollments exist the operation is a no-op.
+   */
+  async deleteAllForCourse(courseId: CourseId): Promise<void> {
+    const BATCH_SIZE = 500;
+    const snap = await this.db
+      .collection(ENROLLMENTS)
+      .where('courseId', '==', courseId)
+      .get();
+
+    if (snap.empty) return;
+
+    // Chunk into batches of BATCH_SIZE to stay within Firestore's 500-op limit.
+    const docs = snap.docs;
+    for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+      const batch = this.db.batch();
+      const chunk = docs.slice(i, i + BATCH_SIZE);
+      for (const doc of chunk) {
+        batch.delete(doc.ref);
+      }
+      await batch.commit();
+    }
+  }
+
   async touchLastAccessed(
     userId: UserId,
     courseId: CourseId,

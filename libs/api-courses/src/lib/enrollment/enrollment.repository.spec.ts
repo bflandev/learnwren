@@ -477,6 +477,81 @@ describe('EnrollmentRepository.listActiveByCourse', () => {
   });
 });
 
+describe('EnrollmentRepository.deleteAllForCourse', () => {
+  const NOW = '2026-01-01T00:00:00.000Z' as ISODateString;
+
+  function enrollment(userId: string, courseId: string, status: 'ACTIVE' | 'WITHDRAWN'): Enrollment {
+    const uid = userId as UserId;
+    const cid = courseId as CourseId;
+    const id = enrollmentId(uid, cid);
+    return {
+      id,
+      userId: uid,
+      courseId: cid,
+      status,
+      progress: [],
+      withdrawnAt: status === 'WITHDRAWN' ? NOW : null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+  }
+
+  it('deletes all enrollments (ACTIVE and WITHDRAWN) for the given course', async () => {
+    const e1 = enrollment('u1', 'course-1', 'ACTIVE');
+    const e2 = enrollment('u2', 'course-1', 'WITHDRAWN');
+    const e3 = enrollment('u3', 'course-2', 'ACTIVE'); // different course — must survive
+    const { repo, db } = repoWith({
+      [`enrollments/${e1.id}`]: e1,
+      [`enrollments/${e2.id}`]: e2,
+      [`enrollments/${e3.id}`]: e3,
+    });
+
+    await repo.deleteAllForCourse('course-1' as CourseId);
+
+    expect(db.__store.has(`enrollments/${e1.id}`)).toBe(false);
+    expect(db.__store.has(`enrollments/${e2.id}`)).toBe(false);
+    // Different course must NOT be deleted.
+    expect(db.__store.has(`enrollments/${e3.id}`)).toBe(true);
+  });
+
+  it('is a no-op when no enrollments exist for the course', async () => {
+    const { repo } = repoWith({});
+    await expect(repo.deleteAllForCourse('course-none' as CourseId)).resolves.toBeUndefined();
+  });
+
+  it('handles >500 docs across two batches (chunking boundary)', async () => {
+    // Seed 501 enrollments for the same course. Each needs a unique userId.
+    const seed: Record<string, unknown> = {};
+    for (let i = 0; i < 501; i++) {
+      const uid = `user-${i}` as UserId;
+      const cid = 'big-course' as CourseId;
+      const id = enrollmentId(uid, cid);
+      const e: Enrollment = {
+        id,
+        userId: uid,
+        courseId: cid,
+        status: 'ACTIVE',
+        progress: [],
+        withdrawnAt: null,
+        lastAccessedLessonId: null,
+        lastAccessedAt: null,
+        createdAt: NOW,
+        updatedAt: NOW,
+      };
+      seed[`enrollments/${id}`] = e;
+    }
+    const { repo, db } = repoWith(seed as Record<string, Record<string, unknown>>);
+
+    await repo.deleteAllForCourse('big-course' as CourseId);
+
+    // All 501 enrollment docs must be gone.
+    const surviving = [...db.__store.keys()].filter((k) => k.startsWith('enrollments/'));
+    expect(surviving).toHaveLength(0);
+  });
+});
+
 describe('EnrollmentRepository.enroll (Slice C fields)', () => {
   it('seeds lastAccessedLessonId=null and lastAccessedAt=null on first enrol', async () => {
     const { repo } = repoWith({ [`courses/${CID}`]: course() });
