@@ -53,8 +53,10 @@ The guard (`libs/api-courses/src/lib/video/webhook/pubsub-push.guard.ts`)
 validates: token signature, `iss === https://accounts.google.com`, unexpired,
 `aud` **byte-equal** to `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` (scheme, host,
 path, trailing slash), `email === LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL`, and
-`email_verified === true`. The script prints the three env values to put in
-the 1Password `prod` item; re-render and `pnpm deploy:preview` after wiring.
+`email_verified === true`. The script prints the three env values; only
+`LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` is vault-held (1Password `prod` item) —
+the topic path and invoker SA email are committed literals in `.env.deploy.tpl`.
+Re-render and `pnpm deploy:preview` after wiring.
 
 ## Verification
 

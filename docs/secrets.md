@@ -34,8 +34,9 @@ pnpm secrets:run -- <command>
 
 ## Vault contract
 
-Vault: `learnwren`. The table below mirrors `.env.tpl` — when you add a new
-`op://...` reference there, add the matching row here.
+Vault: `learnwren`. The table below mirrors `.env.tpl` and `.env.deploy.tpl` —
+when you add a new `op://...` reference to either template, add the matching
+row here.
 
 | Item | Field | Env var rendered | Purpose | Required when |
 |---|---|---|---|---|
@@ -62,9 +63,10 @@ The production deploy template is `.env.deploy.tpl` → rendered to `.env.learn-
 ## Adding a secret
 
 1. Create the secret in the `learnwren` vault under a clearly-named item.
-2. Add a line to `.env.tpl` of the form `MY_VAR=op://learnwren/Item/field`.
+2. Add a line to `.env.tpl` (dev) or `.env.deploy.tpl` (production deploy) of the
+   form `MY_VAR=op://learnwren/Item/field`.
 3. Append a row to the vault contract table above describing what the secret is and which spec needs it.
-4. Commit `.env.tpl` and this file (`docs/secrets.md`). **Never** commit `.env`.
+4. Commit `.env.tpl`, `.env.deploy.tpl`, and this file (`docs/secrets.md`). **Never** commit `.env` or `.env.learn-wren`.
 
 ## Troubleshooting
 

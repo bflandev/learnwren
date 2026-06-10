@@ -37,7 +37,9 @@ One-time setup for the Firebase project:
 5. **Authentication**, **Firestore**, **Cloud Storage**, and **Cloud Functions**
    are all enabled in the Firebase console for the project.
 6. The 1Password vault items are populated and `.env` has been rendered via
-   `pnpm secrets:render` — see [Required environment variables](#required-environment-variables).
+   `pnpm secrets:render` — see [Required environment variables](#required-environment-variables);
+   for production deploys additionally render the functions runtime env via
+   `pnpm secrets:render:deploy` (template `.env.deploy.tpl` → gitignored `.env.learn-wren`).
 
 ## Deploy commands
 
@@ -62,9 +64,11 @@ pnpm deploy:preview
 The `predeploy` hooks in `firebase.deploy.json` automatically:
 
 1. Build the NestJS API: `pnpm exec nx build api --configuration=production`
-2. Patch the functions package: `node tools/deploy/patch-functions-package.mjs`
+2. Patch the functions package: `node tools/deploy/patch-functions-package.mjs --require-deploy-env`
    — ensures `dist/apps/api/package.json` has `"main": "main.js"`,
-   `"engines": {"node": "22"}`, and `"firebase-functions"` in dependencies.
+   `"engines": {"node": "22"}`, and `"firebase-functions"` in dependencies;
+   copies `.env.learn-wren` into `dist/apps/api` (fatal if missing) and writes
+   the emulator-only `.secret.local`.
 3. Build the Angular SPA: `pnpm exec nx build web --configuration=production`
 
 ## Required environment variables
@@ -218,7 +222,8 @@ webpack bundle exposes its entry module's `module.exports` as the Node.js
 
 - **Firestore data** — schema-less, no migrations needed.
 - **Firebase Authentication configuration** — managed in the console.
-- **Pub/Sub topics or IAM bindings** — set up once in the GCP console per
+- **Pub/Sub topics or IAM bindings** — provisioned once per environment by
+  `tools/deploy/provision-pubsub.sh` per
   [`docs/operations/transcoder-pubsub-setup.md`](./operations/transcoder-pubsub-setup.md).
 - **GCS bucket CORS configuration** — see below.
 
