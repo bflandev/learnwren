@@ -1,0 +1,65 @@
+{
+  "firestore": {
+    "rules": "firestore.emulator.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "dist/apps/api",
+      "codebase": "api",
+      "runtime": "nodejs22"
+    }
+  ],
+  "hosting": {
+    "public": "dist/apps/web/browser",
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": {
+          "functionId": "api",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css|woff2|woff|ttf|eot|ico|png|svg|webp|gif|jpg|jpeg|avif|webmanifest)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      }
+    ]
+  },
+  "emulators": {
+    "auth":      { "port": 7099 },
+    "firestore": { "port": 7080 },
+    "storage":   { "port": 7199 },
+    "functions": { "port": 7051 },
+    "hosting":   { "port": 7050 },
+    "hub":       { "port": 7400 },
+    "logging":   { "port": 7500 },
+    "eventarc":  { "port": 7299 },
+    "tasks":     { "port": 7499 },
+    "ui":        { "enabled": false },
+    "singleProjectMode": true
+  }
+}

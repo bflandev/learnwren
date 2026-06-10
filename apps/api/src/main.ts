@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { ExpressAdapter } from '@nestjs/platform-express';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import express from 'express';
@@ -33,9 +34,13 @@ function readAllowedOrigins(): string[] {
   return ['http://localhost:4200', 'http://127.0.0.1:4200'];
 }
 
-async function bootstrap() {
-  assertProdSafeEnv();
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+/**
+ * Configure middleware and options on an already-created Nest app.
+ * Called in BOTH listen mode and functions mode after NestFactory.create() —
+ * every shared middleware must live here, not inline in a mode branch, so the
+ * two modes cannot drift. Does NOT call app.init() or app.listen().
+ */
+function configureApp(app: NestExpressApplication): void {
   app.use(helmet());
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
@@ -49,13 +54,93 @@ async function bootstrap() {
     origin: readAllowedOrigins(),
     credentials: true,
   });
-  const globalPrefix = 'api';
-  app.setGlobalPrefix(globalPrefix);
-  const port = process.env['PORT'] || 3333;
-  await app.listen(port);
-  Logger.log(
-    `🚀 Application is running on: http://localhost:${port}/${globalPrefix}`,
-  );
+  app.setGlobalPrefix('api');
 }
 
-bootstrap();
+// ---------------------------------------------------------------------------
+// Cloud Functions mode: detected when the Functions runtime env vars are set.
+// We export a named `api` HTTPS function. Nest is initialised lazily and the
+// initialisation PROMISE is memoized so concurrent cold-start requests share
+// a single init rather than spawning duplicate Nest instances (TOCTOU-safe:
+// the Promise is stored before awaiting, so the second caller gets the same
+// Promise, not a second NestFactory.create call).
+//
+// Detection strategy:
+//   - `K_SERVICE` — set by real Cloud Functions (gen1 and gen2) at cold start.
+//   - `FUNCTIONS_EMULATOR` — set unconditionally by firebase-tools during
+//     function discovery AND per-request serving. `FUNCTION_TARGET` is NOT
+//     set during the discovery phase, so it cannot be used for detection.
+// ---------------------------------------------------------------------------
+const isFunctionsRuntime =
+  Boolean(process.env['K_SERVICE']) || Boolean(process.env['FUNCTIONS_EMULATOR']);
+
+if (isFunctionsRuntime) {
+  // Dynamic require keeps firebase-functions out of the hot-path in listen
+  // mode and avoids top-level await (webpack emits CJS, not ESM).
+  const { onRequest } = (require('firebase-functions/v2/https') as typeof import('firebase-functions/v2/https'));
+
+  const expressApp = express();
+  let nestInitPromise: Promise<void> | undefined;
+
+  function ensureNestInitialized(): Promise<void> {
+    // Memoize the Promise — not a boolean flag — so concurrent first requests
+    // all await the same initialisation work without racing.
+    if (!nestInitPromise) {
+      nestInitPromise = (async () => {
+        assertProdSafeEnv();
+        // Pass { bodyParser: false } so NestJS does not call
+        // registerParserMiddleware, which accesses the deprecated Express 4
+        // `app.router` getter and throws in Express >=4.20.
+        const adapter = new ExpressAdapter(expressApp);
+        const app = await NestFactory.create<NestExpressApplication>(
+          AppModule,
+          adapter,
+          { bodyParser: false },
+        );
+        // configureApp registers express.json itself (via app.use, which
+        // proxies to the adapter without touching the deprecated app.router
+        // path that { bodyParser: false } exists to avoid).
+        configureApp(app);
+        await app.init();
+      })();
+    }
+    return nestInitPromise;
+  }
+
+  // Export the Cloud Function named 'api'. Firebase Hosting rewrites /api/**
+  // to this function. Region + maxInstances provide a cost guard on first
+  // deploy; memory/timeout use v2 defaults (256 MiB / 60 s).
+  //
+  // Use module.exports (not exports) — webpack bundles the entry in an IIFE
+  // where `exports` is the closure-local object, not the Node.js module.exports.
+  // The functions emulator discovers exports via require(bundlePath).api.
+  module.exports.api = onRequest(
+    {
+      region: 'us-central1',
+      maxInstances: 10,
+    },
+    async (req, res) => {
+      await ensureNestInitialized();
+      expressApp(req, res);
+    },
+  );
+} else {
+  // ---------------------------------------------------------------------------
+  // Listen mode (default): local dev, pnpm start, api-e2e Playwright webServer.
+  // Behavior is identical to the original main.ts: same port env var, same log.
+  // NestFactory.create without an explicit adapter creates its own express app
+  // and handles body-parsing internally — no app.router access issue.
+  // ---------------------------------------------------------------------------
+  async function bootstrap() {
+    assertProdSafeEnv();
+    const app = await NestFactory.create<NestExpressApplication>(AppModule);
+    configureApp(app);
+    const port = process.env['PORT'] || 3333;
+    await app.listen(port);
+    Logger.log(
+      `Application is running on: http://localhost:${port}/api`,
+    );
+  }
+
+  bootstrap();
+}

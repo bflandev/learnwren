@@ -324,3 +324,20 @@ test('firestore.emulator.rules differs from firestore.rules ONLY by the _smoke b
   const emulatorWithoutSmoke = stripSmokeBlock(readRepoFile('firestore.emulator.rules'));
   expect(emulatorWithoutSmoke).toEqual(deployLines);
 });
+
+// --- firebase.deploy.json static guards (SEC-1 extension) ---
+// firebase.deploy.json is the deployable config. It MUST also reference the
+// safe rules files (never *.emulator.rules) so a deploy command cannot
+// accidentally push the world-writable emulator rules.
+
+test('firebase.deploy.json exists and references the safe firestore rules file', () => {
+  const deployConfig = JSON.parse(readRepoFile('firebase.deploy.json'));
+  expect(deployConfig.firestore.rules).toBe('firestore.rules');
+  expect(deployConfig.firestore.rules).not.toMatch(/emulator/);
+});
+
+test('firebase.deploy.json references the safe storage rules file', () => {
+  const deployConfig = JSON.parse(readRepoFile('firebase.deploy.json'));
+  expect(deployConfig.storage.rules).toBe('storage.rules');
+  expect(deployConfig.storage.rules).not.toMatch(/emulator/);
+});
