@@ -53,6 +53,16 @@ export interface Video {
   transcoderJobName?: string;
   keyId?: VideoKeyId;
   failureReason?: string;
+  /**
+   * Transient server-side claim stamp written by claimUploadCompletion at the
+   * start of completeUpload. Cleared when the upload-completion pipeline
+   * succeeds (finalizeUploadWithJob), when the pipeline fails terminally
+   * (markFailedFromSubmission), or immediately on non-terminal verify-object
+   * failures (releaseUploadCompletionClaim) so the instructor can retry.
+   * Never visible to clients; optional so existing documents without the field
+   * remain valid.
+   */
+  completeClaimedAt?: ISODateString;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }

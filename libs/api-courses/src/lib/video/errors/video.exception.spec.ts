@@ -13,6 +13,7 @@ import {
   PubSubWrongAudienceException,
   PubSubWrongInvokerException,
   RenditionNotFoundException,
+  UploadCompletionInProgressException,
   UploadObjectMissingException,
   UploadObjectSizeMismatchException,
   VideoException,
@@ -140,6 +141,15 @@ describe('slice C exceptions', () => {
     expect(ex.status).toBe(502);
     expect(ex.code).toBe('MANIFEST_PARSE_FAILED');
     expect(ex.message).toMatch(/missing #EXTM3U/);
+  });
+});
+
+describe('upload completion in-progress exception', () => {
+  it('UploadCompletionInProgressException → 409 UPLOAD_COMPLETION_IN_PROGRESS', () => {
+    const ex = new UploadCompletionInProgressException();
+    expect(ex.code).toBe('UPLOAD_COMPLETION_IN_PROGRESS');
+    expect(ex.status).toBe(409);
+    expect(ex.message).toBe('Upload completion is already being processed.');
   });
 });
 

@@ -5,6 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
 import type {
+  ISODateString,
   LessonId,
   Video,
   VideoCaptions,
@@ -15,7 +16,11 @@ import type {
   VideoState,
 } from '@learnwren/shared-data-models';
 
-import { InvalidVideoStateException } from './errors/video.exception';
+import {
+  InvalidVideoStateException,
+  UploadCompletionInProgressException,
+  VideoNotFoundException,
+} from './errors/video.exception';
 
 @Injectable()
 export class VideoRepository {
@@ -103,6 +108,47 @@ export class VideoRepository {
     await this.videoRef(vid).update(patch);
   }
 
+  /**
+   * Atomically claim the upload-completion slot for this video.
+   *
+   * Transaction reads the doc, then:
+   * - !exists → VideoNotFoundException
+   * - state !== PENDING_UPLOAD → InvalidVideoStateException
+   * - completeClaimedAt set AND >= staleBefore → UploadCompletionInProgressException
+   *   (a FRESH claim belongs to a live concurrent attempt)
+   * - completeClaimedAt set but < staleBefore → re-claim (crashed attempt).
+   *   ISO strings compare lexicographically — the one-liner is safe.
+   *   TTL tradeoff: a crashed attempt may rarely have submitted a job already;
+   *   TTL re-claim trades that rare duplicate for self-healing instead of a
+   *   permanently stuck video.
+   * - no claim → claim
+   */
+  async claimUploadCompletion(
+    vid: VideoId,
+    now: ISODateString,
+    staleBefore: ISODateString,
+  ): Promise<Video> {
+    const videoRef = this.videoRef(vid);
+    return this.db.runTransaction(async (tx) => {
+      const snap = await tx.get(videoRef);
+      if (!snap.exists) throw new VideoNotFoundException();
+      const current = snap.data() as Video;
+      if (current.state !== 'PENDING_UPLOAD') {
+        throw new InvalidVideoStateException(current.state);
+      }
+      if (current.completeClaimedAt && current.completeClaimedAt >= staleBefore) {
+        throw new UploadCompletionInProgressException();
+      }
+      tx.update(videoRef, { completeClaimedAt: now, updatedAt: now });
+      return { ...current, completeClaimedAt: now, updatedAt: now };
+    });
+  }
+
+  /** Best-effort release: plain update to clear the claim stamp via FieldValue.delete(). */
+  async releaseUploadCompletionClaim(vid: VideoId): Promise<void> {
+    await this.videoRef(vid).update({ completeClaimedAt: FieldValue.delete() });
+  }
+
   async getCaptions(vid: VideoId): Promise<VideoCaptions | null> {
     const snap = await this.videoCaptionsRef(vid).get();
     return snap.exists ? (snap.data() as VideoCaptions) : null;
@@ -137,16 +183,11 @@ export class VideoRepository {
 
     return this.db.runTransaction(async (tx) => {
       const current = await this.requireVideoInTxn(tx, videoRef);
-      // Concurrency guard: completeUpload validates PENDING_UPLOAD outside any
-      // transaction, then submits a transcoder job, then finalizes here. Two
-      // overlapping completeUpload calls (double-click / client retry) would both
-      // pass that pre-check and race this transaction — without re-asserting the
-      // state, the second commit would overwrite the first's transcoderJobName,
-      // orphaning the first job. Re-checking inside the transaction makes the
-      // first writer win and the loser fail with a 409 instead of corrupting the
-      // record. (A residual duplicate transcoder submit is still possible on a
-      // true simultaneous race; fully eliminating it needs a pre-submit atomic
-      // claim, tracked as a follow-up.)
+      // Concurrency guard: claimUploadCompletion makes a concurrent duplicate
+      // completeUpload lose before it ever submits a transcoder job, so this
+      // PENDING_UPLOAD re-check is practically unreachable for concurrent
+      // callers — kept as defense-in-depth so a state regression fails with a
+      // 409 instead of overwriting the winner's transcoderJobName.
       if (current.state !== 'PENDING_UPLOAD') {
         throw new InvalidVideoStateException(current.state);
       }
@@ -154,8 +195,12 @@ export class VideoRepository {
       if (lessonSnap.empty) throw new Error('Lesson disappeared in transaction.');
       const lessonDocRef = lessonSnap.docs[0]!.ref;
 
+      // Build updated doc without completeClaimedAt: the claim is fulfilled now
+      // and must not persist on the document.
+      const { completeClaimedAt: _drop, ...currentWithoutClaim } = current;
+      void _drop;
       const updated: Video = {
-        ...current,
+        ...currentWithoutClaim,
         state: 'TRANSCODING',
         source: {
           ...current.source,
@@ -189,8 +234,12 @@ export class VideoRepository {
     const videoRef = this.videoRef(args.vid);
     return this.db.runTransaction(async (tx) => {
       const current = await this.requireVideoInTxn(tx, videoRef);
+      // Strip completeClaimedAt for doc cleanliness — the pipeline has failed
+      // terminally (state becomes FAILED), so the claim is moot.
+      const { completeClaimedAt: _drop, ...currentWithoutClaim } = current;
+      void _drop;
       const updated: Video = {
-        ...current,
+        ...currentWithoutClaim,
         state: 'FAILED',
         source: { ...current.source, sizeBytes: args.actualSizeBytes },
         failureReason: args.failureReason,

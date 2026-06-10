@@ -15,7 +15,11 @@ import type {
   VideoState,
 } from '@learnwren/shared-data-models';
 
-import { InvalidVideoStateException } from './errors/video.exception';
+import {
+  InvalidVideoStateException,
+  UploadCompletionInProgressException,
+  VideoNotFoundException,
+} from './errors/video.exception';
 import { VideoRepository } from './video.repository';
 import { createFakeFirestore, type FakeFirestore } from '../testing/fake-firestore';
 
@@ -567,5 +571,108 @@ describe('VideoRepository — captions', () => {
     const repo = await buildRepo(fake);
     await repo.deleteVideoAndDetach('v1' as VideoId, 'l1' as LessonId, NOW_ISO);
     expect(await repo.getCaptions('v1' as VideoId)).toBeNull();
+  });
+});
+
+const STALE_BEFORE = '2026-05-21T11:00:00.000Z'; // 1 hour before NOW_ISO
+const FRESH_CLAIM_AT = '2026-05-21T11:30:00.000Z'; // within TTL window (after staleBefore)
+const STALE_CLAIM_AT = '2026-05-21T10:00:00.000Z'; // before staleBefore → stale
+
+describe('VideoRepository.claimUploadCompletion', () => {
+  it('writes completeClaimedAt + updatedAt and returns the video on success', async () => {
+    const fake = createFakeFirestore({ 'videos/v1': makeVideo() });
+    const repo = await buildRepo(fake);
+
+    const result = await repo.claimUploadCompletion('v1' as VideoId, NOW_ISO as ISODateString, STALE_BEFORE as ISODateString);
+
+    expect(result.id).toBe('v1');
+    expect(result.state).toBe('PENDING_UPLOAD');
+    const stored = fake.__store.get('videos/v1') as Video;
+    expect(stored.completeClaimedAt).toBe(NOW_ISO);
+    expect(stored.updatedAt).toBe(NOW_ISO);
+  });
+
+  it('throws VideoNotFoundException when the video does not exist', async () => {
+    const fake = createFakeFirestore();
+    const repo = await buildRepo(fake);
+
+    await expect(
+      repo.claimUploadCompletion('v-missing' as VideoId, NOW_ISO as ISODateString, STALE_BEFORE as ISODateString),
+    ).rejects.toBeInstanceOf(VideoNotFoundException);
+  });
+
+  it('throws InvalidVideoStateException when the video is not PENDING_UPLOAD', async () => {
+    const fake = createFakeFirestore({ 'videos/v1': makeVideo({ state: 'TRANSCODING' }) });
+    const repo = await buildRepo(fake);
+
+    await expect(
+      repo.claimUploadCompletion('v1' as VideoId, NOW_ISO as ISODateString, STALE_BEFORE as ISODateString),
+    ).rejects.toBeInstanceOf(InvalidVideoStateException);
+  });
+
+  it('throws UploadCompletionInProgressException when a FRESH claim already exists', async () => {
+    // A claim stamped after staleBefore belongs to a live concurrent attempt.
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({ completeClaimedAt: FRESH_CLAIM_AT as ISODateString }),
+    });
+    const repo = await buildRepo(fake);
+
+    await expect(
+      repo.claimUploadCompletion('v1' as VideoId, NOW_ISO as ISODateString, STALE_BEFORE as ISODateString),
+    ).rejects.toBeInstanceOf(UploadCompletionInProgressException);
+  });
+
+  it('re-claims successfully when an existing claim is STALE (crashed attempt)', async () => {
+    // A claim stamped before staleBefore belongs to a crashed attempt; re-claim.
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({ completeClaimedAt: STALE_CLAIM_AT as ISODateString }),
+    });
+    const repo = await buildRepo(fake);
+
+    const result = await repo.claimUploadCompletion('v1' as VideoId, NOW_ISO as ISODateString, STALE_BEFORE as ISODateString);
+
+    expect(result.completeClaimedAt).toBe(NOW_ISO);
+    expect((fake.__store.get('videos/v1') as Video).completeClaimedAt).toBe(NOW_ISO);
+  });
+});
+
+describe('VideoRepository.releaseUploadCompletionClaim', () => {
+  it('clears completeClaimedAt via FieldValue.delete()', async () => {
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({ completeClaimedAt: NOW_ISO as ISODateString }),
+    });
+    const repo = await buildRepo(fake);
+
+    await repo.releaseUploadCompletionClaim('v1' as VideoId);
+
+    expect('completeClaimedAt' in (fake.__store.get('videos/v1') as object)).toBe(false);
+  });
+});
+
+describe('VideoRepository.finalizeUploadWithJob — clears completeClaimedAt', () => {
+  it('clears completeClaimedAt in the transaction alongside the TRANSCODING write', async () => {
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({ completeClaimedAt: NOW_ISO as ISODateString }),
+      [LESSON_PATH]: lessonDoc(),
+    });
+    const repo = await buildRepo(fake);
+
+    const result = await repo.finalizeUploadWithJob({
+      vid: 'v1' as VideoId,
+      lid: 'l1' as LessonId,
+      actualSizeBytes: 5000,
+      probedDurationSec: 42,
+      key: {
+        id: 'k1' as VideoKeyId,
+        bytes: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+      },
+      transcoderJobName: JOB_NAME,
+      nowIso: NOW_ISO,
+    });
+
+    expect(result.state).toBe('TRANSCODING');
+    // The claim stamp must be absent on the returned value and in the store.
+    expect('completeClaimedAt' in result).toBe(false);
+    expect('completeClaimedAt' in (fake.__store.get('videos/v1') as object)).toBe(false);
   });
 });

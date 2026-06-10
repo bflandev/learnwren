@@ -13,6 +13,7 @@ import type { TranscoderEvent } from './transcoder/transcoder.port';
 import {
   InvalidVideoStateException,
   LessonAlreadyHasVideoException,
+  UploadCompletionInProgressException,
   UploadObjectMissingException,
   UploadObjectSizeMismatchException,
   VideoNotFoundException,
@@ -31,6 +32,8 @@ interface RepoFake {
   finalizeUploadWithJob: ReturnType<typeof vi.fn>;
   markFailedFromSubmission: ReturnType<typeof vi.fn>;
   applyTranscoderResult: ReturnType<typeof vi.fn>;
+  claimUploadCompletion: ReturnType<typeof vi.fn>;
+  releaseUploadCompletionClaim: ReturnType<typeof vi.fn>;
 }
 
 interface StorageFake {
@@ -52,6 +55,8 @@ function makeRepo(): RepoFake {
     finalizeUploadWithJob: vi.fn(),
     markFailedFromSubmission: vi.fn(),
     applyTranscoderResult: vi.fn(),
+    claimUploadCompletion: vi.fn(),
+    releaseUploadCompletionClaim: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -213,7 +218,7 @@ describe('VideoService.getVideo', () => {
 describe('VideoService.completeUpload — slice A (guard tests)', () => {
   it('throws VIDEO_NOT_FOUND when the video is missing', async () => {
     const repo = makeRepo();
-    repo.getVideo.mockResolvedValue(null);
+    repo.claimUploadCompletion.mockRejectedValue(new VideoNotFoundException());
     const svc = new VideoService(
       repo as unknown as VideoRepository,
       makeStorage() as unknown as VideoStoragePort,
@@ -227,7 +232,7 @@ describe('VideoService.completeUpload — slice A (guard tests)', () => {
 
   it('throws INVALID_VIDEO_STATE when video is not PENDING_UPLOAD', async () => {
     const repo = makeRepo();
-    repo.getVideo.mockResolvedValue(baseVideo({ state: 'UPLOADED' }));
+    repo.claimUploadCompletion.mockRejectedValue(new InvalidVideoStateException('UPLOADED'));
     const svc = new VideoService(
       repo as unknown as VideoRepository,
       makeStorage() as unknown as VideoStoragePort,
@@ -239,10 +244,10 @@ describe('VideoService.completeUpload — slice A (guard tests)', () => {
     );
   });
 
-  it('throws UPLOAD_OBJECT_MISSING when HEAD returns null', async () => {
+  it('throws UPLOAD_OBJECT_MISSING when HEAD returns null and releases the claim', async () => {
     const repo = makeRepo();
     const storage = makeStorage();
-    repo.getVideo.mockResolvedValue(baseVideo());
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo());
     storage.headObject.mockResolvedValue(null);
     const svc = new VideoService(
       repo as unknown as VideoRepository,
@@ -253,12 +258,13 @@ describe('VideoService.completeUpload — slice A (guard tests)', () => {
     await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(
       UploadObjectMissingException,
     );
+    expect(repo.releaseUploadCompletionClaim).toHaveBeenCalledWith('v1');
   });
 
-  it('throws UPLOAD_OBJECT_SIZE_MISMATCH and deletes object when over tolerance', async () => {
+  it('throws UPLOAD_OBJECT_SIZE_MISMATCH and deletes object when over tolerance and releases the claim', async () => {
     const repo = makeRepo();
     const storage = makeStorage();
-    repo.getVideo.mockResolvedValue(
+    repo.claimUploadCompletion.mockResolvedValue(
       baseVideo({ source: { bucket: 'src-bucket', path: 'p', sizeBytes: 100 } }),
     );
     storage.headObject.mockResolvedValue({ size: 200 }); // 100% over
@@ -273,12 +279,13 @@ describe('VideoService.completeUpload — slice A (guard tests)', () => {
       UploadObjectSizeMismatchException,
     );
     expect(storage.deleteObject).toHaveBeenCalledWith({ bucket: 'src-bucket', path: 'p' });
+    expect(repo.releaseUploadCompletionClaim).toHaveBeenCalledWith('v1');
   });
 
   it('accepts size up to declared × 1.05', async () => {
     const repo = makeRepo();
     const storage = makeStorage();
-    repo.getVideo.mockResolvedValue(
+    repo.claimUploadCompletion.mockResolvedValue(
       baseVideo({ source: { bucket: 'src-bucket', path: 'p', sizeBytes: 100 } }),
     );
     storage.headObject.mockResolvedValue({ size: 105 });
@@ -478,7 +485,7 @@ describe('VideoService.completeUpload — slice B', () => {
       cancelJob: vi.fn(),
     };
 
-    repo.getVideo.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
     storage.headObject.mockResolvedValue({ size: 1024 });
     if (opts.probe) {
       (storage as unknown as { probeSource: ReturnType<typeof vi.fn> }).probeSource = vi.fn(
@@ -554,7 +561,7 @@ describe('VideoService.completeUpload — slice B', () => {
     // declared = sizeBytes ?? 0 = 0; without the fix `head.size > 0 * 1.05` is
     // true for any real upload and every such upload is wrongly rejected.
     const { svc, repo, storage } = makeServiceWithTranscoder();
-    repo.getVideo.mockResolvedValue(baseVideo({ source: { bucket: 'src-bucket', path: 'p' } }));
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo({ source: { bucket: 'src-bucket', path: 'p' } }));
     storage.headObject.mockResolvedValue({ size: 5000 });
 
     const video = await svc.completeUpload('v1' as VideoId);
@@ -625,7 +632,7 @@ describe('VideoService.completeUpload — slice B', () => {
       parseEvent: vi.fn(),
       cancelJob: vi.fn(),
     };
-    repo.getVideo.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
     storage.headObject.mockResolvedValue({ size: 1024 });
     repo.markFailedFromSubmission = vi.fn(async () => baseVideo({ state: 'FAILED' }));
     const sleep = vi.fn(async () => undefined);
@@ -642,7 +649,7 @@ describe('VideoService.completeUpload — slice B', () => {
 
   it('rejects when state is not PENDING_UPLOAD', async () => {
     const { svc, repo } = makeServiceWithTranscoder();
-    repo.getVideo.mockResolvedValue(baseVideo({ state: 'TRANSCODING' }));
+    repo.claimUploadCompletion.mockRejectedValue(new InvalidVideoStateException('TRANSCODING'));
     await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(InvalidVideoStateException);
   });
 
@@ -650,6 +657,100 @@ describe('VideoService.completeUpload — slice B', () => {
     const { svc, storage } = makeServiceWithTranscoder();
     storage.headObject.mockResolvedValue(null);
     await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(UploadObjectMissingException);
+  });
+});
+
+describe('VideoService.completeUpload — atomic claim (concurrency guard)', () => {
+  function makeServiceWithClaim() {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = makeTranscoder();
+    storage.headObject.mockResolvedValue({ size: 1024 });
+    repo.finalizeUploadWithJob = vi.fn(async () =>
+      baseVideo({ state: 'TRANSCODING', keyId: 'k1' as never, transcoderJobName: 'jobs/abc' }),
+    );
+    repo.markFailedFromSubmission = vi.fn(async (args: { failureReason: string }) =>
+      baseVideo({ state: 'FAILED', failureReason: args.failureReason }),
+    );
+    const svc = new VideoService(
+      repo as never,
+      storage as never,
+      cfg as never,
+      transcoder as never,
+      { sleep: async () => undefined },
+    );
+    return { svc, repo, storage, transcoder };
+  }
+
+  it('propagates UploadCompletionInProgressException without calling submitJob', async () => {
+    // This is the duplicate-submit kill-shot: a concurrent completeUpload that
+    // loses the claim race must never reach submitJob.
+    const { svc, repo, transcoder } = makeServiceWithClaim();
+    repo.claimUploadCompletion.mockRejectedValue(new UploadCompletionInProgressException());
+
+    await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(
+      UploadCompletionInProgressException,
+    );
+    expect(transcoder.submitJob).not.toHaveBeenCalled();
+  });
+
+  it('calls claimUploadCompletion BEFORE submitJob on the happy path', async () => {
+    // Assert call ordering: claim must precede submit.
+    const { svc, repo, transcoder } = makeServiceWithClaim();
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
+
+    const callOrder: string[] = [];
+    repo.claimUploadCompletion.mockImplementation(async () => {
+      callOrder.push('claim');
+      return baseVideo({ state: 'PENDING_UPLOAD' });
+    });
+    transcoder.submitJob.mockImplementation(async () => {
+      callOrder.push('submit');
+      return { jobName: 'jobs/abc' };
+    });
+
+    await svc.completeUpload('v1' as VideoId);
+
+    expect(callOrder.indexOf('claim')).toBeLessThan(callOrder.indexOf('submit'));
+  });
+
+  it('verify-object failure (UPLOAD_OBJECT_MISSING) releases claim then rethrows', async () => {
+    // Non-terminal: state stays PENDING_UPLOAD so instructor can retry.
+    // The claim must be released so that retry does not hit a 10-min block.
+    const { svc, repo, storage } = makeServiceWithClaim();
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo());
+    storage.headObject.mockResolvedValue(null); // triggers UploadObjectMissingException
+
+    await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(
+      UploadObjectMissingException,
+    );
+    expect(repo.releaseUploadCompletionClaim).toHaveBeenCalledWith('v1');
+  });
+
+  it('probe failure goes through recordPipelineFailure (terminal FAILED); no claim release needed', async () => {
+    // Terminal path: markFailedFromSubmission sets FAILED + strips claim in tx.
+    // releaseUploadCompletionClaim must NOT be called — the repo handles it.
+    const { svc, repo, storage } = makeServiceWithClaim();
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo());
+    (storage as unknown as { probeSource: ReturnType<typeof vi.fn> }).probeSource = vi.fn(async () => {
+      throw new Error('bad source');
+    });
+
+    const video = await svc.completeUpload('v1' as VideoId);
+
+    expect(video.state).toBe('FAILED');
+    expect(repo.releaseUploadCompletionClaim).not.toHaveBeenCalled();
+  });
+
+  it('finalizeUploadWithJob is still called on the happy path', async () => {
+    const { svc, repo } = makeServiceWithClaim();
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
+
+    await svc.completeUpload('v1' as VideoId);
+
+    expect(repo.finalizeUploadWithJob).toHaveBeenCalledWith(
+      expect.objectContaining({ vid: 'v1', transcoderJobName: 'jobs/default' }),
+    );
   });
 });
 
