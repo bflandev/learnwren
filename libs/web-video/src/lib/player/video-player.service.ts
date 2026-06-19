@@ -23,6 +23,24 @@ function isSameOrigin(url: string): boolean {
   }
 }
 
+/**
+ * Map a native-HLS (Safari/iOS) `HTMLMediaElement.error.code` to a user
+ * message. The native `<video>` path exposes only the coarse MediaError code,
+ * not hls.js's granular `details`, so this is best-effort: distinguish a
+ * network failure (offline / expired signed URL) from a decode/unknown failure
+ * rather than collapsing every cause into one opaque string.
+ */
+function nativeUserMessageFor(code: number | undefined): string {
+  switch (code) {
+    case 2: // MediaError.MEDIA_ERR_NETWORK
+      return 'Unable to load the video. Try again.';
+    case 3: // MediaError.MEDIA_ERR_DECODE
+      return 'Playback failed — try again.';
+    default:
+      return 'Unable to play this video.';
+  }
+}
+
 function userMessageFor(details: string | undefined): string {
   switch (details) {
     case 'manifestLoadError':
@@ -81,7 +99,7 @@ export class VideoPlayerService {
 
     if (el.canPlayType('application/vnd.apple.mpegurl')) {
       el.src = manifestUrl;
-      const handler = () => hooks.onFatalError('Unable to play this video.');
+      const handler = () => hooks.onFatalError(nativeUserMessageFor(el.error?.code));
       el.addEventListener('error', handler);
       return {
         dispose: () => {

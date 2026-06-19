@@ -168,5 +168,11 @@ if (isFunctionsRuntime) {
     );
   }
 
-  bootstrap();
+  bootstrap().catch((err) => {
+    // Listen mode only (local dev / api-e2e). Without this an init failure
+    // becomes an unhandled rejection that exits opaquely; log it through the
+    // Nest logger and exit non-zero so CI/dev sees the real cause.
+    Logger.error('Fatal error during bootstrap', err);
+    process.exit(1);
+  });
 }
