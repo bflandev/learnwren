@@ -111,7 +111,18 @@ if (isFunctionsRuntime) {
         // path that { bodyParser: false } exists to avoid).
         configureApp(app);
         await app.init();
-      })();
+      })().catch((err) => {
+        // A rejected init must NOT stay memoised. Clearing the promise lets the
+        // next request retry a fresh cold init instead of re-awaiting the cached
+        // rejection for the lifetime of this warm instance — otherwise a single
+        // transient cold-start failure (Secret Manager/Firestore hiccup, OOM
+        // while loading sharp/ffprobe at the memory cap) would black-hole every
+        // subsequent /api/** request to this instance until the platform evicts
+        // it (Cloud Run does not health-check a 500-returning warm instance, and
+        // the Hosting rewrite does not retry a 5xx against another instance).
+        nestInitPromise = undefined;
+        throw err;
+      });
     }
     return nestInitPromise;
   }

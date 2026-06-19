@@ -3,7 +3,7 @@
 How to deploy Learn Wren to Firebase. For local development see
 [`development.md`](./development.md); for secrets see [`secrets.md`](./secrets.md).
 
-> Deploy mechanism + production runbook — see [Production setup status](#production-setup-status) for what is scripted vs. manual. The first real deploy has not been performed yet.
+> Deploy mechanism + production runbook — see [Production setup status](#production-setup-status) for what is scripted vs. manual. **Live since 2026-06-19** at https://learnwren.com; this is the redeploy runbook.
 
 ## Overview
 
@@ -239,7 +239,10 @@ email). One-time provisioning is scripted:
   signed-URL minting), Transcoder service-agent grants.
 - `tools/deploy/provision-pubsub.sh` — transcoder-events topic + OIDC push
   subscription (gen2: `roles/run.invoker`, endpoint/audience from
-  `serviceConfig.uri`). Run it **after** the first deploy.
+  `serviceConfig.uri`) **and** the public `allUsers` → `roles/run.invoker`
+  grant on the `api` function that the Hosting `/api/**` rewrite requires (a
+  fresh deploy 403s every API call until this is applied; in-app guards remain
+  the auth boundary). Run it **after** the first deploy.
 
 Still manual: Firebase console custom-domain wizard + Route 53 records
 (see below), default Firebase Storage bucket provisioning (required once or
