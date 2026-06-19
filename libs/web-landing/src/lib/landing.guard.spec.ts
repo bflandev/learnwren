@@ -27,6 +27,7 @@ describe('landingGuard', () => {
     } as unknown as AuthService;
     const result = await run(auth, { createUrlTree: vi.fn() } as unknown as Router);
     expect(result).toBe(true);
+    expect(auth.refresh).not.toHaveBeenCalled();
   });
 
   it('refreshes when the session is unknown, then allows if still anonymous', async () => {
@@ -52,5 +53,6 @@ describe('landingGuard', () => {
     const result = await run(auth, { createUrlTree } as unknown as Router);
     expect(createUrlTree).toHaveBeenCalledWith(['/dashboard']);
     expect(result).toBe(tree);
+    expect(auth.refresh).not.toHaveBeenCalled();
   });
 });
