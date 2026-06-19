@@ -34,7 +34,8 @@
       "@learnwren/api-profile": ["./libs/api-profile/src/index.ts"],
       "@learnwren/web-profile": ["./libs/web-profile/src/index.ts"],
       "@learnwren/api-http-errors": ["./libs/api-http-errors/src/index.ts"],
-      "@learnwren/web-admin": ["./libs/web-admin/src/index.ts"]
+      "@learnwren/web-admin": ["./libs/web-admin/src/index.ts"],
+      "@learnwren/web-landing": ["./libs/web-landing/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
