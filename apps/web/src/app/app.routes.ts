@@ -11,6 +11,7 @@ import {
 import { adminRoutes } from '@learnwren/web-admin';
 import { catalogRoutes } from '@learnwren/web-catalog';
 import { coursesRoutes } from '@learnwren/web-courses';
+import { landingRoutes } from '@learnwren/web-landing';
 import { learnRoutes } from '@learnwren/web-learn';
 import { profileRoutes } from '@learnwren/web-profile';
 
@@ -46,5 +47,5 @@ export const appRoutes: Route[] = [
   ...adminRoutes,
   ...learnRoutes,
   ...profileRoutes,
-  { path: '', pathMatch: 'full', redirectTo: '/catalog' },
+  ...landingRoutes,
 ];

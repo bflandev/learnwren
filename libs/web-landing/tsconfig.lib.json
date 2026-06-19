@@ -26,6 +26,9 @@
   ],
   "references": [
     {
+      "path": "../web-auth/tsconfig.lib.json"
+    },
+    {
       "path": "../web-ui/tsconfig.lib.json"
     }
   ]
