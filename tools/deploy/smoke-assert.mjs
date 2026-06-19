@@ -136,6 +136,15 @@ async function run() {
     }
   });
 
+  // NOTE: the bare root "/" and rewritten SPA routes also need no-cache so
+  // returning visitors get a new deploy immediately (firebase.deploy.json gives
+  // the "**" block a no-cache Cache-Control for exactly this). That is NOT
+  // asserted here: the Hosting EMULATOR does not apply "**"/"/" header globs to
+  // the implicitly-served-or-rewritten index document (it returns an empty
+  // Cache-Control for "/"), whereas production DOES apply "**" to "/" (the live
+  // root carries the "**" security headers). This path is verified directly
+  // against the deployed site after `pnpm deploy:prod`, not in the emulator.
+
   const hashedJs = findHashedJs();
   if (hashedJs) {
     await check(`(d) hashed asset ${hashedJs} has immutable Cache-Control`, async () => {
