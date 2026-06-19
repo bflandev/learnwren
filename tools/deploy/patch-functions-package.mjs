@@ -27,10 +27,29 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const requireDeployEnv = process.argv.includes('--require-deploy-env');
 const pkgPath = resolve(__dirname, '../../dist/apps/api/package.json');
 
-// Read the root workspace package.json to get the pinned firebase-functions version.
+// Determine the firebase-functions specifier to write into the dist manifest.
+// It MUST match the specifier recorded in the Nx-generated pruned lockfile
+// (dist/apps/api/pnpm-lock.yaml), or the Cloud Functions buildpack's
+// `pnpm install --frozen-lockfile` aborts with ERR_PNPM_OUTDATED_LOCKFILE
+// (e.g. lockfile `6.6.0` vs a root-derived `^6.6.0`). The lockfile pins the
+// exact resolved version as the importer specifier, so read it from there and
+// fall back to the root package.json only when the lockfile is absent.
 const rootPkgPath = resolve(__dirname, '../../package.json');
 const rootPkg = JSON.parse(readFileSync(rootPkgPath, 'utf8'));
+
+function readLockfileFfSpecifier() {
+  const lockPath = resolve(__dirname, '../../dist/apps/api/pnpm-lock.yaml');
+  if (!existsSync(lockPath)) return undefined;
+  const lock = readFileSync(lockPath, 'utf8');
+  // Match the importers block entry (`firebase-functions:\n  specifier: <x>`);
+  // the package-list entries look like `firebase-functions@6.6.0:` and don't
+  // have a following `specifier:` line, so they won't match.
+  const m = lock.match(/\n\s+firebase-functions:\n\s+specifier:\s*(\S+)/);
+  return m?.[1];
+}
+
 const ffVersion =
+  readLockfileFfSpecifier() ??
   rootPkg.dependencies?.['firebase-functions'] ??
   rootPkg.devDependencies?.['firebase-functions'] ??
   '^6.6.0';

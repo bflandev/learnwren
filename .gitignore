@@ -32,6 +32,9 @@ vitest.config.*.timestamp*
 firestore-debug.log
 firebase-debug.log
 
+# Firebase CLI deploy cache (emitted by `firebase deploy`)
+.firebase/
+
 # Rendered secrets — never commit. .env.tpl / .env.deploy.tpl are the sources of truth.
 .env
 .env.learn-wren
