@@ -117,10 +117,15 @@ function header(headers, name) {
   return headers.get(name) ?? undefined;
 }
 
-/** True when the ACAO value authorizes the given origin (exact match or "*"). */
+/**
+ * True when the ACAO value authorizes the given origin. Requires an EXACT
+ * origin match: a wildcard `*` is intentionally treated as a FAILURE so the
+ * verifier flags an over-permissive bucket policy instead of silently passing
+ * it (the committed CORS policies always list explicit origins).
+ */
 function acaoAllows(acao, origin) {
   if (!acao) return false;
-  return acao === '*' || acao === origin;
+  return acao === origin;
 }
 
 async function checkSimpleGet(url, origin) {

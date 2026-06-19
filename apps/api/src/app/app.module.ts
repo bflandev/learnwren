@@ -16,6 +16,11 @@ import { AppController } from './app.controller';
     // routes like /api/catalog. The throttler hashes req.ip — main.ts sets
     // `trust proxy = 1` so Express resolves the real client IP from
     // X-Forwarded-For (the platform does NOT configure this automatically).
+    // NOTE: the store is in-memory and therefore PER-INSTANCE. With the gen2
+    // function's maxInstances:10 there is no cross-instance coordination, so a
+    // distributed burst can reach up to ~10x these limits. That is acceptable
+    // here — this is an amplification/scraping guard, not a hard quota; a strict
+    // global limit would need a shared store (e.g. Redis via ThrottlerStorage).
     ThrottlerModule.forRoot([
       { name: 'burst', ttl: 10_000, limit: 100 },
       { name: 'sustained', ttl: 60_000, limit: 1000 },

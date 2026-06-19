@@ -125,17 +125,28 @@ describe('VideoPlayerService', () => {
     }
   });
 
-  it('falls back to native HLS when Hls.isSupported() is false', () => {
+  it('falls back to native HLS and maps a MEDIA_ERR_NETWORK to a network message', () => {
     isSupportedMock.mockReturnValue(false);
     const el = videoEl('maybe');
     const onFatalError = vi.fn();
     const handle = svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
     expect(el.getAttribute('src')).toBe('/api/playback/manifest/v1');
-    // Fire an error — native HLS just emits a generic error event
+    // A network failure (offline / expired signed URL) → network-specific message.
+    Object.defineProperty(el, 'error', { configurable: true, value: { code: 2 } });
     el.dispatchEvent(new Event('error'));
-    expect(onFatalError).toHaveBeenCalledWith('Unable to play this video.');
+    expect(onFatalError).toHaveBeenCalledWith('Unable to load the video. Try again.');
     handle.dispose();
     expect(el.getAttribute('src')).toBeNull();
+  });
+
+  it('uses a generic native-HLS message when the MediaError code is unknown', () => {
+    isSupportedMock.mockReturnValue(false);
+    const el = videoEl('maybe');
+    const onFatalError = vi.fn();
+    svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
+    // No el.error set → code undefined → generic fallback.
+    el.dispatchEvent(new Event('error'));
+    expect(onFatalError).toHaveBeenCalledWith('Unable to play this video.');
   });
 
   it('invokes onFatalError when no HLS path is available', () => {

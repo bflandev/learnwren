@@ -258,9 +258,10 @@ export class AuthService {
 
       const failure = await this.attempts.recordFailure(emailHash);
       if (failure.locked) {
-        this.logger.log(
-          `[auth] lockout fired emailHash=${emailHash} unlockToken=${failure.unlockToken!.slice(0, 6)}…`,
-        );
+        // Log the lockout event but NOT any part of the unlock token — it is a
+        // single-use secret and even a prefix is needless exposure in Cloud
+        // Logging. The emailHash is sufficient to correlate the event.
+        this.logger.log(`[auth] lockout fired emailHash=${emailHash}`);
         await this.recovery.sendUnlockEmail(
           input.email,
           failure.unlockToken!,
