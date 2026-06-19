@@ -38,3 +38,6 @@ firebase-debug.log
 # Rendered secrets — never commit. .env.tpl / .env.deploy.tpl are the sources of truth.
 .env
 .env.learn-wren
+
+# Playwright MCP verification artifacts (screenshots / snapshots)
+.playwright-mcp/
