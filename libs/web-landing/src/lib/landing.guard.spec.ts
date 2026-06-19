@@ -55,4 +55,23 @@ describe('landingGuard', () => {
     expect(result).toBe(tree);
     expect(auth.refresh).not.toHaveBeenCalled();
   });
+
+  it('shows the landing page when the session refresh fails (e.g. api 5xx)', async () => {
+    // The landing page is the public front door: a failed /auth/me (anything
+    // other than a clean 401 — api 5xx, cold start, network blip) must not
+    // blank the page. Treat an unresolvable session as anonymous and render.
+    const refresh = vi.fn(async () => {
+      throw new Error('api unavailable');
+    });
+    const createUrlTree = vi.fn();
+    const auth = {
+      currentUser: vi.fn().mockReturnValue(undefined),
+      isAuthenticated: vi.fn().mockReturnValue(false),
+      refresh,
+    } as unknown as AuthService;
+    const result = await run(auth, { createUrlTree } as unknown as Router);
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(result).toBe(true);
+    expect(createUrlTree).not.toHaveBeenCalled();
+  });
 });
