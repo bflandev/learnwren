@@ -67,12 +67,21 @@ function configureApp(app: NestExpressApplication): void {
 //
 // Detection strategy:
 //   - `K_SERVICE` — set by real Cloud Functions (gen1 and gen2) at cold start.
-//   - `FUNCTIONS_EMULATOR` — set unconditionally by firebase-tools during
-//     function discovery AND per-request serving. `FUNCTION_TARGET` is NOT
-//     set during the discovery phase, so it cannot be used for detection.
+//   - `FUNCTIONS_EMULATOR` — set unconditionally by the firebase-tools EMULATOR
+//     during function discovery AND per-request serving.
+//   - `FUNCTIONS_CONTROL_API` — set by `firebase deploy`'s function-discovery
+//     step (firebase-tools runs the `firebase-functions` binary over the bundle
+//     with this flag to enumerate exports). Neither K_SERVICE nor
+//     FUNCTIONS_EMULATOR is set in that context, so without this branch the
+//     bundle falls into listen mode, never sets `module.exports.api`, and the
+//     deploy ships zero functions (the listen also collides with the discovery
+//     harness's port → EADDRINUSE). `FUNCTION_TARGET` is NOT set during
+//     discovery, so it cannot be used for detection.
 // ---------------------------------------------------------------------------
 const isFunctionsRuntime =
-  Boolean(process.env['K_SERVICE']) || Boolean(process.env['FUNCTIONS_EMULATOR']);
+  Boolean(process.env['K_SERVICE']) ||
+  Boolean(process.env['FUNCTIONS_EMULATOR']) ||
+  Boolean(process.env['FUNCTIONS_CONTROL_API']);
 
 if (isFunctionsRuntime) {
   // Dynamic require keeps firebase-functions out of the hot-path in listen

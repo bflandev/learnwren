@@ -11,7 +11,7 @@
       "source": "dist/apps/api",
       "codebase": "api",
       "runtime": "nodejs22",
-      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.local"],
+      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.local", "pnpm-lock.yaml"],
       "predeploy": [
         "pnpm exec nx build api --configuration=production --skip-nx-cache",
         "node tools/deploy/patch-functions-package.mjs --require-deploy-env"
