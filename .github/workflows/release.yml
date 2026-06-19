@@ -5,6 +5,12 @@ name: Release
 # commits, regenerates CHANGELOG.md, commits, tags v{version}, pushes to main,
 # and creates the GitHub Release. See docs/releasing.md for the local equivalent
 # (`pnpm release`). Nothing is published to a package registry.
+#
+# NOTE: `main` is protected by the "Protect main" ruleset and github-actions[bot]
+# cannot be a bypass actor on this personal repo. So a NON-dry-run trigger will
+# fail at the push step — use this workflow for `dry_run=true` previews and cut
+# real releases locally with `pnpm release`. To enable real CI releases, swap the
+# built-in token for a PAT (Contents: write) on checkout/push. See docs/releasing.md.
 on:
   workflow_dispatch:
     inputs:

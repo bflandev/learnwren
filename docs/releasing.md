@@ -28,14 +28,17 @@ pnpm release
 
 `pnpm release` will, in order: write the new version to `package.json`, update `pnpm-lock.yaml`, regenerate `CHANGELOG.md`, `git commit`, `git tag v{version}`, `git push` (commit + tag) to `origin`, and create the GitHub Release with the changelog as its body.
 
+## Branch protection on `main`
+
+`main` is governed by the **"Protect main"** repository ruleset: changes require a pull request, and force-pushes and deletion are blocked. The **Repository admin** role is in the ruleset's bypass list, so the maintainer can still push directly (this is how `pnpm release` works — see below). Any future collaborators are funnelled through PRs.
+
 ## Releasing from CI
 
-A manually-triggered GitHub Actions workflow, [`.github/workflows/release.yml`](../.github/workflows/release.yml), runs the same `nx release` in CI using the built-in `GITHUB_TOKEN` — no local `gh` login required.
+The manually-triggered workflow [`.github/workflows/release.yml`](../.github/workflows/release.yml) runs `nx release` from the Actions tab (or `gh workflow run release.yml`), with `dry_run` and `specifier` inputs.
 
-- **Trigger it** from the repo's **Actions → Release → Run workflow**, or `gh workflow run release.yml`.
-- **Inputs:** `dry_run` (preview only — no commit/tag/push/release) and `specifier` (a `patch`/`minor`/`major`/`x.y.z` override; blank = infer from conventional commits).
-- It checks out full history + tags (`fetch-depth: 0`), commits as `github-actions[bot]`, and pushes the release commit + tag back to `main`.
-- The job needs `contents: write` (declared in the workflow) and to be able to push to `main` — if `main` has branch protection that blocks the Actions bot, either allow it or stick to the local `pnpm release`.
+> **On this repo, use the CI workflow only for `dry_run` previews.** A real CI release pushes the version commit + tag to `main`, but the workflow authenticates as `github-actions[bot]`, which **cannot** be added to the ruleset bypass list on a personal (non-org) repo. So a non-dry-run CI trigger would fail at the push step. Cut real releases locally with `pnpm release` (you push as the admin, who bypasses the ruleset).
+>
+> To enable full CI releases later, give the workflow a fine-grained Personal Access Token (Contents: read/write) as an Actions secret and have `actions/checkout` use it — pushes then authenticate as you (admin → bypass), and the bot limitation no longer applies.
 
 ## Notes & gotchas
 
