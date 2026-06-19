@@ -58,10 +58,21 @@ gcloud iam service-accounts add-iam-policy-binding "${INVOKER_SA}" \
   --role=roles/iam.serviceAccountTokenCreator --project "${PROJECT_ID}" >/dev/null
 echo "   ${PUBSUB_AGENT}: tokenCreator on ${INVOKER_SA} granted"
 
-echo "== gen2 invoker grant (roles/run.invoker on the underlying Cloud Run service) =="
-# NOTE: the function is public today (Hosting rewrite requirement), so this
-# grant is forward-compatibility — PubSubPushGuard's OIDC checks are the
-# actual security boundary.
+echo "== Public invoker grant (Firebase Hosting /api/** rewrite REQUIREMENT) =="
+# Firebase Hosting proxies /api/** to this gen2 function's underlying Cloud Run
+# service, which MUST be publicly invokable or every API call 403s. This grant
+# is the required counterpart to the rewrite — without it a fresh deploy serves
+# zero working API routes, and the SPA fails silently (no error banner). It is
+# NOT an auth hole: authentication is enforced in-app per controller
+# (FirebaseSessionGuard et al.), and the transcoder webhook is OIDC-verified by
+# PubSubPushGuard. Idempotent.
+gcloud functions add-invoker-policy-binding api --region "${REGION}" \
+  --project "${PROJECT_ID}" --member="allUsers"
+
+echo "== gen2 invoker grant (roles/run.invoker for the Pub/Sub push SA) =="
+# Forward-compatibility for an authenticated-push-only future; today the public
+# grant above already covers the push SA, and PubSubPushGuard's OIDC checks are
+# the actual security boundary on the webhook.
 gcloud functions add-invoker-policy-binding api --region "${REGION}" \
   --project "${PROJECT_ID}" --member="serviceAccount:${INVOKER_SA}"
 
