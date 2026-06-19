@@ -28,6 +28,15 @@ pnpm release
 
 `pnpm release` will, in order: write the new version to `package.json`, update `pnpm-lock.yaml`, regenerate `CHANGELOG.md`, `git commit`, `git tag v{version}`, `git push` (commit + tag) to `origin`, and create the GitHub Release with the changelog as its body.
 
+## Releasing from CI
+
+A manually-triggered GitHub Actions workflow, [`.github/workflows/release.yml`](../.github/workflows/release.yml), runs the same `nx release` in CI using the built-in `GITHUB_TOKEN` — no local `gh` login required.
+
+- **Trigger it** from the repo's **Actions → Release → Run workflow**, or `gh workflow run release.yml`.
+- **Inputs:** `dry_run` (preview only — no commit/tag/push/release) and `specifier` (a `patch`/`minor`/`major`/`x.y.z` override; blank = infer from conventional commits).
+- It checks out full history + tags (`fetch-depth: 0`), commits as `github-actions[bot]`, and pushes the release commit + tag back to `main`.
+- The job needs `contents: write` (declared in the workflow) and to be able to push to `main` — if `main` has branch protection that blocks the Actions bot, either allow it or stick to the local `pnpm release`.
+
 ## Notes & gotchas
 
 - **Preview is mandatory.** Tags and GitHub releases are awkward to undo — `pnpm release:dry` first, every time.

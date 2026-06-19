@@ -1,0 +1,82 @@
+name: Release
+
+# Manual release via `nx release`. Trigger from the Actions tab (or `gh workflow
+# run release.yml`). The job bumps the workspace version from conventional
+# commits, regenerates CHANGELOG.md, commits, tags v{version}, pushes to main,
+# and creates the GitHub Release. See docs/releasing.md for the local equivalent
+# (`pnpm release`). Nothing is published to a package registry.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview only — no commit, tag, push, or release'
+        required: false
+        default: false
+        type: boolean
+      specifier:
+        description: 'Version override (patch|minor|major|x.y.z). Leave blank to infer from conventional commits.'
+        required: false
+        default: ''
+        type: string
+
+# contents:write lets nx release push the release commit + tag and create the
+# GitHub Release. The job uses the built-in GITHUB_TOKEN — no extra secrets.
+permissions:
+  contents: write
+
+# Run JavaScript actions on Node 24 ahead of GitHub's June 2026 default switch,
+# silencing the Node 20 deprecation warnings from checkout / setup-* / etc.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+# Never run two releases at once.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: nx release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # fetch-depth: 0 pulls full history AND tags — both are required for the
+      # conventional-commits resolver to find the last v* tag and the commits
+      # since it.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The release commit needs an author identity.
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run nx release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          SPECIFIER: ${{ inputs.specifier }}
+        # --yes skips the interactive confirmation (CI is non-interactive).
+        # SPECIFIER, when provided, overrides conventional-commits inference.
+        run: |
+          ARGS=""
+          [ -n "$SPECIFIER" ] && ARGS="$SPECIFIER"
+          [ "$DRY_RUN" = "true" ] && ARGS="$ARGS --dry-run"
+          echo "Running: nx release $ARGS --yes"
+          pnpm exec nx release $ARGS --yes
