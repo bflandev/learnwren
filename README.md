@@ -294,6 +294,8 @@ All scripts run from the repo root and delegate to Nx.
 | `pnpm tools:promote-to-admin <email>` | Promote an email-verified user to ADMIN (custom claim + `users/{uid}` doc). Required to access `/admin/**`; the user must sign out and back in after. |
 | `pnpm secrets:render` | Render `.env` from `.env.tpl` via 1Password. |
 | `pnpm secrets:run -- <cmd>` | Run a command with secrets injected in-memory (no `.env` written). |
+| `pnpm release:dry` | Preview the next version, changelog, tag, and GitHub release without making any changes. Always run this first. |
+| `pnpm release` | Cut a release: bump the workspace version from conventional commits, update `CHANGELOG.md`, commit, tag `v{version}`, push, and create the GitHub release. See [`docs/releasing.md`](./docs/releasing.md). |
 
 To target a single project, invoke Nx directly — e.g. `pnpm nx test web`, `pnpm nx build api`, `pnpm nx lint shared-data-models`.
 

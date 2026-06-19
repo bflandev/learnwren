@@ -31,6 +31,8 @@
     "deploy:prod": "firebase deploy --config firebase.deploy.json -P production",
     "deploy:preview": "firebase deploy --config firebase.deploy.json -P production --except hosting",
     "smoke": "node tools/deploy/smoke.mjs",
+    "release": "GITHUB_TOKEN=\"${GITHUB_TOKEN:-$(gh auth token)}\" nx release",
+    "release:dry": "nx release --dry-run",
     "tools:promote-to-instructor": "tsx tools/promote-to-instructor.ts",
     "tools:promote-to-admin": "tsx tools/promote-to-admin.ts",
     "secrets:render": "op inject -i .env.tpl -o .env",
