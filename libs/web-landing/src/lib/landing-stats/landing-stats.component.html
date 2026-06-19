@@ -1,0 +1,10 @@
+<section class="border-y border-line">
+  <dl class="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-6 py-10 md:grid-cols-4">
+    @for (stat of stats; track stat.label) {
+      <div>
+        <dt class="font-serif text-3xl">{{ stat.value }}</dt>
+        <dd class="lw-meta mt-1">{{ stat.label }}</dd>
+      </div>
+    }
+  </dl>
+</section>
