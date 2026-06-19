@@ -22,6 +22,9 @@
       "path": "../../libs/web-learn/tsconfig.lib.json"
     },
     {
+      "path": "../../libs/web-landing/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/web-courses/tsconfig.lib.json"
     },
     {

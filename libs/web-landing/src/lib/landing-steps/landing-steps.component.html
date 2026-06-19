@@ -1,0 +1,15 @@
+<section class="border-t border-line">
+  <div class="mx-auto max-w-6xl px-6 py-20">
+    <p class="lw-meta">{{ intro.eyebrow }}</p>
+    <h2 class="mt-2 max-w-2xl font-serif text-4xl">{{ intro.title }}</h2>
+    <div class="mt-10 grid gap-5 md:grid-cols-3">
+      @for (step of steps; track step.number) {
+        <div class="rounded-lg border border-line bg-bg-2 p-6">
+          <p class="lw-mono text-ochre">{{ step.number }}</p>
+          <h3 class="mt-3 font-serif text-xl">{{ step.title }}</h3>
+          <p class="mt-2 text-ink-2">{{ step.body }}</p>
+        </div>
+      }
+    </div>
+  </div>
+</section>
