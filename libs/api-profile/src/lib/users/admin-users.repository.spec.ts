@@ -1,44 +1,129 @@
 import { describe, expect, it, vi } from 'vitest';
+import { FieldValue } from 'firebase-admin/firestore';
 import type { FirestoreHandle } from '@learnwren/api-firebase';
 import type { CourseId, UserId } from '@learnwren/shared-data-models';
 
 import { AdminUsersRepository } from './admin-users.repository';
 
 /**
- * Minimal Firestore fake covering the calls AdminUsersRepository makes:
- *  - collection(name).where(field,'==',value).get() -> { docs }
- *  - collection(name).doc(id).get() -> { exists, data() }
+ * Records every Firestore interaction so tests can assert the EXACT collection
+ * name, where() field/op/value, doc() id, orderBy/limit, batch deletes and
+ * update payloads the repository issues. This is what kills the string-literal,
+ * query-operator and call-shape mutants.
  */
-function fakeFirestore(opts: {
-  enrollments?: Array<Record<string, unknown>>;
-  authored?: Array<Record<string, unknown>>;
-  coursesById?: Record<string, Record<string, unknown> | undefined>;
-  usersById?: Record<string, Record<string, unknown> | undefined>;
-  /** Admin users by uid (for countActiveAdmins tests). */
-  adminUsers?: Array<Record<string, unknown>>;
-}): FirestoreHandle {
+interface Recorder {
+  collections: string[];
+  wheres: Array<{ collection: string; field: string; op: string; value: unknown }>;
+  docs: Array<{ collection: string; id: string }>;
+  orderBys: number;
+  limits: number[];
+  /** Doc ids passed to batch.delete (each as `${collection}/${id}`). */
+  batchDeletes: string[];
+  batchCommits: number;
+  updates: Array<{ collection: string; id: string; payload: Record<string, unknown> }>;
+  docDeletes: string[];
+}
+
+function makeRecorder(): Recorder {
   return {
-    collection: (name: string) => ({
-      where: (_field: string, _op: string, _value: unknown) => ({
-        get: async () => ({
-          docs:
-            name === 'enrollments'
-              ? (opts.enrollments ?? []).map((d) => ({ data: () => d }))
-              : name === 'users'
-                ? (opts.adminUsers ?? []).map((d) => ({ data: () => d }))
-                : (opts.authored ?? []).map((d) => ({ data: () => d })),
-        }),
-      }),
-      doc: (id: string) => ({
-        id,
-        get: async () => {
-          const map = name === 'courses' ? opts.coursesById : opts.usersById;
-          const data = map?.[id];
-          return { exists: data !== undefined, data: () => data };
+    collections: [],
+    wheres: [],
+    docs: [],
+    orderBys: 0,
+    limits: [],
+    batchDeletes: [],
+    batchCommits: 0,
+    updates: [],
+    docDeletes: [],
+  };
+}
+
+function fakeFirestore(
+  opts: {
+    enrollments?: Array<Record<string, unknown>>;
+    authored?: Array<Record<string, unknown>>;
+    coursesById?: Record<string, Record<string, unknown> | undefined>;
+    /** Raw snapshot override for courses/{id}.get() (full control of exists+data). */
+    courseSnapshots?: Record<string, { exists: boolean; data: () => unknown }>;
+    usersById?: Record<string, Record<string, unknown> | undefined>;
+    /** Admin users by uid (for countActiveAdmins tests). */
+    adminUsers?: Array<Record<string, unknown>>;
+    /** Docs returned by the scanUsers orderBy().limit().get() path. */
+    scanDocs?: Array<{ id: string; data: Record<string, unknown> }>;
+    /** Docs returned by enrollment where().get() for delete-all (have ids). */
+    enrollmentDocs?: Array<{ id: string; data: Record<string, unknown> }>;
+    /** Existence of the instructorApplications/{uid} doc. */
+    applicationExists?: boolean;
+  },
+  rec: Recorder = makeRecorder(),
+): { handle: FirestoreHandle; rec: Recorder } {
+  const handle = {
+    collection: (name: string) => {
+      rec.collections.push(name);
+      return {
+        where: (field: string, op: string, value: unknown) => {
+          rec.wheres.push({ collection: name, field, op, value });
+          return {
+            get: async () => ({
+              docs:
+                name === 'enrollments'
+                  ? opts.enrollmentDocs
+                    ? opts.enrollmentDocs.map((d) => ({ id: d.id, data: () => d.data }))
+                    : (opts.enrollments ?? []).map((d, i) => ({ id: `e${i}`, data: () => d }))
+                  : name === 'users'
+                    ? (opts.adminUsers ?? []).map((d, i) => ({ id: `u${i}`, data: () => d }))
+                    : (opts.authored ?? []).map((d, i) => ({ id: `c${i}`, data: () => d })),
+            }),
+          };
         },
-      }),
+        orderBy: () => {
+          rec.orderBys++;
+          return {
+            limit: (n: number) => {
+              rec.limits.push(n);
+              return {
+                get: async () => ({
+                  docs: (opts.scanDocs ?? []).map((d) => ({ id: d.id, data: () => d.data })),
+                }),
+              };
+            },
+          };
+        },
+        doc: (id: string) => {
+          rec.docs.push({ collection: name, id });
+          return {
+            id,
+            get: async () => {
+              if (name === 'instructorApplications') {
+                return { exists: opts.applicationExists ?? false, data: () => undefined };
+              }
+              if (name === 'courses' && opts.courseSnapshots?.[id]) {
+                return opts.courseSnapshots[id];
+              }
+              const map = name === 'courses' ? opts.coursesById : opts.usersById;
+              const data = map?.[id];
+              return { exists: data !== undefined, data: () => data };
+            },
+            update: async (payload: Record<string, unknown>) => {
+              rec.updates.push({ collection: name, id, payload });
+            },
+            delete: async () => {
+              rec.docDeletes.push(`${name}/${id}`);
+            },
+          };
+        },
+      };
+    },
+    batch: () => ({
+      delete: (ref: { __key?: string }) => {
+        rec.batchDeletes.push(ref.__key ?? 'unknown');
+      },
+      commit: async () => {
+        rec.batchCommits++;
+      },
     }),
   } as unknown as FirestoreHandle;
+  return { handle, rec };
 }
 
 /** Build a minimal Transaction stub for txn-path tests. */
@@ -60,49 +145,120 @@ function makeTxn(opts: {
 }
 
 describe('AdminUsersRepository', () => {
-  it('listEnrollmentsByUser maps enrollment docs', async () => {
-    const repo = new AdminUsersRepository(
-      fakeFirestore({
-        enrollments: [
-          { id: 'u1__c1', userId: 'u1', courseId: 'c1', status: 'ACTIVE', createdAt: '2026-06-02T00:00:00.000Z' },
-        ],
-      }),
-    );
+  // ---------------------------------------------------------------------------
+  // scanUsers
+  // ---------------------------------------------------------------------------
+
+  it('scanUsers scans the users collection ordered+limited and merges the doc id', async () => {
+    const { handle, rec } = fakeFirestore({
+      scanDocs: [
+        { id: 'u1', data: { displayName: 'Ada', email: 'ada@x.com', role: 'STUDENT' } },
+        { id: 'u2', data: { displayName: 'Bo', email: 'bo@x.com', role: 'ADMIN' } },
+      ],
+    });
+    const repo = new AdminUsersRepository(handle);
+    const rows = await repo.scanUsers(50);
+    expect(rows).toEqual([
+      { id: 'u1', displayName: 'Ada', email: 'ada@x.com', role: 'STUDENT' },
+      { id: 'u2', displayName: 'Bo', email: 'bo@x.com', role: 'ADMIN' },
+    ]);
+    // Delegates to scanStoredUserProfiles: users collection, ordered, limited to N.
+    expect(rec.collections).toContain('users');
+    expect(rec.orderBys).toBe(1);
+    expect(rec.limits).toEqual([50]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // listEnrollmentsByUser
+  // ---------------------------------------------------------------------------
+
+  it('listEnrollmentsByUser queries enrollments by userId and maps docs', async () => {
+    const { handle, rec } = fakeFirestore({
+      enrollments: [
+        { id: 'u1__c1', userId: 'u1', courseId: 'c1', status: 'ACTIVE', createdAt: '2026-06-02T00:00:00.000Z' },
+      ],
+    });
+    const repo = new AdminUsersRepository(handle);
     const rows = await repo.listEnrollmentsByUser('u1' as UserId);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.courseId).toBe('c1');
+    expect(rec.wheres).toEqual([{ collection: 'enrollments', field: 'userId', op: '==', value: 'u1' }]);
   });
 
-  it('getCourseTitle returns the title when the course exists', async () => {
-    const repo = new AdminUsersRepository(
-      fakeFirestore({ coursesById: { c1: { id: 'c1', title: 'Intro', status: 'PUBLISHED' } } }),
-    );
+  // ---------------------------------------------------------------------------
+  // getCourseTitle
+  // ---------------------------------------------------------------------------
+
+  it('getCourseTitle returns the title and reads courses/{id}', async () => {
+    const { handle, rec } = fakeFirestore({ coursesById: { c1: { id: 'c1', title: 'Intro', status: 'PUBLISHED' } } });
+    const repo = new AdminUsersRepository(handle);
     expect(await repo.getCourseTitle('c1' as CourseId)).toBe('Intro');
+    expect(rec.docs).toContainEqual({ collection: 'courses', id: 'c1' });
   });
 
   it('getCourseTitle returns null for a deleted course', async () => {
-    const repo = new AdminUsersRepository(fakeFirestore({ coursesById: {} }));
+    const { handle } = fakeFirestore({ coursesById: {} });
+    const repo = new AdminUsersRepository(handle);
     expect(await repo.getCourseTitle('gone' as CourseId)).toBeNull();
   });
 
-  it('listAuthoredCourses maps course docs', async () => {
-    const repo = new AdminUsersRepository(
-      fakeFirestore({ authored: [{ id: 'c2', title: 'Adv', status: 'DRAFT', instructorId: 'u1' }] }),
-    );
-    const rows = await repo.listAuthoredCourses('u1' as UserId);
-    expect(rows[0]?.id).toBe('c2');
+  it('getCourseTitle returns null when the existing doc has no title field', async () => {
+    const { handle } = fakeFirestore({ coursesById: { c1: { id: 'c1', status: 'PUBLISHED' } } });
+    const repo = new AdminUsersRepository(handle);
+    expect(await repo.getCourseTitle('c1' as CourseId)).toBeNull();
   });
 
+  it('getCourseTitle returns null on the missing path EVEN IF the snapshot still carries data', async () => {
+    // Pins the `if (snap.exists === false) return null` early return: when exists
+    // is false we must NOT fall through to read data().title (which here is a real
+    // title). Removing the guard would return 'Ghost' instead of null.
+    const { handle } = fakeFirestore({
+      courseSnapshots: { c1: { exists: false, data: () => ({ title: 'Ghost' }) } },
+    });
+    const repo = new AdminUsersRepository(handle);
+    expect(await repo.getCourseTitle('c1' as CourseId)).toBeNull();
+  });
+
+  it('getCourseTitle returns null when an existing snapshot has undefined data', async () => {
+    // Kills the `data?.title` optional-chaining survivor: exists is true but data()
+    // is undefined, so `data.title` (without ?.) would throw a TypeError.
+    const { handle } = fakeFirestore({
+      courseSnapshots: { c1: { exists: true, data: () => undefined } },
+    });
+    const repo = new AdminUsersRepository(handle);
+    expect(await repo.getCourseTitle('c1' as CourseId)).toBeNull();
+  });
+
+  // ---------------------------------------------------------------------------
+  // listAuthoredCourses
+  // ---------------------------------------------------------------------------
+
+  it('listAuthoredCourses queries courses by instructorId and maps docs', async () => {
+    const { handle, rec } = fakeFirestore({
+      authored: [{ id: 'c2', title: 'Adv', status: 'DRAFT', instructorId: 'u1' }],
+    });
+    const repo = new AdminUsersRepository(handle);
+    const rows = await repo.listAuthoredCourses('u1' as UserId);
+    expect(rows[0]?.id).toBe('c2');
+    expect(rec.wheres).toEqual([{ collection: 'courses', field: 'instructorId', op: '==', value: 'u1' }]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // getUser
+  // ---------------------------------------------------------------------------
+
   it('getUser returns the record with id merged when the user exists', async () => {
-    const repo = new AdminUsersRepository(
-      fakeFirestore({ usersById: { u1: { displayName: 'Ada', email: 'ada@x.com', role: 'STUDENT' } } }),
-    );
+    const { handle } = fakeFirestore({
+      usersById: { u1: { displayName: 'Ada', email: 'ada@x.com', role: 'STUDENT' } },
+    });
+    const repo = new AdminUsersRepository(handle);
     const rec = await repo.getUser('u1' as UserId);
-    expect(rec).toMatchObject({ id: 'u1', displayName: 'Ada' });
+    expect(rec).toEqual({ id: 'u1', displayName: 'Ada', email: 'ada@x.com', role: 'STUDENT' });
   });
 
   it('getUser returns null when the user doc is missing', async () => {
-    const repo = new AdminUsersRepository(fakeFirestore({ usersById: {} }));
+    const { handle } = fakeFirestore({ usersById: {} });
+    const repo = new AdminUsersRepository(handle);
     expect(await repo.getUser('nope' as UserId)).toBeNull();
   });
 
@@ -110,20 +266,22 @@ describe('AdminUsersRepository', () => {
   // getUserInTxn
   // ---------------------------------------------------------------------------
 
-  it('getUserInTxn returns the record when the doc exists', async () => {
-    const firestore = fakeFirestore({ usersById: { u1: { displayName: 'Ada', email: 'ada@x.com', role: 'STUDENT' } } });
-    const repo = new AdminUsersRepository(firestore);
+  it('getUserInTxn reads users/{uid} via the transaction and merges the id', async () => {
+    const { handle, rec } = fakeFirestore({ usersById: {} });
+    const repo = new AdminUsersRepository(handle);
     const txn = makeTxn({
       userDocResult: { exists: true, data: () => ({ displayName: 'Ada', email: 'ada@x.com', role: 'STUDENT' }) },
     });
-    const rec = await repo.getUserInTxn(txn as never, 'u1' as UserId);
-    expect(rec).toMatchObject({ id: 'u1', displayName: 'Ada' });
+    const rec2 = await repo.getUserInTxn(txn as never, 'u1' as UserId);
+    expect(rec2).toEqual({ id: 'u1', displayName: 'Ada', email: 'ada@x.com', role: 'STUDENT' });
     expect(txn.get).toHaveBeenCalled();
+    // The ref must come from users/{uid}.
+    expect(rec.docs).toContainEqual({ collection: 'users', id: 'u1' });
   });
 
   it('getUserInTxn returns null when the doc does not exist', async () => {
-    const firestore = fakeFirestore({ usersById: {} });
-    const repo = new AdminUsersRepository(firestore);
+    const { handle } = fakeFirestore({ usersById: {} });
+    const repo = new AdminUsersRepository(handle);
     const txn = makeTxn({ userDocResult: { exists: false, data: () => undefined } });
     const rec = await repo.getUserInTxn(txn as never, 'nope' as UserId);
     expect(rec).toBeNull();
@@ -134,38 +292,39 @@ describe('AdminUsersRepository', () => {
   // listAuthoredCoursesInTxn
   // ---------------------------------------------------------------------------
 
-  it('listAuthoredCoursesInTxn maps course docs via the transaction', async () => {
-    const firestore = fakeFirestore({ authored: [{ id: 'c2', title: 'Adv', instructorId: 'u1' }] });
-    const repo = new AdminUsersRepository(firestore);
+  it('listAuthoredCoursesInTxn queries courses by instructorId and maps via the transaction', async () => {
+    const { handle, rec } = fakeFirestore({});
+    const repo = new AdminUsersRepository(handle);
     const txn = makeTxn({
       queryResult: { docs: [{ data: () => ({ id: 'c2', title: 'Adv', instructorId: 'u1' }) }] },
     });
     const rows = await repo.listAuthoredCoursesInTxn(txn as never, 'u1' as UserId);
-    expect(rows[0]?.id).toBe('c2');
+    expect(rows).toEqual([{ id: 'c2', title: 'Adv', instructorId: 'u1' }]);
     expect(txn.get).toHaveBeenCalled();
+    expect(rec.wheres).toEqual([{ collection: 'courses', field: 'instructorId', op: '==', value: 'u1' }]);
   });
 
   // ---------------------------------------------------------------------------
   // countActiveAdmins
   // ---------------------------------------------------------------------------
 
-  it('countActiveAdmins without txn counts active admin users via direct query', async () => {
-    const repo = new AdminUsersRepository(
-      fakeFirestore({
-        adminUsers: [
-          { role: 'ADMIN', status: 'ACTIVE' },
-          { role: 'ADMIN', status: 'SUSPENDED' },
-          { role: 'ADMIN' }, // absent status ≡ ACTIVE
-        ],
-      }),
-    );
+  it('countActiveAdmins without txn queries users role==ADMIN and counts active', async () => {
+    const { handle, rec } = fakeFirestore({
+      adminUsers: [
+        { role: 'ADMIN', status: 'ACTIVE' },
+        { role: 'ADMIN', status: 'SUSPENDED' },
+        { role: 'ADMIN' }, // absent status ≡ ACTIVE
+      ],
+    });
+    const repo = new AdminUsersRepository(handle);
     const count = await repo.countActiveAdmins();
     expect(count).toBe(2);
+    expect(rec.wheres).toEqual([{ collection: 'users', field: 'role', op: '==', value: 'ADMIN' }]);
   });
 
-  it('countActiveAdmins with txn routes the query through txn.get', async () => {
-    const firestore = fakeFirestore({ adminUsers: [] });
-    const repo = new AdminUsersRepository(firestore);
+  it('countActiveAdmins with txn routes the query through txn.get (not direct get)', async () => {
+    const { handle } = fakeFirestore({ adminUsers: [{ role: 'ADMIN', status: 'ACTIVE' }] });
+    const repo = new AdminUsersRepository(handle);
     const txn = makeTxn({
       queryResult: {
         docs: [
@@ -176,17 +335,18 @@ describe('AdminUsersRepository', () => {
     });
     const count = await repo.countActiveAdmins(txn as never);
     expect(count).toBe(1);
-    // The query MUST have gone through txn.get, not a direct firestore get.
+    // The query MUST have gone through txn.get; the direct firestore docs (1 active)
+    // would have yielded a different count, so this also proves the txn path is taken.
     expect(txn.get).toHaveBeenCalled();
   });
 
-  it('countActiveAdmins with txn counts only non-SUSPENDED, non-DELETED admins', async () => {
-    const firestore = fakeFirestore({ adminUsers: [] });
-    const repo = new AdminUsersRepository(firestore);
+  it('countActiveAdmins counts only non-SUSPENDED, non-DELETED admins (absent ≡ ACTIVE)', async () => {
+    const { handle } = fakeFirestore({ adminUsers: [] });
+    const repo = new AdminUsersRepository(handle);
     const txn = makeTxn({
       queryResult: {
         docs: [
-          { data: () => ({ role: 'ADMIN' }) },           // absent ≡ ACTIVE
+          { data: () => ({ role: 'ADMIN' }) }, // absent ≡ ACTIVE
           { data: () => ({ role: 'ADMIN', status: 'ACTIVE' }) },
           { data: () => ({ role: 'ADMIN', status: 'SUSPENDED' }) },
           { data: () => ({ role: 'ADMIN', status: 'DELETED' }) },
@@ -195,5 +355,114 @@ describe('AdminUsersRepository', () => {
     });
     const count = await repo.countActiveAdmins(txn as never);
     expect(count).toBe(2);
+  });
+
+  it('countActiveAdmins counts a status that is neither SUSPENDED nor DELETED (e.g. PENDING)', async () => {
+    // Distinguishes `!== 'SUSPENDED' && !== 'DELETED'` from variants: any other
+    // status string must still count.
+    const { handle } = fakeFirestore({ adminUsers: [] });
+    const repo = new AdminUsersRepository(handle);
+    const txn = makeTxn({
+      queryResult: { docs: [{ data: () => ({ role: 'ADMIN', status: 'PENDING' }) }] },
+    });
+    expect(await repo.countActiveAdmins(txn as never)).toBe(1);
+  });
+
+  it('countActiveAdmins does not count a DELETED admin', async () => {
+    // Pins the DELETED branch independently of SUSPENDED.
+    const { handle } = fakeFirestore({ adminUsers: [] });
+    const repo = new AdminUsersRepository(handle);
+    const txn = makeTxn({
+      queryResult: { docs: [{ data: () => ({ role: 'ADMIN', status: 'DELETED' }) }] },
+    });
+    expect(await repo.countActiveAdmins(txn as never)).toBe(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // deleteAllEnrollmentsForUser
+  // ---------------------------------------------------------------------------
+
+  it('deleteAllEnrollmentsForUser queries by userId and batch-deletes every enrollment doc', async () => {
+    const { handle, rec } = fakeFirestore({
+      enrollmentDocs: [
+        { id: 'e1', data: { userId: 'u1' } },
+        { id: 'e2', data: { userId: 'u1' } },
+        { id: 'e3', data: { userId: 'u1' } },
+      ],
+    });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteAllEnrollmentsForUser('u1' as UserId);
+    expect(rec.wheres).toEqual([{ collection: 'enrollments', field: 'userId', op: '==', value: 'u1' }]);
+    // One chunk (3 < 500) → one commit, three deletes against enrollments/{id}.
+    expect(rec.batchCommits).toBe(1);
+    expect(rec.docs.filter((d) => d.collection === 'enrollments')).toEqual([
+      { collection: 'enrollments', id: 'e1' },
+      { collection: 'enrollments', id: 'e2' },
+      { collection: 'enrollments', id: 'e3' },
+    ]);
+  });
+
+  it('deleteAllEnrollmentsForUser does nothing when there are no enrollments', async () => {
+    // Drives the loop's `i < refs.length` false-on-entry branch.
+    const { handle, rec } = fakeFirestore({ enrollmentDocs: [] });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteAllEnrollmentsForUser('u1' as UserId);
+    expect(rec.batchCommits).toBe(0);
+    expect(rec.docs.filter((d) => d.collection === 'enrollments')).toEqual([]);
+  });
+
+  it('deleteAllEnrollmentsForUser chunks deletes into batches of 500', async () => {
+    // 501 docs ⇒ exactly two commits (500 + 1). Distinguishes the chunk size,
+    // the `i += 500` step, and the `i + 500` slice end from off-by-one mutants.
+    const enrollmentDocs = Array.from({ length: 501 }, (_, i) => ({ id: `e${i}`, data: { userId: 'u1' } }));
+    const { handle, rec } = fakeFirestore({ enrollmentDocs });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteAllEnrollmentsForUser('u1' as UserId);
+    expect(rec.batchCommits).toBe(2);
+    // All 501 docs deleted exactly once.
+    const deleted = rec.docs.filter((d) => d.collection === 'enrollments');
+    expect(deleted).toHaveLength(501);
+    expect(deleted[0]).toEqual({ collection: 'enrollments', id: 'e0' });
+    expect(deleted[500]).toEqual({ collection: 'enrollments', id: 'e500' });
+  });
+
+  // ---------------------------------------------------------------------------
+  // anonymiseUser
+  // ---------------------------------------------------------------------------
+
+  it('anonymiseUser updates users/{uid} with the tombstone payload', async () => {
+    const { handle, rec } = fakeFirestore({});
+    const repo = new AdminUsersRepository(handle);
+    await repo.anonymiseUser('u1' as UserId, '2026-06-20T00:00:00.000Z');
+    expect(rec.updates).toHaveLength(1);
+    const u = rec.updates[0];
+    expect(u?.collection).toBe('users');
+    expect(u?.id).toBe('u1');
+    expect(u?.payload).toEqual({
+      displayName: 'Deleted user',
+      email: '',
+      biography: '',
+      photoUrl: FieldValue.delete(),
+      updatedAt: '2026-06-20T00:00:00.000Z',
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // deleteInstructorApplication
+  // ---------------------------------------------------------------------------
+
+  it('deleteInstructorApplication deletes the doc when it exists', async () => {
+    const { handle, rec } = fakeFirestore({ applicationExists: true });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteInstructorApplication('u1' as UserId);
+    expect(rec.docDeletes).toEqual(['instructorApplications/u1']);
+    expect(rec.docs).toContainEqual({ collection: 'instructorApplications', id: 'u1' });
+  });
+
+  it('deleteInstructorApplication does NOT delete when the doc is absent', async () => {
+    const { handle, rec } = fakeFirestore({ applicationExists: false });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteInstructorApplication('u1' as UserId);
+    expect(rec.docDeletes).toEqual([]);
   });
 });

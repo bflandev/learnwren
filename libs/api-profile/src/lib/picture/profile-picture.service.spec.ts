@@ -115,10 +115,36 @@ describe('ProfilePictureService', () => {
     });
   });
 
-  it('corrupt buffer → PictureDecodeFailedException', async () => {
+  it('corrupt buffer → PictureDecodeFailedException carrying the decode error as cause', async () => {
     await expect(
       service.uploadPicture('u1' as UserId, Buffer.from('not an image'), 'image/jpeg', { email: 'a@b.com', emailVerified: true }),
-    ).rejects.toBeInstanceOf(PictureDecodeFailedException);
+    ).rejects.toMatchObject({
+      code: 'PROFILE_PICTURE_DECODE_FAILED',
+      cause: expect.anything(),
+    });
+  });
+
+  it('buildMe throws NotFoundException with the exact message when the user doc is absent', async () => {
+    // firestore whose get() always reports the doc absent → exercises the
+    // !snap.exists guard + its message in buildMe (via removePicture, which
+    // skips the sharp pipeline).
+    const absentFirestore = {
+      collection: () => ({
+        doc: () => ({
+          update: async () => undefined,
+          get: async () => ({ exists: false, data: () => undefined }),
+        }),
+      }),
+    } as unknown as FirestoreHandle;
+    const svc = new ProfilePictureService(
+      new FakePictureStorageAdapter(),
+      absentFirestore,
+      cfg,
+      DELETE_SENTINEL as never,
+    );
+    await expect(
+      svc.removePicture('u1' as UserId, { email: 'a@b.com', emailVerified: true }),
+    ).rejects.toThrow('User profile not found.');
   });
 
   it('writes photoUrl and updatedAt onto the user doc with the same ?v= timestamp', async () => {

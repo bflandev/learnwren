@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
 
 import { AuthException } from '@learnwren/api-auth';
 import type { UserId } from '@learnwren/shared-data-models';
@@ -72,34 +73,68 @@ describe('PasswordChangeService.changePassword', () => {
   });
 
   it('on success updates the password, emails a notice, then revokes tokens', async () => {
-    const { svc, auth, transport } = makeService();
+    const { svc, auth, transport, restClient } = makeService();
     await svc.changePassword(UID, EMAIL, valid);
     expect(auth.updateUser).toHaveBeenCalledWith(UID, { password: VALID_NEW });
     expect(transport.sendPasswordChangedEmail).toHaveBeenCalledWith({ to: EMAIL });
     expect(auth.revokeRefreshTokens).toHaveBeenCalledWith(UID);
+    // reauth is called with the exact { email, password } object (kills the empty-object mutant)
+    expect(restClient.signInWithPassword).toHaveBeenCalledWith({
+      email: EMAIL,
+      password: valid.currentPassword,
+    });
   });
 
   it('swallows a notification-email failure (password already changed) and still revokes', async () => {
     const sendEmail = vi.fn().mockRejectedValue(new Error('smtp down'));
     const { svc, auth } = makeService({ sendEmail });
+    const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     await expect(svc.changePassword(UID, EMAIL, valid)).resolves.toBeUndefined();
     expect(auth.revokeRefreshTokens).toHaveBeenCalledWith(UID);
-  });
-
-  it('maps an unexpected updateUser failure to PASSWORD_CHANGE_FAILED', async () => {
-    const updateUser = vi.fn().mockRejectedValue(new Error('boom'));
-    const { svc } = makeService({ updateUser });
-    await expect(svc.changePassword(UID, EMAIL, valid)).rejects.toBeInstanceOf(
-      PasswordChangeFailedException,
+    // the catch body MUST execute (logs the swallowed failure) — kills the emptied-catch-block mutant
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[profile] password-changed notice failed'),
     );
+    errSpy.mockRestore();
   });
 
-  it('maps an unexpected re-auth error to PASSWORD_CHANGE_FAILED and never updates', async () => {
-    const signIn = vi.fn().mockRejectedValue(new Error('network down'));
+  it('maps an unexpected updateUser failure to PASSWORD_CHANGE_FAILED and carries the cause', async () => {
+    const boom = new Error('boom');
+    const updateUser = vi.fn().mockRejectedValue(boom);
+    const { svc } = makeService({ updateUser });
+    await expect(svc.changePassword(UID, EMAIL, valid)).rejects.toMatchObject({
+      code: 'PASSWORD_CHANGE_FAILED',
+      status: 500,
+      cause: boom,
+    });
+  });
+
+  it('maps an unexpected re-auth error to PASSWORD_CHANGE_FAILED with the cause, and never updates', async () => {
+    const boom = new Error('network down');
+    const signIn = vi.fn().mockRejectedValue(boom);
+    const { svc, auth } = makeService({ signIn });
+    await expect(svc.changePassword(UID, EMAIL, valid)).rejects.toMatchObject({
+      code: 'PASSWORD_CHANGE_FAILED',
+      cause: boom,
+    });
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('maps an AuthException with a non-INVALID_CREDENTIALS code to PASSWORD_CHANGE_FAILED (not CurrentPasswordInvalid)', async () => {
+    const signIn = vi.fn().mockRejectedValue(new AuthException('NETWORK', 'down', 503));
     const { svc, auth } = makeService({ signIn });
     await expect(svc.changePassword(UID, EMAIL, valid)).rejects.toBeInstanceOf(
       PasswordChangeFailedException,
     );
     expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('does NOT treat a plain object with code INVALID_CREDENTIALS (not an AuthException) as wrong-password', async () => {
+    // instanceof guard must hold: only a real AuthException maps to CurrentPasswordInvalid.
+    const signIn = vi.fn().mockRejectedValue({ code: 'INVALID_CREDENTIALS' });
+    const { svc } = makeService({ signIn });
+    await expect(svc.changePassword(UID, EMAIL, valid)).rejects.toBeInstanceOf(
+      PasswordChangeFailedException,
+    );
   });
 });

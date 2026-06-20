@@ -183,25 +183,23 @@ describe('AdminInstructorApplicationsPageComponent', () => {
 
   // ─── Signal initial values (kill BooleanLiteral L24/25, ArrayDeclaration L23) ─
 
-  it('applications is empty and loading is true before the list resolves, loadError is false', () => {
-    // BooleanLiteral L24 loading=signal(true): if mutant sets false, spinner never shows.
-    // BooleanLiteral L25 loadError=signal(false): if mutant sets true, error renders before failure.
-    // ArrayDeclaration L23 applications=signal([]): initial value must be empty.
-    let resolveList!: (v: unknown) => void;
-    svc.list = vi.fn(() => new Promise((r) => { resolveList = r; }));
+  it('loading is true and loadError is false at construction, BEFORE ngOnInit reloads', () => {
+    // Kills BooleanLiteral L24 loading=signal(true) and L25 loadError=signal(false),
+    // plus ArrayDeclaration L23 applications=signal([]). The reload() that ngOnInit
+    // triggers re-sets loading(true)/loadError(false), masking the initial-value
+    // mutants — so we read the signals at construction, BEFORE the first
+    // detectChanges() runs ngOnInit.
     TestBed.configureTestingModule({
       imports: [AdminInstructorApplicationsPageComponent],
       providers: [{ provide: AdminInstructorApplicationsService, useValue: svc }],
     });
     const fixture = TestBed.createComponent(AdminInstructorApplicationsPageComponent);
-    fixture.detectChanges();
-
+    // No detectChanges() yet: ngOnInit/reload have NOT run.
+    expect(svc.list).not.toHaveBeenCalled();
     const comp = fixture.componentInstance;
     expect(comp.loading()).toBe(true);
     expect(comp.loadError()).toBe(false);
     expect(comp.applications()).toEqual([]);
-
-    resolveList({ applications: [] });
   });
 
   // ─── messageFor: OptionalChaining L83 (null error shape) ─────────────────────
@@ -219,6 +217,18 @@ describe('AdminInstructorApplicationsPageComponent', () => {
     svc.approve = vi.fn(async () => { throw null; });
     const fixture = await setup();
     await fixture.componentInstance.approve('u1');
+    expect(fixture.componentInstance.rowError('u1')).toContain('Something went wrong');
+  });
+
+  it('messageFor handles err.error present but err.error.error missing without crashing', async () => {
+    // Kills the OptionalChaining on the LAST `?.` (L83): `.error?.error?.code` →
+    // `.error?.error.code`. When err.error exists but err.error.error is undefined,
+    // the un-guarded `.code` access throws instead of returning the generic copy.
+    svc.approve = vi.fn(async () => { throw { error: {} }; });
+    const fixture = await setup();
+    await fixture.componentInstance.approve('u1');
+    // Row must survive (no throw escaping the catch) with the generic message.
+    expect(fixture.componentInstance.applications().some((a) => a.uid === 'u1')).toBe(true);
     expect(fixture.componentInstance.rowError('u1')).toContain('Something went wrong');
   });
 
@@ -249,5 +259,36 @@ describe('AdminInstructorApplicationsPageComponent', () => {
     await p;
     // Row is removed on success.
     expect(comp.applications().some((a) => a.uid === 'u1')).toBe(false);
+  });
+
+  it('clearError on one row preserves the error on another row (spread, not reset)', async () => {
+    // Kills ObjectLiteral L104 `{ ...e }` → `{}`: with `{}` the spread is lost,
+    // so clearing u1's error would also wipe u2's error. The other row's error
+    // must survive the clear.
+    svc.approve = vi.fn(async () => {
+      throw { error: { error: { code: APPLICATION_NOT_PENDING } } };
+    });
+    svc.decline = vi.fn(async () => {
+      throw { error: { error: { code: APPLICATION_NOT_PENDING } } };
+    });
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+
+    // Put an error on both u1 and u2.
+    await comp.approve('u1');
+    await comp.decline('u2');
+    expect(comp.rowError('u1')).toBeTruthy();
+    expect(comp.rowError('u2')).toBeTruthy();
+
+    // Re-approve u1 — clearError(u1) runs synchronously before the await.
+    let resolveApprove!: (v: unknown) => void;
+    svc.approve = vi.fn(() => new Promise((r) => { resolveApprove = r; }));
+    const p = comp.approve('u1');
+    // u1's error is gone, but u2's error must be untouched.
+    expect(comp.rowError('u1')).toBeUndefined();
+    expect(comp.rowError('u2')).toBeTruthy();
+    resolveApprove({ status: 'APPROVED' });
+    await p;
+    expect(comp.rowError('u2')).toBeTruthy();
   });
 });

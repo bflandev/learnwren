@@ -22,6 +22,7 @@ const MAX_FIELD_LENGTH = 2000;
 
 @Injectable()
 export class InstructorApplicationService {
+  // Stryker disable next-line StringLiteral: Logger label is log-only; no behavior depends on it.
   private readonly logger = new Logger('InstructorApplicationService');
 
   constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
@@ -78,6 +79,7 @@ export class InstructorApplicationService {
       }
       tx.set(ref, doc);
     });
+    // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
     this.logger.log(`[profile] instructor application submitted uid=${uid}`);
 
     return { status: 'PENDING', statement, expertise, createdAt };

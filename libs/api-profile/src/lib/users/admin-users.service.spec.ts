@@ -155,12 +155,139 @@ describe('AdminUsersService', () => {
       const res = await svc.list('a'.repeat(201), 1, 20);
       expect(res.total).toBe(1);
     });
+
+    it('trims and lowercases the search before matching', async () => {
+      // Search is '  ADA  ' (padded + uppercase); the displayName is lowercase
+      // 'ada lovelace'. The match only succeeds when BOTH .trim() and
+      // .toLowerCase() run after the slice — kills the MethodExpression mutant
+      // that drops .trim().toLowerCase() (which would leave q='  ADA  ' and miss).
+      repo.scanUsers = vi.fn(async () => [
+        userRecord('1', { displayName: 'ada lovelace', email: 'ada@x.com' }),
+      ]);
+      const res = await svc.list('  ADA  ', 1, 20);
+      expect(res.users.map((u) => u.id)).toEqual(['1']);
+    });
+
+    it('uses an empty default search (no filtering) when called with no search argument', async () => {
+      // Exercises the `search = ''` parameter default. With the default mutated to
+      // a non-empty string, every row would be filtered out — assert all rows
+      // survive (kills the StringLiteral ''→"Stryker was here!" default mutant).
+      repo.scanUsers = vi.fn(async () => [userRecord('a'), userRecord('b')]);
+      const res = await svc.list();
+      expect(res.total).toBe(2);
+      expect(res.page).toBe(1);
+      expect(res.pageSize).toBe(20);
+    });
+
+    it('returns SUSPENDED status verbatim for a suspended user (resolveStatus)', async () => {
+      repo.scanUsers = vi.fn(async () => [userRecord('s', { status: 'SUSPENDED' })]);
+      const res = await svc.list('', 1, 20);
+      expect(res.users).toHaveLength(1);
+      expect(res.users[0]?.status).toBe('SUSPENDED');
+    });
+
+    it('resolves a missing/unknown status to ACTIVE (resolveStatus fallback)', async () => {
+      repo.scanUsers = vi.fn(async () => [
+        userRecord('a', { status: undefined }),
+        userRecord('b', { status: 'WHATEVER' }),
+      ]);
+      const res = await svc.list('', 1, 20);
+      expect(res.users.map((u) => u.status)).toEqual(['ACTIVE', 'ACTIVE']);
+    });
+
+    it('excludes DELETED accounts from the directory but keeps the rest', async () => {
+      repo.scanUsers = vi.fn(async () => [
+        userRecord('keep', { displayName: 'Keep', status: 'ACTIVE' }),
+        userRecord('gone', { displayName: 'Gone', status: 'DELETED' }),
+      ]);
+      const res = await svc.list('', 1, 20);
+      expect(res.users.map((u) => u.id)).toEqual(['keep']);
+      expect(res.total).toBe(1);
+    });
+
+    it('falls back to empty string for a missing email in a list row', async () => {
+      repo.scanUsers = vi.fn(async () => [userRecord('x', { email: undefined })]);
+      const res = await svc.list('', 1, 20);
+      expect(res.users[0]?.email).toBe('');
+    });
+
+    it('falls back to "(no display name)" when displayName is entirely absent in a list row', async () => {
+      // Distinct from the blank-name case: exercises the `?? ''` nullish fallback
+      // (kills the StringLiteral ''→"Stryker was here!" mutant on the list-row map).
+      repo.scanUsers = vi.fn(async () => [userRecord('x', { displayName: undefined, email: 'e@x.com' })]);
+      const res = await svc.list('', 1, 20);
+      expect(res.users[0]?.displayName).toBe('(no display name)');
+    });
+
+    it('uses byName (not email) when displayNames differ — name order wins over email order', async () => {
+      // 'Anna' < 'Bob' by name, but Anna's email sorts AFTER Bob's. The result must
+      // follow name order, proving the byName comparator is honoured (kills the
+      // `byName !== 0 ? byName : ...` → always-email mutant).
+      repo.scanUsers = vi.fn(async () => [
+        userRecord('1', { displayName: 'Bob', email: 'aaa@x.com' }),
+        userRecord('2', { displayName: 'Anna', email: 'zzz@x.com' }),
+      ]);
+      const res = await svc.list('', 1, 20);
+      expect(res.users.map((u) => u.displayName)).toEqual(['Anna', 'Bob']);
+    });
+
+    it('sorts case-insensitively (sensitivity:base) so case-only differences fall to the email tiebreak', async () => {
+      // 'apple' and 'Apple' are equal under base sensitivity, so the email tiebreak
+      // decides order: amy@ before zoe@. Without { sensitivity: 'base' }, default
+      // locale ordering would NOT treat them as equal and the email tiebreak would
+      // not be reached for this pair (kills the ObjectLiteral {...}→{} mutant).
+      repo.scanUsers = vi.fn(async () => [
+        userRecord('1', { displayName: 'apple', email: 'zoe@x.com' }),
+        userRecord('2', { displayName: 'Apple', email: 'amy@x.com' }),
+      ]);
+      const res = await svc.list('', 1, 20);
+      expect(res.users.map((u) => u.email)).toEqual(['amy@x.com', 'zoe@x.com']);
+    });
   });
 
   describe('getDetail', () => {
     it('throws UserNotFoundException when the user is missing', async () => {
       repo.getUser = vi.fn(async () => null);
-      await expect(svc.getDetail('nope' as UserId)).rejects.toBeInstanceOf(UserNotFoundException);
+      const err = await svc.getDetail('nope' as UserId).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(UserNotFoundException);
+      expect((err as UserNotFoundException).status).toBe(404);
+    });
+
+    it('treats a DELETED account as non-existent (404) even though the doc exists', async () => {
+      // Distinguishes the `=== 'DELETED'` branch from the `!rec` branch: rec is
+      // present but DELETED, so the OR's right operand must trip (kills the
+      // ConditionalExpression false + 'DELETED'→"" mutants on the guard).
+      repo.getUser = vi.fn(async () => userRecord('u1', { status: 'DELETED' }));
+      const err = await svc.getDetail('u1' as UserId).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(UserNotFoundException);
+      expect(repo.listEnrollmentsByUser).not.toHaveBeenCalled();
+    });
+
+    it('returns the detail (no throw) for a present, non-deleted user', async () => {
+      // Holds the !rec and DELETED gates false so the guard must fall through
+      // (kills the ConditionalExpression true mutant on `!rec`).
+      repo.getUser = vi.fn(async () => userRecord('u1', { status: 'ACTIVE' }));
+      const detail = await svc.getDetail('u1' as UserId);
+      expect(detail.id).toBe('u1');
+      expect(detail.status).toBe('ACTIVE');
+    });
+
+    it('falls back to "(no display name)", empty email, and empty biography when those fields are absent', async () => {
+      repo.getUser = vi.fn(async () =>
+        userRecord('u1', { displayName: undefined, email: undefined, biography: undefined }),
+      );
+      const detail = await svc.getDetail('u1' as UserId);
+      expect(detail.displayName).toBe('(no display name)');
+      expect(detail.email).toBe('');
+      expect(detail.biography).toBe('');
+    });
+
+    it('returns the trimmed displayName when present (left side of the || wins)', async () => {
+      // Drives the `(displayName).trim() || FALLBACK` truthy branch so the fallback
+      // is NOT used (kills the LogicalOperator and ConditionalExpression mutants).
+      repo.getUser = vi.fn(async () => userRecord('u1', { displayName: '  Real Name  ' }));
+      const detail = await svc.getDetail('u1' as UserId);
+      expect(detail.displayName).toBe('Real Name');
     });
 
     it('joins enrollments (newest first) with course titles and tolerates deleted courses', async () => {

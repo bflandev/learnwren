@@ -9,6 +9,7 @@ import { PictureException } from './errors/picture.exception';
 // renders 401 instead of leaking as a 500.
 @Catch(PictureException, AuthException, HttpException)
 export class PictureExceptionFilter implements ExceptionFilter {
+  // Stryker disable next-line StringLiteral: Logger label is log-only; never asserted, no control-flow/return/status effect.
   private readonly logger = new Logger('PictureExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {

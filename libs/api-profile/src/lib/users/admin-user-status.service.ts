@@ -109,6 +109,7 @@ export class AdminUserStatusService {
       await this.auth.updateUser(targetUid, { disabled: true });
       await this.auth.revokeRefreshTokens(targetUid);
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message text only — no observable behaviour to assert.
       this.logger.error(`suspend side-effect failed for uid=${targetUid}: ${String(err)}; reverting status`);
       try {
         await this.firestore.collection(USERS).doc(targetUid).update({ status: 'ACTIVE', updatedAt: nowIso() });
@@ -118,6 +119,7 @@ export class AdminUserStatusService {
       throw new AdminUsersException('INTERNAL', 'An internal error occurred during suspend.', 500, undefined, { cause: err });
     }
 
+    // Stryker disable next-line StringLiteral: log message text only — no observable behaviour to assert.
     this.logger.log(`Suspended uid=${targetUid} by actor=${actorUid}`);
     return { id: targetUid, status: 'SUSPENDED' };
   }
@@ -146,6 +148,7 @@ export class AdminUserStatusService {
     try {
       await this.auth.updateUser(targetUid, { disabled: false });
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message text only — no observable behaviour to assert.
       this.logger.error(`unsuspend side-effect failed for uid=${targetUid}: ${String(err)}; reverting status`);
       try {
         await this.firestore.collection(USERS).doc(targetUid).update({ status: 'SUSPENDED', updatedAt: nowIso() });
@@ -155,6 +158,7 @@ export class AdminUserStatusService {
       throw new AdminUsersException('INTERNAL', 'An internal error occurred during unsuspend.', 500, undefined, { cause: err });
     }
 
+    // Stryker disable next-line StringLiteral: log message text only — no observable behaviour to assert.
     this.logger.log(`Unsuspended uid=${targetUid} by actor=${actorUid}`);
     return { id: targetUid, status: 'ACTIVE' };
   }

@@ -66,6 +66,8 @@ describe('EmailChangeService.requestChange', () => {
     'user@.com',
     '',
     '   ',
+    // trailing garbage after a valid prefix — only the `$` anchor rejects this.
+    'a@b.c\nmore@evil.com',
   ])('rejects malformed new email %j via the regex guard', async (badEmail) => {
     const { svc, restClient } = makeService();
     await expect(
@@ -176,7 +178,7 @@ describe('EmailChangeService.requestChange', () => {
   });
 
   it('generates the verify-and-change link and emails the NEW address on success', async () => {
-    const { svc, auth, transport } = makeService();
+    const { svc, auth, transport, restClient } = makeService();
     await svc.requestChange(UID, 'old@example.com', valid);
     expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith(
       'old@example.com',
@@ -187,6 +189,109 @@ describe('EmailChangeService.requestChange', () => {
       to: 'new@example.com',
       verificationUrl: 'https://app/verify?oobCode=x',
     });
+    // reauth uses the exact { email, password } object (kills the empty-object mutant).
+    expect(restClient.signInWithPassword).toHaveBeenCalledWith({
+      email: 'old@example.com',
+      password: 'pw',
+    });
+  });
+
+  it('a valid new email passes the guard and reaches reauth (kills the always-false condition)', async () => {
+    const { svc, restClient } = makeService();
+    await svc.requestChange(UID, 'old@example.com', valid);
+    expect(restClient.signInWithPassword).toHaveBeenCalledTimes(1);
+  });
+
+  it('a malformed email is stopped AT the guard — reauth/link-gen/send are never reached', async () => {
+    // If the guard condition is forced to `false`, this malformed email would
+    // flow through to reauth/link-gen; asserting they are NOT called pins the guard.
+    const { svc, restClient, auth, transport } = makeService();
+    await expect(
+      svc.requestChange(UID, 'old@example.com', { ...valid, newEmail: 'nope' }),
+    ).rejects.toBeInstanceOf(EmailInvalidException);
+    expect(restClient.signInWithPassword).not.toHaveBeenCalled();
+    expect(auth.generateVerifyAndChangeEmailLink).not.toHaveBeenCalled();
+    expect(transport.sendEmailChangeVerificationEmail).not.toHaveBeenCalled();
+  });
+
+  it('continueUrl honours LEARNWREN_PUBLIC_URL when set', async () => {
+    const prev = process.env['LEARNWREN_PUBLIC_URL'];
+    process.env['LEARNWREN_PUBLIC_URL'] = 'https://learnwren.test';
+    try {
+      const { svc, auth } = makeService();
+      await svc.requestChange(UID, 'old@example.com', valid);
+      expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith(
+        'old@example.com',
+        'new@example.com',
+        { url: 'https://learnwren.test/settings/profile/email-changed' },
+      );
+    } finally {
+      if (prev === undefined) delete process.env['LEARNWREN_PUBLIC_URL'];
+      else process.env['LEARNWREN_PUBLIC_URL'] = prev;
+    }
+  });
+
+  it('continueUrl falls back to http://localhost:4200 when LEARNWREN_PUBLIC_URL is unset', async () => {
+    const prev = process.env['LEARNWREN_PUBLIC_URL'];
+    delete process.env['LEARNWREN_PUBLIC_URL'];
+    try {
+      const { svc, auth } = makeService();
+      await svc.requestChange(UID, 'old@example.com', valid);
+      expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith(
+        'old@example.com',
+        'new@example.com',
+        { url: 'http://localhost:4200/settings/profile/email-changed' },
+      );
+    } finally {
+      if (prev === undefined) delete process.env['LEARNWREN_PUBLIC_URL'];
+      else process.env['LEARNWREN_PUBLIC_URL'] = prev;
+    }
+  });
+
+  it('an Error reauth failure carries the original error as cause', async () => {
+    const boom = new Error('network down');
+    const signIn = vi.fn().mockRejectedValue(boom);
+    const { svc } = makeService({ signIn });
+    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toMatchObject({
+      code: 'EMAIL_CHANGE_FAILED',
+      cause: boom,
+    });
+  });
+
+  it('an Error link-gen failure carries the original error as cause', async () => {
+    const boom = new Error('opaque');
+    const genLink = vi.fn().mockRejectedValue(boom);
+    const { svc } = makeService({ genLink });
+    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toMatchObject({
+      code: 'EMAIL_CHANGE_FAILED',
+      cause: boom,
+    });
+  });
+
+  it('an Error send failure carries the original error as cause', async () => {
+    const boom = new Error('smtp down');
+    const sendEmail = vi.fn().mockRejectedValue(boom);
+    const { svc } = makeService({ sendEmail });
+    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toMatchObject({
+      code: 'EMAIL_CHANGE_FAILED',
+      cause: boom,
+    });
+  });
+
+  it('a string link-gen error (typeof !== object) is NOT a firebase error → EmailChangeFailed', async () => {
+    const genLink = vi.fn().mockRejectedValue('auth/email-already-exists');
+    const { svc } = makeService({ genLink });
+    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
+      EmailChangeFailedException,
+    );
+  });
+
+  it('a null link-gen error (err === null) is NOT a firebase error → EmailChangeFailed', async () => {
+    const genLink = vi.fn().mockRejectedValue(null);
+    const { svc } = makeService({ genLink });
+    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
+      EmailChangeFailedException,
+    );
   });
 });
 
@@ -236,13 +341,16 @@ describe('EmailChangeService.confirmChange', () => {
   it('syncs Firestore, revokes tokens, and returns changed:true on a verified swap', async () => {
     const { svc, auth } = makeService();
     const update = vi.fn().mockResolvedValue(undefined);
+    const docFn = vi.fn().mockReturnValue({ update });
+    const collection = vi.fn().mockReturnValue({ doc: docFn });
     auth.getUser = vi.fn().mockResolvedValue({ email: 'new@example.com', emailVerified: true });
-    // Re-point firestore so we can assert the update payload.
-    (svc as unknown as { firestore: unknown }).firestore = {
-      collection: () => ({ doc: () => ({ update }) }),
-    };
+    // Re-point firestore so we can assert the update payload + targeted collection/doc.
+    (svc as unknown as { firestore: unknown }).firestore = { collection };
     const res = await svc.confirmChange(UID, 'old@example.com');
     expect(res).toEqual({ changed: true, email: 'new@example.com' });
+    expect(collection).toHaveBeenCalledWith('users');
+    expect(collection).not.toHaveBeenCalledWith('');
+    expect(docFn).toHaveBeenCalledWith(UID);
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'new@example.com', updatedAt: expect.any(String) }),
     );

@@ -26,6 +26,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 @Injectable()
 export class EmailChangeService {
+  // Stryker disable next-line StringLiteral: Logger label is log-only; no behaviour depends on it.
   private readonly logger = new Logger('EmailChangeService');
 
   constructor(
@@ -41,6 +42,7 @@ export class EmailChangeService {
     input: { newEmail: string; currentPassword: string },
   ): Promise<void> {
     const newEmail = input.newEmail.trim().toLowerCase();
+    // Stryker disable next-line ConditionalExpression: the `length === 0` check is a redundant fast-path — EMAIL_REGEX requires >=1 char before '@', so `!EMAIL_REGEX.test('')` is already true; dropping the left operand is provably equivalent.
     if (newEmail.length === 0 || !EMAIL_REGEX.test(newEmail)) {
       throw new EmailInvalidException();
     }
@@ -58,9 +60,11 @@ export class EmailChangeService {
         verificationUrl: link,
       });
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log-only diagnostic message; the throw below is the behaviour under test.
       this.logger.error(`[profile] email-change send failed uid=${uid}: ${String(err)}`);
       throw new EmailChangeFailedException(err instanceof Error ? { cause: err } : undefined);
     }
+    // Stryker disable next-line StringLiteral: success log message is log-only; no behaviour depends on its text.
     this.logger.log(`[profile] email-change requested uid=${uid}`);
   }
 
@@ -81,6 +85,7 @@ export class EmailChangeService {
     });
     await this.auth.revokeRefreshTokens(uid);
 
+    // Stryker disable next-line StringLiteral: success log message is log-only; no behaviour depends on its text.
     this.logger.log(`[profile] email-change confirmed uid=${uid}`);
     return { changed: true, email: user.email };
   }
@@ -92,6 +97,7 @@ export class EmailChangeService {
       if (err instanceof AuthException && err.code === 'INVALID_CREDENTIALS') {
         throw new CurrentPasswordInvalidException();
       }
+      // Stryker disable next-line StringLiteral: log-only diagnostic message; the throw below is the behaviour under test.
       this.logger.error(`[profile] email-change reauth failed: ${String(err)}`);
       throw new EmailChangeFailedException(err instanceof Error ? { cause: err } : undefined);
     }
@@ -106,6 +112,7 @@ export class EmailChangeService {
       if (this.isFirebaseError(err) && err.code === 'auth/email-already-exists') {
         throw new EmailAlreadyInUseException();
       }
+      // Stryker disable next-line StringLiteral: log-only diagnostic message; the throw below is the behaviour under test.
       this.logger.error(`[profile] email-change link gen failed uid=${uid}: ${String(err)}`);
       throw new EmailChangeFailedException(err instanceof Error ? { cause: err } : undefined);
     }

@@ -31,6 +31,7 @@ const COLLECTION = INSTRUCTOR_APPLICATIONS_COLLECTION;
 
 @Injectable()
 export class AdminInstructorApplicationService {
+  // Stryker disable next-line StringLiteral: Logger label is log-only; no behavior depends on it.
   private readonly logger = new Logger('AdminInstructorApplicationService');
 
   constructor(
@@ -96,8 +97,10 @@ export class AdminInstructorApplicationService {
       await appRef
         .update({ status: 'PENDING', resolvedAt: FieldValue.delete() })
         .catch((revertErr: unknown) => {
+          // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
           this.logger.error(`[admin] approval revert failed uid=${uid}: ${String(revertErr)}`);
         });
+      // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
       this.logger.error(`[admin] promotion failed uid=${uid}: ${String(err)}`);
       // Wrap: a raw SDK error would escape the feature filter's @Catch list
       // and be rendered without the {error:{code}} envelope.
@@ -115,9 +118,11 @@ export class AdminInstructorApplicationService {
     try {
       await this.email.sendInstructorApplicationApprovedEmail({ to: user.email ?? '' });
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
       this.logger.error(`[admin] approval notice failed uid=${uid}: ${String(err)}`);
     }
 
+    // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
     this.logger.log(`[admin] instructor application approved uid=${uid}`);
 
     return this.viewOf(app as InstructorApplication, 'APPROVED');
@@ -149,9 +154,11 @@ export class AdminInstructorApplicationService {
       const user = await this.auth.getUser(uid);
       await this.email.sendInstructorApplicationDeclinedEmail({ to: user.email ?? '' });
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
       this.logger.error(`[admin] decline notice failed uid=${uid}: ${String(err)}`);
     }
 
+    // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
     this.logger.log(`[admin] instructor application declined uid=${uid}`);
 
     return this.viewOf(app as InstructorApplication, 'DECLINED');

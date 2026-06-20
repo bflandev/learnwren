@@ -14,6 +14,8 @@ function makeFirestore(initial: DocState): {
   firestore: FirestoreHandle;
   written: Record<string, unknown> | null;
   state: DocState;
+  collection: ReturnType<typeof vi.fn>;
+  docFn: ReturnType<typeof vi.fn>;
 } {
   const state = { ...initial };
   let written: Record<string, unknown> | null = null;
@@ -27,10 +29,18 @@ function makeFirestore(initial: DocState): {
       written = patch;
     }),
   };
-  const firestore = {
-    collection: vi.fn(() => ({ doc: vi.fn(() => doc) })),
-  } as unknown as FirestoreHandle;
-  return { firestore, get written() { return written; }, state } as never;
+  const docFn = vi.fn(() => doc);
+  const collection = vi.fn(() => ({ doc: docFn }));
+  const firestore = { collection } as unknown as FirestoreHandle;
+  return {
+    firestore,
+    get written() {
+      return written;
+    },
+    state,
+    collection,
+    docFn,
+  } as never;
 }
 
 const UID = 'u-1' as UserId;
@@ -75,6 +85,22 @@ describe('ProfileService', () => {
       biography: 'hello',
       updatedAt: '2026-05-27T10:00:00.000Z',
     });
+    // targets the exact 'users' collection + doc(uid) on both the write and the re-read
+    expect(harness.collection).toHaveBeenCalledWith('users');
+    expect(harness.collection).not.toHaveBeenCalledWith('');
+    expect(harness.docFn).toHaveBeenCalledWith(UID);
+  });
+
+  it('getProfile reads from the exact "users" collection at doc(uid)', async () => {
+    const harness = makeFirestore({
+      exists: true,
+      data: { displayName: 'A', role: 'STUDENT' },
+    });
+    const svc = new ProfileService(harness.firestore);
+    await svc.getProfile(UID, FROM_COOKIE);
+    expect(harness.collection).toHaveBeenCalledWith('users');
+    expect(harness.collection).not.toHaveBeenCalledWith('');
+    expect(harness.docFn).toHaveBeenCalledWith(UID);
   });
 
   it.each([
@@ -116,10 +142,10 @@ describe('ProfileService', () => {
     ).resolves.toBeDefined();
   });
 
-  it('throws when the user doc is missing', async () => {
+  it('throws NotFoundException with the exact message when the user doc is missing', async () => {
     const { firestore } = makeFirestore({ exists: false, data: {} });
     const svc = new ProfileService(firestore);
-    await expect(svc.getProfile(UID, FROM_COOKIE)).rejects.toThrow();
+    await expect(svc.getProfile(UID, FROM_COOKIE)).rejects.toThrow('User profile not found.');
   });
 
   it('getProfile returns photoUrl when the user doc carries one', async () => {

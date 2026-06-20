@@ -153,6 +153,7 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
       return 'Cannot perform this action: this user is the last admin.';
     }
     if (code === 'USER_HAS_COURSES') {
+      // Stryker disable next-line OptionalChaining: equivalent — this branch is only reached when code === 'USER_HAS_COURSES', which requires body?.code to be set, so body is provably non-null here; the `body?.details` guard can never short-circuit and removing it is unobservable.
       const count = body?.details?.['courseCount'];
       return `Cannot delete: this user owns ${count ?? 'one or more'} course(s). Transfer or delete their courses first.`;
     }
@@ -166,6 +167,7 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
     this.actionError.set(undefined);
     this.confirmingDemote.set(false);
     this.confirmingDelete.set(false);
+    // Stryker disable next-line UpdateOperator: equivalent — ++ and -- both yield a unique monotonic token; the only consumer is the `token !== this.loadToken` staleness check, which is unaffected by direction.
     const token = ++this.loadToken;
     this.loading.set(true);
     this.notFound.set(false);
