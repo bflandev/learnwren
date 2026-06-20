@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 
 import type { CourseAnalyticsView } from '@learnwren/shared-data-models';
@@ -120,8 +120,37 @@ describe('CourseAnalyticsPageComponent', () => {
     const s = setup();
     // Do NOT flush yet — the component is mid-request, state === 'loading'.
     expect((s.fixture.nativeElement as HTMLElement).textContent).toContain('Loading');
+    // state must literally be 'loading' before the request resolves.
+    expect(s.fixture.componentInstance.state()).toBe('loading');
     // Now satisfy the outstanding request so the test ends cleanly.
     s.http.expectOne('/api/courses/course-1/analytics').flush(VIEW);
+  });
+
+  it('cid() is empty (no throw) when the paramMap signal has not emitted yet', () => {
+    // A never-emitting paramMap keeps toSignal() undefined; cid() must use the
+    // optional-chain fallback rather than dereferencing undefined.
+    TestBed.configureTestingModule({
+      imports: [CourseAnalyticsPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { paramMap: new Subject() } },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(CourseAnalyticsPageComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.cid()).toBe('');
+    http.expectOne('/api/courses//analytics').flush({
+      courseId: '',
+      enrolledTotal: 0,
+      averageCompletionPercent: 0,
+      newEnrollments: { last7Days: 0, last30Days: 0, last90Days: 0 },
+      totalLessons: 0,
+      lessons: [],
+      generatedAt: '2026-06-01T00:00:00.000Z',
+    } as never);
   });
 
   it('falls back to an empty course id when the route has no id param', () => {

@@ -40,6 +40,20 @@ describe('ModuleItemComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('M1');
   });
 
+  it('defaults coursePublished to false (notify button hidden when not set)', () => {
+    // build() never sets coursePublished, even with lessons present.
+    TestBed.configureTestingModule({ imports: [ModuleItemComponent] });
+    const fixture = TestBed.createComponent(ModuleItemComponent);
+    fixture.componentRef.setInput('module', M);
+    fixture.componentRef.setInput('lessons', [
+      { id: 'l1', moduleId: 'mid-1', title: 'L', order: 0, createdAt: M.createdAt, updatedAt: M.updatedAt },
+    ]);
+    fixture.componentRef.setInput('courseId', 'cid-1' as CourseId);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.coursePublished()).toBe(false);
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="module-notify"]')).toBeFalsy();
+  });
+
   it('emits renameModule on commit', () => {
     const fixture = build();
     const spy = vi.spyOn(fixture.componentInstance.renameModule, 'emit');

@@ -32,9 +32,10 @@ describe('instructorRoleGuard', () => {
     });
   });
 
-  it('allows INSTRUCTOR', async () => {
+  it('allows INSTRUCTOR without re-refreshing an already-loaded user', async () => {
     auth.currentUser = signal({ role: 'INSTRUCTOR' }) as never;
     await expect(runGuard()).resolves.toBe(true);
+    expect(auth.refresh).not.toHaveBeenCalled();
   });
 
   it('redirects STUDENT to /dashboard', async () => {

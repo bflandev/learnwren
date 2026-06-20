@@ -88,6 +88,31 @@ describe('FirebaseAuthRestClient.signInWithPassword', () => {
     ).rejects.toBeInstanceOf(InvalidCredentialsException);
   });
 
+  it('extracts the leading token from a "CODE : detail" message and maps it to InvalidCredentialsException', async () => {
+    // Firebase returns messages like `INVALID_PASSWORD : INVALID_LOGIN_...`.
+    // The client must split on the first space and match only the leading
+    // token. A StringLiteral mutant changing the split separator `' '` to `''`
+    // (or a MethodExpression mutant dropping `.split`) would compare the full
+    // string against the code Set, miss the match, and wrongly throw Internal.
+    mockFetchErr(400, 'INVALID_PASSWORD : INVALID_LOGIN_CREDENTIALS [ ... ]');
+    const client = await buildClient();
+    await expect(
+      client.signInWithPassword({ email: 'a@b.c', password: 'pw' }),
+    ).rejects.toBeInstanceOf(InvalidCredentialsException);
+  });
+
+  it('trims surrounding whitespace from the extracted code before matching', async () => {
+    // The leading token can carry a stray tab/CR from upstream formatting.
+    // `.trim()` normalises it before the Set lookup; a MethodExpression mutant
+    // dropping `.trim()` would leave `EMAIL_NOT_FOUND\t`, miss the Set, and
+    // wrongly throw InternalAuthException instead of InvalidCredentials.
+    mockFetchErr(400, 'EMAIL_NOT_FOUND\t');
+    const client = await buildClient();
+    await expect(
+      client.signInWithPassword({ email: 'a@b.c', password: 'pw' }),
+    ).rejects.toBeInstanceOf(InvalidCredentialsException);
+  });
+
   it('throws InternalAuthException on unexpected error code', async () => {
     mockFetchErr(500, 'INTERNAL_ERROR');
     const client = await buildClient();

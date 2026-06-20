@@ -75,6 +75,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 @Injectable()
 export class AuthService {
+  // Stryker disable next-line StringLiteral: Logger category name — log-only, no behavioral effect
   private readonly logger = new Logger('AuthService');
 
   constructor(
@@ -99,6 +100,7 @@ export class AuthService {
     );
     const session = await this.autoLoginOrRollback(input, uid);
 
+    // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
     this.logger.log(`[auth] register uid=${uid}`);
     return {
       uid,
@@ -146,6 +148,7 @@ export class AuthService {
         throw new EmailAlreadyExistsException();
       }
       this.logger.error(
+        // Stryker disable next-line StringLiteral,LogicalOperator: log message + nullish fallback are log-only, no behavioral effect
         `[auth] register createUser failed code=${(err as { code?: string }).code ?? 'unknown'}`,
       );
       throw new InternalAuthException();
@@ -170,6 +173,7 @@ export class AuthService {
         updatedAt: now,
       });
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] register firestore.set failed uid=${uid}: ${String(err)}`);
       await this.bestEffortDeleteUser(uid);
       throw new InternalAuthException();
@@ -180,6 +184,7 @@ export class AuthService {
     try {
       await this.auth.setCustomUserClaims(uid, { role: 'STUDENT' });
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] register setCustomUserClaims failed uid=${uid}: ${String(err)}`);
       await this.bestEffortDeleteUser(uid);
       throw new InternalAuthException();
@@ -199,6 +204,7 @@ export class AuthService {
       });
       return await this.sessionCookies.mint(restResult.idToken);
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] register auto-login failed uid=${uid}: ${String(err)}`);
       await this.bestEffortDeleteUser(uid);
       throw err instanceof Error ? err : new InternalAuthException();
@@ -217,6 +223,7 @@ export class AuthService {
 
     const profile = await this.loadUserProfile(userRecord.uid);
 
+    // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
     this.logger.log(`[auth] login uid=${userRecord.uid}`);
     return {
       uid: userRecord.uid as UserId,
@@ -261,6 +268,7 @@ export class AuthService {
         // Log the lockout event but NOT any part of the unlock token — it is a
         // single-use secret and even a prefix is needless exposure in Cloud
         // Logging. The emailHash is sufficient to correlate the event.
+        // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
         this.logger.log(`[auth] lockout fired emailHash=${emailHash}`);
         await this.recovery.sendUnlockEmail(
           input.email,
@@ -269,6 +277,7 @@ export class AuthService {
         );
         throw new AccountLockedException(failure.lockedUntil!);
       }
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.log(`[auth] login failed code=INVALID_CREDENTIALS emailHash=${emailHash}`);
       throw err;
     }
@@ -283,6 +292,7 @@ export class AuthService {
     const decoded = await this.auth.verifyIdToken(idToken, true);
     const userRecord = await this.auth.getUser(decoded.uid);
     if (!userRecord.emailVerified) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.log(`[auth] login blocked code=EMAIL_NOT_VERIFIED uid=${userRecord.uid}`);
       throw new EmailNotVerifiedException();
     }
@@ -292,6 +302,7 @@ export class AuthService {
   private async loadUserProfile(uid: string): Promise<{ displayName: string; role: UserRole }> {
     const userDoc = await this.firestore.collection('users').doc(uid).get();
     if (!userDoc.exists) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] login missing users/${uid}`);
       throw new InternalAuthException();
     }
@@ -304,6 +315,7 @@ export class AuthService {
   ): Promise<MeResponse> {
     const snap = await this.firestore.collection('users').doc(uid).get();
     if (!snap.exists) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] getMe missing users/${uid}`);
       throw new InternalAuthException();
     }
@@ -323,10 +335,13 @@ export class AuthService {
   }
 
   private async bestEffortDeleteUser(uid: string): Promise<void> {
+    // Stryker disable BlockStatement: the catch only logs then swallows the deleteUser error, so emptying it is indistinguishable from the original — equivalent. (Stryker associates a `} catch` block mutant with the try-open line, so it cannot be targeted by a next-line directive in isolation; this minimal region is the narrowest that reaches it. The try-body emptying is still locked by the "swallows a deleteUser failure during rollback" spec, which asserts deleteUser is invoked.)
     try {
       await this.auth.deleteUser(uid);
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] register rollback deleteUser failed uid=${uid}: ${String(err)}`);
     }
+    // Stryker restore BlockStatement
   }
 }

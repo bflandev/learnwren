@@ -50,4 +50,33 @@ describe('ModuleTreeComponent', () => {
     } as CdkDragDrop<ModuleNode[]>);
     expect(spy).toHaveBeenCalledWith(['c', 'a', 'b']);
   });
+
+  it('does NOT emit reorderModules when the item is dropped in place', () => {
+    TestBed.configureTestingModule({
+      imports: [ModuleTreeComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), VideoService],
+    });
+    const fixture = TestBed.createComponent(ModuleTreeComponent);
+    fixture.componentRef.setInput('nodes', [node('a'), node('b')]);
+    fixture.componentRef.setInput('courseId', 'cid-1' as CourseId);
+    fixture.detectChanges();
+    const spy = vi.spyOn(fixture.componentInstance.reorderModules, 'emit');
+    fixture.componentInstance.onDrop({
+      previousIndex: 1,
+      currentIndex: 1,
+    } as CdkDragDrop<ModuleNode[]>);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('defaults coursePublished to false when the input is not provided', () => {
+    TestBed.configureTestingModule({
+      imports: [ModuleTreeComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), VideoService],
+    });
+    const fixture = TestBed.createComponent(ModuleTreeComponent);
+    fixture.componentRef.setInput('nodes', [node('a')]);
+    fixture.componentRef.setInput('courseId', 'cid-1' as CourseId);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.coursePublished()).toBe(false);
+  });
 });

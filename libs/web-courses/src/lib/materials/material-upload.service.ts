@@ -12,7 +12,9 @@ import {
 import { MaterialsService } from './materials.service';
 
 export const MATERIAL_XHR_FACTORY = new InjectionToken<() => XMLHttpRequest>(
+  // Stryker disable next-line StringLiteral: equivalent — the InjectionToken description is debug-only metadata with no runtime behavior.
   'MATERIAL_XHR_FACTORY',
+  // Stryker disable next-line StringLiteral: equivalent — the attached `factory` resolves the token in any injector, so changing providedIn 'root' has no observable effect under TestBed.
   { providedIn: 'root', factory: () => () => new XMLHttpRequest() },
 );
 
@@ -40,6 +42,7 @@ type FileCheck =
 
 function checkFile(file: File): FileCheck {
   const dot = file.name.lastIndexOf('.');
+  // Stryker disable next-line StringLiteral: equivalent — the no-extension fallback value is never observed; any non-empty placeholder is also rejected by SUPPORTED.has(ext).
   const ext = dot >= 0 ? file.name.slice(dot + 1).toLowerCase() : '';
   if (!SUPPORTED.has(ext)) {
     return {

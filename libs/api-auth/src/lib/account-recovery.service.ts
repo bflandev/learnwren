@@ -16,6 +16,7 @@ import {
 
 @Injectable()
 export class AccountRecoveryService {
+  // Stryker disable next-line StringLiteral: Logger category name — log-only, no behavioral effect
   private readonly logger = new Logger('AccountRecoveryService');
 
   constructor(
@@ -37,6 +38,7 @@ export class AccountRecoveryService {
       return;
     }
 
+    // Stryker disable next-line StringLiteral: `tag` flows only into log lines (dispatchOutboundEmail) — log-only, no behavioral effect
     await this.dispatchOutboundEmail('resend-verification', emailHash, async () => {
       const verificationUrl = await this.auth.generateEmailVerificationLink(email, {
         url: this.continueUrl('/login'),
@@ -54,6 +56,7 @@ export class AccountRecoveryService {
     const userRecord = await this.findUserOrNullForEnumerationResistance(email);
     if (!userRecord) return;
 
+    // Stryker disable next-line StringLiteral: `tag` flows only into log lines (dispatchOutboundEmail) — log-only, no behavioral effect
     await this.dispatchOutboundEmail('password-reset', emailHash, async () => {
       const resetUrl = await this.auth.generatePasswordResetLink(email, {
         url: this.continueUrl('/login?reset=ok'),
@@ -66,6 +69,7 @@ export class AccountRecoveryService {
   async unlock(token: string): Promise<void> {
     const result = await this.attempts.redeemUnlockToken(token);
     if (result.status === 'ok') {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.log('[auth] unlock redeemed');
       return;
     }
@@ -96,6 +100,7 @@ export class AccountRecoveryService {
       return;
     }
 
+    // Stryker disable BlockStatement: the best-effort catch only logs then swallows the send error, so emptying it is indistinguishable from the original — equivalent. (Stryker associates a `} catch` block mutant with the try-open line, so it cannot be targeted by a next-line directive in isolation; this minimal region is the narrowest that reaches it. The try-body emptying is still locked by the "sends the unlock email" spec, which asserts sendUnlockEmail is invoked.)
     try {
       await this.emailTransport.sendUnlockEmail({
         to,
@@ -103,8 +108,10 @@ export class AccountRecoveryService {
         unlockAvailableAt,
       });
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] unlock-email send failed: ${String(err)}`);
     }
+    // Stryker restore BlockStatement
   }
 
   /**
@@ -120,6 +127,7 @@ export class AccountRecoveryService {
       await this.emailTransport.sendVerificationEmail({ to: email, verificationUrl });
       return true;
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.warn(`[auth] register verification email failed uid=${uid}: ${String(err)}`);
       return false;
     }
@@ -155,8 +163,10 @@ export class AccountRecoveryService {
   ): Promise<void> {
     try {
       await fn();
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.log(`[auth] ${tag} sent emailHash=${emailHash}`);
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] ${tag} send failed emailHash=${emailHash}: ${String(err)}`);
       throw new InternalAuthException();
     }

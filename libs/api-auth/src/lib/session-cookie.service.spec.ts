@@ -170,6 +170,65 @@ describe('SessionCookieService.revokeFromCookie', () => {
     }
   });
 
+  it('treats an already-revoked cookie as a silent no-op (initial verify uses checkRevoked=true)', async () => {
+    // The decode at the top of revokeFromCookie verifies with checkRevoked=true,
+    // so a cookie that was already revoked elsewhere lands in the catch and the
+    // method returns WITHOUT calling revokeRefreshTokens again. A BooleanLiteral
+    // mutant flipping that `true` to `false` would let the stale cookie decode
+    // and trigger a needless re-revoke.
+    const verifySessionCookie = vi.fn(async (_cookie: string, checkRevoked: boolean) => {
+      if (checkRevoked) throw new Error('auth/session-cookie-revoked');
+      return { uid: 'uid-abc', iat: 1 };
+    });
+    const revokeRefreshTokens = vi.fn(async () => undefined);
+    const auth = { ...buildFakeAuth(), verifySessionCookie, revokeRefreshTokens };
+    const service = await buildService(auth as unknown as FakeAuth);
+
+    await expect(service.revokeFromCookie('already.revoked')).resolves.toBeUndefined();
+    expect(verifySessionCookie).toHaveBeenCalledWith('already.revoked', true);
+    expect(revokeRefreshTokens).not.toHaveBeenCalled();
+  });
+
+  it('sleeps exactly to the next-second boundary plus the margin before retrying', async () => {
+    // sleepPastNextSecond waits `1000 - (now % 1000) + LOGOUT_REVOKE_MARGIN_MS`.
+    // An ArithmeticOperator mutant flipping the `-` to `+` would overshoot the
+    // boundary by up to a full extra second. Pin the exact setTimeout delay: at
+    // 300ms into a second the correct wait is 700 + 250 = 950ms (the mutant
+    // would schedule 300 + 250 + 1000 = 1550ms).
+    vi.useFakeTimers();
+    try {
+      const cookieIatSec = 1_700_000_000;
+      vi.setSystemTime(new Date(cookieIatSec * 1000 + 300));
+      const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+
+      // First confirm-after-revoke fails (forcing one sleep), second succeeds.
+      let confirmCalls = 0;
+      const verifySessionCookie = vi.fn(async (_cookie: string, checkRevoked: boolean) => {
+        if (!checkRevoked) return { uid: 'uid-abc', iat: cookieIatSec };
+        // checkRevoked path = the initial decode (call 1, succeeds) and the
+        // post-revoke confirmation calls. Let the first confirm fail, the
+        // second succeed.
+        confirmCalls++;
+        if (confirmCalls === 1) return { uid: 'uid-abc', iat: cookieIatSec }; // initial decode
+        if (confirmCalls === 2) return { uid: 'uid-abc', iat: cookieIatSec }; // first confirm: NOT revoked
+        throw new Error('revoked'); // second confirm: revoked
+      });
+      const revokeRefreshTokens = vi.fn(async () => undefined);
+      const auth = { ...buildFakeAuth(), verifySessionCookie, revokeRefreshTokens };
+      const service = await buildService(auth as unknown as FakeAuth);
+
+      const pending = service.revokeFromCookie('valid.cookie');
+      await vi.advanceTimersByTimeAsync(5000);
+      await pending;
+
+      const sleepDelays = setTimeoutSpy.mock.calls.map((c) => c[1]);
+      expect(sleepDelays).toContain(950);
+      expect(sleepDelays).not.toContain(1550);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('is a no-op when the cookie is undefined', async () => {
     const auth = {
       ...buildFakeAuth(),

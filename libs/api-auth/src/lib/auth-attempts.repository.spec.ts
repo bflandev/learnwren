@@ -280,6 +280,65 @@ describe('AuthAttemptsRepository.redeemUnlockToken', () => {
     expect(await repo.redeemUnlockToken('tok')).toEqual({ status: 'expired' });
     expect(fs._docs.has('hash-1')).toBe(false);
   });
+
+  it('honours the `query.empty` short-circuit even when a doc is present in the result', async () => {
+    // Pins the `if (query.empty) return invalid` guard. A ConditionalExpression
+    // mutant flipping it to `false` would skip the early return and fall through
+    // to read docs[0]. Feed an *inconsistent* result — empty=true but a valid,
+    // non-expired doc IS present — so the original returns `invalid` while the
+    // mutant would read the doc and return `ok`. The valid doc must NOT be
+    // deleted, proving the body never ran.
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const del = vi.fn(async () => undefined);
+    const docSnap = {
+      id: 'hash-x',
+      exists: true,
+      data: () => ({ failedCount: 3, lockedUntil: future, unlockTokenHash: 'h' }),
+      ref: { delete: del },
+    };
+    const fakeFirestore = {
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({ get: vi.fn(), set: vi.fn(), delete: vi.fn() })),
+        where: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            get: vi.fn(async () => ({ empty: true, docs: [docSnap] })),
+          })),
+        })),
+      })),
+      runTransaction: vi.fn(),
+      _docs: new Map(),
+      _queryHits: new Map(),
+    } as unknown as FakeFirestore;
+    const repo = await buildRepo(fakeFirestore);
+
+    expect(await repo.redeemUnlockToken('tok')).toEqual({ status: 'invalid' });
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  it('returns invalid when the query reports non-empty but yields no doc', async () => {
+    // Covers + pins the defensive `if (!docSnap) return invalid` guard. Feed an
+    // inconsistent result — empty=false but docs=[] — so docs[0] is undefined.
+    // The original returns `invalid`; a ConditionalExpression mutant flipping
+    // `!docSnap` to `false`, or an ObjectLiteral/StringLiteral mutant on the
+    // returned `{ status: 'invalid' }`, would read `undefined.data()` and throw
+    // (or return the wrong shape) instead of cleanly reporting invalid.
+    const fakeFirestore = {
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({ get: vi.fn(), set: vi.fn(), delete: vi.fn() })),
+        where: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            get: vi.fn(async () => ({ empty: false, docs: [] })),
+          })),
+        })),
+      })),
+      runTransaction: vi.fn(),
+      _docs: new Map(),
+      _queryHits: new Map(),
+    } as unknown as FakeFirestore;
+    const repo = await buildRepo(fakeFirestore);
+
+    expect(await repo.redeemUnlockToken('tok')).toEqual({ status: 'invalid' });
+  });
 });
 
 describe('AuthAttemptsRepository throttle helpers', () => {

@@ -49,6 +49,11 @@ describe('LessonItemComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Hello');
   });
 
+  it('starts with an empty draft title before startEdit seeds it', () => {
+    const c = build().componentInstance;
+    expect(c.draftTitle()).toBe('');
+  });
+
   it('renders VideoUploadComponent when lesson.videoId is null', () => {
     const fixture = build();
     expect((fixture.nativeElement as HTMLElement).querySelector('lib-video-upload')).toBeTruthy();
@@ -464,6 +469,32 @@ describe('LessonItemComponent video-state refetch + effect branches', () => {
     const getVideo = vi.fn().mockReturnValue(throwError(() => new Error('boom')));
     const c = bootstrap(getVideo, LESSON_WITH_VIDEO).componentInstance;
     expect(getVideo).toHaveBeenCalledTimes(1);
+    expect(c.video()).toBeUndefined();
+  });
+
+  it('the effect CLEARS a previously-loaded video to undefined when videoId becomes null', () => {
+    const getVideo = vi.fn().mockReturnValue(of(UPLOADED));
+    const fixture = bootstrap(getVideo, LESSON_WITH_VIDEO);
+    const c = fixture.componentInstance;
+    // a video has been loaded
+    expect(c.video()).toEqual(UPLOADED);
+    // remove the videoId — the effect must reset video to undefined
+    fixture.componentRef.setInput('lesson', LESSON); // no videoId
+    TestBed.flushEffects();
+    expect(c.video()).toBeUndefined();
+  });
+
+  it('the effect CLEARS a previously-loaded video to undefined when a new videoId errors', () => {
+    const getVideo = vi.fn()
+      .mockReturnValueOnce(of(UPLOADED))
+      .mockReturnValueOnce(throwError(() => new Error('boom')));
+    const fixture = bootstrap(getVideo, LESSON_WITH_VIDEO);
+    const c = fixture.componentInstance;
+    expect(c.video()).toEqual(UPLOADED);
+    // switch to a different videoId whose fetch errors — error callback must clear video
+    fixture.componentRef.setInput('lesson', { ...LESSON_WITH_VIDEO, videoId: 'v2' });
+    TestBed.flushEffects();
+    expect(getVideo).toHaveBeenCalledTimes(2);
     expect(c.video()).toBeUndefined();
   });
 });

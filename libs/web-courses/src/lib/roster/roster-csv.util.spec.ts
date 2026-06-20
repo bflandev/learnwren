@@ -38,4 +38,13 @@ describe('rosterRowsToCsv', () => {
   it('returns just the header for an empty roster', () => {
     expect(rosterRowsToCsv([]).trim()).toBe('"Display Name","Email","Enrollment Date","Progress (%)"');
   });
+
+  it('terminates every line (including the last) with a CRLF', () => {
+    const csv = rosterRowsToCsv([row({})]);
+    expect(csv).toBe(
+      '"Display Name","Email","Enrollment Date","Progress (%)"\r\n' +
+        '"Ada","ada@example.com","2026-05-22","70"\r\n',
+    );
+    expect(csv.endsWith('"70"\r\n')).toBe(true);
+  });
 });

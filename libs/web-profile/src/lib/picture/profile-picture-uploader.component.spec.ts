@@ -58,6 +58,27 @@ describe('ProfilePictureUploaderComponent', () => {
     });
   });
 
+  it('initial state is "idle" before any interaction', () => {
+    // Kills the L22 StringLiteral on `signal<UploaderState>('idle')` — read before any set().
+    const f = TestBed.createComponent(ProfilePictureUploaderComponent);
+    f.detectChanges();
+    expect(f.componentInstance.state()).toBe('idle');
+    expect(f.componentInstance.errorReason()).toBeNull();
+  });
+
+  it('onRemove sets state to "uploading" mid-flight before remove resolves', async () => {
+    // Kills the L46 StringLiteral on `this.state.set('uploading')` inside onRemove.
+    let resolveRemove!: (u: AuthenticatedUser) => void;
+    svc.remove.mockReturnValue(new Promise<AuthenticatedUser>((res) => (resolveRemove = res)));
+    const f = TestBed.createComponent(ProfilePictureUploaderComponent);
+    f.detectChanges();
+    const p = f.componentInstance.onRemove();
+    expect(f.componentInstance.state()).toBe('uploading');
+    resolveRemove(meUser());
+    await p;
+    expect(f.componentInstance.state()).toBe('idle');
+  });
+
   it('idle → uploading → idle on success; calls setCurrentUser with the snapshot', async () => {
     svc.upload.mockResolvedValue(meUser({ photoUrl: 'https://x/avatar.jpg?v=1' }));
     const f = TestBed.createComponent(ProfilePictureUploaderComponent);

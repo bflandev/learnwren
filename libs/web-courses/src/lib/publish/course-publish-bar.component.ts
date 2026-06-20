@@ -72,6 +72,7 @@ export class CoursePublishBarComponent {
 
   protected onPrimary(): void {
     const kind = this.primaryKind();
+    // Stryker disable next-line ConditionalExpression: equivalent — when kind is null the subsequent `kind === 'unpublish'|'publish'|'restore'` checks are all false, so removing this early return produces no observable difference.
     if (!kind) return;
     if (kind === 'unpublish') {
       this.requestConfirm.emit('unpublish');

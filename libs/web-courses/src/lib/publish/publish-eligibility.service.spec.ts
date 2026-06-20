@@ -55,6 +55,8 @@ describe('PublishEligibilityService', () => {
 
     const req = http.expectOne(ELIGIBILITY_URL);
     expect(req.request.method).toBe('GET');
+    // loading must flip true while the request is in flight (before flush)
+    expect(svc.loading()).toBe(true);
     req.flush(ELIGIBILITY_OK);
 
     // drain microtask queue so the async fetch() can resolve and set signals
@@ -63,6 +65,17 @@ describe('PublishEligibilityService', () => {
     expect(svc.eligibility()).toEqual(ELIGIBILITY_OK);
     expect(svc.loading()).toBe(false);
     expect(svc.lastError()).toBeNull();
+  });
+
+  it('does not fetch (or set loading) when no course is bound', async () => {
+    vi.useFakeTimers();
+    // no bindToCourse — cid stays null
+    svc.refresh();
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    await Promise.resolve();
+
+    http.expectNone(ELIGIBILITY_URL);
+    expect(svc.loading()).toBe(false);
   });
 
   it('debounces rapid refresh calls into a single network request', async () => {
