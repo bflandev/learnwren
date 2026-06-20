@@ -75,4 +75,17 @@ describe('LwCoverComponent — image input', () => {
     expect(host.querySelector('img.lw-cover-image')).toBeNull();
     expect(host.querySelector('.lw-cover-glyph')!.textContent).toContain('W');
   });
+
+  it('defaults the image alt to the empty string when none is given', () => {
+    // Pins the alt input('') default — a mutation to a non-empty default would
+    // surface as a non-empty alt attribute on the rendered <img>.
+    const fixture = TestBed.createComponent(LwCoverComponent);
+    fixture.componentRef.setInput('imageUrl', 'https://cdn/x.jpg');
+    fixture.detectChanges();
+    const img = (fixture.nativeElement as HTMLElement).querySelector(
+      'img.lw-cover-image',
+    ) as HTMLImageElement | null;
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute('alt')).toBe('');
+  });
 });

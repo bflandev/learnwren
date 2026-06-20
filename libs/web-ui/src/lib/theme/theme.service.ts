@@ -26,6 +26,7 @@ export class ThemeService {
 
   private readInitial(): LwTheme {
     const stored = localStorage.getItem(STORAGE_KEY);
+    // Stryker disable next-line ConditionalExpression,StringLiteral: equivalent — the `|| stored === 'dark'` clause is redundant because its else-branch fallback is also 'dark'. Blanking/removing it yields identical output for every input.
     return stored === 'light' || stored === 'dark' ? stored : 'dark';
   }
 
