@@ -82,6 +82,7 @@ export class InstructorApplicationComponent {
     const code = body?.error?.code;
     const message = body?.error?.message ?? 'Could not submit your application.';
     if (code === 'INSTRUCTOR_APPLICATION_INVALID') {
+      // Stryker disable next-line OptionalChaining: reached only when body?.error?.code === INVALID above, so body and body.error are provably non-null here — `body.error` ≡ `body?.error` and `body?.error.details` ≡ `body?.error?.details`.
       const field = body?.error?.details?.field;
       if (field === 'statement' || field === 'expertise') {
         this.form.controls[field].setErrors({ server: message });

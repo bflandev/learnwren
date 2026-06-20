@@ -7,6 +7,7 @@ import { Router } from '@angular/router';
 import { AuthService } from '@learnwren/web-auth';
 
 import { PasswordChangeService } from '../password/password-change.service';
+import { EmailChangeService } from '../email/email-change.service';
 import { InstructorApplicationService } from '../instructor-application/instructor-application.service';
 
 import { ProfilePageComponent } from './profile-page.component';
@@ -189,6 +190,90 @@ describe('ProfilePageComponent', () => {
     expect(cmp.form.controls.displayName.errors).toBeNull();
     expect(cmp.form.controls.biography.errors).toBeNull();
   });
+
+  it('a 400 whose error body has no inner "error" object is handled cleanly (kills body?.error.code)', async () => {
+    // body === {} is truthy but body.error is undefined: original `body?.error?.code`
+    // short-circuits to undefined (≠ PROFILE_INVALID) and returns; the mutant
+    // `body?.error.code` would throw reading `.code` of undefined.
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ displayName: 'A', biography: 'b' });
+    const saved = cmp.save();
+    http.expectOne('/api/profile').flush({}, { status: 400, statusText: 'Bad Request' });
+    await expect(saved).resolves.toBeUndefined();
+    expect(cmp.form.controls.displayName.errors).toBeNull();
+    expect(cmp.form.controls.biography.errors).toBeNull();
+    expect(cmp.status()).toBe('error');
+  });
+
+  it('a 400 with a null error body is handled cleanly (kills body.error chains in applyServerError)', async () => {
+    // body === null: original `body?.error?.code` short-circuits to undefined and
+    // returns early; the `body.error` mutant would throw reading `.error` of null,
+    // rejecting save(). A clean resolve with no field error proves the chain.
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ displayName: 'A', biography: 'b' });
+    const saved = cmp.save();
+    http.expectOne('/api/profile').flush(null, { status: 400, statusText: 'Bad Request' });
+    await expect(saved).resolves.toBeUndefined();
+    expect(cmp.form.controls.displayName.errors).toBeNull();
+    expect(cmp.form.controls.biography.errors).toBeNull();
+    expect(cmp.status()).toBe('error');
+  });
+});
+
+describe('ProfilePageComponent — pristine initial control values', () => {
+  // Built WITHOUT detectChanges so ngOnInit/load() never runs — the form-control
+  // initial values are observed as authored, killing the `''` StringLiteral mutants.
+  let cmp: ProfilePageComponent;
+
+  beforeEach(() => {
+    instructorApplicationServiceStub.getApplication.mockResolvedValue({ status: 'NONE' });
+    TestBed.configureTestingModule({
+      imports: [ProfilePageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: InstructorApplicationService, useValue: instructorApplicationServiceStub },
+      ],
+    });
+    cmp = TestBed.createComponent(ProfilePageComponent).componentInstance;
+  });
+
+  it('profile form starts with empty displayName and biography', () => {
+    expect(cmp.form.controls.displayName.value).toBe('');
+    expect(cmp.form.controls.biography.value).toBe('');
+  });
+
+  it('email form starts empty → both controls report the required error', () => {
+    expect(cmp.emailForm.controls.newEmail.value).toBe('');
+    expect(cmp.emailForm.controls.currentPassword.value).toBe('');
+    expect(cmp.emailForm.controls.newEmail.hasError('required')).toBe(true);
+    expect(cmp.emailForm.controls.currentPassword.hasError('required')).toBe(true);
+  });
+
+  it('password form starts empty → all three controls report the required error', () => {
+    expect(cmp.passwordForm.controls.currentPassword.value).toBe('');
+    expect(cmp.passwordForm.controls.newPassword.value).toBe('');
+    expect(cmp.passwordForm.controls.confirmNewPassword.value).toBe('');
+    expect(cmp.passwordForm.controls.currentPassword.hasError('required')).toBe(true);
+    expect(cmp.passwordForm.controls.newPassword.hasError('required')).toBe(true);
+    expect(cmp.passwordForm.controls.confirmNewPassword.hasError('required')).toBe(true);
+  });
+
+  it('all status/loading signals hold their authored initial values before any load', () => {
+    // status='idle', emailStatus='idle', passwordStatus='idle',
+    // loadingProfile=true, profileLoadError=false — read before ngOnInit.
+    expect(cmp.status()).toBe('idle');
+    expect(cmp.emailStatus()).toBe('idle');
+    expect(cmp.passwordStatus()).toBe('idle');
+    expect(cmp.loadingProfile()).toBe(true);
+    expect(cmp.profileLoadError()).toBe(false);
+    expect(cmp.emailFormOpen()).toBe(false);
+    expect(cmp.passwordFormOpen()).toBe(false);
+    expect(cmp.pendingEmail()).toBeNull();
+    expect(cmp.passwordBannerError()).toBeNull();
+  });
 });
 
 describe('ProfilePageComponent — form validity', () => {
@@ -316,6 +401,14 @@ describe('ProfilePageComponent — form validity', () => {
     const hints = cmp.passwordHints();
     expect(hints.length).toBeGreaterThan(0);
     expect(hints.every((h) => typeof h === 'string' && h.length > 0)).toBe(true);
+  });
+
+  it('passwordHints returns [] when the policy error object has no "unmet" array (kills unmet?.map chain)', () => {
+    // policy is truthy but `unmet` is undefined: original `policy?.unmet?.map`
+    // short-circuits → `?? []` → []. The `policy?.unmet.map` mutant would throw.
+    const cmp = fixture.componentInstance;
+    cmp.passwordForm.controls.newPassword.setErrors({ passwordPolicy: {} });
+    expect(cmp.passwordHints()).toEqual([]);
   });
 });
 
@@ -451,6 +544,62 @@ describe('ProfilePageComponent — change email', () => {
   });
 });
 
+describe('ProfilePageComponent — change email error edge cases', () => {
+  let fixture: ComponentFixture<ProfilePageComponent>;
+  let http: HttpTestingController;
+  const requestChange = vi.fn();
+
+  beforeEach(() => {
+    requestChange.mockReset();
+    instructorApplicationServiceStub.getApplication.mockResolvedValue({ status: 'NONE' });
+    TestBed.configureTestingModule({
+      imports: [ProfilePageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: EmailChangeService, useValue: { requestChange } },
+        { provide: InstructorApplicationService, useValue: instructorApplicationServiceStub },
+      ],
+    });
+    fixture = TestBed.createComponent(ProfilePageComponent);
+    http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    http.expectOne('/api/profile').flush(MOCK_PROFILE);
+  });
+
+  function fillValid(cmp: ProfilePageComponent) {
+    cmp.emailForm.setValue({ newEmail: 'new@x.com', currentPassword: 'pw' });
+  }
+
+  it('a non-HttpErrorResponse rejection early-returns even when it carries a field payload', async () => {
+    // Kills the L121 `if (!(err instanceof HttpErrorResponse)) return` guard.
+    // The rejection is a plain object (NOT an HttpErrorResponse) but shaped so that,
+    // if the guard were bypassed, it WOULD set a newEmail field error. The early
+    // return must prevent that — so newEmail.server must stay undefined.
+    requestChange.mockRejectedValue({
+      error: { error: { details: { field: 'newEmail' }, message: 'should not leak' } },
+    });
+    const cmp = fixture.componentInstance;
+    fillValid(cmp);
+    await cmp.submitEmailChange();
+    expect(cmp.emailForm.controls.newEmail.errors?.['server']).toBeUndefined();
+    expect(cmp.emailForm.controls.currentPassword.errors?.['server']).toBeUndefined();
+    expect(cmp.emailStatus()).toBe('error');
+  });
+
+  it('a null error body is handled cleanly (kills body.error chains in applyEmailServerError)', async () => {
+    // body null: original `body?.error?.details?.field` / `body?.error?.message`
+    // short-circuit; the `body.error` mutants would throw, rejecting submit.
+    requestChange.mockRejectedValue(new HttpErrorResponse({ status: 500, error: null }));
+    const cmp = fixture.componentInstance;
+    fillValid(cmp);
+    await expect(cmp.submitEmailChange()).resolves.toBeUndefined();
+    expect(cmp.emailForm.controls.newEmail.errors?.['server']).toBeUndefined();
+    expect(cmp.emailForm.controls.currentPassword.errors?.['server']).toBeUndefined();
+    expect(cmp.emailStatus()).toBe('error');
+  });
+});
+
 describe('ProfilePageComponent — load state (ANG-1)', () => {
   let fixture: ComponentFixture<ProfilePageComponent>;
   let http: HttpTestingController;
@@ -570,6 +719,52 @@ describe('ProfilePageComponent — load state (ANG-1)', () => {
 
     // The component should have the result from the fast (newer) request
     expect(fixture.componentInstance.readonly()?.email).toBe('a@b.c');
+  });
+
+  it('a stale FAILED response does not set profileLoadError after a newer load succeeded', async () => {
+    fixture.detectChanges();
+    const slowReq = http.expectOne('/api/profile');
+    // Newer load succeeds first.
+    const retryPromise = fixture.componentInstance.retryLoad();
+    const fastReq = http.expectOne('/api/profile');
+    fastReq.flush(MOCK_PROFILE);
+    await retryPromise;
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.profileLoadError()).toBe(false);
+
+    // Stale request now ERRORS — kills the L187 catch-branch token check:
+    // a `false` mutant would set profileLoadError(true) from the stale failure.
+    slowReq.flush({ error: { code: 'X' } }, { status: 500, statusText: 'x' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.profileLoadError()).toBe(false);
+    expect(fixture.componentInstance.readonly()?.email).toBe('a@b.c');
+  });
+
+  it('a stale response finally does not clear the spinner while a newer load is still in flight', async () => {
+    fixture.detectChanges();
+    const slowReq = http.expectOne('/api/profile'); // token 1
+
+    // Start a newer load that stays IN FLIGHT.
+    const retryPromise = fixture.componentInstance.retryLoad(); // token 2
+    const fastReq = http.expectOne('/api/profile');
+    expect(fixture.componentInstance.loadingProfile()).toBe(true);
+
+    // The stale (token 1) request resolves while token 2 is still pending.
+    // Original: token !== loadToken → finally skips set(false) → spinner stays.
+    // Mutant (L191 → true): would wrongly clear the spinner.
+    slowReq.flush({ ...MOCK_PROFILE, email: 'stale@b.c' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.loadingProfile()).toBe(true);
+
+    // Settle the newer request to keep HttpTestingController.verify() clean.
+    fastReq.flush(MOCK_PROFILE);
+    await retryPromise;
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.loadingProfile()).toBe(false);
   });
 });
 
@@ -748,6 +943,36 @@ describe('ProfilePageComponent — change password', () => {
     await cmp.submitPasswordChange();
     // L125 invalid guard.
     expect(change).not.toHaveBeenCalled();
+  });
+
+  it('an error body with no inner "error" object falls back to the default banner (kills body?.error.code/message)', async () => {
+    // body === {} is truthy but body.error is undefined: original
+    // `body?.error?.code` / `body?.error?.message` short-circuit to undefined →
+    // default banner; the `body?.error.code`/`.message` mutants would throw.
+    change.mockRejectedValue(new HttpErrorResponse({ status: 500, error: {} }));
+    const cmp = fixture.componentInstance;
+    cmp.passwordForm.setValue({
+      currentPassword: 'Aa1!aaaaaaaa',
+      newPassword: 'Bb2@bbbbbbbb',
+      confirmNewPassword: 'Bb2@bbbbbbbb',
+    });
+    await cmp.submitPasswordChange();
+    expect(cmp.passwordBannerError()).toBe('Could not change password.');
+    expect(cmp.passwordForm.controls.currentPassword.errors?.['server']).toBeFalsy();
+    expect(cmp.passwordForm.controls.newPassword.errors?.['server']).toBeFalsy();
+  });
+
+  it('a null error body falls back to the default banner (kills the body.error chains)', async () => {
+    // body === null: original short-circuits; the `body.error` mutants would throw.
+    change.mockRejectedValue(new HttpErrorResponse({ status: 500, error: null }));
+    const cmp = fixture.componentInstance;
+    cmp.passwordForm.setValue({
+      currentPassword: 'Aa1!aaaaaaaa',
+      newPassword: 'Bb2@bbbbbbbb',
+      confirmNewPassword: 'Bb2@bbbbbbbb',
+    });
+    await expect(cmp.submitPasswordChange()).resolves.toBeUndefined();
+    expect(cmp.passwordBannerError()).toBe('Could not change password.');
   });
 
   it('routes PASSWORD_CHANGE_FAILED to the form-level banner, not a field', async () => {

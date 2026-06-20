@@ -20,7 +20,9 @@ type EmailStatus = 'idle' | 'sending' | 'sent' | 'error';
 type PasswordStatus = 'idle' | 'saving' | 'error';
 
 function confirmMatchesValidator(control: AbstractControl): ValidationErrors | null {
+  // Stryker disable next-line OptionalChaining: validator runs on the passwordForm group where 'newPassword' is a declared control, so get() never returns null — `?.value` ≡ `.value`.
   const np = control.get('newPassword')?.value;
+  // Stryker disable next-line OptionalChaining: same group always declares 'confirmNewPassword', so get() never returns null — `?.value` ≡ `.value`.
   const cp = control.get('confirmNewPassword')?.value;
   return np && cp && np !== cp ? { confirmMismatch: true } : null;
 }
@@ -83,6 +85,7 @@ export class ProfilePageComponent implements OnInit {
 
   private readonly newPasswordValue = toSignal(
     this.passwordForm.controls.newPassword.valueChanges,
+    // Stryker disable next-line ObjectLiteral: passwordHints only reads this signal for reactivity (`void this.newPasswordValue()`), never its value, so dropping initialValue (→ undefined) is unobservable.
     { initialValue: this.passwordForm.controls.newPassword.value },
   );
 
@@ -175,6 +178,7 @@ export class ProfilePageComponent implements OnInit {
   }
 
   private async load(): Promise<void> {
+    // Stryker disable next-line UpdateOperator: loadToken's only consumers are `===`/`!==` staleness checks, which need distinct values, not a direction — `--` yields equally-distinct tokens.
     const token = ++this.loadToken;
     this.loadingProfile.set(true);
     this.profileLoadError.set(false);

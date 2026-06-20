@@ -191,4 +191,42 @@ describe('ProfilePictureService', () => {
     const err = await p;
     expect(err.code).toBe('UNKNOWN');
   });
+
+  it('typed error carries the name "ProfilePictureError"', async () => {
+    // Kills the StringLiteral on `this.name = 'ProfilePictureError'` (L20).
+    const p = service.upload(file(1024, 'image/jpeg')).catch((e) => e);
+    http.expectOne('/api/profile/picture').flush(
+      { error: { code: PROFILE_PICTURE_TOO_LARGE, message: 'x' } },
+      { status: 413, statusText: 'x' },
+    );
+    const err = await p;
+    expect(err.name).toBe('ProfilePictureError');
+  });
+
+  it('falls back to UNKNOWN when the HttpErrorResponse body is null (kills the err.error?. optional-chaining)', async () => {
+    // `err.error?.error?.code` → mutant `err.error.error?.code`: when `err.error`
+    // is null the original short-circuits to undefined; the mutant would throw a
+    // TypeError reading `.error` of null. A clean UNKNOWN result proves the chain.
+    const p = service.upload(file(1024, 'image/jpeg')).catch((e) => e);
+    http
+      .expectOne('/api/profile/picture')
+      .flush(null, { status: 500, statusText: 'x' });
+    const err = await p;
+    expect(err.code).toBe('UNKNOWN');
+    expect(err.message).toBe('Network error.');
+  });
+
+  it('falls back to UNKNOWN when error.error exists but has no code (kills the ?.code optional-chaining)', async () => {
+    // `err.error?.error?.code` → mutant `err.error?.error`: the inner object is
+    // truthy but `.code` is absent. Original: code undefined → UNKNOWN/Network.
+    // Mutant: enters the typed branch with code === undefined. Different result.
+    const p = service.upload(file(1024, 'image/jpeg')).catch((e) => e);
+    http.expectOne('/api/profile/picture').flush(
+      { error: { error: { message: 'no code here' } } },
+      { status: 500, statusText: 'x' },
+    );
+    const err = await p;
+    expect(err.code).toBe('UNKNOWN');
+    expect(err.message).toBe('Network error.');
+  });
 });
