@@ -41,6 +41,25 @@ describe('ProfilePictureController', () => {
     await expect(c.upload(undefined as never, req)).rejects.toBeInstanceOf(UnsupportedPictureFormatException);
   });
 
+  it('PUT accepts an image/png file (png is in the allowlist) and forwards it', async () => {
+    const svc = { uploadPicture: vi.fn().mockResolvedValue(meStub()) } as never;
+    const c = new ProfilePictureController(svc);
+    const file = { buffer: Buffer.from('x'), mimetype: 'image/png', size: 10 } as Express.Multer.File;
+    await c.upload(file, req);
+    expect(svc.uploadPicture).toHaveBeenCalledWith('u1', file.buffer, 'image/png', {
+      email: 'a@b.com',
+      emailVerified: true,
+    });
+  });
+
+  it('PUT with size exactly at the 2MB limit is accepted (boundary: > not >=)', async () => {
+    const svc = { uploadPicture: vi.fn().mockResolvedValue(meStub()) } as never;
+    const c = new ProfilePictureController(svc);
+    const file = { buffer: Buffer.from('x'), mimetype: 'image/jpeg', size: 2_000_000 } as Express.Multer.File;
+    await expect(c.upload(file, req)).resolves.toBeDefined();
+    expect(svc.uploadPicture).toHaveBeenCalledTimes(1);
+  });
+
   it('PUT with non-JPEG/PNG mime → UnsupportedPictureFormatException', async () => {
     const svc = {} as never;
     const c = new ProfilePictureController(svc);

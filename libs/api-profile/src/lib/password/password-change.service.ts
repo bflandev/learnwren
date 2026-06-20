@@ -19,6 +19,7 @@ import {
 
 @Injectable()
 export class PasswordChangeService {
+  // Stryker disable next-line StringLiteral: Logger label is log-only; no behaviour depends on it.
   private readonly logger = new Logger('PasswordChangeService');
 
   constructor(
@@ -46,6 +47,7 @@ export class PasswordChangeService {
     try {
       await this.auth.updateUser(uid, { password: input.newPassword });
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log-only diagnostic message; the throw below is the behaviour under test.
       this.logger.error(`[profile] password updateUser failed uid=${uid}: ${String(err)}`);
       throw new PasswordChangeFailedException(err instanceof Error ? { cause: err } : undefined);
     }
@@ -59,6 +61,7 @@ export class PasswordChangeService {
     }
 
     await this.auth.revokeRefreshTokens(uid);
+    // Stryker disable next-line StringLiteral: success log message is log-only; no behaviour depends on its text.
     this.logger.log(`[profile] password changed uid=${uid}`);
   }
 
@@ -69,6 +72,7 @@ export class PasswordChangeService {
       if (err instanceof AuthException && err.code === 'INVALID_CREDENTIALS') {
         throw new CurrentPasswordInvalidException();
       }
+      // Stryker disable next-line StringLiteral: log-only diagnostic message; the throw below is the behaviour under test.
       this.logger.error(`[profile] password reauth failed: ${String(err)}`);
       throw new PasswordChangeFailedException(err instanceof Error ? { cause: err } : undefined);
     }

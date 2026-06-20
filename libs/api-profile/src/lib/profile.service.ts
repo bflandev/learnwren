@@ -20,6 +20,7 @@ interface UserDoc {
 
 @Injectable()
 export class ProfileService {
+  // Stryker disable next-line StringLiteral: Logger label is log-only; no behaviour depends on it.
   private readonly logger = new Logger('ProfileService');
 
   constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
@@ -75,6 +76,7 @@ export class ProfileService {
   private async readUser(uid: UserId): Promise<UserDoc> {
     const snap = await this.firestore.collection('users').doc(uid).get();
     if (!snap.exists) {
+      // Stryker disable next-line StringLiteral: log-only diagnostic message; no behaviour depends on its text.
       this.logger.error(`[profile] missing users/${uid}`);
       throw new NotFoundException('User profile not found.');
     }

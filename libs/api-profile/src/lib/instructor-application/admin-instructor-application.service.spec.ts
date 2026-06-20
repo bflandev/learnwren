@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Logger } from '@nestjs/common';
 import { FieldValue } from 'firebase-admin/firestore';
 
 import { AdminInstructorApplicationService } from './admin-instructor-application.service';
@@ -17,6 +18,7 @@ type DocStub = {
 function makeFirestore() {
   const docs: Record<string, DocStub> = {};
   const queryDocs: Array<{ data: () => unknown }> = [];
+  const whereFn = vi.fn(() => ({ get: vi.fn(async () => ({ docs: queryDocs })) }));
   // Transaction object: delegates get/update to the underlying doc stubs so
   // the transaction path exercises the same in-memory registry as direct calls.
   const txn = {
@@ -33,11 +35,11 @@ function makeFirestore() {
         docs[key] ??= { get: vi.fn(), update: vi.fn(async () => undefined) };
         return docs[key];
       }),
-      where: vi.fn(() => ({ get: vi.fn(async () => ({ docs: queryDocs })) })),
+      where: whereFn,
     })),
     runTransaction: vi.fn(async (fn: (t: typeof txn) => Promise<unknown>) => fn(txn)),
   };
-  return { firestore, docs, queryDocs, txn };
+  return { firestore, docs, queryDocs, txn, whereFn };
 }
 
 describe('AdminInstructorApplicationService', () => {
@@ -45,6 +47,7 @@ describe('AdminInstructorApplicationService', () => {
   let docs: Record<string, DocStub>;
   let queryDocs: Array<{ data: () => unknown }>;
   let txn: ReturnType<typeof makeFirestore>['txn'];
+  let whereFn: ReturnType<typeof makeFirestore>['whereFn'];
   let auth: { getUser: ReturnType<typeof vi.fn>; setCustomUserClaims: ReturnType<typeof vi.fn> };
   let email: {
     sendInstructorApplicationApprovedEmail: ReturnType<typeof vi.fn>;
@@ -53,7 +56,7 @@ describe('AdminInstructorApplicationService', () => {
   let svc: AdminInstructorApplicationService;
 
   beforeEach(() => {
-    ({ firestore, docs, queryDocs, txn } = makeFirestore());
+    ({ firestore, docs, queryDocs, txn, whereFn } = makeFirestore());
     auth = {
       getUser: vi.fn(async () => ({ email: 'ada@example.com', emailVerified: true })),
       setCustomUserClaims: vi.fn(async () => undefined),
@@ -82,11 +85,44 @@ describe('AdminInstructorApplicationService', () => {
 
     const res = await svc.listPending();
 
+    // Pins the Firestore query filter: field 'status', operator '==', value 'PENDING'.
+    expect(whereFn).toHaveBeenCalledWith('status', '==', 'PENDING');
     expect(res.applications).toEqual([
       {
         uid: 'u1',
         displayName: 'Ada',
         email: 'ada@example.com',
+        statement: 's',
+        expertise: 'e',
+        createdAt: '2026-05-29T00:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('listPending falls back to empty displayName/email when the user doc is missing', async () => {
+    queryDocs.push({
+      data: () => ({
+        uid: 'u-missing',
+        statement: 's',
+        expertise: 'e',
+        status: 'PENDING',
+        createdAt: '2026-05-29T00:00:00.000Z',
+      }),
+    });
+    // No docs['users/u-missing'] registered -> readStoredUserProfiles returns no
+    // entry -> profiles.get(uid) is undefined -> optional-chaining + '' fallback.
+    docs['users/u-missing'] = {
+      get: vi.fn(async () => ({ data: () => undefined })),
+      update: vi.fn(),
+    };
+
+    const res = await svc.listPending();
+
+    expect(res.applications).toEqual([
+      {
+        uid: 'u-missing',
+        displayName: '',
+        email: '',
         statement: 's',
         expertise: 'e',
         createdAt: '2026-05-29T00:00:00.000Z',
@@ -199,6 +235,7 @@ describe('AdminInstructorApplicationService', () => {
     expect(err).toBeInstanceOf(AdminInstructorApplicationException);
     expect((err as AdminInstructorApplicationException).code).toBe('INTERNAL');
     expect((err as AdminInstructorApplicationException).status).toBe(500);
+    expect((err as Error).message).toBe('An internal error occurred during promotion.');
     expect((err as Error).cause).toBe(promotionError);
 
     // The revert must restore a clean PENDING doc: status written back AND the
@@ -206,6 +243,39 @@ describe('AdminInstructorApplicationService', () => {
     expect(appUpdate).toHaveBeenCalledWith({ status: 'PENDING', resolvedAt: FieldValue.delete() });
     // Email must NOT be sent (error happened before email step).
     expect(email.sendInstructorApplicationApprovedEmail).not.toHaveBeenCalled();
+  });
+
+  // If the revert update ALSO fails, the .catch callback must log and swallow
+  // (the original typed INTERNAL error still surfaces, not the revert error).
+  it('approve: revert failure after promotion failure is logged and swallowed', async () => {
+    const revertError = new Error('firestore unavailable');
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => {
+        throw revertError;
+      }),
+    };
+    auth.setCustomUserClaims = vi.fn(async () => {
+      throw new Error('Firebase Auth unavailable');
+    });
+    const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    const err: unknown = await svc.approve('u1' as never).then(
+      () => {
+        throw new Error('expected approve to reject');
+      },
+      (e: unknown) => e,
+    );
+
+    // The original typed INTERNAL error surfaces (revert error swallowed).
+    expect(err).toBeInstanceOf(AdminInstructorApplicationException);
+    expect((err as AdminInstructorApplicationException).code).toBe('INTERNAL');
+    // The .catch callback must have logged the revert failure.
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('approval revert failed'));
+    errSpy.mockRestore();
   });
 
   it('decline: pending -> DECLINED view + email', async () => {
@@ -223,6 +293,15 @@ describe('AdminInstructorApplicationService', () => {
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: 'DECLINED' }));
     expect(email.sendInstructorApplicationDeclinedEmail).toHaveBeenCalledWith({ to: 'ada@example.com' });
     expect(view.status).toBe('DECLINED');
+  });
+
+  it('decline: missing app -> ApplicationNotFoundException', async () => {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({ exists: false, data: () => undefined })),
+      update: vi.fn(),
+    };
+    await expect(svc.decline('u1' as never)).rejects.toThrow(ApplicationNotFoundException);
+    expect(email.sendInstructorApplicationDeclinedEmail).not.toHaveBeenCalled();
   });
 
   it('decline: already resolved -> ApplicationNotPendingException', async () => {
@@ -256,11 +335,31 @@ describe('AdminInstructorApplicationService', () => {
     email.sendInstructorApplicationApprovedEmail = vi.fn(async () => {
       throw new Error('smtp down');
     });
+    // Spy the logger so the (otherwise no-op) catch BODY is asserted: emptying it
+    // must fail this test.
+    const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
     const view = await svc.approve('u1' as never);
 
     expect(auth.setCustomUserClaims).toHaveBeenCalledWith('u1', { role: 'INSTRUCTOR' });
     expect(view.status).toBe('APPROVED');
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('approval notice failed'));
+    errSpy.mockRestore();
+  });
+
+  it('approve: sends the approval email with empty to when the user record has no email', async () => {
+    auth.getUser = vi.fn(async () => ({ email: undefined, emailVerified: true }));
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => undefined),
+    };
+
+    await svc.approve('u1' as never);
+
+    expect(email.sendInstructorApplicationApprovedEmail).toHaveBeenCalledWith({ to: '' });
   });
 
   it('decline: email failure does not fail the operation', async () => {
@@ -275,11 +374,30 @@ describe('AdminInstructorApplicationService', () => {
     email.sendInstructorApplicationDeclinedEmail = vi.fn(async () => {
       throw new Error('smtp down');
     });
+    // Spy the logger so the (otherwise no-op) catch BODY is asserted.
+    const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
     const view = await svc.decline('u1' as never);
 
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: 'DECLINED' }));
     expect(view.status).toBe('DECLINED');
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('decline notice failed'));
+    errSpy.mockRestore();
+  });
+
+  it('decline: sends the declined email with empty to when the user record has no email', async () => {
+    auth.getUser = vi.fn(async () => ({ email: undefined, emailVerified: true }));
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => undefined),
+    };
+
+    await svc.decline('u1' as never);
+
+    expect(email.sendInstructorApplicationDeclinedEmail).toHaveBeenCalledWith({ to: '' });
   });
 
   // The claim (PENDING→DECLINED) is committed before getUser is called.  If

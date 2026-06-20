@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { readPictureConfigFromEnv } from './picture.config';
+import { PICTURE_CONFIG, readPictureConfigFromEnv } from './picture.config';
+
+describe('PICTURE_CONFIG token', () => {
+  it('is the registered global symbol with the exact key', () => {
+    expect(Symbol.keyFor(PICTURE_CONFIG)).toBe('learnwren.api-profile.picture.config');
+    expect(PICTURE_CONFIG).toBe(Symbol.for('learnwren.api-profile.picture.config'));
+  });
+});
 
 describe('readPictureConfigFromEnv', () => {
   it('reads bucket, publicBaseUrl, defaults impl to fake', () => {

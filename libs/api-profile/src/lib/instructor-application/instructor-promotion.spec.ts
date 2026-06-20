@@ -51,4 +51,30 @@ describe('promoteUserToInstructor', () => {
 
     expect(appUpdate).not.toHaveBeenCalled();
   });
+
+  // Kills the OptionalChaining survivor on `snap.data()?.['status']`: when the
+  // doc exists but data() returns undefined, the optional chain must short-circuit
+  // to undefined (≠ 'PENDING') rather than throw a TypeError on the property read.
+  it('does not throw and skips the app update when the app exists but data() is undefined', async () => {
+    const setCustomUserClaims = vi.fn(async () => undefined);
+    const appUpdate = vi.fn(async () => undefined);
+    const userUpdate = vi.fn(async () => undefined);
+    const firestore = {
+      collection: vi.fn((name: string) => ({
+        doc: vi.fn(() => ({
+          // app doc reports exists:true but data() is undefined.
+          get: vi.fn(async () => ({
+            exists: true,
+            data: () => (name === 'instructorApplications' ? undefined : {}),
+          })),
+          update: name === 'users' ? userUpdate : appUpdate,
+        })),
+      })),
+    };
+
+    await expect(
+      promoteUserToInstructor('u1' as UserId, { setCustomUserClaims }, firestore as never, NOW),
+    ).resolves.toBeUndefined();
+    expect(appUpdate).not.toHaveBeenCalled();
+  });
 });

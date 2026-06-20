@@ -132,6 +132,40 @@ describe('InstructorApplicationService', () => {
     ).rejects.toBeInstanceOf(InstructorApplicationExistsException);
   });
 
+  it('submit accepts a 1-char statement (lower boundary: length === 1 is valid)', async () => {
+    const { firestore, setFn } = makeFirestore({ exists: false, data: {} });
+    const svc = new InstructorApplicationService(firestore);
+    const view = await svc.submit(UID, STUDENT, { statement: 'a', expertise: 'Rust' });
+    expect(view.status).toBe('PENDING');
+    expect(setFn).toHaveBeenCalledWith(expect.objectContaining({ statement: 'a' }));
+  });
+
+  it('submit accepts a 1-char expertise (lower boundary: length === 1 is valid)', async () => {
+    const { firestore, setFn } = makeFirestore({ exists: false, data: {} });
+    const svc = new InstructorApplicationService(firestore);
+    const view = await svc.submit(UID, STUDENT, { statement: 'I teach', expertise: 'b' });
+    expect(view.status).toBe('PENDING');
+    expect(setFn).toHaveBeenCalledWith(expect.objectContaining({ expertise: 'b' }));
+  });
+
+  it('submit accepts a statement of exactly MAX_FIELD_LENGTH=2000 (upper boundary is valid)', async () => {
+    const { firestore, setFn } = makeFirestore({ exists: false, data: {} });
+    const svc = new InstructorApplicationService(firestore);
+    const max = 'a'.repeat(2000);
+    const view = await svc.submit(UID, STUDENT, { statement: max, expertise: 'Rust' });
+    expect(view.status).toBe('PENDING');
+    expect(setFn).toHaveBeenCalledWith(expect.objectContaining({ statement: max }));
+  });
+
+  it('submit accepts an expertise of exactly MAX_FIELD_LENGTH=2000 (upper boundary is valid)', async () => {
+    const { firestore, setFn } = makeFirestore({ exists: false, data: {} });
+    const svc = new InstructorApplicationService(firestore);
+    const max = 'b'.repeat(2000);
+    const view = await svc.submit(UID, STUDENT, { statement: 'I teach', expertise: max });
+    expect(view.status).toBe('PENDING');
+    expect(setFn).toHaveBeenCalledWith(expect.objectContaining({ expertise: max }));
+  });
+
   it('submit performs the PENDING check and write inside a single transaction', async () => {
     // Regression (N6): a non-transactional read-then-write let two concurrent
     // submits both pass the check and clobber each other / regress an APPROVED doc.

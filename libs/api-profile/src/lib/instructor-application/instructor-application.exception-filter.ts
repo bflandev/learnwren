@@ -9,6 +9,7 @@ import { InstructorApplicationException } from './errors/instructor-application.
 // renders 401 instead of leaking as a 500.
 @Catch(InstructorApplicationException, AuthException, HttpException)
 export class InstructorApplicationExceptionFilter implements ExceptionFilter {
+  // Stryker disable next-line StringLiteral: Logger label is log-only; never asserted, no control-flow/return/status effect.
   private readonly logger = new Logger('InstructorApplicationExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {

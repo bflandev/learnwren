@@ -100,6 +100,7 @@ export class AdminUsersRepository {
     let count = 0;
     for (const doc of snap.docs) {
       const data = doc.data() as { status?: string };
+      // Stryker disable next-line StringLiteral: the fallback value is only tested against !== 'SUSPENDED' && !== 'DELETED'; any non-SUSPENDED/non-DELETED string (incl. '') yields the same count, so 'ACTIVE' vs '' is behaviourally equivalent.
       const s = data.status ?? 'ACTIVE';
       if (s !== 'SUSPENDED' && s !== 'DELETED') count++;
     }

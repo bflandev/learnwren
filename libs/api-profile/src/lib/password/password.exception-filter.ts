@@ -10,6 +10,7 @@ import { PasswordChangeException } from './errors/password-change.exception';
 // 'ERROR' fallback vs the shared 'HTTP_ERROR', and missing 413/415/422).
 @Catch(PasswordChangeException, AuthException, HttpException)
 export class PasswordChangeExceptionFilter implements ExceptionFilter {
+  // Stryker disable next-line StringLiteral: Logger label is log-only; never asserted, no control-flow/return/status effect.
   private readonly logger = new Logger('PasswordChangeExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {

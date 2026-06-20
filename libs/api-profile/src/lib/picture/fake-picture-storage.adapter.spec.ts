@@ -16,6 +16,15 @@ describe('FakePictureStorageAdapter', () => {
     expect(a.get('profile-pictures/u1/avatar.jpg')?.contentType).toBe('image/jpeg');
   });
 
+  it('clear() empties the store so previously-stored paths report absent', async () => {
+    const a = new FakePictureStorageAdapter();
+    await a.putObject({ path: 'p', contentType: 'image/jpeg', body: Buffer.from('x') });
+    expect(a.has('p')).toBe(true);
+    a.clear();
+    expect(a.has('p')).toBe(false);
+    expect(a.get('p')).toBeUndefined();
+  });
+
   it('deleteObject removes the blob; deleting a missing path is a no-op', async () => {
     const a = new FakePictureStorageAdapter();
     await a.putObject({ path: 'p', contentType: 'image/jpeg', body: Buffer.from('x') });

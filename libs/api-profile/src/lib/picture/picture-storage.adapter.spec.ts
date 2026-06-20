@@ -1,5 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FirebasePictureStorageAdapter, type PictureStoragePort } from './picture-storage.adapter';
+import {
+  FirebasePictureStorageAdapter,
+  PICTURE_STORAGE,
+  type PictureStoragePort,
+} from './picture-storage.adapter';
+
+describe('PICTURE_STORAGE token', () => {
+  it('is the registered global symbol with the exact key', () => {
+    expect(Symbol.keyFor(PICTURE_STORAGE)).toBe('learnwren.api-profile.picture.storage');
+    expect(PICTURE_STORAGE).toBe(Symbol.for('learnwren.api-profile.picture.storage'));
+  });
+});
 
 const cfg = { bucket: 'b', publicBaseUrl: 'https://example.com', impl: 'firebase' as const };
 

@@ -7,6 +7,7 @@ import { EmailChangeException } from './errors/email-change.exception';
 
 @Catch(EmailChangeException, AuthException, HttpException)
 export class EmailChangeExceptionFilter implements ExceptionFilter {
+  // Stryker disable next-line StringLiteral: Logger label is log-only; never asserted, no control-flow/return/status effect.
   private readonly logger = new Logger('EmailChangeExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {

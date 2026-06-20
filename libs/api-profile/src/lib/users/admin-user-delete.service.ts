@@ -27,7 +27,9 @@ const COURSE_IDS_IN_ERROR = 10;
 
 /** Resolved status (absent Firestore field ≡ ACTIVE). */
 function resolveStatus(raw?: string): UserStatus {
+  // Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral: resolveStatus's result is only ever consumed at the `=== 'DELETED'` re-entry check; none of these mutants change whether a DELETED input still yields 'DELETED' (SUSPENDED/ACTIVE distinctions are never read), so they are behaviourally equivalent here.
   if (raw === 'SUSPENDED' || raw === 'DELETED') return raw;
+  // Stryker disable next-line StringLiteral: the non-special fallback is only compared via `!== 'DELETED'`; '' and 'ACTIVE' are indistinguishable to the sole consumer, so this is equivalent.
   return 'ACTIVE';
 }
 

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserId } from '@learnwren/shared-data-models';
 
@@ -183,6 +184,99 @@ describe('AdminUserStatusService.suspend', () => {
     const err = await svc.suspend('actor' as UserId, 'u5' as UserId).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AdminUsersException);
     expect((err as AdminUsersException).code).toBe('INTERNAL');
+    // Message + status + cause are part of the thrown contract.
+    expect((err as AdminUsersException).status).toBe(500);
+    expect((err as AdminUsersException).message).toBe('An internal error occurred during suspend.');
+    expect((err as Error).cause).toBeInstanceOf(Error);
+    expect(((err as Error).cause as Error).message).toBe('Auth failure');
+  });
+
+  it('reverts status to ACTIVE via a direct users-doc write when the suspend side-effect fails', async () => {
+    // Capture each direct doc().update tagged with the collection name it came
+    // from. The service's revert path uses collection(USERS).doc(target).update,
+    // so the revert write MUST be tagged 'users' (kills the USERS='' const mutant)
+    // — and the repo's own getUserInTxn collection('users') call goes through txn,
+    // not this update path, so it cannot mask the assertion.
+    const directUpdates: Array<{ name: string; data: Record<string, unknown> }> = [];
+    const collectionSpy = vi.fn((name: string) => ({
+      doc: vi.fn((uid: string) => ({
+        id: uid,
+        update: vi.fn(async (data: Record<string, unknown>) => {
+          directUpdates.push({ name, data });
+        }),
+        _collection: name,
+      })),
+      where: vi.fn(() => ({ get: vi.fn(async () => ({ docs: [] })) })),
+    }));
+    const txn = {
+      get: vi.fn(async () => ({ exists: true, data: () => ({ role: 'STUDENT', status: 'ACTIVE' }), id: 'u5' })),
+      update: vi.fn(),
+    };
+    const firestore = {
+      runTransaction: vi.fn(async (fn: (t: typeof txn) => Promise<unknown>) => fn(txn)),
+      collection: collectionSpy,
+    };
+    const repo = new AdminUsersRepository(firestore as never);
+    const badAuth = { ...auth, updateUser: vi.fn().mockRejectedValue(new Error('Auth failure')) };
+    const svc = new AdminUserStatusService(firestore as never, badAuth as never, repo);
+
+    await svc.suspend('actor' as UserId, 'u5' as UserId).catch(() => undefined);
+
+    // Exactly one direct write (the revert), on the 'users' collection, ACTIVE.
+    expect(directUpdates).toHaveLength(1);
+    expect(directUpdates[0].name).toBe('users');
+    expect(directUpdates[0].data.status).toBe('ACTIVE');
+    expect(typeof directUpdates[0].data.updatedAt).toBe('string');
+  });
+
+  it('still throws INTERNAL when the suspend status revert ALSO fails — and logs the revert error', async () => {
+    // Both the auth side-effect AND the revert write reject — inner catch path.
+    const revertUpdate = vi.fn().mockRejectedValue(new Error('revert failed'));
+    const collectionSpy = vi.fn((name: string) => ({
+      doc: vi.fn((uid: string) => ({ id: uid, update: revertUpdate, _collection: name })),
+      where: vi.fn(() => ({ get: vi.fn(async () => ({ docs: [] })) })),
+    }));
+    const txn = {
+      get: vi.fn(async () => ({ exists: true, data: () => ({ role: 'STUDENT', status: 'ACTIVE' }), id: 'u5' })),
+      update: vi.fn(),
+    };
+    const firestore = {
+      runTransaction: vi.fn(async (fn: (t: typeof txn) => Promise<unknown>) => fn(txn)),
+      collection: collectionSpy,
+    };
+    const repo = new AdminUsersRepository(firestore as never);
+    const badAuth = { ...auth, updateUser: vi.fn().mockRejectedValue(new Error('Auth failure')) };
+    const svc = new AdminUserStatusService(firestore as never, badAuth as never, repo);
+
+    // Spy the Logger so the inner-catch body (which only logs) is observable —
+    // kills the BlockStatement + StringLiteral mutants on the inner catch.
+    const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    try {
+      const err = await svc.suspend('actor' as UserId, 'u5' as UserId).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AdminUsersException);
+      expect((err as AdminUsersException).code).toBe('INTERNAL');
+      expect(revertUpdate).toHaveBeenCalledTimes(1);
+      // The inner catch must have logged the revert failure (non-empty message
+      // that names the target + the revert error).
+      const innerLog = errorSpy.mock.calls
+        .map((c) => String(c[0]))
+        .find((msg) => msg.includes('status revert also failed'));
+      expect(innerLog).toBeDefined();
+      expect(innerLog).toContain('u5');
+      expect(innerLog).toContain('revert failed');
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it('InvalidStatusTransitionException records attempted=SUSPENDED', async () => {
+    const { firestore, repo } = makeFixture({ u2: { role: 'STUDENT', status: 'SUSPENDED' } });
+    const svc = new AdminUserStatusService(firestore as never, auth as never, repo);
+    const err = (await svc
+      .suspend('actor' as UserId, 'u2' as UserId)
+      .catch((e: unknown) => e)) as InvalidStatusTransitionException;
+    expect(err).toBeInstanceOf(InvalidStatusTransitionException);
+    expect(err.details).toEqual({ currentStatus: 'SUSPENDED', attempted: 'SUSPENDED' });
   });
 
   // Regression for the concurrent-suspend race:
@@ -232,6 +326,30 @@ describe('AdminUserStatusService.unsuspend', () => {
     expect(txnGet).toHaveBeenCalled();
   });
 
+  it('InvalidStatusTransitionException records the resolved currentStatus + attempted=ACTIVE', async () => {
+    const { firestore, repo } = makeFixture({ u2: { role: 'STUDENT', status: 'ACTIVE' } });
+    const svc = new AdminUserStatusService(firestore as never, auth as never, repo);
+    const err = (await svc
+      .unsuspend('actor' as UserId, 'u2' as UserId)
+      .catch((e: unknown) => e)) as InvalidStatusTransitionException;
+    expect(err).toBeInstanceOf(InvalidStatusTransitionException);
+    expect(err.details).toEqual({ currentStatus: 'ACTIVE', attempted: 'ACTIVE' });
+  });
+
+  // resolveStatus: an ABSENT status field must resolve to 'ACTIVE' (≠ SUSPENDED),
+  // so unsuspend throws with details.currentStatus === 'ACTIVE'. Kills the
+  // `if (true) return raw` conditional mutant (would yield undefined) and the
+  // `return ''` literal mutant.
+  it('treats an absent status field as ACTIVE in the unsuspend transition error', async () => {
+    const { firestore, repo } = makeFixture({ u2: { role: 'STUDENT' } });
+    const svc = new AdminUserStatusService(firestore as never, auth as never, repo);
+    const err = (await svc
+      .unsuspend('actor' as UserId, 'u2' as UserId)
+      .catch((e: unknown) => e)) as InvalidStatusTransitionException;
+    expect(err).toBeInstanceOf(InvalidStatusTransitionException);
+    expect(err.details).toEqual({ currentStatus: 'ACTIVE', attempted: 'ACTIVE' });
+  });
+
   it('status ACTIVE is written VIA the transaction (txn.update called), not a direct doc write', async () => {
     const { firestore, repo, txnUpdate } = makeFixture({ u6: { role: 'STUDENT', status: 'SUSPENDED' } });
     const svc = new AdminUserStatusService(firestore as never, auth as never, repo);
@@ -264,5 +382,76 @@ describe('AdminUserStatusService.unsuspend', () => {
     const err = await svc.unsuspend('actor' as UserId, 'u7' as UserId).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AdminUsersException);
     expect((err as AdminUsersException).code).toBe('INTERNAL');
+    expect((err as AdminUsersException).status).toBe(500);
+    expect((err as AdminUsersException).message).toBe('An internal error occurred during unsuspend.');
+    expect((err as Error).cause).toBeInstanceOf(Error);
+    expect(((err as Error).cause as Error).message).toBe('Auth failure');
+  });
+
+  it('reverts status to SUSPENDED via a direct users-doc write when the unsuspend side-effect fails', async () => {
+    const directUpdates: Array<{ name: string; data: Record<string, unknown> }> = [];
+    const collectionSpy = vi.fn((name: string) => ({
+      doc: vi.fn((uid: string) => ({
+        id: uid,
+        update: vi.fn(async (data: Record<string, unknown>) => {
+          directUpdates.push({ name, data });
+        }),
+        _collection: name,
+      })),
+      where: vi.fn(() => ({ get: vi.fn(async () => ({ docs: [] })) })),
+    }));
+    const txn = {
+      get: vi.fn(async () => ({ exists: true, data: () => ({ role: 'STUDENT', status: 'SUSPENDED' }), id: 'u7' })),
+      update: vi.fn(),
+    };
+    const firestore = {
+      runTransaction: vi.fn(async (fn: (t: typeof txn) => Promise<unknown>) => fn(txn)),
+      collection: collectionSpy,
+    };
+    const repo = new AdminUsersRepository(firestore as never);
+    const badAuth = { ...auth, updateUser: vi.fn().mockRejectedValue(new Error('Auth failure')) };
+    const svc = new AdminUserStatusService(firestore as never, badAuth as never, repo);
+
+    await svc.unsuspend('actor' as UserId, 'u7' as UserId).catch(() => undefined);
+
+    expect(directUpdates).toHaveLength(1);
+    expect(directUpdates[0].name).toBe('users');
+    expect(directUpdates[0].data.status).toBe('SUSPENDED');
+    expect(typeof directUpdates[0].data.updatedAt).toBe('string');
+  });
+
+  it('still throws INTERNAL when the unsuspend status revert ALSO fails — and logs the revert error', async () => {
+    const revertUpdate = vi.fn().mockRejectedValue(new Error('revert failed'));
+    const collectionSpy = vi.fn((name: string) => ({
+      doc: vi.fn((uid: string) => ({ id: uid, update: revertUpdate, _collection: name })),
+      where: vi.fn(() => ({ get: vi.fn(async () => ({ docs: [] })) })),
+    }));
+    const txn = {
+      get: vi.fn(async () => ({ exists: true, data: () => ({ role: 'STUDENT', status: 'SUSPENDED' }), id: 'u7' })),
+      update: vi.fn(),
+    };
+    const firestore = {
+      runTransaction: vi.fn(async (fn: (t: typeof txn) => Promise<unknown>) => fn(txn)),
+      collection: collectionSpy,
+    };
+    const repo = new AdminUsersRepository(firestore as never);
+    const badAuth = { ...auth, updateUser: vi.fn().mockRejectedValue(new Error('Auth failure')) };
+    const svc = new AdminUserStatusService(firestore as never, badAuth as never, repo);
+
+    const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    try {
+      const err = await svc.unsuspend('actor' as UserId, 'u7' as UserId).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AdminUsersException);
+      expect((err as AdminUsersException).code).toBe('INTERNAL');
+      expect(revertUpdate).toHaveBeenCalledTimes(1);
+      const innerLog = errorSpy.mock.calls
+        .map((c) => String(c[0]))
+        .find((msg) => msg.includes('status revert also failed'));
+      expect(innerLog).toBeDefined();
+      expect(innerLog).toContain('u7');
+      expect(innerLog).toContain('revert failed');
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
