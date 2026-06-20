@@ -20,6 +20,7 @@ export interface MintedSession {
 
 @Injectable()
 export class SessionCookieService {
+  // Stryker disable next-line StringLiteral: Logger category name — log-only, no behavioral effect
   private readonly logger = new Logger('SessionCookieService');
 
   constructor(@Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle) {}
@@ -32,6 +33,7 @@ export class SessionCookieService {
     try {
       await this.auth.verifyIdToken(idToken, true);
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] mint verifyIdToken failed: ${String(err)}`);
       throw new InternalAuthException();
     }
@@ -41,6 +43,7 @@ export class SessionCookieService {
         expiresIn: SESSION_COOKIE_EXPIRES_IN_MS,
       });
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] mint createSessionCookie failed: ${String(err)}`);
       throw new InternalAuthException();
     }
@@ -55,6 +58,7 @@ export class SessionCookieService {
       const decoded = await this.auth.verifySessionCookie(sessionCookie, true);
       uid = decoded['uid'];
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.log(`[auth] logout silent (cookie invalid): ${String(err)}`);
       return;
     }
@@ -70,11 +74,13 @@ export class SessionCookieService {
     for (let attempt = 0; attempt < LOGOUT_REVOKE_MAX_ATTEMPTS; attempt++) {
       await this.auth.revokeRefreshTokens(uid);
       if (await this.isSessionCookieRevoked(sessionCookie)) {
+        // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
         this.logger.log(`[auth] logout uid=${uid}`);
         return;
       }
       await this.sleepPastNextSecond();
     }
+    // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
     this.logger.error(`[auth] logout could not confirm cookie revocation uid=${uid}`);
   }
 

@@ -290,6 +290,58 @@ describe('AuthService.register', () => {
     expect(auth.createUser).not.toHaveBeenCalled();
   });
 
+  it('accepts an email at the 254-character boundary', async () => {
+    // Lower-bound counterpart for EMAIL_MAX: email.length === 254 is valid; the
+    // guard is `> EMAIL_MAX`, not `>=`. An EqualityOperator mutant flipping it
+    // to `>=` would wrongly reject a maximal-but-legal address.
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const rest = buildFakeRestClient();
+    const service = await buildModule(auth, firestore, rest);
+    const boundaryEmail = `${'a'.repeat(249)}@x.co`; // exactly 254 chars, valid format
+    expect(boundaryEmail.length).toBe(254);
+
+    await expect(
+      service.register({ ...validInput, email: boundaryEmail }),
+    ).resolves.toMatchObject({ uid: 'uid-123' });
+    expect(auth.createUser).toHaveBeenCalled();
+  });
+
+  it('accepts a password at the 256-character boundary', async () => {
+    // Lower-bound counterpart for PASSWORD_MAX: password.length === 256 is valid;
+    // the guard is `> PASSWORD_MAX`, not `>=`. An EqualityOperator mutant flipping
+    // it to `>=` would reject a maximal-but-legal password.
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const rest = buildFakeRestClient();
+    const service = await buildModule(auth, firestore, rest);
+    const boundaryPassword = `Aa1!${'a'.repeat(252)}`; // exactly 256 chars, satisfies complexity
+    expect(boundaryPassword.length).toBe(256);
+
+    await expect(
+      service.register({ ...validInput, password: boundaryPassword }),
+    ).resolves.toMatchObject({ uid: 'uid-123' });
+    expect(auth.createUser).toHaveBeenCalled();
+  });
+
+  it('swallows a deleteUser failure during rollback and still rejects with the triggering error', async () => {
+    // bestEffortDeleteUser wraps auth.deleteUser in try/catch so a failed
+    // rollback cleanup never masks the original failure. A BlockStatement mutant
+    // emptying that catch would be invisible unless we drive deleteUser to throw
+    // AND assert register still rejects with the Firestore-write error (not the
+    // deleteUser error) — proving the catch ran.
+    const auth = buildFakeAuth({
+      deleteUser: vi.fn(async () => {
+        throw new Error('deleteUser exploded');
+      }),
+    });
+    const firestore = buildFakeFirestore({ setShouldFail: true });
+    const service = await buildModule(auth, firestore);
+
+    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+  });
+
   it('accepts a displayName at the 80-character boundary', async () => {
     // Lower-bound counterpart: displayName.length === 80 is valid; the guard
     // is `> DISPLAY_NAME_MAX`, not `>=`.

@@ -6,6 +6,7 @@ import { AuthException } from './errors/auth.exception';
 
 @Catch(AuthException, HttpException)
 export class AuthExceptionFilter implements ExceptionFilter {
+  // Stryker disable next-line StringLiteral: Logger category name — log-only, no behavioral effect
   private readonly logger = new Logger('AuthExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {

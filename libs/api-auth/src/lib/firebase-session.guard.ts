@@ -9,6 +9,7 @@ import type { AuthenticatedRequest } from './types/authenticated-request';
 
 @Injectable()
 export class FirebaseSessionGuard implements CanActivate {
+  // Stryker disable next-line StringLiteral: Logger category name — log-only, no behavioral effect
   private readonly logger = new Logger('FirebaseSessionGuard');
 
   constructor(
@@ -20,6 +21,7 @@ export class FirebaseSessionGuard implements CanActivate {
     const cookie = req.cookies?.[SessionCookieHelper.COOKIE_NAME];
 
     if (!cookie) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.warn('[auth] guard rejected reason=missing');
       throw new UnauthenticatedException();
     }
@@ -34,6 +36,7 @@ export class FirebaseSessionGuard implements CanActivate {
       };
       return true;
     } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.warn(`[auth] guard rejected reason=invalid: ${String(err)}`);
       throw new UnauthenticatedException();
     }
