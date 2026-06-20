@@ -93,17 +93,21 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   // first-render breakpoint (hiding the drawer toggle on mobile). We mirror the
   // query into a signal via its 'change' event instead.
   private readonly desktopQuery =
+    // Stryker disable next-line ConditionalExpression,StringLiteral: SSR guard — window is always defined under jsdom; killing requires an SSR (no-DOM) harness not present here
     typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)') : null;
+  // Stryker disable next-line OptionalChaining,LogicalOperator,BooleanLiteral: desktopQuery is never null under jsdom (window defined), so the `?.`/`?? true`(`?? false`) fallback is unreachable; `x ?? true` ≡ `x && true` for the boolean `matches`
   private readonly isDesktop = signal<boolean>(this.desktopQuery?.matches ?? true);
   private readonly onDesktopChange = (e: MediaQueryListEvent): void =>
     this.isDesktop.set(e.matches);
 
+  // Stryker disable next-line OptionalChaining,LogicalOperator,BooleanLiteral: desktopQuery is never null under jsdom (window defined), so the `?.`/`?? true`(`?? false`) fallback is unreachable; `x ?? true` ≡ `x && true` for the boolean `matches`
   readonly outlineOpen = signal<boolean>(this.desktopQuery?.matches ?? true);
   readonly outlineMode = computed<'sidebar' | 'drawer'>(() =>
     this.isDesktop() ? 'sidebar' : 'drawer',
   );
 
   private saver: PositionSaver | null = null;
+  // Stryker disable next-line BooleanLiteral: applyRouteParams() resets hasResumed=false on every load before any onMetadata() can run, so the field initializer value is always overwritten before use — equivalent
   private hasResumed = false;
   /**
    * Monotonic token identifying the most recent load(). getLessonView is a
@@ -114,18 +118,22 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   private loadToken = 0;
   private readonly onPageHide = (): void => this.saver?.flushBeacon();
   private readonly onVisibilityChange = (): void => {
+    // Stryker disable next-line ConditionalExpression,StringLiteral: SSR guard — `typeof document !== 'undefined'` is always true under jsdom, so `true && X` ≡ `X`; killing requires a no-DOM harness not present here
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
       this.saver?.flushBeacon();
     }
   };
 
   ngOnInit(): void {
+    // Stryker disable next-line ConditionalExpression,StringLiteral: SSR guard — window always defined under jsdom, so the guard body always runs identically; killing requires a no-DOM harness not present here
     if (typeof window !== 'undefined') {
       window.addEventListener('pagehide', this.onPageHide);
     }
+    // Stryker disable next-line ConditionalExpression,StringLiteral: SSR guard — document always defined under jsdom, so the guard body always runs identically; killing requires a no-DOM harness not present here
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
+    // Stryker disable next-line OptionalChaining: desktopQuery is never null under jsdom (window defined), so `?.`→`.` is unreachable equivalent
     this.desktopQuery?.addEventListener('change', this.onDesktopChange);
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((pm) => {
       void this.applyRouteParams(pm.get('courseId'), pm.get('lessonId'));
@@ -160,18 +168,22 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    // Stryker disable next-line ConditionalExpression,StringLiteral: SSR guard — window always defined under jsdom, so the guard body always runs identically; killing requires a no-DOM harness not present here
     if (typeof window !== 'undefined') {
       window.removeEventListener('pagehide', this.onPageHide);
     }
+    // Stryker disable next-line ConditionalExpression,StringLiteral: SSR guard — document always defined under jsdom, so the guard body always runs identically; killing requires a no-DOM harness not present here
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
     }
+    // Stryker disable next-line OptionalChaining: desktopQuery is never null under jsdom (window defined), so `?.`→`.` is unreachable equivalent
     this.desktopQuery?.removeEventListener('change', this.onDesktopChange);
     this.saver?.stop();
     this.saver = null;
   }
 
   private async load(): Promise<void> {
+    // Stryker disable next-line UpdateOperator: `--` vs `++` both yield a unique, monotonic token; the only use is the `token !== this.loadToken` staleness check, which behaves identically either direction — equivalent
     const token = ++this.loadToken;
     this.state.set('LOADING');
     try {
@@ -239,6 +251,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   onPlayed(): void {
     if (this.isOwnerPreview()) return;
     this.ensureSaver();
+    // Stryker disable next-line OptionalChaining: ensureSaver() guarantees this.saver is non-null at this point (we already returned for owner-preview), so `?.`→`.` is unreachable equivalent
     this.saver?.start(() => this.playerRef?.currentTime() ?? 0);
   }
 

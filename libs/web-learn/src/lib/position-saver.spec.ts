@@ -101,6 +101,27 @@ describe('PositionSaver', () => {
     expect(service.savePosition).not.toHaveBeenCalled();
   });
 
+  it('stop() calls clearInterval with the active timer handle (clears the timer guard)', () => {
+    // Kills the `if (this.timer) clearInterval(this.timer)` guard mutated to
+    // `if (false)`: that would skip clearInterval entirely.
+    const clearSpy = vi.spyOn(globalThis, 'clearInterval');
+    const { saver } = makeSaver();
+    saver.start(() => 1);
+    const handle = (saver as unknown as { timer: ReturnType<typeof setInterval> }).timer;
+    expect(handle).not.toBeNull();
+    saver.stop();
+    expect(clearSpy).toHaveBeenCalledWith(handle);
+  });
+
+  it('stop() does NOT call clearInterval when no timer was ever started (guard true→runs on null)', () => {
+    // Kills the `if (this.timer)` guard mutated to `if (true)`: that would call
+    // clearInterval(null) even though no interval exists.
+    const clearSpy = vi.spyOn(globalThis, 'clearInterval');
+    const { saver } = makeSaver();
+    saver.stop(); // never started → timer is null
+    expect(clearSpy).not.toHaveBeenCalled();
+  });
+
   it('in-flight flush → stop() → 403 response: onRevoked is NOT called (cancelled saver must not signal revocation)', async () => {
     let rejectSave!: (err: unknown) => void;
     const inflight = new Promise<{ lastWatchedSeconds: number }>((_res, rej) => { rejectSave = rej; });
@@ -113,6 +134,71 @@ describe('PositionSaver', () => {
     await flushPromise;
 
     expect(onRevoked).not.toHaveBeenCalled();
+  });
+
+  it('start() twice creates only ONE interval timer (kills the `if (this.timer) return` guard)', async () => {
+    // Without the guard (`if (false)`), the second start() creates a SECOND
+    // setInterval. Both fire on the same tick. getTime increments on every read,
+    // so the two flushes carry DIFFERENT seconds and neither dedup applies →
+    // 2 savePosition calls. With the guard there is one timer → exactly 1 call.
+    let t = 0;
+    const { saver, service } = makeSaver({ savePosition: async (_c, _l, s) => ({ lastWatchedSeconds: s }) });
+    const getTime = () => ++t * 100; // 100, 200, 300, …
+    saver.start(getTime);
+    saver.start(getTime);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(service.savePosition).toHaveBeenCalledTimes(1);
+  });
+
+  it('flush() before start() returns early without throwing (getTime guard)', async () => {
+    // Kills the `if (!this.getTime) return` guard (→ `if (false)`): without it,
+    // flush() invokes this.getTime() while getTime is null → TypeError.
+    const { saver, service } = makeSaver();
+    await expect(saver.flush()).resolves.toBeUndefined();
+    expect(service.savePosition).not.toHaveBeenCalled();
+  });
+
+  it('a successful in-flight flush that resolves AFTER stop() does not update lastSent', async () => {
+    // Kills the post-await cancelled guard on the SUCCESS path
+    // (`if (this.cancelled) return` → `if (false)`): without it, lastSent is set
+    // from a response belonging to a saver that was already cancelled.
+    let resolveSave!: (out: { lastWatchedSeconds: number }) => void;
+    const inflight = new Promise<{ lastWatchedSeconds: number }>((res) => { resolveSave = res; });
+    const { saver } = makeSaver({ savePosition: () => inflight });
+    saver.start(() => 50);
+    const flushPromise = saver.flush();
+    saver.stop();
+    resolveSave({ lastWatchedSeconds: 50 });
+    await flushPromise;
+    expect((saver as unknown as { lastSent: number | null }).lastSent).toBeNull();
+  });
+
+  it('flushBeacon before start() returns early via the getTime guard without throwing', () => {
+    // Kills the `!this.getTime` operand of the flushBeacon guard
+    // (`if (!this.getTime || typeof navigator === 'undefined')` → first operand
+    // false): without it, getTime() is called while null → TypeError.
+    const beacon = vi.fn(() => true);
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { sendBeacon: beacon }, configurable: true,
+    });
+    const { saver } = makeSaver();
+    expect(() => saver.flushBeacon()).not.toThrow();
+    expect(beacon).not.toHaveBeenCalled();
+  });
+
+  it('flushBeacon returns early when navigator is undefined (no throw)', () => {
+    // Kills the `typeof navigator === 'undefined'` operand + its 'undefined'
+    // string literal: with navigator removed, the original returns early; a
+    // mutated comparison would proceed and read navigator.sendBeacon → throw.
+    const prev = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    delete (globalThis as { navigator?: unknown }).navigator;
+    try {
+      const { saver } = makeSaver();
+      saver.start(() => 50);
+      expect(() => saver.flushBeacon()).not.toThrow();
+    } finally {
+      if (prev) Object.defineProperty(globalThis, 'navigator', prev);
+    }
   });
 
   it('no stop() → 403 → onRevoked IS called (existing behavior preserved)', async () => {
