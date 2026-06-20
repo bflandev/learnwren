@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { readCoverConfigFromEnv } from './cover.config';
+import { COVER_CONFIG, readCoverConfigFromEnv } from './cover.config';
+
+describe('COVER_CONFIG', () => {
+  it('has the exact registered key', () => {
+    expect(Symbol.keyFor(COVER_CONFIG)).toBe('learnwren.api-courses.cover.config');
+  });
+});
 
 describe('readCoverConfigFromEnv', () => {
   it('reads bucket and publicBaseUrl from env', () => {

@@ -73,6 +73,7 @@ export class VideoRepository {
   ): Promise<Map<LessonId, VideoState>> {
     const out = new Map<LessonId, VideoState>();
     const unique = [...new Set(lessonIds)];
+    // Stryker disable next-line ConditionalExpression: equivalent — short-circuit only; with empty unique the loop/Promise.all produce the same empty map
     if (unique.length === 0) return out;
     const results = await Promise.all(
       unique.map((lid) => this.getVideoByLesson(lid)),
@@ -87,6 +88,7 @@ export class VideoRepository {
   async listVideosForLessons(lessonIds: LessonId[]): Promise<Map<LessonId, Video>> {
     const out = new Map<LessonId, Video>();
     const unique = [...new Set(lessonIds)];
+    // Stryker disable next-line ConditionalExpression: equivalent — short-circuit only; with empty unique the loop/Promise.all produce the same empty map
     if (unique.length === 0) return out;
     const results = await Promise.all(unique.map((lid) => this.getVideoByLesson(lid)));
     results.forEach((video, i) => {

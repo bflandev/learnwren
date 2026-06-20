@@ -34,8 +34,15 @@ function res() {
   };
 }
 
+function rawEnvelope(eventsController: { handle: ReturnType<typeof vi.fn> }) {
+  return eventsController.handle.mock.calls[0]![0] as {
+    message: { data: string; messageId: string; publishTime: string };
+    subscription: string;
+  };
+}
+
 function decodeEnvelope(eventsController: { handle: ReturnType<typeof vi.fn> }) {
-  const envelope = eventsController.handle.mock.calls[0]![0] as { message: { data: string } };
+  const envelope = rawEnvelope(eventsController);
   return JSON.parse(Buffer.from(envelope.message.data, 'base64').toString());
 }
 
@@ -55,6 +62,21 @@ describe('FakeTranscoderController', () => {
     expect(decoded.job.labels.videoid).toBe('v1');
   });
 
+  it('complete: stamps the canonical envelope wrapper (messageId fake- prefix, fake-subscription)', async () => {
+    const { c, eventsController } = build();
+    await c.complete('v1' as VideoId, res() as never);
+    const raw = rawEnvelope(eventsController);
+    expect(raw.message.messageId).toMatch(/^fake-/);
+    expect(raw.subscription).toBe('fake-subscription');
+  });
+
+  it('complete: sets job.output.uri to the canonical fake HLS prefix for the videoId', async () => {
+    const { c, eventsController } = build();
+    await c.complete('v1' as VideoId, res() as never);
+    const decoded = decodeEnvelope(eventsController);
+    expect(decoded.job.output.uri).toBe('gs://fake-out/videos/v1/hls/');
+  });
+
   it('complete: uses the stored transcoderJobName so JOB_NAME_MISMATCH never trips', async () => {
     const { c, eventsController } = build({ transcoderJobName: 'fake-job-v1-1779-42' });
     await c.complete('v1' as VideoId, res() as never);
@@ -68,6 +90,8 @@ describe('FakeTranscoderController', () => {
     const decoded = decodeEnvelope(eventsController);
     expect(decoded.job.state).toBe('FAILED');
     expect(decoded.job.error.message).toBe('codec failure');
+    // labels.videoid must carry the videoId so the real handler can route it.
+    expect(decoded.job.labels).toEqual({ videoid: 'v1' });
   });
 
   it('fail: uses the stored transcoderJobName', async () => {

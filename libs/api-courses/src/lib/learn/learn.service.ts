@@ -21,6 +21,7 @@ import { VideoRepository } from '../video/video.repository';
 
 @Injectable()
 export class LearnService {
+  // Stryker disable next-line StringLiteral: Logger context label; log-only, no observable behavior
   private readonly logger = new Logger('LearnService');
 
   constructor(
@@ -101,6 +102,7 @@ export class LearnService {
     const progressByLesson = new Map<LessonId, ISODateString | null>();
     if (course.instructorId !== userId) {
       const enrolment = await this.enrollment.getEnrollment(userId, course.id);
+      // Stryker disable next-line ArrayDeclaration: equivalent — the `?? []` fallback runs only when there are no progress rows; replacing it with a junk array would set progressByLesson under `row.lessonId === undefined`, a key never read (the outline only ever does progressByLesson.get(realLessonId)), so output is unchanged.
       for (const row of enrolment?.progress ?? []) {
         progressByLesson.set(row.lessonId, row.completedAt ?? null);
       }
@@ -110,6 +112,7 @@ export class LearnService {
       modules: modules.map((m, i) => ({
         id: m.id,
         title: m.title,
+        // Stryker disable next-line ArrayDeclaration: `?? []` fallback is unreachable — lessonsByModule is built by Promise.all over the same modules array, so every index resolves to an array
         lessons: (lessonsByModule[i] ?? []).map((l) => ({
           id: l.id,
           title: l.title,

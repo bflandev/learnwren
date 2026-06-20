@@ -37,6 +37,10 @@ describe('NotificationsService', () => {
     u1: { displayName: 'Ada', email: 'ada@example.com' },
     u2: { displayName: 'Bo', email: 'bo@example.com' },
     u3: { displayName: 'No Email', email: '' },
+    // u4 has an email but no displayName → exercises the FALLBACK_NAME default.
+    u4: { email: 'cy@example.com' },
+    // u-missing has no users/{uid} doc at all → stored.get() returns undefined,
+    // exercising the data?.email / data?.displayName optional chains.
   };
 
   let courses: {
@@ -111,6 +115,74 @@ describe('NotificationsService', () => {
     courses.listLessonsByModule.mockResolvedValue([]);
     await expect(service.notifyNewModule(course(), MID)).rejects.toBeInstanceOf(ModuleHasNoLessonsException);
     expect(email.sendNewModuleEmail).not.toHaveBeenCalled();
+  });
+
+  it('builds the courseUrl from LEARNWREN_PUBLIC_URL when set', async () => {
+    const prev = process.env['LEARNWREN_PUBLIC_URL'];
+    process.env['LEARNWREN_PUBLIC_URL'] = 'https://learnwren.test';
+    try {
+      await service.notifyNewModule(course(), MID);
+      expect(email.sendNewModuleEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ courseUrl: 'https://learnwren.test/catalog/course-1' }),
+      );
+    } finally {
+      if (prev === undefined) delete process.env['LEARNWREN_PUBLIC_URL'];
+      else process.env['LEARNWREN_PUBLIC_URL'] = prev;
+    }
+  });
+
+  it('falls back to http://localhost:4200 for the courseUrl when LEARNWREN_PUBLIC_URL is unset', async () => {
+    // Defends the `?? 'http://localhost:4200'` fallback literal: with the env var
+    // absent, the base URL must be the localhost default.
+    const prev = process.env['LEARNWREN_PUBLIC_URL'];
+    delete process.env['LEARNWREN_PUBLIC_URL'];
+    try {
+      await service.notifyNewModule(course(), MID);
+      expect(email.sendNewModuleEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ courseUrl: 'http://localhost:4200/catalog/course-1' }),
+      );
+    } finally {
+      if (prev !== undefined) process.env['LEARNWREN_PUBLIC_URL'] = prev;
+    }
+  });
+
+  it('falls back to "Student" as the studentName when the profile has no displayName', async () => {
+    // Defends FALLBACK_NAME='Student' and the `data?.displayName ?? FALLBACK_NAME`
+    // default: u4 has an email but no displayName, so the email must use 'Student'.
+    enrollments.listActiveByCourse.mockResolvedValue([enrollment('u4')]);
+    await service.notifyNewModule(course(), MID);
+    expect(email.sendNewModuleEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'cy@example.com', studentName: 'Student' }),
+    );
+  });
+
+  it('tolerates an enrollee with no stored profile (undefined → empty email, skipped)', async () => {
+    // Defends the `data?.email` / `data?.displayName` optional chains: a missing
+    // users/{uid} doc yields an undefined record. With `?.` the recipient gets an
+    // empty email and is silently skipped; removing `?.` would throw a TypeError.
+    enrollments.listActiveByCourse.mockResolvedValue([enrollment('u1'), enrollment('u-missing')]);
+    const result = await service.notifyNewModule(course(), MID);
+    expect(email.sendNewModuleEmail).toHaveBeenCalledTimes(1);
+    expect(email.sendNewModuleEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'ada@example.com' }),
+    );
+    expect(result).toEqual({ notifiedCount: 1 });
+  });
+
+  it('logs an error for each failed send (best-effort else branch)', async () => {
+    // Defends the `} else { this.logger.error(...) }` block: a rejected send must
+    // be logged. An empty-block mutant would skip the log; the message-literal
+    // mutant would change the text. We assert both the call and the content.
+    const errSpy = vi
+      .spyOn((service as unknown as { logger: { error: (m: string) => void } }).logger, 'error')
+      .mockImplementation(() => undefined);
+    email.sendNewModuleEmail.mockRejectedValue(new Error('smtp down'));
+    await service.notifyNewModule(course(), MID);
+    expect(errSpy).toHaveBeenCalledTimes(2);
+    expect(errSpy.mock.calls[0]![0]).toContain('[new-module-notify] send failed');
+    expect(errSpy.mock.calls[0]![0]).toContain(`cid=${CID}`);
+    expect(errSpy.mock.calls[0]![0]).toContain(`mid=${MID}`);
+    expect(errSpy.mock.calls[0]![0]).toContain('smtp down');
   });
 
   it('skips enrollees with no email address', async () => {

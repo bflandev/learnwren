@@ -55,6 +55,15 @@ describe('GcpTranscoderAdapter.submitJob', () => {
     const adapter = makeAdapter(client);
     await expect(adapter.submitJob(baseInput())).rejects.toThrow(/quota/);
   });
+
+  it('defaults the returned jobName to "" when createJob omits name', async () => {
+    // Defends `job.name ?? ''` in submitJob: a response with no name must yield ''.
+    const client = makeClient();
+    client.createJob.mockResolvedValue([{}]);
+    const adapter = makeAdapter(client);
+    const handle = await adapter.submitJob(baseInput());
+    expect(handle.jobName).toBe('');
+  });
 });
 
 function envelope(payload: object): unknown {
@@ -129,6 +138,23 @@ describe('GcpTranscoderAdapter.parseEvent — malformed input', () => {
     const adapter = makeAdapter(makeClient());
     await expect(adapter.parseEvent({ message: {} })).rejects.toThrow(/data/);
   });
+  it('throws the explicit "missing message.data" error when the envelope has no message at all', async () => {
+    // Defends `envelope.message?.data`: with no `message` key the optional chain
+    // yields undefined → the explicit Error. Removing `?.` would throw a raw
+    // TypeError reading `.data` of undefined instead.
+    const adapter = makeAdapter(makeClient());
+    await expect(adapter.parseEvent({})).rejects.toThrow(
+      'Pub/Sub envelope missing message.data.',
+    );
+  });
+  it('throws the explicit "missing labels.videoid" error when job has no labels at all', async () => {
+    // Defends `job.labels?.['videoid']`: a job with no `labels` key must surface
+    // the explicit Error via the optional chain, not a TypeError.
+    const adapter = makeAdapter(makeClient());
+    await expect(
+      adapter.parseEvent(envelope({ job: { name: 'j', state: 'SUCCEEDED' } })),
+    ).rejects.toThrow('Pub/Sub payload missing labels.videoid.');
+  });
   it('throws on payload missing the job field', async () => {
     const adapter = makeAdapter(makeClient());
     await expect(adapter.parseEvent(envelope({}))).rejects.toThrow(/missing job/);
@@ -175,6 +201,19 @@ describe('GcpTranscoderAdapter.parseEvent — optional-field fallbacks', () => {
     );
     if (ev.type !== 'JOB_FAILED') throw new Error('expected FAILED');
     expect(ev.reason).toBe('unknown');
+  });
+  it('truncates a FAILED reason to 500 characters', async () => {
+    // Defends `.slice(0, 500)`: an over-long error message must be capped at 500.
+    const longMsg = 'x'.repeat(900);
+    const adapter = makeAdapter(makeClient());
+    const ev = await adapter.parseEvent(
+      envelope({
+        job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1' }, error: { message: longMsg } },
+      }),
+    );
+    if (ev.type !== 'JOB_FAILED') throw new Error('expected FAILED');
+    expect(ev.reason).toHaveLength(500);
+    expect(ev.reason).toBe('x'.repeat(500));
   });
 });
 

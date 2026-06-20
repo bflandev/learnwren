@@ -49,6 +49,13 @@ describe('VideoStorageAdapter.probeSource', () => {
     // parse below, and the signed URL must be the final positional arg. (The
     // binary path is the @ffprobe-installer resolution, so assert only args.)
     expect(runner).toHaveBeenCalledOnce();
+    // Pin the resolved ffprobe binary path as the first positional arg. The
+    // module-level try block resolves @ffprobe-installer; if that block were
+    // emptied the binary would be undefined. It must be a non-empty string
+    // ending in "ffprobe".
+    const binaryArg = runner.mock.calls[0]![0] as string;
+    expect(binaryArg).toBeTruthy();
+    expect(binaryArg).toMatch(/ffprobe$/);
     expect(runner.mock.calls[0]![1]).toEqual([
       '-v', 'error',
       '-print_format', 'json',
@@ -433,6 +440,31 @@ describe('VideoStorageAdapter — playback storage fake mode', () => {
     const adapter = new VideoStorageAdapter(fakeStorage, cfg);
     await expect(
       adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/random.txt' }),
+    ).rejects.toThrow(/unknown manifest path/);
+  });
+
+  it('throws for a .m3u8 path whose base does NOT start with the mux prefix', async () => {
+    // Kills the L217 `&&`→`||` mutant: the base ends in .m3u8 but is neither
+    // `manifest.m3u8` nor a `hls_*` variant. The real conjunction must reject
+    // it; an OR would mis-treat it as a variant playlist and produce output.
+    const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
+    const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
+    const adapter = new VideoStorageAdapter(fakeStorage, cfg);
+    await expect(
+      adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/other.m3u8' }),
+    ).rejects.toThrow(/unknown manifest path/);
+  });
+
+  it('throws for an hls_* path that does NOT end in .m3u8', async () => {
+    // Kills the L217 `.endsWith('.m3u8')`→`.endsWith('')` mutant: the base
+    // starts with the mux prefix but has a non-m3u8 extension. The real
+    // suffix check must reject it; the empty-string suffix always matches and
+    // would emit a bogus variant playlist.
+    const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
+    const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
+    const adapter = new VideoStorageAdapter(fakeStorage, cfg);
+    await expect(
+      adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/hls_720p.txt' }),
     ).rejects.toThrow(/unknown manifest path/);
   });
 });

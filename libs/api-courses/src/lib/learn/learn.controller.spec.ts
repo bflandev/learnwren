@@ -225,6 +225,14 @@ describe('LearnController', () => {
     );
     expect(svc.getLessonView).not.toHaveBeenCalled();
   });
+
+  it('throws when req.user is missing (guard bypass scenario — third OR operand)', async () => {
+    const req = makeReq({ user: undefined });
+    await expect(ctrl.getLesson(req)).rejects.toThrow(
+      'LearnController: guard did not attach course/lesson/user',
+    );
+    expect(svc.getLessonView).not.toHaveBeenCalled();
+  });
 });
 
 // ─── Direct controller tests (POST) ────────────────────────────────────────
@@ -270,6 +278,14 @@ describe('LearnController.markComplete (direct call)', () => {
 
   it('throws when req.lesson is missing (guard bypass scenario)', async () => {
     const req = makeReq({ lesson: undefined });
+    await expect(ctrl.markComplete(req, {})).rejects.toThrow(
+      'LearnController: guard did not attach course/lesson/user',
+    );
+    expect(svc.markLessonComplete).not.toHaveBeenCalled();
+  });
+
+  it('throws when req.user is missing (guard bypass scenario — third OR operand)', async () => {
+    const req = makeReq({ user: undefined });
     await expect(ctrl.markComplete(req, {})).rejects.toThrow(
       'LearnController: guard did not attach course/lesson/user',
     );
@@ -441,12 +457,36 @@ describe('LearnController.savePosition', () => {
     expect(svc.savePosition).toHaveBeenCalledWith(USER_ID, COURSE, LESSON, 42);
   });
 
+  it('throws when guard did not attach course/lesson/user (missing user — third OR operand)', async () => {
+    const req = makeReq({ user: undefined });
+    await expect(ctrl.savePosition(req, { seconds: 42 })).rejects.toThrow(
+      'LearnController: guard did not attach course/lesson/user',
+    );
+    expect(svc.savePosition).not.toHaveBeenCalled();
+  });
+
   it('throws InvalidPositionException when seconds is missing', async () => {
     const req = makeReq();
     await expect(ctrl.savePosition(req, {} as never)).rejects.toBeInstanceOf(
       InvalidPositionException,
     );
     expect(svc.savePosition).not.toHaveBeenCalled();
+  });
+
+  it('throws InvalidPositionException (not a TypeError) when the body itself is null (kills body?.seconds optional-chaining)', async () => {
+    const req = makeReq();
+    // body=null → `body?.seconds` yields undefined → typeof !== 'number' → rejected.
+    // A mutant dropping the `?.` would dereference null.seconds and TypeError.
+    await expect(ctrl.savePosition(req, null as never)).rejects.toBeInstanceOf(
+      InvalidPositionException,
+    );
+    expect(svc.savePosition).not.toHaveBeenCalled();
+  });
+
+  it('accepts seconds exactly 0 (kills seconds < 0 → seconds <= 0 boundary)', async () => {
+    const req = makeReq();
+    await ctrl.savePosition(req, { seconds: 0 });
+    expect(svc.savePosition).toHaveBeenCalledWith(USER_ID, COURSE, LESSON, 0);
   });
 
   it('throws InvalidPositionException when seconds is negative', async () => {

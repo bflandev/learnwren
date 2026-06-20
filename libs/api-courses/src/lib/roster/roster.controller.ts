@@ -24,6 +24,7 @@ export class RosterController {
   @UseGuards(CourseOwnerGuard)
   getStudents(@Req() req: CourseScopedRequest): Promise<CourseRosterView> {
     if (!req.course) {
+      // Stryker disable next-line StringLiteral: unreachable defensive guard — CourseOwnerGuard always attaches req.course before this runs; the message text is diagnostic-only and never asserted.
       return Promise.reject(new Error('RosterController: CourseOwnerGuard did not attach course'));
     }
     return this.service.getRoster(req.course);

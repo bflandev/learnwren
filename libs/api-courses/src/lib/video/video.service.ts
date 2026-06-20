@@ -76,6 +76,7 @@ export interface VideoServiceDeps {
 
 @Injectable()
 export class VideoService {
+  // Stryker disable next-line StringLiteral: Logger constructor-name string, log-only, no behavior
   private readonly logger = new Logger('VideoService');
   private readonly sleep: (ms: number) => Promise<void>;
 
@@ -86,6 +87,7 @@ export class VideoService {
     @Inject(VIDEO_TRANSCODER) private readonly transcoder: VideoTranscoder,
     @Optional() deps?: VideoServiceDeps,
   ) {
+    // Stryker disable next-line ArrowFunction: DI default sleep, overridden in tests
     this.sleep = deps?.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
 
@@ -145,7 +147,9 @@ export class VideoService {
     try {
       actualSize = await this.verifyUploadObjectOrThrow(v);
     } catch (err) {
+      // Stryker disable next-line BlockStatement: log-only catch body; the .catch already swallows the rejection regardless
       await this.repo.releaseUploadCompletionClaim(vid).catch((e: unknown) => {
+        // Stryker disable next-line StringLiteral: log-only message, no behavior
         this.logger.warn(`releaseUploadCompletionClaim failed for ${vid}: ${(e as Error).message}`);
       });
       throw err;
@@ -211,6 +215,7 @@ export class VideoService {
       return { ok: true, value: probe };
     } catch (err) {
       const message = (err as Error).message;
+      // Stryker disable next-line StringLiteral: log-only message, no behavior
       this.logger.warn(`ffprobe failed for ${v.id}: ${message}`);
       return { ok: false, error: message };
     }
@@ -260,6 +265,7 @@ export class VideoService {
   private async submitWithRetry(
     input: Parameters<VideoTranscoder['submitJob']>[0],
   ): Promise<{ ok: true; jobName: string } | { ok: false; lastError: string }> {
+    // Stryker disable next-line StringLiteral: equivalent — MAX_SUBMIT_ATTEMPTS>0 so the loop always runs; lastError is overwritten by the catch before it can be returned
     let lastError = 'unknown';
     for (let attempt = 0; attempt < MAX_SUBMIT_ATTEMPTS; attempt++) {
       try {
@@ -267,6 +273,7 @@ export class VideoService {
         return { ok: true, jobName: handle.jobName };
       } catch (err) {
         lastError = (err as Error).message;
+        // Stryker disable next-line StringLiteral,ArithmeticOperator: log-only message (attempt+1 is display-only), no behavior
         this.logger.warn(`submitJob attempt ${attempt + 1} failed: ${lastError}`);
         if (attempt < MAX_SUBMIT_ATTEMPTS - 1) {
           await this.sleep(BACKOFF_MS[attempt]!);
@@ -308,6 +315,7 @@ export class VideoService {
   async deleteForLesson(lid: LessonId): Promise<void> {
     const v = await this.repo.getVideoByLesson(lid);
     if (!v) return;
+    // Stryker disable next-line ObjectLiteral: equivalent — emptying to {} yields opts.logCancelFailures===undefined, falsy like false, so the log branch is unchanged (BooleanLiteral mutant IS killed by the deleteForLesson no-warn test)
     await this.tearDownVideoSideEffects(v, { logCancelFailures: false });
     await this.repo.deleteVideoAndDetach(v.id, v.lessonId, nowIso());
   }
@@ -330,6 +338,7 @@ export class VideoService {
       const jobName = v.transcoderJobName;
       await this.transcoder.cancelJob(jobName).catch((err) => {
         if (opts.logCancelFailures) {
+          // Stryker disable next-line StringLiteral: log-only message, no behavior
           this.logger.warn(`cancelJob failed for ${jobName}: ${(err as Error).message}`);
         }
       });

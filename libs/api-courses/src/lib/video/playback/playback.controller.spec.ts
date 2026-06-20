@@ -139,6 +139,7 @@ describe('PlaybackController.captions', () => {
     await ctrl.captions(VIDEO, res as unknown as import('express').Response);
     expect(captionsSvc.getForDelivery).toHaveBeenCalledWith(VIDEO.id);
     expect(res.headers['content-type']).toBe('text/vtt; charset=utf-8');
+    expect(res.headers['cache-control']).toBe('private, no-store');
     expect(res.send).toHaveBeenCalledWith('WEBVTT\nhi');
   });
 

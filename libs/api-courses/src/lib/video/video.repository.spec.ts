@@ -91,7 +91,12 @@ describe('VideoRepository — simple reads and writes', () => {
     });
     const repo = await buildRepo(fake);
 
-    expect((await repo.getVideoByLesson('l2' as LessonId))?.id).toBe('v2');
+    const found = await repo.getVideoByLesson('l2' as LessonId);
+    // Non-null + exact id pins the `.where('lessonId', '==', lid)` field: a
+    // mutated field name ('') would match no document and return null here.
+    expect(found).not.toBeNull();
+    expect(found!.id).toBe('v2');
+    expect(found!.lessonId).toBe('l2');
     expect(await repo.getVideoByLesson('l-none' as LessonId)).toBeNull();
   });
 
@@ -169,6 +174,25 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
 
     // Lesson now points back at the video.
     expect((fake.__store.get(LESSON_PATH) as { videoId?: string }).videoId).toBe('v1');
+  });
+
+  it('links exactly the lesson whose id matches, not a sibling lesson', async () => {
+    // Pins the lessonByIdQuery `.where('id', '==', lid)` field literal: two
+    // lessons live under the same collection group; finalize for l1 must link
+    // l1's doc and leave l2 untouched. Mutating the field to '' would match
+    // neither (both have a non-empty id) and throw "Lesson disappeared".
+    const OTHER_LESSON = 'courses/c1/modules/m1/lessons/l2';
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo(),
+      [LESSON_PATH]: lessonDoc({ id: 'l1' }),
+      [OTHER_LESSON]: lessonDoc({ id: 'l2' }),
+    });
+    const repo = await buildRepo(fake);
+
+    await repo.finalizeUploadWithJob(finalizeArgs);
+
+    expect((fake.__store.get(LESSON_PATH) as { videoId?: string }).videoId).toBe('v1');
+    expect('videoId' in (fake.__store.get(OTHER_LESSON) as object)).toBe(false);
   });
 
   it('persists the probed source duration on Video.source for later READY output', async () => {
@@ -389,6 +413,26 @@ describe('VideoRepository.applyTranscoderResult', () => {
     expect((fake.__store.get('videos/v1') as Video).output?.durationSec).toBe(55);
   });
 
+  it('reports ALREADY_APPLIED for a FAILED outcome when the video is already FAILED', async () => {
+    // Pins the targetState ternary for the non-READY branch: with the outcome
+    // already applied (state FAILED), targetState must equal 'FAILED' so the
+    // already-applied short-circuit fires. Forcing the ternary to 'READY' (or
+    // '') would skip it and mis-report WRONG_STATE.
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({ state: 'FAILED', transcoderJobName: JOB_NAME }),
+    });
+    const repo = await buildRepo(fake);
+
+    expect(
+      await repo.applyTranscoderResult({
+        videoId: 'v1' as VideoId,
+        jobName: JOB_NAME,
+        outcome: { kind: 'FAILED', reason: 'codec unsupported' },
+        nowIso: NOW_ISO,
+      }),
+    ).toEqual({ acted: false, reason: 'ALREADY_APPLIED' });
+  });
+
   it('applies a FAILED outcome: state FAILED with a prefixed failure reason', async () => {
     const fake = createFakeFirestore({
       'videos/v1': makeVideo({ state: 'TRANSCODING', transcoderJobName: JOB_NAME }),
@@ -424,6 +468,24 @@ describe('VideoRepository.deleteVideoAndDetach', () => {
     expect(fake.__store.has('videoKeys/k1')).toBe(false);
     expect('videoId' in (fake.__store.get(LESSON_PATH) as object)).toBe(false);
     expect((fake.__store.get(LESSON_PATH) as { updatedAt: string }).updatedAt).toBe(NOW_ISO);
+  });
+
+  it('deletes only the key whose videoId matches, leaving other keys intact', async () => {
+    // Pins the videoKeys `.where('videoId', '==', vid)` field literal: only the
+    // key tagged with v1 must be removed; a key for another video must survive.
+    // A mutated field name would match neither and delete no key at all.
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo(),
+      'videoKeys/k1': { id: 'k1', videoId: 'v1', key: 'x', createdAt: SEED_DATE },
+      'videoKeys/k-other': { id: 'k-other', videoId: 'v-other', key: 'y', createdAt: SEED_DATE },
+      [LESSON_PATH]: lessonDoc({ videoId: 'v1' }),
+    });
+    const repo = await buildRepo(fake);
+
+    await repo.deleteVideoAndDetach('v1' as VideoId, 'l1' as LessonId, NOW_ISO);
+
+    expect(fake.__store.has('videoKeys/k1')).toBe(false);
+    expect(fake.__store.has('videoKeys/k-other')).toBe(true);
   });
 
   it('leaves the lesson link intact when it points at a different video', async () => {
@@ -547,6 +609,13 @@ describe('VideoRepository — captions', () => {
     expect(await repo.getCaptions('nope' as VideoId)).toBeNull();
   });
 
+  it('getCaptionsMeta returns null when no captions exist', async () => {
+    // Pins the `if (!captions) return null` guard: forcing it false would
+    // dereference null and throw instead of returning null.
+    const repo = await buildRepo(createFakeFirestore());
+    expect(await repo.getCaptionsMeta('nope' as VideoId)).toBeNull();
+  });
+
   it('getCaptionsMeta omits the content body', async () => {
     const fake = createFakeFirestore({ 'videoCaptions/v1': makeCaptions() });
     const repo = await buildRepo(fake);
@@ -614,6 +683,20 @@ describe('VideoRepository.claimUploadCompletion', () => {
     // A claim stamped after staleBefore belongs to a live concurrent attempt.
     const fake = createFakeFirestore({
       'videos/v1': makeVideo({ completeClaimedAt: FRESH_CLAIM_AT as ISODateString }),
+    });
+    const repo = await buildRepo(fake);
+
+    await expect(
+      repo.claimUploadCompletion('v1' as VideoId, NOW_ISO as ISODateString, STALE_BEFORE as ISODateString),
+    ).rejects.toBeInstanceOf(UploadCompletionInProgressException);
+  });
+
+  it('treats a claim stamped exactly at staleBefore as still fresh (boundary, >=)', async () => {
+    // Boundary for `completeClaimedAt >= staleBefore`: a claim at exactly the
+    // cutoff is INCLUSIVE-fresh and must block. The `>` mutant would treat the
+    // boundary as stale and wrongly re-claim.
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({ completeClaimedAt: STALE_BEFORE as ISODateString }),
     });
     const repo = await buildRepo(fake);
 

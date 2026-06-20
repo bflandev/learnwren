@@ -78,6 +78,34 @@ describe('EnrollmentRepository.enroll', () => {
     expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(4);
   });
 
+  it('persists the restore update to the STORED doc (status ACTIVE, withdrawnAt null)', async () => {
+    // Kills the L109 ObjectLiteral `{}` and StringLiteral `'ACTIVE'` mutants:
+    // an empty update (or a non-'ACTIVE' status) would leave the stored doc
+    // WITHDRAWN even though the returned object looks restored.
+    const withdrawn: Enrollment = {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'WITHDRAWN',
+      progress: [{ lessonId: 'l1' as LessonId, completedAt: null, lastWatchedSeconds: 42 }],
+      withdrawnAt: '2026-02-01T00:00:00.000Z' as ISODateString,
+      createdAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-02-01T00:00:00.000Z' as ISODateString,
+    };
+    const { repo, db } = repoWith({
+      [`courses/${CID}`]: course({ enrollmentCount: 3 }),
+      [`enrollments/${ID}`]: withdrawn,
+    });
+
+    await repo.enroll(UID, CID);
+
+    const stored = db.__store.get(`enrollments/${ID}`);
+    expect(stored?.['status']).toBe('ACTIVE');
+    expect(stored?.['withdrawnAt']).toBeNull();
+    expect(stored?.['updatedAt']).toEqual(expect.any(String));
+    expect(stored?.['updatedAt']).not.toBe('2026-02-01T00:00:00.000Z');
+  });
+
   it('is idempotent when already ACTIVE — no second counter increment', async () => {
     const { repo, db } = repoWith({ [`courses/${CID}`]: course({ enrollmentCount: 5 }) });
     await repo.enroll(UID, CID);
@@ -120,6 +148,58 @@ describe('EnrollmentRepository.withdraw', () => {
     const stored = db.__store.get(`enrollments/${ID}`);
     expect(stored?.['status']).toBe('WITHDRAWN');
     expect(stored?.['withdrawnAt']).toEqual(expect.any(String));
+    expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(0);
+  });
+
+  it('clamps the counter at 0 on withdraw (kills Math.max -> Math.min)', async () => {
+    // ACTIVE enrollment but the course counter is already 0 (drifted). The
+    // withdraw must clamp at Math.max(0, 0 - 1) = 0. The Math.min mutant would
+    // write -1.
+    const active: Enrollment = {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'ACTIVE',
+      progress: [],
+      withdrawnAt: null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+    };
+    const { repo, db } = repoWith({
+      [`courses/${CID}`]: course({ enrollmentCount: 0 }),
+      [`enrollments/${ID}`]: active,
+    });
+
+    await repo.withdraw(UID, CID);
+
+    expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(0);
+  });
+
+  it('treats a missing enrollmentCount as 0 on withdraw (kills the `?? 0` -> non-0 mutant)', async () => {
+    // Course has NO enrollmentCount field. Withdraw must read it as 0 and clamp
+    // to Math.max(0, 0 - 1) = 0. A `?? null`/dropped-default mutant would yield
+    // NaN (null - 1) and Math.max(0, NaN) = NaN, not 0.
+    const active: Enrollment = {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'ACTIVE',
+      progress: [],
+      withdrawnAt: null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+    };
+    const { repo, db } = repoWith({
+      [`courses/${CID}`]: course(), // no enrollmentCount
+      [`enrollments/${ID}`]: active,
+    });
+
+    await repo.withdraw(UID, CID);
+
     expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBe(0);
   });
 
@@ -228,6 +308,28 @@ describe('EnrollmentRepository.markLessonComplete', () => {
     const after = db.__store.get(`enrollments/${enrollId}`);
     expect(after?.['progress'][0].lastWatchedSeconds).toBe(99); // untouched
     expect(after?.['updatedAt']).toBe('t0'); // no write
+  });
+
+  it('appends a row when the enrolment has NO progress field (kills the `?? []` -> `[]`? no-op)', async () => {
+    // The enrolment document predates the progress field. `[...(existing.progress ?? [])]`
+    // must coalesce undefined to []. Exercises the `?? []` fallback (L147) on the
+    // nullish branch that other tests never hit.
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const noProgress = baseEnrollment();
+    delete (noProgress as { progress?: unknown }).progress;
+    const { repo, db } = repoWith({ [`enrollments/${enrollId}`]: noProgress });
+
+    const result = await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l1' as LessonId,
+      '2026-05-25T12:00:00.000Z' as ISODateString,
+    );
+
+    expect(result.completedAt).toBe('2026-05-25T12:00:00.000Z');
+    expect(db.__store.get(`enrollments/${enrollId}`)?.['progress']).toEqual([
+      { lessonId: 'l1', completedAt: '2026-05-25T12:00:00.000Z', lastWatchedSeconds: 0 },
+    ]);
   });
 
   it('throws NotEnrolledException when the enrolment doc is missing', async () => {
@@ -423,6 +525,58 @@ describe('EnrollmentRepository.setLastWatchedSeconds', () => {
     expect((db.__store.get(`enrollments/${ID}`) as Enrollment).updatedAt).toBe(stamp);
   });
 
+  it('updates ONLY the matching lesson row and preserves the others', async () => {
+    // Two pre-existing rows. findIndex must locate LID specifically (kills the
+    // `p.lessonId === lessonId` predicate -> true/false mutants: a constant-true
+    // would match the first row 'other'; a constant-false would never match and
+    // append a duplicate). The non-matching row must be left untouched.
+    const seed = activeWith([
+      { lessonId: 'other' as LessonId, completedAt: null, lastWatchedSeconds: 7 },
+      { lessonId: LID, completedAt: null, lastWatchedSeconds: 10 },
+    ]);
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: seed });
+
+    const out = await repo.setLastWatchedSeconds(UID, CID, LID, 25);
+
+    expect(out).toEqual({ lastWatchedSeconds: 25 });
+    const stored = db.__store.get(`enrollments/${ID}`) as Enrollment;
+    expect(stored.progress).toEqual([
+      { lessonId: 'other', completedAt: null, lastWatchedSeconds: 7 },
+      { lessonId: LID, completedAt: null, lastWatchedSeconds: 25 },
+    ]);
+  });
+
+  it('appends to existing rows rather than replacing them (kills the `?? []` -> drop)', async () => {
+    // A different lesson already has progress; writing LID must APPEND, keeping
+    // the prior row. The `idx >= 0 ? ... : undefined` else-branch (no match =>
+    // push) is exercised, and the spread of existing.progress must be preserved.
+    const seed = activeWith([
+      { lessonId: 'kept' as LessonId, completedAt: null, lastWatchedSeconds: 5 },
+    ]);
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: seed });
+
+    await repo.setLastWatchedSeconds(UID, CID, LID, 42);
+
+    const stored = db.__store.get(`enrollments/${ID}`) as Enrollment;
+    expect(stored.progress).toEqual([
+      { lessonId: 'kept', completedAt: null, lastWatchedSeconds: 5 },
+      { lessonId: LID, completedAt: null, lastWatchedSeconds: 42 },
+    ]);
+  });
+
+  it('inserts a row when the enrolment has NO progress field (kills the `?? []` fallback)', async () => {
+    const seed = activeWith();
+    delete (seed as { progress?: unknown }).progress;
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: seed });
+
+    const out = await repo.setLastWatchedSeconds(UID, CID, LID, 33);
+
+    expect(out).toEqual({ lastWatchedSeconds: 33 });
+    expect((db.__store.get(`enrollments/${ID}`) as Enrollment).progress).toEqual([
+      { lessonId: LID, completedAt: null, lastWatchedSeconds: 33 },
+    ]);
+  });
+
   it('throws NotEnrolledException when WITHDRAWN', async () => {
     const seed = activeWith();
     seed.status = 'WITHDRAWN';
@@ -475,6 +629,37 @@ describe('EnrollmentRepository.listActiveByCourse', () => {
     expect(rows.map((r) => r.userId).sort()).toEqual(['u1', 'u2']);
     expect(rows.every((r) => r.status === 'ACTIVE')).toBe(true);
   });
+
+  it('scopes strictly by courseId (kills the courseId field-name empty-string mutant)', async () => {
+    // A different course with an ACTIVE enrollment must NOT appear. If the
+    // `.where('courseId', ...)` field name is blanked, the filter matches every
+    // doc and the foreign enrollment leaks in.
+    const mine = enrollment('u1', 'course-1', 'ACTIVE');
+    const foreign = enrollment('u9', 'course-2', 'ACTIVE');
+    const { repo } = repoWith({
+      [`enrollments/${mine.id}`]: mine,
+      [`enrollments/${foreign.id}`]: foreign,
+    });
+
+    const rows = await repo.listActiveByCourse('course-1' as CourseId);
+
+    expect(rows.map((r) => r.userId)).toEqual(['u1']);
+  });
+
+  it('excludes WITHDRAWN in the SAME course (kills the status field-name empty-string mutant)', async () => {
+    // Same course, one ACTIVE and one WITHDRAWN. Blanking the `status` field
+    // name (or the 'ACTIVE' value) would let the WITHDRAWN row through.
+    const a = enrollment('u1', 'course-1', 'ACTIVE');
+    const w = enrollment('u2', 'course-1', 'WITHDRAWN');
+    const { repo } = repoWith({
+      [`enrollments/${a.id}`]: a,
+      [`enrollments/${w.id}`]: w,
+    });
+
+    const rows = await repo.listActiveByCourse('course-1' as CourseId);
+
+    expect(rows.map((r) => r.userId)).toEqual(['u1']);
+  });
 });
 
 describe('EnrollmentRepository.deleteAllForCourse', () => {
@@ -519,6 +704,65 @@ describe('EnrollmentRepository.deleteAllForCourse', () => {
   it('is a no-op when no enrollments exist for the course', async () => {
     const { repo } = repoWith({});
     await expect(repo.deleteAllForCourse('course-none' as CourseId)).resolves.toBeUndefined();
+  });
+
+  it('scopes deletion strictly by courseId (kills the courseId field-name mutant)', async () => {
+    // Blanking the `.where('courseId', ...)` field name would match (and delete)
+    // every enrollment in the collection, including a foreign course's.
+    const mine = enrollment('u1', 'course-1', 'ACTIVE');
+    const foreign = enrollment('u2', 'course-2', 'ACTIVE');
+    const { repo, db } = repoWith({
+      [`enrollments/${mine.id}`]: mine,
+      [`enrollments/${foreign.id}`]: foreign,
+    });
+
+    await repo.deleteAllForCourse('course-1' as CourseId);
+
+    expect(db.__store.has(`enrollments/${mine.id}`)).toBe(false);
+    expect(db.__store.has(`enrollments/${foreign.id}`)).toBe(true);
+  });
+
+  it('commits exactly one batch for exactly BATCH_SIZE (500) docs (kills `i < len` -> `i <= len`)', async () => {
+    // With 500 docs the `<` loop runs once (i=0). The `<=` mutant runs a second,
+    // empty iteration (i=500 <= 500), committing a redundant empty batch.
+    const seed: Record<string, unknown> = {};
+    for (let i = 0; i < 500; i++) {
+      const e = enrollment(`user-${i}`, 'exact-course', 'ACTIVE');
+      seed[`enrollments/${e.id}`] = e;
+    }
+    const base = createFakeFirestore(seed as Record<string, Record<string, unknown>>);
+    let batchCount = 0;
+    const counting = { ...base, batch: () => { batchCount++; return base.batch(); } };
+    const repo = new EnrollmentRepository(counting as never);
+
+    await repo.deleteAllForCourse('exact-course' as CourseId);
+
+    expect(batchCount).toBe(1);
+    expect([...base.__store.keys()].filter((k) => k.startsWith('enrollments/'))).toHaveLength(0);
+  });
+
+  it('slices each chunk so no doc is processed twice (kills `docs.slice(...)` -> `docs`)', async () => {
+    // 501 docs => two chunks of 500 + 1 = 501 total deletes. Dropping the slice
+    // makes every batch process ALL 501 docs => 1002 delete calls.
+    const seed: Record<string, unknown> = {};
+    for (let i = 0; i < 501; i++) {
+      const e = enrollment(`user-${i}`, 'slice-course', 'ACTIVE');
+      seed[`enrollments/${e.id}`] = e;
+    }
+    const base = createFakeFirestore(seed as Record<string, Record<string, unknown>>);
+    let deleteCalls = 0;
+    const counting = {
+      ...base,
+      batch: () => {
+        const b = base.batch();
+        return { ...b, delete: (ref: unknown) => { deleteCalls++; return b.delete(ref as never); } };
+      },
+    };
+    const repo = new EnrollmentRepository(counting as never);
+
+    await repo.deleteAllForCourse('slice-course' as CourseId);
+
+    expect(deleteCalls).toBe(501);
   });
 
   it('handles >500 docs across two batches (chunking boundary)', async () => {

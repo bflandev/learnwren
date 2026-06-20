@@ -10,6 +10,7 @@ import { VideoException } from './errors/video.exception';
 // throws NotCourseOwnerException). Rendering delegated to the shared helper.
 @Catch(VideoException, AuthException, CoursesException, HttpException)
 export class VideoExceptionFilter implements ExceptionFilter {
+  // Stryker disable next-line StringLiteral: Logger constructor-name string, log-only, no behavior
   private readonly logger = new Logger('VideoExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {

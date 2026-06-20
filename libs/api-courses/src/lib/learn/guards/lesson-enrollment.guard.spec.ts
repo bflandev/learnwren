@@ -92,6 +92,32 @@ describe('LessonEnrollmentGuard', () => {
     ).rejects.toBeInstanceOf(NotEnrolledLessonException);
   });
 
+  it('rejects the course owner even when an enrolment row exists (kills the owner conditional + throw block)', async () => {
+    // Owner whose isEnrolled() would return true. The owner short-circuit MUST
+    // throw NotEnrolledLessonException. A mutant that empties the throw block or
+    // forces the owner conditional false would fall through and RESOLVE TRUE.
+    const guard = new LessonEnrollmentGuard(
+      makeCourses(publishedCourse, [aModule], aLesson),
+      makeEnrollment(true),
+    );
+    await expect(
+      guard.canActivate(ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID }, user: { uid: INSTRUCTOR_ID } })),
+    ).rejects.toBeInstanceOf(NotEnrolledLessonException);
+  });
+
+  it('rejects when req.user is absent (kills req.user?.uid optional-chaining)', async () => {
+    // No user attached. `req.user?.uid` short-circuits to undefined (instructorId
+    // !== undefined → not owner), then `req.user && …` is falsy → 403. A mutant
+    // dropping the `?.` would TypeError on req.user.uid instead.
+    const guard = new LessonEnrollmentGuard(
+      makeCourses(publishedCourse, [aModule], aLesson),
+      makeEnrollment(true),
+    );
+    await expect(
+      guard.canActivate(ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID } })),
+    ).rejects.toBeInstanceOf(NotEnrolledLessonException);
+  });
+
   it('rejects the course owner on DRAFT', async () => {
     const guard = new LessonEnrollmentGuard(
       makeCourses(draftCourse, [aModule], aLesson),
@@ -146,6 +172,19 @@ describe('LessonEnrollmentGuard', () => {
   it('throws LESSON_NOT_FOUND when course is missing', async () => {
     const guard = new LessonEnrollmentGuard(
       makeCourses(null, [], null),
+      makeEnrollment(true),
+    );
+    await expect(
+      guard.canActivate(ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID }, user: { uid: STUDENT_ID } })),
+    ).rejects.toBeInstanceOf(LessonNotFoundException);
+  });
+
+  it('short-circuits to 404 on a missing course even when a lesson would resolve (kills the !course conditional-false)', async () => {
+    // course null but module+lesson present so findLessonInCourse would succeed.
+    // The `if (!course)` guard must throw LessonNotFoundException before reaching
+    // `course.instructorId` (which would TypeError on a null course if skipped).
+    const guard = new LessonEnrollmentGuard(
+      makeCourses(null, [aModule], aLesson),
       makeEnrollment(true),
     );
     await expect(

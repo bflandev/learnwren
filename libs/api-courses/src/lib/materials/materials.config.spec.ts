@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { readMaterialsConfigFromEnv } from './materials.config';
+import { MATERIALS_CONFIG, readMaterialsConfigFromEnv } from './materials.config';
+
+describe('MATERIALS_CONFIG token', () => {
+  it('is a registered Symbol with the canonical key', () => {
+    expect(Symbol.keyFor(MATERIALS_CONFIG)).toBe('learnwren.api-courses.materials.config');
+  });
+});
 
 describe('readMaterialsConfigFromEnv', () => {
   it('defaults to fake storage and a dev bucket outside production', () => {

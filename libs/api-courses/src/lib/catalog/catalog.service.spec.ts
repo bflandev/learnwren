@@ -70,6 +70,31 @@ describe('CatalogService.listCatalogue', () => {
     expect(byBoth.items.map((i) => i.id)).toEqual(['c-prog-beg']);
   });
 
+  it('does NOT filter by category when no category is supplied (returns categorised courses too)', async () => {
+    // Kills the `if (query.category)` -> `if (true)` mutant: a forced-true branch
+    // would run `c.category === undefined` and drop every categorised course.
+    const svc = makeService([
+      course({ id: 'c-prog' as CourseId, category: 'PROGRAMMING' }),
+      course({ id: 'c-design' as CourseId, category: 'DESIGN' }),
+    ]);
+
+    const all = await svc.listCatalogue({});
+
+    expect(all.items.map((i) => i.id).sort()).toEqual(['c-design', 'c-prog']);
+  });
+
+  it('does NOT filter by difficulty when none is supplied (returns courses carrying a difficulty)', async () => {
+    // Kills the `if (query.difficulty)` -> `if (true)` mutant the same way.
+    const svc = makeService([
+      course({ id: 'c-beg' as CourseId, difficulty: 'BEGINNER' }),
+      course({ id: 'c-adv' as CourseId, difficulty: 'ADVANCED' }),
+    ]);
+
+    const all = await svc.listCatalogue({});
+
+    expect(all.items.map((i) => i.id).sort()).toEqual(['c-adv', 'c-beg']);
+  });
+
   it('sorts NEWEST by publishedAt descending', async () => {
     const svc = makeService([
       course({ id: 'old' as CourseId, publishedAt: '2026-01-01T00:00:00.000Z' as ISODateString }),
@@ -81,15 +106,99 @@ describe('CatalogService.listCatalogue', () => {
     expect(page.items.map((i) => i.id)).toEqual(['new', 'old']);
   });
 
-  it('sorts ALPHABETICAL by title case-insensitively', async () => {
+  it('NEWEST ignores enrollmentCount (kills `else if (sort === POPULAR)` -> true)', async () => {
+    // The newer course has the LOWER enrollmentCount. Under NEWEST the order must
+    // be publishedAt-desc. If the POPULAR branch condition is forced true, the
+    // result would re-sort by enrollmentCount-desc and put the older one first.
     const svc = makeService([
-      course({ id: 'c-b' as CourseId, title: 'banana' }),
-      course({ id: 'c-a' as CourseId, title: 'Apple' }),
+      course({
+        id: 'new-unpopular' as CourseId,
+        enrollmentCount: 1,
+        publishedAt: '2026-08-01T00:00:00.000Z' as ISODateString,
+      }),
+      course({
+        id: 'old-popular' as CourseId,
+        enrollmentCount: 99,
+        publishedAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      }),
+    ]);
+
+    const page = await svc.listCatalogue({ sort: 'NEWEST' });
+
+    expect(page.items.map((i) => i.id)).toEqual(['new-unpopular', 'old-popular']);
+  });
+
+  it('NEWEST ranks by publishedAt, NOT createdAt (kills `publishedAt ?? createdAt` -> `&&`)', async () => {
+    // `a` was created last but published first; `b` was created first but
+    // published last. NEWEST must key on publishedAt. The `&&` mutant would
+    // return createdAt and flip the order.
+    const svc = makeService([
+      course({
+        id: 'pub-first' as CourseId,
+        publishedAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+        createdAt: '2026-09-09T00:00:00.000Z' as ISODateString,
+      }),
+      course({
+        id: 'pub-last' as CourseId,
+        publishedAt: '2026-06-01T00:00:00.000Z' as ISODateString,
+        createdAt: '2026-02-02T00:00:00.000Z' as ISODateString,
+      }),
+    ]);
+
+    const page = await svc.listCatalogue({ sort: 'NEWEST' });
+
+    // By publishedAt desc => pub-last first. By createdAt (the mutant) => pub-first first.
+    expect(page.items.map((i) => i.id)).toEqual(['pub-last', 'pub-first']);
+  });
+
+  it('sorts ALPHABETICAL by title, overriding the publishedAt-desc input order', async () => {
+    // Give the alphabetically-first course the OLDER publishedAt so the upstream
+    // listPublished (publishedAt desc) order is the reverse of the alphabetical
+    // order. This kills both the `if (sort === 'ALPHABETICAL')` -> false mutant
+    // (which would fall through to NEWEST/date order) and proves the sort runs.
+    const svc = makeService([
+      course({
+        id: 'c-b' as CourseId,
+        title: 'banana',
+        publishedAt: '2026-09-01T00:00:00.000Z' as ISODateString,
+      }),
+      course({
+        id: 'c-a' as CourseId,
+        title: 'Apple',
+        publishedAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      }),
     ]);
 
     const page = await svc.listCatalogue({ sort: 'ALPHABETICAL' });
 
+    // Alphabetical: Apple, banana. Date-desc (mutant fall-through): banana, Apple.
     expect(page.items.map((i) => i.title)).toEqual(['Apple', 'banana']);
+  });
+
+  it('ALPHABETICAL ties case-variants via { sensitivity: base } (kills the `{}` mutant)', async () => {
+    // 'apple' vs 'Apple' differ ONLY by case. With sensitivity:'base' the
+    // comparator returns 0 (a tie) so Array.sort keeps the upstream input order
+    // — which here is publishedAt desc => lowercase 'apple' (newer) first.
+    // Dropping the option makes the default comparator case-sensitive, returning
+    // a non-zero value that reorders 'Apple' ahead of 'apple'.
+    const svc = makeService([
+      course({
+        id: 'c-upper' as CourseId,
+        title: 'Apple',
+        publishedAt: '2026-09-01T00:00:00.000Z' as ISODateString,
+      }),
+      course({
+        id: 'c-lower' as CourseId,
+        title: 'apple',
+        publishedAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      }),
+    ]);
+
+    const page = await svc.listCatalogue({ sort: 'ALPHABETICAL' });
+
+    // Input is publishedAt desc => ['Apple','apple']. base => tie => stable =>
+    // ['Apple','apple']; mutant {} => case-sensitive => ['apple','Apple'].
+    expect(page.items.map((i) => i.id)).toEqual(['c-upper', 'c-lower']);
   });
 
   it('paginates with 20 items per page', async () => {
@@ -125,6 +234,34 @@ describe('CatalogService.listCatalogue', () => {
     expect(page.items[0]?.instructorDisplayName).toBe('Ada Lovelace');
   });
 
+  it('falls back to the "Instructor" default when the instructor has no user doc', async () => {
+    // No `users/u-missing` doc => the directory ref is undefined. `ref?.displayName`
+    // must short-circuit (the non-optional `ref.displayName` mutant would throw)
+    // and `?? 'Instructor'` must supply the default (kills the "" StringLiteral),
+    // while `ref?.photoUrl` must omit the photo (no throw).
+    const svc = makeService([
+      course({ id: 'c-1' as CourseId, instructorId: 'u-missing' as UserId }),
+    ]);
+
+    const page = await svc.listCatalogue({});
+
+    expect(page.items[0]?.instructorDisplayName).toBe('Instructor');
+    expect(page.items[0]?.instructorPhotoUrl).toBeUndefined();
+  });
+
+  it('uses the "Instructor" default when the user doc exists but has no displayName', async () => {
+    // Kills the L154:48 `?? ''` StringLiteral mutant: ref is present (truthy) so
+    // `ref?.displayName` is undefined and the `?? 'Instructor'` literal is used.
+    const svc = makeService(
+      [course({ id: 'c-1' as CourseId, instructorId: 'u-1' as UserId })],
+      { 'users/u-1': { id: 'u-1' } },
+    );
+
+    const page = await svc.listCatalogue({});
+
+    expect(page.items[0]?.instructorDisplayName).toBe('Instructor');
+  });
+
   it('reports zero totalPages for an empty catalogue', async () => {
     const svc = makeService([]);
 
@@ -158,6 +295,18 @@ describe('CatalogService.search', () => {
     const page = await svc.search({ q: 'rust' });
 
     expect(page.items.map((i) => i.id)).toEqual(['title-hit', 'desc-only']);
+  });
+
+  it('trims surrounding whitespace from the query (kills the dropped `.trim()`)', async () => {
+    // The mutant drops `.trim()`, so the search term becomes "  rust  " which
+    // would not be a substring of any title/description and would match nothing.
+    const svc = makeService([
+      course({ id: 'c-rust' as CourseId, title: 'Rust Basics', description: 'd' }),
+    ]);
+
+    const page = await svc.search({ q: '  rust  ' });
+
+    expect(page.items.map((i) => i.id)).toEqual(['c-rust']);
   });
 
   it('excludes non-published courses from search results', async () => {
@@ -260,15 +409,54 @@ describe('CatalogService.getCourseDetail', () => {
 
 describe('CatalogService.listCatalogue — POPULAR sort', () => {
   it('orders by enrollmentCount descending, treating a missing count as 0', async () => {
+    // Seed in publishedAt-desc order that is the REVERSE of the popularity order
+    // so a POPULAR run must actively re-sort. This kills the
+    // `else if (sort === 'POPULAR')` -> false mutant (which would fall through to
+    // NEWEST and yield the input order) and proves enrollmentCount drives it.
     const svc = makeService([
-      course({ id: 'c-low' as CourseId, enrollmentCount: 2 }),
-      course({ id: 'c-high' as CourseId, enrollmentCount: 9 }),
-      course({ id: 'c-none' as CourseId }), // no enrollmentCount field
+      course({
+        id: 'c-low' as CourseId,
+        enrollmentCount: 2,
+        publishedAt: '2026-09-03T00:00:00.000Z' as ISODateString,
+      }),
+      course({
+        id: 'c-high' as CourseId,
+        enrollmentCount: 9,
+        publishedAt: '2026-09-02T00:00:00.000Z' as ISODateString,
+      }),
+      course({
+        id: 'c-none' as CourseId, // no enrollmentCount field => treated as 0
+        publishedAt: '2026-09-01T00:00:00.000Z' as ISODateString,
+      }),
     ]);
 
     const page = await svc.listCatalogue({ sort: 'POPULAR' });
 
     expect(page.items.map((i) => i.id)).toEqual(['c-high', 'c-low', 'c-none']);
+  });
+
+  it('breaks an enrollmentCount tie by NEWEST (kills `|| compareNewest` and the compareNewest body)', async () => {
+    // Two courses with the SAME enrollmentCount: the primary key returns 0, so
+    // the `|| compareNewest(a,b)` tiebreak must order them by publishedAt desc.
+    // The `&&` mutant short-circuits 0 (never calls the tiebreak); an emptied
+    // compareNewest body returns undefined (no tiebreak). Both leave the input
+    // order, which we make the reverse of the expected output.
+    const svc = makeService([
+      course({
+        id: 'tie-older' as CourseId,
+        enrollmentCount: 5,
+        publishedAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      }),
+      course({
+        id: 'tie-newer' as CourseId,
+        enrollmentCount: 5,
+        publishedAt: '2026-08-01T00:00:00.000Z' as ISODateString,
+      }),
+    ]);
+
+    const page = await svc.listCatalogue({ sort: 'POPULAR' });
+
+    expect(page.items.map((i) => i.id)).toEqual(['tie-newer', 'tie-older']);
   });
 });
 
@@ -398,6 +586,33 @@ describe('CatalogService — instructor avatar projection', () => {
     expect(detail.instructorId).toBe('u-1');
     expect(detail.instructorPhotoUrl).toBe('https://example.com/p/u-1/avatar.jpg?v=1');
     expect(detail.instructorBiography).toBe('Mathematician.');
+  });
+
+  it('getCourseDetail falls back to defaults when the instructor has no user doc', async () => {
+    // No users/* doc => ref is undefined. Exercises the detail-path optional
+    // chains (L89 displayName, L90 photoUrl, L91 biography): the non-optional
+    // mutants would throw, and the `?? 'Instructor'` default must be applied.
+    const svc = makeService([
+      course({ id: 'c-1' as CourseId, instructorId: 'u-gone' as UserId }),
+    ]);
+
+    const detail = await svc.getCourseDetail('c-1' as CourseId);
+
+    expect(detail.instructorDisplayName).toBe('Instructor');
+    expect(detail.instructorPhotoUrl).toBeUndefined();
+    expect(detail.instructorBiography).toBeUndefined();
+  });
+
+  it('getCourseDetail uses the "Instructor" default when the user doc lacks a displayName', async () => {
+    // Kills the L89:50 `?? ''` StringLiteral mutant (ref present, displayName absent).
+    const svc = makeService(
+      [course({ id: 'c-1' as CourseId, instructorId: 'u-1' as UserId })],
+      { 'users/u-1': { id: 'u-1' } },
+    );
+
+    const detail = await svc.getCourseDetail('c-1' as CourseId);
+
+    expect(detail.instructorDisplayName).toBe('Instructor');
   });
 
   it('getCourseDetail normalises empty/absent biography to undefined', async () => {

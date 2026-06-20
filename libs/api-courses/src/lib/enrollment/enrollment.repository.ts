@@ -146,6 +146,7 @@ export class EnrollmentRepository {
 
       const progress = [...(existing.progress ?? [])];
       const idx = progress.findIndex((p) => p.lessonId === lessonId);
+      // Stryker disable next-line ConditionalExpression: equivalent — progress[-1] is undefined, identical to the else branch when idx<0
       const existingRow = idx >= 0 ? progress[idx] : undefined;
 
       if (existingRow && existingRow.completedAt != null) {
@@ -185,6 +186,7 @@ export class EnrollmentRepository {
       // withdrawal still proceeds — there is no counter left to correct.
       if (courseSnap.exists) {
         const course = courseSnap.data() as Course;
+        // Stryker disable next-line LogicalOperator: the `??`->`||` mutant is equivalent here. The fallback is 0, and `x || 0` only diverges from `x ?? 0` for a falsy-but-defined `x` (i.e. 0), where both still evaluate to 0; enrollmentCount is only ever a non-negative number or undefined. (The `&&` mutant is killed by the "treats a missing enrollmentCount as 0" test.)
         const nextCount = Math.max(0, (course.enrollmentCount ?? 0) - 1);
         t.update(courseRef, { enrollmentCount: nextCount });
       }
@@ -206,6 +208,7 @@ export class EnrollmentRepository {
       .where('courseId', '==', courseId)
       .get();
 
+    // Stryker disable next-line ConditionalExpression: pure early-return optimization. When the snapshot is empty `docs` is [] and the `for (i=0; i<0; ...)` loop body never runs, so forcing this to `if (false)` produces an identical no-op (zero batches committed).
     if (snap.empty) return;
 
     // Chunk into batches of BATCH_SIZE to stay within Firestore's 500-op limit.
@@ -259,6 +262,7 @@ export class EnrollmentRepository {
 
       const progress = [...(existing.progress ?? [])];
       const idx = progress.findIndex((p) => p.lessonId === lessonId);
+      // Stryker disable next-line ConditionalExpression: equivalent — progress[-1] is undefined, identical to the else branch when idx<0
       const existingRow = idx >= 0 ? progress[idx] : undefined;
 
       if (existingRow && existingRow.lastWatchedSeconds >= seconds) {

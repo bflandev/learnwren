@@ -59,6 +59,26 @@ describe('MaterialsRepository', () => {
     expect(got.map((m) => m.id).sort()).toEqual(['m1', 'm2']);
   });
 
+  it('listByLesson filters with an equality clause on the lessonId field', async () => {
+    // Pin the exact ('lessonId', '==', value) query so a mutant blanking either
+    // the field name or the operator literal is caught.
+    const db = createFakeFirestore();
+    const calls: Array<[string, string, unknown]> = [];
+    const realCollection = db.collection.bind(db);
+    db.collection = ((name: string) => {
+      const coll = realCollection(name);
+      const realWhere = coll.where.bind(coll);
+      coll.where = ((field: string, op: string, value: unknown) => {
+        calls.push([field, op, value]);
+        return realWhere(field, op, value);
+      }) as typeof coll.where;
+      return coll;
+    }) as typeof db.collection;
+    const repo = new MaterialsRepository(db as never);
+    await repo.listByLesson('l9' as LessonId);
+    expect(calls).toContainEqual(['lessonId', '==', 'l9']);
+  });
+
   it('update patches fields', async () => {
     const repo = new MaterialsRepository(createFakeFirestore() as never);
     await repo.create(material('m1', 'l1'));

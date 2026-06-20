@@ -46,6 +46,43 @@ describe('FakeMaterialsController', () => {
     });
   });
 
+  it('upload rejects when the request stream emits an error', async () => {
+    // Defends the `req.on('error', reject)` wiring: a stream error must reject
+    // the collectStream promise. A mutant changing the event name to '' would
+    // never bind the error handler, so the rejection would never fire.
+    const storage = fakeStorage();
+    const ctrl = new FakeMaterialsController(repoReturning(material), storage.handle);
+    const boom = new Error('stream boom');
+    const req = new Readable({ read() {} }) as never as import('express').Request;
+    const promise = ctrl.upload('m1' as MaterialId, req);
+    // Emit an error on the next tick, after collectStream has subscribed.
+    setImmediate(() => (req as unknown as Readable).emit('error', boom));
+    await expect(promise).rejects.toThrow('stream boom');
+  });
+
+  it('download sanitizes quotes/backslash/CR/LF in the Content-Disposition filename', async () => {
+    // Defends the sanitizeFilename regex: special characters that would break
+    // the header value must be replaced with underscores.
+    const storage = fakeStorage();
+    const nasty = {
+      ...material,
+      originalFilename: 'a"b\\c\rd\ne.pdf',
+    } as Material;
+    const ctrl = new FakeMaterialsController(repoReturning(nasty), storage.handle);
+    const headers: Record<string, string> = {};
+    const res = {
+      set: (k: string, v: string) => void (headers[k] = v),
+      send: () => undefined,
+    } as never;
+    await ctrl.download('m1' as MaterialId, res);
+    const disposition = headers['Content-Disposition'];
+    expect(disposition).toContain('a_b_c_d_e.pdf');
+    expect(disposition).not.toContain('"b');
+    expect(disposition).not.toContain('\\c');
+    expect(disposition).not.toContain('\r');
+    expect(disposition).not.toContain('\n');
+  });
+
   it('upload throws MATERIAL_NOT_FOUND for an unknown material', async () => {
     const ctrl = new FakeMaterialsController(repoReturning(null), fakeStorage().handle);
     await expect(

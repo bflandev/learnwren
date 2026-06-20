@@ -158,15 +158,18 @@ describe('caption exceptions', () => {
     const e = new InvalidCaptionFileException();
     expect(e.code).toBe('INVALID_CAPTION_FILE');
     expect(e.status).toBe(400);
+    expect(e.message).toBe('Captions must be a valid WebVTT (.vtt) file.');
   });
   it('CaptionTooLargeException is a 400 with CAPTION_TOO_LARGE', () => {
     const e = new CaptionTooLargeException();
     expect(e.code).toBe('CAPTION_TOO_LARGE');
     expect(e.status).toBe(400);
+    expect(e.message).toBe('Caption file exceeds the 256 KB limit.');
   });
   it('CaptionsNotFoundException is a 404 with CAPTIONS_NOT_FOUND', () => {
     const e = new CaptionsNotFoundException();
     expect(e.code).toBe('CAPTIONS_NOT_FOUND');
     expect(e.status).toBe(404);
+    expect(e.message).toBe('No captions exist for this video.');
   });
 });

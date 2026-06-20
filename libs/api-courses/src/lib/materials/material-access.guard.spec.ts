@@ -101,6 +101,21 @@ describe('MaterialAccessGuard', () => {
     ).rejects.toThrow(/access/i);
   });
 
+  it('blocks an enrolled non-owner when the course no longer exists (null)', async () => {
+    // Defends the `course?.status` optional chain: with a null course the
+    // original safely falls through to NotMaterialOwnerException; removing `?.`
+    // would throw a TypeError instead.
+    const guard = new MaterialAccessGuard(repo(material), enrollment(true), courses(null));
+    await expect(
+      guard.canActivate(
+        ctxFor({
+          params: { matId: 'm1' },
+          user: { uid: 'student-uid' } as MaterialScopedRequest['user'],
+        }),
+      ),
+    ).rejects.toThrow(/access/i);
+  });
+
   it('throws MATERIAL_NOT_FOUND when the material does not exist', async () => {
     const guard = new MaterialAccessGuard(repo(null), enrollment(false), courses('PUBLISHED'));
     await expect(

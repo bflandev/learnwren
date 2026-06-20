@@ -61,6 +61,9 @@ describe('RosterService', () => {
     const users: Record<string, Record<string, unknown> | null> = {
       u1: { displayName: 'Ada', email: 'ada@example.com' },
       u2: { displayName: 'Bo', email: 'bo@example.com' },
+      // u5's profile doc exists but is missing both fields → exercises the
+      // `p.displayName ?? FALLBACK_NAME` and `p.email ?? ''` defaults.
+      u5: {},
     };
     firestore = {
       collection: vi.fn().mockReturnValue({
@@ -112,6 +115,35 @@ describe('RosterService', () => {
   it('falls back to a default name and empty email when the user doc is missing', async () => {
     enrollments.listActiveByCourse.mockResolvedValue([
       enrollment('ghost', [], '2026-05-20T00:00:00.000Z'),
+    ]);
+    const view = await service.getRoster(course);
+    expect(view.students[0].displayName).toBe('Student');
+    expect(view.students[0].email).toBe('');
+  });
+
+  it('does not count an in-progress lesson (completedAt null) toward completion', async () => {
+    // Defends the `p.completedAt != null && ...` predicate: a progress row for a
+    // valid lesson but with completedAt null must be excluded. A Conditional
+    // mutant forcing the predicate true would count it.
+    const e = {
+      userId: 'u1' as UserId,
+      courseId: CID,
+      status: 'ACTIVE',
+      createdAt: '2026-05-20T00:00:00.000Z' as ISODateString,
+      progress: [
+        { lessonId: 'l1' as never, completedAt: '2026-05-30T00:00:00.000Z' as ISODateString, lastWatchedSeconds: 0 },
+        { lessonId: 'l2' as never, completedAt: null as never, lastWatchedSeconds: 0 },
+      ],
+    } as Enrollment;
+    enrollments.listActiveByCourse.mockResolvedValue([e]);
+    const view = await service.getRoster(course);
+    expect(view.students[0].completedLessons).toBe(1);
+  });
+
+  it('uses field defaults when the user profile doc exists but lacks name/email', async () => {
+    // Defends `p.displayName ?? FALLBACK_NAME` and `p.email ?? ''` in loadProfiles.
+    enrollments.listActiveByCourse.mockResolvedValue([
+      enrollment('u5', [], '2026-05-20T00:00:00.000Z'),
     ]);
     const view = await service.getRoster(course);
     expect(view.students[0].displayName).toBe('Student');

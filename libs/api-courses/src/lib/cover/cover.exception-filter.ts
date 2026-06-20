@@ -11,6 +11,7 @@ import { CoverException } from './errors/cover.exception';
 // themselves instead of leaking as a 500.
 @Catch(CoverException, CoursesException, AuthException, HttpException)
 export class CoverExceptionFilter implements ExceptionFilter {
+  // Stryker disable next-line StringLiteral: Logger category label — log-only, no observable behavior
   private readonly logger = new Logger('CoverExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {

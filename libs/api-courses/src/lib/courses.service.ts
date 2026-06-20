@@ -44,6 +44,7 @@ export interface UpdateCourseInput {
 
 @Injectable()
 export class CoursesService {
+  // Stryker disable next-line StringLiteral: the Logger category name is a cosmetic log label with no behavioral effect; nothing observable depends on its exact value.
   private readonly logger = new Logger('CoursesService');
 
   constructor(
@@ -137,8 +138,10 @@ export class CoursesService {
     }
 
     // Step 2: cover image — best-effort (a course may never have had a cover).
+    // Stryker disable next-line BlockStatement: catch body is log-only; emptying it still swallows the rejection so deleteCourse resolves identically (proven by the "removeCover rejection is best-effort" spec).
     await this.coverSvc.removeCover(cid).catch((err: unknown) => {
       this.logger.warn(
+        // Stryker disable next-line StringLiteral: warn message is diagnostic-only; nothing observable depends on its exact text.
         `removeCover best-effort ignored for course ${cid}: ${(err as Error).message}`,
       );
     });
