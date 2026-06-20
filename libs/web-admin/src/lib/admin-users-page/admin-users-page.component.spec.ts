@@ -236,21 +236,21 @@ describe('AdminUsersPageComponent', () => {
 
   // ─── Signal initial values (kill BooleanLiteral on signal(true/false)) ───────
 
-  it('loading is true before the initial list resolves', () => {
-    // Stryker BooleanLiteral on loading = signal(true): if it becomes signal(false)
-    // the template shows the content before data arrives.
-    let resolveList!: (v: unknown) => void;
-    svc.list = vi.fn(() => new Promise((r) => { resolveList = r; }));
+  it('loading is true and error is false at construction, BEFORE ngOnInit reloads', () => {
+    // Kills BooleanLiteral on loading = signal(true) and error = signal(false).
+    // The reload() that ngOnInit triggers re-sets loading(true)/error(false), which
+    // masks the initial-value mutants — so we must observe the signals at
+    // construction time, BEFORE the first detectChanges() runs ngOnInit.
     TestBed.configureTestingModule({
       imports: [AdminUsersPageComponent],
       providers: [provideRouter([]), { provide: AdminUsersService, useValue: svc }],
     });
     const fixture = TestBed.createComponent(AdminUsersPageComponent);
-    fixture.detectChanges();
-    // loading must start true so the spinner renders.
+    // No detectChanges() yet: ngOnInit/reload have NOT run.
+    expect(svc.list).not.toHaveBeenCalled();
     expect(fixture.componentInstance.loading()).toBe(true);
-    // Clean up
-    resolveList({ users: [], total: 0, page: 1, pageSize: 20, capped: false });
+    expect(fixture.componentInstance.error()).toBe(false);
+    expect(fixture.componentInstance.users()).toEqual([]);
   });
 
   it('error is false and users is empty before any load runs', () => {
@@ -335,6 +335,18 @@ describe('AdminUsersPageComponent', () => {
     svc.list.mockClear();
     await fixture.componentInstance.goToPage(0);
     expect(svc.list).not.toHaveBeenCalled();
+  });
+
+  it('goToPage with page = 1 (the lower bound) is accepted and reloads', async () => {
+    // Kills EqualityOperator on `page < 1` → `page <= 1` (L67): with `<=`, page 1
+    // would be wrongly rejected and never reload. page 1 must be a valid page.
+    svc.list = vi.fn(async () => ({ users: [user('u1')], total: 45, page: 1, pageSize: 20, capped: false }));
+    const fixture = await setup();
+    // Move off page 1 first so goToPage(1) is a real navigation back.
+    await fixture.componentInstance.goToPage(2);
+    svc.list.mockClear();
+    await fixture.componentInstance.goToPage(1);
+    expect(svc.list).toHaveBeenCalledWith('', 1, 20);
   });
 
   it('goToPage with page exactly equal to totalPages does reload', async () => {

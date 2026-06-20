@@ -373,9 +373,12 @@ describe('AdminUserDetailPageComponent', () => {
 
   // ─── Signal initial values (kill BooleanLiteral on signal(true/false)) ────────
 
-  it('loading is true and user/notFound/busy/actionError/actionSuccess are at their initial values before load resolves', () => {
-    // BooleanLiteral mutants: loading=signal(true), notFound=signal(false),
-    // busy=signal(false), confirmingDemote=signal(false), confirmingDelete=signal(false)
+  it('signals hold their declared initial values at construction, BEFORE ngOnInit/load runs', () => {
+    // Kills BooleanLiteral on loading=signal(true), notFound=signal(false),
+    // confirmingDemote=signal(false), confirmingDelete=signal(false), busy=signal(false).
+    // ngOnInit -> load() re-sets loading(true)/notFound(false)/confirming*(false),
+    // which masks the initial-value mutants — so read the signals at construction,
+    // BEFORE the first detectChanges() runs ngOnInit.
     let resolveDetail!: (v: unknown) => void;
     svc.getDetail = vi.fn(() => new Promise((r) => { resolveDetail = r; }));
     TestBed.configureTestingModule({
@@ -387,17 +390,49 @@ describe('AdminUserDetailPageComponent', () => {
       ],
     });
     const fixture = TestBed.createComponent(AdminUserDetailPageComponent);
-    fixture.detectChanges();
+    // No detectChanges() yet: ngOnInit/load have NOT run.
+    expect(svc.getDetail).not.toHaveBeenCalled();
+    const comp = fixture.componentInstance;
     // loading must start true — spinner shows while getDetail is in flight.
-    expect(fixture.componentInstance.loading()).toBe(true);
-    // No error banners before any action.
-    expect(fixture.componentInstance.notFound()).toBe(false);
-    expect(fixture.componentInstance.busy()).toBe(false);
-    expect(fixture.componentInstance.confirmingDemote()).toBe(false);
-    expect(fixture.componentInstance.confirmingDelete()).toBe(false);
-    expect(fixture.componentInstance.actionError()).toBeUndefined();
-    expect(fixture.componentInstance.actionSuccess()).toBeUndefined();
+    expect(comp.loading()).toBe(true);
+    // No error banners / confirm panels / busy state before any action.
+    expect(comp.notFound()).toBe(false);
+    expect(comp.busy()).toBe(false);
+    expect(comp.confirmingDemote()).toBe(false);
+    expect(comp.confirmingDelete()).toBe(false);
+    expect(comp.actionError()).toBeUndefined();
+    expect(comp.actionSuccess()).toBeUndefined();
+    // Run the load and let it settle so no in-flight promise leaks across tests.
+    fixture.detectChanges();
     resolveDetail(detail());
+  });
+
+  it('cancelDemote closes an open demote confirm panel', async () => {
+    // Kills NoCoverage BlockStatement L58 (empty cancelDemote body) and
+    // BooleanLiteral L59 (confirmingDemote.set(false) -> set(true)).
+    svc.getDetail = vi.fn(async () => detail({ role: 'INSTRUCTOR' }));
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    comp.startDemote();
+    expect(comp.confirmingDemote()).toBe(true);
+    comp.cancelDemote();
+    expect(comp.confirmingDemote()).toBe(false);
+  });
+
+  it('ngOnDestroy does not throw when called before ngOnInit set up the subscription', () => {
+    // Kills OptionalChaining L49 `this.sub?.unsubscribe()`: when ngOnInit never ran,
+    // sub is undefined; removing the `?.` makes `undefined.unsubscribe()` throw.
+    TestBed.configureTestingModule({
+      imports: [AdminUserDetailPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AdminUsersService, useValue: svc },
+        { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ uid: 'u1' })) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(AdminUserDetailPageComponent);
+    // sub is undefined (no detectChanges -> ngOnInit never ran).
+    expect(() => fixture.componentInstance.ngOnDestroy()).not.toThrow();
   });
 
   // ─── ngOnInit uid-missing guard (kill ConditionalExpression L44) ─────────────
@@ -674,11 +709,29 @@ describe('AdminUserDetailPageComponent', () => {
   });
 
   it('load catch: optionalChaining on err.error.error.code handles a bare error without crashing', async () => {
-    // OptionalChaining mutants at L178 on
-    // `(err as ...).error?.error?.code` — if removed, accessing .code on null throws.
+    // OptionalChaining mutant at L178 on the FIRST `?.` after the cast:
+    // `(err as ...)?.error` — if removed, accessing .error on null throws.
     svc.getDetail = vi.fn(async () => { throw null; });
     const fixture = await setup();
     // Should not throw; notFound stays false because code is undefined.
+    expect(fixture.componentInstance.notFound()).toBe(false);
+    expect(fixture.componentInstance.user()).toBeUndefined();
+  });
+
+  it('load catch: handles err with err.error undefined (kills middle ?. in error.error.code)', async () => {
+    // OptionalChaining L178 on the MIDDLE `?.`: `?.error?.error?.code` -> `?.error.error?.code`.
+    // When err.error is undefined, the un-guarded `.error` access throws.
+    svc.getDetail = vi.fn(async () => { throw { somethingElse: true }; });
+    const fixture = await setup();
+    expect(fixture.componentInstance.notFound()).toBe(false);
+    expect(fixture.componentInstance.user()).toBeUndefined();
+  });
+
+  it('load catch: handles err.error present but err.error.error undefined (kills last ?.)', async () => {
+    // OptionalChaining L178 on the LAST `?.`: `?.error?.error?.code` -> `?.error?.error.code`.
+    // When err.error.error is undefined, the un-guarded `.code` access throws.
+    svc.getDetail = vi.fn(async () => { throw { error: {} }; });
+    const fixture = await setup();
     expect(fixture.componentInstance.notFound()).toBe(false);
     expect(fixture.componentInstance.user()).toBeUndefined();
   });

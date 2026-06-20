@@ -43,6 +43,7 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    // Stryker disable next-line ConditionalExpression: equivalent — when searchTimer is undefined, clearTimeout(undefined) is a no-op, so the guard vs. always-clearing is unobservable.
     if (this.searchTimer) clearTimeout(this.searchTimer);
   }
 
@@ -56,6 +57,7 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
 
   onSearchInput(value: string): void {
     this.search.set(value);
+    // Stryker disable next-line ConditionalExpression: equivalent — when searchTimer is undefined, clearTimeout(undefined) is a no-op, so the guard vs. always-clearing is unobservable.
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {
       this.page.set(1);
@@ -75,6 +77,7 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
   }
 
   private async reload(): Promise<void> {
+    // Stryker disable next-line UpdateOperator: equivalent — ++ and -- both yield a unique monotonic token; the only consumer is the `token !== this.loadToken` staleness check, which is unaffected by direction.
     const token = ++this.loadToken;
     this.loading.set(true);
     this.error.set(false);
