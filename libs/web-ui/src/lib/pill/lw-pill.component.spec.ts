@@ -66,4 +66,22 @@ describe('LwPillComponent', () => {
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).style.color).toBe('');
   });
+
+  it('defaults the tone input to "default"', () => {
+    // Rendered style is '' for both 'default' and '' so only a direct signal
+    // read kills the input('default')→input('') mutant.
+    const fixture = TestBed.createComponent(LwPillComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.tone()).toBe('default');
+  });
+
+  it('toneColor() returns null (not undefined) for the default tone', () => {
+    // The switch default arm `return null` is indistinguishable from an empty
+    // arm (undefined) via the rendered style, so assert the computed directly.
+    const fixture = TestBed.createComponent(LwPillComponent);
+    fixture.detectChanges();
+    expect(
+      (fixture.componentInstance as unknown as { toneColor: () => string | null }).toneColor(),
+    ).toBeNull();
+  });
 });

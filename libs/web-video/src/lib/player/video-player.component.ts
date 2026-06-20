@@ -75,6 +75,7 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
 
   retry(): void {
     if (this.devPlaceholder()) return;
+    // Stryker disable next-line OptionalChaining: unreachable null. retry() returns early in fake-playback mode (devPlaceholder guard above), so it runs only in real mode where mount() has already set a non-null handle; the `?.` can never short-circuit here. Equivalent mutant.
     this.handle?.dispose();
     this.handle = null;
     this.error.set(null);

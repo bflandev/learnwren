@@ -6,7 +6,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { of } from 'rxjs';
+import { EMPTY, of } from 'rxjs';
 
 import { LoginPageComponent } from './login-page.component';
 
@@ -26,6 +26,22 @@ function setup(queryParamMap: Map<string, string> = new Map()) {
     fixture,
     httpMock: TestBed.inject(HttpTestingController),
   };
+}
+
+// Route whose queryParamMap never emits, so toSignal()'s value stays undefined.
+function setupNoParams() {
+  TestBed.configureTestingModule({
+    imports: [LoginPageComponent],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideRouter([]),
+      { provide: ActivatedRoute, useValue: { queryParamMap: EMPTY } },
+    ],
+  });
+  const fixture = TestBed.createComponent(LoginPageComponent);
+  fixture.detectChanges();
+  return { fixture, httpMock: TestBed.inject(HttpTestingController) };
 }
 
 describe('LoginPageComponent error states', () => {
@@ -297,10 +313,125 @@ describe('LoginPageComponent busy state + reset notice', () => {
     f.setValue({ email: '', password: '' });
     expect(f.invalid).toBe(true);
     f.setValue({ email: 'not-an-email', password: 'pw' });
-    expect(f.controls.email.valid).toBe(false);
+    expect(f.controls.email.errors).toEqual({ email: true });
     f.setValue({ email: 'a@b.c', password: '' });
-    expect(f.controls.password.valid).toBe(false);
+    expect(f.controls.password.errors).toEqual({ required: true });
     f.setValue({ email: 'a@b.c', password: 'pw' });
     expect(f.valid).toBe(true);
+  });
+
+  it('initialises both controls to empty strings with the email validators', () => {
+    const f = setup().fixture.componentInstance.form;
+    expect(f.controls.email.value).toBe('');
+    expect(f.controls.password.value).toBe('');
+    f.controls.email.setValue('');
+    expect(f.controls.email.errors).toEqual({ required: true });
+  });
+
+  it('the password control carries the required validator (set in the TS form definition)', () => {
+    // Deliberately do NOT call detectChanges(): the template's `required`
+    // attribute would otherwise attach Angular's RequiredValidator directive and
+    // mask whether the TS-side Validators.required is present. Reading the form
+    // before the view renders isolates the programmatic validator.
+    TestBed.configureTestingModule({
+      imports: [LoginPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { queryParamMap: of({ get: () => null }) } },
+      ],
+    });
+    const cmp = TestBed.createComponent(LoginPageComponent).componentInstance;
+    cmp.form.controls.password.setValue('');
+    expect(cmp.form.controls.password.errors).toEqual({ required: true });
+    cmp.form.controls.password.setValue('x');
+    expect(cmp.form.controls.password.errors).toBeNull();
+  });
+});
+
+describe('LoginPageComponent initial state + derived computeds', () => {
+  it('starts in the "none" error state', () => {
+    expect(setup().fixture.componentInstance.errorState()).toEqual({ kind: 'none' });
+  });
+
+  it('unverifiedState is null unless the error kind is unverified', () => {
+    const cmp = setup().fixture.componentInstance;
+    expect(cmp.unverifiedState()).toBeNull();
+    cmp.errorState.set({ kind: 'invalid' });
+    expect(cmp.unverifiedState()).toBeNull();
+    cmp.errorState.set({ kind: 'unverified', resendSent: false });
+    expect(cmp.unverifiedState()).toEqual({ kind: 'unverified', resendSent: false });
+  });
+
+  it('lockedState is the state only when the kind is locked, else null', () => {
+    const cmp = setup().fixture.componentInstance;
+    expect(cmp.lockedState()).toBeNull();
+    cmp.errorState.set({ kind: 'invalid' });
+    expect(cmp.lockedState()).toBeNull();
+    cmp.errorState.set({ kind: 'locked', unlockAvailableAt: '2026-01-01T00:00:00.000Z' });
+    expect(cmp.lockedState()).toEqual({
+      kind: 'locked',
+      unlockAvailableAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('genericState is null unless the error kind is generic', () => {
+    const cmp = setup().fixture.componentInstance;
+    expect(cmp.genericState()).toBeNull();
+    cmp.errorState.set({ kind: 'invalid' });
+    expect(cmp.genericState()).toBeNull();
+    cmp.errorState.set({ kind: 'generic', message: 'boom' });
+    expect(cmp.genericState()).toEqual({ kind: 'generic', message: 'boom' });
+  });
+
+  it('resets the error state to "none" synchronously at the start of submit', () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.errorState.set({ kind: 'invalid' });
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const p = cmp.submit();
+    // Before the HTTP response settles, the prior error must already be cleared.
+    expect(cmp.errorState()).toEqual({ kind: 'none' });
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'INVALID_CREDENTIALS' } },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+    return p;
+  });
+
+  it('query-derived flags are all false (no throw) when the route never emits params', () => {
+    const cmp = setupNoParams().fixture.componentInstance;
+    expect(cmp.justResetPassword()).toBe(false);
+    expect(cmp.justChangedEmail()).toBe(false);
+    expect(cmp.justChangedPassword()).toBe(false);
+  });
+
+  it('navigates to /dashboard (no throw) on success when the route never emits params', async () => {
+    const { fixture, httpMock } = setupNoParams();
+    const router = TestBed.inject(Router);
+    const navSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa' });
+    const submitPromise = cmp.submit();
+    httpMock.expectOne('/api/auth/login').flush({});
+    httpMock.expectOne('/api/auth/me').flush({
+      uid: 'u1', email: 'a@b.c', displayName: 'A', role: 'STUDENT', emailVerified: true,
+    });
+    await submitPromise;
+    expect(navSpy).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('falls back to an empty unlockAvailableAt when ACCOUNT_LOCKED has no details', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const submitPromise = cmp.submit();
+    httpMock.expectOne('/api/auth/login').flush(
+      { error: { code: 'ACCOUNT_LOCKED' } },
+      { status: 423, statusText: 'Locked' },
+    );
+    await submitPromise;
+    expect(cmp.lockedState()).toEqual({ kind: 'locked', unlockAvailableAt: '' });
   });
 });

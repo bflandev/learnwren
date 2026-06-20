@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Subject } from 'rxjs';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, beforeEach, vi } from 'vitest';
 
 import type { Video, VideoId } from '@learnwren/shared-data-models';
 
@@ -232,5 +232,92 @@ describe('VideoStateBadgeComponent — slice B copy', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.canRetry()).toBe(false);
     expect(fixture.componentInstance.label()).toBe('Uploaded — preparing…');
+  });
+});
+
+describe('VideoStateBadgeComponent — polling gate (ngOnInit)', () => {
+  let fixture: ComponentFixture<VideoStateBadgeComponent>;
+  let pollSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    pollSpy = vi.fn(() => new Subject<Video>().asObservable());
+    TestBed.configureTestingModule({
+      imports: [VideoStateBadgeComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: VideoStatePollingService, useValue: { poll: pollSpy } },
+      ],
+    });
+    fixture = TestBed.createComponent(VideoStateBadgeComponent);
+  });
+
+  it('starts polling for a NON_TERMINAL state (TRANSCODING)', () => {
+    fixture.componentRef.setInput('video', video('TRANSCODING'));
+    fixture.detectChanges();
+    expect(pollSpy).toHaveBeenCalledTimes(1);
+    expect(pollSpy).toHaveBeenCalledWith('v1');
+  });
+
+  it('starts polling for a NON_TERMINAL state (UPLOADED)', () => {
+    fixture.componentRef.setInput('video', video('UPLOADED'));
+    fixture.detectChanges();
+    expect(pollSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT poll for a terminal READY state (kills the ngOnInit gate)', () => {
+    fixture.componentRef.setInput('video', video('READY'));
+    fixture.detectChanges();
+    expect(pollSpy).not.toHaveBeenCalled();
+  });
+
+  it('does NOT poll for a terminal FAILED state', () => {
+    fixture.componentRef.setInput('video', video('FAILED'));
+    fixture.detectChanges();
+    expect(pollSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('VideoStateBadgeComponent — isStuck threshold boundary (strict >)', () => {
+  let fixture: ComponentFixture<VideoStateBadgeComponent>;
+  const NOW = Date.parse('2026-05-13T12:00:00.000Z');
+  const THRESHOLD_MS = 30 * 60 * 1000;
+
+  beforeEach(() => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    TestBed.configureTestingModule({
+      imports: [VideoStateBadgeComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: VideoStatePollingService, useValue: { poll: () => new Subject<Video>().asObservable() } },
+      ],
+    });
+    fixture = TestBed.createComponent(VideoStateBadgeComponent);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  function withAge(state: Video['state'], ageMs: number): void {
+    const v: Video = {
+      ...video(state),
+      updatedAt: new Date(NOW - ageMs).toISOString() as Video['updatedAt'],
+    };
+    fixture.componentRef.setInput('video', v);
+    fixture.detectChanges();
+  }
+
+  it('ageMs EXACTLY at the threshold is NOT stuck (strict >, not >=)', () => {
+    // ageMs === 30*60*1000 → `ageMs > threshold` is false; a `>=` mutant would
+    // flip this to stuck.
+    withAge('PENDING_UPLOAD', THRESHOLD_MS);
+    expect(fixture.componentInstance.canRetry()).toBe(false);
+    expect(fixture.componentInstance.label()).toBe('Uploaded — preparing…');
+  });
+
+  it('ageMs one ms over the threshold IS stuck', () => {
+    withAge('PENDING_UPLOAD', THRESHOLD_MS + 1);
+    expect(fixture.componentInstance.canRetry()).toBe(true);
+    expect(fixture.componentInstance.label()).toBe('Upload may have stalled — retry?');
   });
 });

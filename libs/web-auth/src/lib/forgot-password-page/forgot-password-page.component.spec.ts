@@ -77,11 +77,18 @@ describe('ForgotPasswordPageComponent — busy + validity', () => {
     expect(cmp.submitted()).toBe(true);
   });
 
+  it('initialises the email control to an empty string', () => {
+    const c = setup().fixture.componentInstance.form.controls.email;
+    expect(c.value).toBe('');
+  });
+
   it('requires a present, well-formed email', () => {
     const c = setup().fixture.componentInstance.form.controls.email;
     c.setValue('');
+    expect(c.errors).toEqual({ required: true });
     expect(c.valid).toBe(false);
     c.setValue('not-an-email');
+    expect(c.errors).toEqual({ email: true });
     expect(c.valid).toBe(false);
     c.setValue('a@b.c');
     expect(c.valid).toBe(true);

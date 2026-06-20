@@ -26,6 +26,7 @@ export class VideoStatePollingService {
       this.http.get<Video>(`/api/videos/${vid}`, { withCredentials: true });
     return defer(fetch).pipe(
       expand((v) => {
+        // Stryker disable next-line ConditionalExpression: redundant fast-path. The inclusive takeWhile below stops the stream on the first terminal value and synchronously unsubscribes this expand (cancelling any pending timer), so removing this guard schedules a poll that is torn down before it can fire — no observable difference. Equivalent mutant.
         if (TERMINAL.includes(v.state)) return EMPTY;
         const elapsed = Date.now() - start;
         // Skip scheduling if there isn't budget for at least two more intervals.

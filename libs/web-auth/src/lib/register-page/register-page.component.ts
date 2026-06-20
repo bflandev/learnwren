@@ -36,6 +36,7 @@ export class RegisterPageComponent {
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
 
+  // Stryker disable next-line ObjectLiteral: the options object only supplies toSignal's initialValue; this signal's value is consumed solely via `void this.passwordStatus()` (a reactivity trigger), never read. Dropping initialValue (→ {}) merely changes the pre-first-emission value from '' to undefined, which is voided and never observable; equivalent.
   private readonly passwordStatus = toSignal(this.form.controls.password.valueChanges, {
     initialValue: this.form.controls.password.value,
   });

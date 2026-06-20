@@ -42,4 +42,19 @@ describe('PlaybackConfigService', () => {
     await p;
     expect(svc.isFakePlayback()).toBe(false);
   });
+
+  it('a failed reload resets a previously-fake mode back to real (catch body runs)', async () => {
+    // First load succeeds in fake mode.
+    const p1 = svc.load();
+    http.expectOne('/api/playback/config').flush({ fakePlayback: true });
+    await p1;
+    expect(svc.isFakePlayback()).toBe(true);
+
+    // A subsequent load that errors must reset the flag to false. An emptied
+    // catch block ({}) would leave it stuck at true.
+    const p2 = svc.load();
+    http.expectOne('/api/playback/config').flush('nope', { status: 500, statusText: 'Server Error' });
+    await p2;
+    expect(svc.isFakePlayback()).toBe(false);
+  });
 });

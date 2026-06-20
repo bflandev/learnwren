@@ -31,6 +31,7 @@ type LoginErrorState =
  * so they are not a browser-redirect threat.
  */
 function isSafeRedirect(r: string): boolean {
+  // Stryker disable next-line ConditionalExpression,EqualityOperator: `r.length > 0` is fully implied by the next clause — String.prototype.startsWith('/') can only return true when r has length >= 1, so an empty string is already rejected by `r.startsWith('/')`. Forcing this clause to `true` (or `>= 0`) leaves the overall conjunction's value unchanged for every input; equivalent.
   return r.length > 0 && r.startsWith('/') && r[1] !== '/' && r[1] !== '\\';
 }
 

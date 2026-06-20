@@ -175,6 +175,45 @@ describe('VideoPlayerComponent', () => {
       fixture.nativeElement.querySelector('[data-testid="video-player-dev-placeholder"]'),
     ).toBeNull();
   });
+
+  it('retry() is a no-op in fake-playback mode (early return, never attaches)', async () => {
+    const stub = makeStubService();
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(true)],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // ngAfterViewInit took the placeholder branch → never attached.
+    expect(stub.attach).not.toHaveBeenCalled();
+
+    // retry() must hit `if (this.devPlaceholder()) return;` and NOT mount hls.js.
+    fixture.componentInstance.retry();
+    expect(stub.attach).not.toHaveBeenCalled();
+  });
+
+  it('ngOnDestroy does not throw in fake-playback mode where handle is null (?.guard)', async () => {
+    const stub = makeStubService();
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(true)],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // handle was never created (placeholder branch) → the optional chain on
+    // `this.handle?.dispose()` must guard the null. Without `?.` this throws.
+    expect(
+      (fixture.componentInstance as unknown as { handle: unknown }).handle,
+    ).toBeNull();
+    // Call ngOnDestroy directly so a thrown TypeError surfaces (fixture.destroy()
+    // may swallow lifecycle errors). Removing the `?.` makes this throw.
+    expect(() => fixture.componentInstance.ngOnDestroy()).not.toThrow();
+    expect(stub.handle.dispose).not.toHaveBeenCalled();
+  });
 });
 
 function harness(): {

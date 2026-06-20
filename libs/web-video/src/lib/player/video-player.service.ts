@@ -9,16 +9,23 @@ export interface PlayerHandle {
   dispose(): void;
 }
 
-export const HLS_CONSTRUCTOR = new InjectionToken<typeof HlsImport>('HLS_CONSTRUCTOR', {
-  providedIn: 'root',
-  factory: () => HlsImport,
-});
+export const HLS_CONSTRUCTOR = new InjectionToken<typeof HlsImport>(
+  // Stryker disable next-line StringLiteral: InjectionToken description is a human-readable debug label with no runtime behavior.
+  'HLS_CONSTRUCTOR',
+  {
+    // Stryker disable next-line StringLiteral: a token carrying its own factory resolves via that factory regardless of the providedIn string (Angular falls back to the token factory), so 'root' vs '' is behaviourally identical — equivalent mutant.
+    providedIn: 'root',
+    factory: () => HlsImport,
+  },
+);
 
 /** True when `url` resolves to the app's own origin (the same-origin API). */
 function isSameOrigin(url: string): boolean {
   try {
+    // Stryker disable BlockStatement: emptying the catch makes isSameOrigin return undefined, falsy exactly like the explicit `return false`; the sole caller `if (isSameOrigin(url))` treats undefined and false identically — equivalent mutant.
     return new URL(url, window.location.href).origin === window.location.origin;
   } catch {
+    // Stryker restore BlockStatement
     return false;
   }
 }

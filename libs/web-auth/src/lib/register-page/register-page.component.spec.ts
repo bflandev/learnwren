@@ -71,8 +71,29 @@ describe('RegisterPageComponent', () => {
       { status: 400, statusText: 'Bad Request' },
     );
     await submitPromise;
-    expect(cmp.error()).toContain('at least 12 characters');
-    expect(cmp.error()).toContain('at least one digit');
+    expect(cmp.error()).toBe(
+      'Password must include: at least 12 characters; at least one digit.',
+    );
+  });
+
+  it('only enters the WEAK_PASSWORD branch for the WEAK_PASSWORD code', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa', displayName: 'A' });
+    const submitPromise = cmp.submit();
+    // INVALID_EMAIL carrying unmetRequirements: if the WEAK_PASSWORD guard were
+    // broadened, this would wrongly surface the password-requirements list.
+    httpMock.expectOne('/api/auth/register').flush(
+      {
+        error: {
+          code: 'INVALID_EMAIL',
+          details: { unmetRequirements: ['DIGIT'] },
+        },
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await submitPromise;
+    expect(cmp.error()).toBe('Please enter a valid email address.');
   });
 
   for (const { code, message } of [
@@ -155,6 +176,19 @@ describe('RegisterPageComponent', () => {
     fixture.detectChanges();
     expect(cmp.passwordHints()).toEqual([]);
   });
+
+  it('returns no hints (no throw) when a passwordPolicy error lacks an unmet list', () => {
+    const { fixture } = setup();
+    const cmp = fixture.componentInstance;
+    const ctrl = cmp.form.controls.password;
+    // Replace the policy validator with one that returns a passwordPolicy error
+    // WITHOUT an `unmet` list, then fire valueChanges so the hints signal
+    // recomputes against it. The optional chaining on `.unmet?.length` must hold.
+    ctrl.setValidators(() => ({ passwordPolicy: {} }));
+    ctrl.setValue('anything');
+    expect(ctrl.errors).toEqual({ passwordPolicy: {} });
+    expect(cmp.passwordHints()).toEqual([]);
+  });
 });
 
 describe('RegisterPageComponent busy state', () => {
@@ -184,5 +218,34 @@ describe('RegisterPageComponent busy state', () => {
     expect(f.controls.displayName.valid).toBe(false);
     f.setValue({ email: 'a@b.c', password: 'Aa1!aaaaaaaa', displayName: 'A' });
     expect(f.valid).toBe(true);
+  });
+
+  it('initialises every control to an empty string', () => {
+    const f = setup().fixture.componentInstance.form;
+    expect(f.controls.displayName.value).toBe('');
+    expect(f.controls.email.value).toBe('');
+    expect(f.controls.password.value).toBe('');
+  });
+
+  it('attaches the expected validators to each control', () => {
+    const f = setup().fixture.componentInstance.form;
+
+    f.controls.displayName.setValue('');
+    expect(f.controls.displayName.errors).toEqual({ required: true });
+    f.controls.displayName.setValue('x'.repeat(81));
+    expect(f.controls.displayName.errors).toEqual({
+      maxlength: { requiredLength: 80, actualLength: 81 },
+    });
+
+    f.controls.email.setValue('');
+    expect(f.controls.email.errors).toEqual({ required: true });
+    f.controls.email.setValue('nope');
+    expect(f.controls.email.errors).toEqual({ email: true });
+
+    f.controls.password.setValue('');
+    expect(f.controls.password.errors).toMatchObject({ required: true });
+    f.controls.password.setValue('short');
+    expect(f.controls.password.errors).toMatchObject({ passwordPolicy: {} });
+    expect(f.controls.password.errors?.['required']).toBeUndefined();
   });
 });

@@ -1,7 +1,22 @@
 import { FormControl } from '@angular/forms';
 import { describe, expect, it } from 'vitest';
 
-import { passwordPolicyValidator } from './password-policy.validator';
+import {
+  PASSWORD_REQUIREMENT_PROSE,
+  passwordPolicyValidator,
+} from './password-policy.validator';
+
+describe('PASSWORD_REQUIREMENT_PROSE', () => {
+  it('maps every policy requirement to its exact prose', () => {
+    expect(PASSWORD_REQUIREMENT_PROSE).toEqual({
+      MIN_LENGTH: 'at least 12 characters',
+      UPPERCASE: 'at least one uppercase letter',
+      LOWERCASE: 'at least one lowercase letter',
+      DIGIT: 'at least one digit',
+      SPECIAL: 'at least one special character',
+    });
+  });
+});
 
 describe('passwordPolicyValidator', () => {
   const validator = passwordPolicyValidator();

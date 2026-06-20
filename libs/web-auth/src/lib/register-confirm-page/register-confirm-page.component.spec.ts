@@ -6,7 +6,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { of } from 'rxjs';
+import { EMPTY, of } from 'rxjs';
 
 import { AuthService } from '../auth.service';
 import { RegisterConfirmPageComponent } from './register-confirm-page.component';
@@ -77,6 +77,20 @@ describe('RegisterConfirmPageComponent — resend logic', () => {
     expect(build(null).cmp.email()).toBe('');
   });
 
+  it('email is empty (no throw) when the route never emits a param map', () => {
+    TestBed.configureTestingModule({
+      imports: [RegisterConfirmPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { resendVerification: vi.fn() } },
+        { provide: ActivatedRoute, useValue: { queryParamMap: EMPTY } },
+      ],
+    });
+    const fixture = TestBed.createComponent(RegisterConfirmPageComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.email()).toBe('');
+  });
+
   it('cooldownActive is false with no prior resend', () => {
     expect(build().cmp.cooldownActive()).toBe(false);
   });
@@ -93,12 +107,57 @@ describe('RegisterConfirmPageComponent — resend logic', () => {
     expect(cmp.cooldownActive()).toBe(false);
   });
 
+  it('cooldownActive is false at exactly the 60s boundary (strict <)', () => {
+    vi.useFakeTimers();
+    try {
+      const now = new Date('2026-06-20T12:00:00.000Z').getTime();
+      vi.setSystemTime(now);
+      const { cmp } = build();
+      // resent exactly 60_000ms ago → elapsed === 60_000, strict < is false
+      cmp.resentAt.set(new Date(now - 60_000));
+      expect(cmp.cooldownActive()).toBe(false);
+      // one ms inside the window → still active
+      cmp.resentAt.set(new Date(now - 59_999));
+      expect(cmp.cooldownActive()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('resend() calls resendVerification, records the time, and clears busy', async () => {
     const { cmp, auth } = build('a@b.c');
     expect(cmp.busy()).toBe(false);
     await cmp.resend();
     expect(auth.resendVerification).toHaveBeenCalledWith('a@b.c');
     expect(cmp.resentAt()).not.toBeNull();
+    expect(cmp.busy()).toBe(false);
+  });
+
+  it('resend() sets busy true while the request is in flight', async () => {
+    let resolve!: () => void;
+    const auth = {
+      resendVerification: vi
+        .fn()
+        .mockReturnValue(new Promise<void>((r) => (resolve = r))),
+    };
+    TestBed.configureTestingModule({
+      imports: [RegisterConfirmPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: auth },
+        {
+          provide: ActivatedRoute,
+          useValue: { queryParamMap: of({ get: () => 'a@b.c' }) },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(RegisterConfirmPageComponent);
+    fixture.detectChanges();
+    const cmp = fixture.componentInstance;
+    const p = cmp.resend();
+    expect(cmp.busy()).toBe(true);
+    resolve();
+    await p;
     expect(cmp.busy()).toBe(false);
   });
 

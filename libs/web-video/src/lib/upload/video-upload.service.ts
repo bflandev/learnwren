@@ -12,10 +12,15 @@ import { SUPPORTED_VIDEO_CONTENT_TYPES } from '@learnwren/shared-data-models';
 
 import { VideoService } from '../video.service';
 
-export const XHR_FACTORY = new InjectionToken<() => XMLHttpRequest>('XHR_FACTORY', {
-  providedIn: 'root',
-  factory: () => () => new XMLHttpRequest(),
-});
+export const XHR_FACTORY = new InjectionToken<() => XMLHttpRequest>(
+  // Stryker disable next-line StringLiteral: InjectionToken description is a human-readable debug label with no runtime behavior.
+  'XHR_FACTORY',
+  {
+    // Stryker disable next-line StringLiteral: a token carrying its own factory resolves via that factory regardless of the providedIn string (Angular falls back to the token factory), so 'root' vs '' is behaviourally identical — equivalent mutant.
+    providedIn: 'root',
+    factory: () => () => new XMLHttpRequest(),
+  },
+);
 
 const SUPPORTED_MIME = new Set<SupportedVideoContentType>(SUPPORTED_VIDEO_CONTENT_TYPES);
 const MAX_BYTES = 10_000_000_000;
@@ -44,6 +49,7 @@ export class VideoUploadService {
   private readonly xhrFactory = inject(XHR_FACTORY);
   private readonly _state = signal<UploadState>({ kind: 'idle' });
   private currentXhr: XMLHttpRequest | undefined;
+  // Stryker disable next-line BooleanLiteral: start() resets `this.aborted = false` as its first statement before any code reads the flag, so the initializer value is never observed — flipping it to `true` is overwritten immediately. Equivalent mutant.
   private aborted = false;
 
   readonly state: Signal<UploadState> = this._state.asReadonly();
@@ -179,6 +185,7 @@ export class VideoUploadService {
       });
       return false;
     }
+    // Stryker disable next-line BooleanLiteral: unreachable. The for-loop spans attempt 0..MAX_RETRIES_PER_CHUNK and every iteration returns (abort→false, 200/308→true, retriable-with-budget→continue, otherwise hard-failure→false); on the final attempt `attempt < MAX_RETRIES_PER_CHUNK` is false so it returns inside the loop. Execution never falls through here. Equivalent mutant.
     return false;
   }
 

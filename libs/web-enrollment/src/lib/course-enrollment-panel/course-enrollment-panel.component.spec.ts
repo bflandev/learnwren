@@ -202,7 +202,11 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     // enroll=1 is stripped from the URL after a successful auto-enroll.
     expect(navigate).toHaveBeenCalledWith(
       [],
-      expect.objectContaining({ queryParams: { enroll: null }, replaceUrl: true }),
+      expect.objectContaining({
+        queryParams: { enroll: null },
+        replaceUrl: true,
+        queryParamsHandling: 'merge',
+      }),
     );
   });
 
@@ -239,5 +243,103 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     // Resolve the original POST so the test cleanup doesn't leak a pending req.
     post.flush({ id: 'c-1__u1', status: 'ACTIVE' });
     await fixture.whenStable();
+  });
+
+  it('starts in LOADING with busy=false before the status request resolves', async () => {
+    configure({ user: { uid: 'u1' } });
+    const { fixture, http } = create();
+    // ngOnInit kicked off resolveStatus(), but the HTTP is still pending.
+    expect(fixture.componentInstance.state()).toBe('LOADING');
+    expect(fixture.componentInstance.busy()).toBe(false);
+    http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
+    await fixture.whenStable();
+  });
+
+  it('sets busy during enroll and clears it once the POST settles', async () => {
+    configure({ user: { uid: 'u1' } });
+    const { fixture, http } = create();
+    http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
+    await fixture.whenStable();
+
+    const p = fixture.componentInstance.enroll();
+    expect(fixture.componentInstance.busy()).toBe(true);
+    http.expectOne('/api/enrollments').flush({ id: 'c-1__u1', status: 'ACTIVE' });
+    await p;
+    expect(fixture.componentInstance.busy()).toBe(false);
+  });
+
+  it('cancelConfirm closes the leave-confirmation dialog', async () => {
+    configure({ user: { uid: 'u1' } });
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/enrollments/c-1')
+      .flush({ enrollment: { status: 'ACTIVE' }, isOwner: false });
+    await fixture.whenStable();
+
+    fixture.componentInstance.openConfirm();
+    expect(fixture.componentInstance.showConfirm()).toBe(true);
+    fixture.componentInstance.cancelConfirm();
+    expect(fixture.componentInstance.showConfirm()).toBe(false);
+  });
+
+  it('sets busy during confirmLeave and shows an error message when it fails', async () => {
+    configure({ user: { uid: 'u1' } });
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/enrollments/c-1')
+      .flush({ enrollment: { status: 'ACTIVE' }, isOwner: false });
+    await fixture.whenStable();
+
+    const p = fixture.componentInstance.confirmLeave();
+    expect(fixture.componentInstance.busy()).toBe(true);
+    http
+      .expectOne('/api/enrollments/c-1')
+      .flush('boom', { status: 500, statusText: 'Server Error' });
+    await p;
+    expect(fixture.componentInstance.actionError()).toBe(
+      'Could not leave the course. Please try again.',
+    );
+    expect(fixture.componentInstance.busy()).toBe(false);
+  });
+
+  it('retry resets the state to LOADING before re-fetching', async () => {
+    configure({ user: { uid: 'u1' } });
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/enrollments/c-1')
+      .flush('boom', { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+    expect(fixture.componentInstance.state()).toBe('LOAD_ERROR');
+
+    fixture.componentInstance.retry();
+    expect(fixture.componentInstance.state()).toBe('LOADING');
+    http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
+    await fixture.whenStable();
+  });
+
+  it('does NOT strip enroll=1 when the auto-enroll POST fails (state stays ENROLLABLE)', async () => {
+    const { navigate } = configure({ user: { uid: 'u1' }, enroll: '1' });
+    const { fixture, http } = create();
+    http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
+    await fixture.whenStable();
+    http
+      .expectOne('/api/enrollments')
+      .flush('boom', { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+    // clearEnrollParam() (navigate([], ...)) must only run when state === 'ENROLLED'.
+    expect(navigate).not.toHaveBeenCalledWith([], expect.anything());
+  });
+
+  it('treats a null error body as a generic failure, not COURSE_NOT_AVAILABLE', async () => {
+    // errorCode() must safely read through a null err.error (optional chaining).
+    configure({ user: { uid: 'u1' } });
+    const { fixture, http } = create();
+    http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
+    await fixture.whenStable();
+
+    void fixture.componentInstance.enroll();
+    http.expectOne('/api/enrollments').flush(null, { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+    expect(fixture.componentInstance.actionError()).toBe('Something went wrong. Please try again.');
   });
 });
