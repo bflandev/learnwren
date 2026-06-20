@@ -52,6 +52,7 @@ export class AuthService {
   }
 
   async register(input: RegisterInput): Promise<LoginResult> {
+    // Stryker disable next-line ObjectLiteral: emptying the options object makes opts.resetUserOnError `undefined`, which is falsy — identical to the explicit `false` at the only consumer (`if (opts.resetUserOnError)`). The boolean value `false` itself IS killed (a separate test proves register does not clear the user on error); the {} → undefined variant is behaviourally equivalent.
     return this.authenticateThen('/api/auth/register', input, { resetUserOnError: false });
   }
 
@@ -146,6 +147,7 @@ export class AuthService {
         code === 'INVALID_DISPLAY_NAME' ||
         code === 'PASSWORD_TOO_LONG'
       ) {
+        // Stryker disable next-line OptionalChaining: reaching this line requires `body?.error?.code` (line 137) to have evaluated to a matched string literal, which is only possible when both `body` and `body.error` are truthy. Therefore `body.error.details`, `body.error?.details` and `body?.error?.details` are all identical here; the optional-chaining variants are equivalent.
         return { ok: false, code, details: body?.error?.details };
       }
     }

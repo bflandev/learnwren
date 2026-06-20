@@ -2,9 +2,10 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpClient, provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { throwError } from 'rxjs';
 
 import { AuthService } from './auth.service';
 
@@ -186,6 +187,24 @@ describe('AuthService.resendVerification / requestPasswordReset / unlock', () =>
     httpMock.expectOne('/api/auth/unlock').error(new ProgressEvent('network'));
     expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
   });
+
+  it('unlock returns INTERNAL when the error body is absent (no error.code)', async () => {
+    const promise = svc.unlock('X');
+    // null body → err.error is null; the optional chaining must not throw.
+    httpMock
+      .expectOne('/api/auth/unlock')
+      .flush(null, { status: 400, statusText: 'Bad Request' });
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
+
+  it('unlock returns INTERNAL when the error body has no nested error object', async () => {
+    const promise = svc.unlock('X');
+    // body present but `error` key missing → err.error.error is undefined.
+    httpMock
+      .expectOne('/api/auth/unlock')
+      .flush({ somethingElse: true }, { status: 400, statusText: 'Bad Request' });
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
 });
 
 describe('AuthService.login error edge cases', () => {
@@ -235,6 +254,15 @@ describe('AuthService.login error edge cases', () => {
     httpMock.expectOne('/api/auth/login').error(new ProgressEvent('network'));
     expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
   });
+
+  it('returns INTERNAL when the error body is absent (body?.error guard)', async () => {
+    const promise = svc.login('a@b.c', 'pw');
+    // null body → body is null; `body?.error` must short-circuit, not throw.
+    httpMock
+      .expectOne('/api/auth/login')
+      .flush(null, { status: 500, statusText: 'ISE' });
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
 });
 
 describe('AuthService.register error path', () => {
@@ -277,6 +305,60 @@ describe('AuthService.register error path', () => {
       { status: 500, statusText: 'ISE' },
     );
     expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
+
+  it('does NOT clear the current user on a register error (resetUserOnError: false)', async () => {
+    // Seed a current identity, then fail the register call. register passes
+    // resetUserOnError:false, so the existing identity must survive the failure
+    // (contrast with login, which clears it).
+    svc.setCurrentUser(baseUser);
+    const promise = svc.register({ email: 'a@b.c', password: 'pw', displayName: 'A' });
+    httpMock.expectOne('/api/auth/register').flush(
+      { error: { code: 'EMAIL_ALREADY_EXISTS' } },
+      { status: 409, statusText: 'Conflict' },
+    );
+    expect(await promise).toEqual({ ok: false, code: 'EMAIL_ALREADY_EXISTS' });
+    expect(svc.currentUser()).toEqual(baseUser);
+  });
+});
+
+describe('AuthService — non-HttpErrorResponse errors are never read as API bodies', () => {
+  // A plain thrown object that *looks like* an API error body but is NOT an
+  // HttpErrorResponse. The `err instanceof HttpErrorResponse` guard must reject
+  // it and fall through to INTERNAL, rather than trusting its shape.
+  const fakeBody = { error: { error: { code: 'INVALID_CREDENTIALS' } } };
+
+  function withStubHttp() {
+    const http = {
+      post: vi.fn(() => throwError(() => fakeBody)),
+      get: vi.fn(() => throwError(() => fakeBody)),
+    };
+    TestBed.configureTestingModule({
+      providers: [{ provide: HttpClient, useValue: http }],
+    });
+    return TestBed.inject(AuthService);
+  }
+
+  it('login maps a non-HttpErrorResponse to INTERNAL even if it mimics an error body', async () => {
+    expect(await withStubHttp().login('a@b.c', 'pw')).toEqual({
+      ok: false,
+      code: 'INTERNAL',
+    });
+  });
+
+  it('unlock maps a non-HttpErrorResponse to INTERNAL even if it mimics an unlock error', async () => {
+    const http = {
+      post: vi.fn(() =>
+        throwError(() => ({ error: { error: { code: 'INVALID_UNLOCK_TOKEN' } } })),
+      ),
+    };
+    TestBed.configureTestingModule({
+      providers: [{ provide: HttpClient, useValue: http }],
+    });
+    expect(await TestBed.inject(AuthService).unlock('TOK')).toEqual({
+      ok: false,
+      code: 'INTERNAL',
+    });
   });
 });
 
