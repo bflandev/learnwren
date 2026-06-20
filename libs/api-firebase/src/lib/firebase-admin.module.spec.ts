@@ -1,6 +1,7 @@
+import { Inject, Injectable, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as admin from 'firebase-admin';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FIREBASE_AUTH, FIREBASE_STORAGE, FIREBASE_WEB_API_KEY, FIRESTORE } from './firebase.tokens';
 import { FirebaseAdminModule } from './firebase-admin.module';
@@ -63,9 +64,18 @@ describe('FirebaseAdminModule', () => {
     });
 
     it('initializes firebase-admin app exactly once across multiple imports', async () => {
-      await Test.createTestingModule({ imports: [FirebaseAdminModule.forRoot()] }).compile();
-      await Test.createTestingModule({ imports: [FirebaseAdminModule.forRoot()] }).compile();
-      expect(admin.apps.length).toBe(1);
+      // Spy on initializeApp: the second forRoot must reuse admin.apps[0] and
+      // therefore NOT call initializeApp again. Asserting the call count (not
+      // just apps.length) kills the `if (existing) return existing` reuse guard.
+      const initSpy = vi.spyOn(admin, 'initializeApp');
+      try {
+        await Test.createTestingModule({ imports: [FirebaseAdminModule.forRoot()] }).compile();
+        await Test.createTestingModule({ imports: [FirebaseAdminModule.forRoot()] }).compile();
+        expect(admin.apps.length).toBe(1);
+        expect(initSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        initSpy.mockRestore();
+      }
     });
 
     it('initializes the emulator app with project ID "demo-learnwren"', async () => {
@@ -221,9 +231,17 @@ describe('FirebaseAdminModule', () => {
         }),
       );
 
+      // Spy (call-through) to prove the cert branch is taken with the exact
+      // configured path. `options.credential` is defined on BOTH the cert and
+      // ADC paths, so it can't distinguish them — the cert() call can.
+      const certSpy = vi.spyOn(admin.credential, 'cert');
+
       const moduleRef = await Test.createTestingModule({
         imports: [FirebaseAdminModule.forRoot()],
       }).compile();
+
+      expect(certSpy).toHaveBeenCalledWith('/tmp/learnwren-test-sa.json');
+      certSpy.mockRestore();
 
       expect(admin.apps.length).toBe(1);
       expect(admin.apps[0]?.options.projectId).toBe('test-prod-id');
@@ -231,6 +249,85 @@ describe('FirebaseAdminModule', () => {
       expect(admin.apps[0]?.options.credential).toBeDefined();
 
       expect(moduleRef.get(FIRESTORE)).toBeDefined();
+    });
+  });
+
+  describe('Firestore settings + DI contract (mutation hardening)', () => {
+    it('applies { ignoreUndefinedProperties: true } to the Firestore handle exactly once', async () => {
+      const settingsSpy = vi
+        .spyOn(admin.firestore.Firestore.prototype, 'settings')
+        .mockImplementation(() => undefined as unknown as void);
+      try {
+        const m1 = await Test.createTestingModule({
+          imports: [FirebaseAdminModule.forRoot()],
+        }).compile();
+        m1.get(FIRESTORE); // force the useFactory to run
+        // Second forRoot reuses the same app → same Firestore handle → settings
+        // must NOT be re-applied (configureFirestoreOnce dedup via WeakSet).
+        const m2 = await Test.createTestingModule({
+          imports: [FirebaseAdminModule.forRoot()],
+        }).compile();
+        m2.get(FIRESTORE);
+
+        expect(settingsSpy).toHaveBeenCalledTimes(1);
+        expect(settingsSpy).toHaveBeenCalledWith({ ignoreUndefinedProperties: true });
+      } finally {
+        settingsSpy.mockRestore();
+      }
+    });
+
+    it('exposes its tokens as a GLOBAL module so an unrelated consumer can inject them', async () => {
+      // Global injection requires BOTH global:true AND the token in exports[].
+      // A consumer module that does NOT import FirebaseAdminModule but injects
+      // FIRESTORE only resolves if the module is global and exports the token.
+      @Injectable()
+      class FirestoreConsumer {
+        constructor(@Inject(FIRESTORE) public readonly firestore: unknown) {}
+      }
+      @Module({ providers: [FirestoreConsumer] })
+      class ConsumerModule {}
+
+      const moduleRef = await Test.createTestingModule({
+        imports: [FirebaseAdminModule.forRoot(), ConsumerModule],
+      }).compile();
+
+      expect(moduleRef.get(FirestoreConsumer).firestore).toBeDefined();
+    });
+  });
+
+  describe('production credential resolution (mutation hardening)', () => {
+    it('does NOT call credential.cert on the ADC path (no service-account path)', async () => {
+      process.env['LEARNWREN_FIREBASE_TARGET'] = 'production';
+      process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] = 'test-prod-id';
+      process.env['LEARNWREN_FIREBASE_WEB_API_KEY'] = 'k';
+      // no FIREBASE_SERVICE_ACCOUNT_JSON_PATH → ADC
+
+      const certSpy = vi.spyOn(admin.credential, 'cert');
+      try {
+        await Test.createTestingModule({
+          imports: [FirebaseAdminModule.forRoot()],
+        }).compile();
+        expect(certSpy).not.toHaveBeenCalled();
+      } finally {
+        certSpy.mockRestore();
+      }
+    });
+
+    it('reuses the existing app on a second production forRoot (does not re-initialize)', async () => {
+      process.env['LEARNWREN_FIREBASE_TARGET'] = 'production';
+      process.env['LEARNWREN_API_FIREBASE_PROJECT_ID'] = 'test-prod-id';
+      process.env['LEARNWREN_FIREBASE_WEB_API_KEY'] = 'k';
+
+      const initSpy = vi.spyOn(admin, 'initializeApp');
+      try {
+        await Test.createTestingModule({ imports: [FirebaseAdminModule.forRoot()] }).compile();
+        // A second forRoot must reuse admin.apps[0] rather than re-initialize.
+        await Test.createTestingModule({ imports: [FirebaseAdminModule.forRoot()] }).compile();
+        expect(admin.apps.length).toBe(1);
+        expect(initSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        initSpy.mockRestore();
+      }
     });
   });
 });

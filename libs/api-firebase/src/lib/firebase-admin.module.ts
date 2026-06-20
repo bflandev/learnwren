@@ -19,9 +19,11 @@ const EMULATOR_PROJECT_ID = 'demo-learnwren';
 type Mode = 'emulator' | 'production';
 
 function resolveMode(): Mode {
-  return process.env['LEARNWREN_FIREBASE_TARGET'] === 'production'
-    ? 'production'
-    : 'emulator';
+  if (process.env['LEARNWREN_FIREBASE_TARGET'] === 'production') return 'production';
+  // Only `=== 'production'` is ever tested downstream, so 'emulator' vs '' (or
+  // any other non-'production' value) is observationally indistinguishable.
+  // Stryker disable next-line StringLiteral: equivalent mutant (see above)
+  return 'emulator';
 }
 
 function required(name: string): string {

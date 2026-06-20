@@ -48,6 +48,32 @@ describe('readStoredUserProfiles', () => {
     expect(counts.get('u1')).toBe(1);
   });
 
+  it('reads from the "users" collection (not any other name)', async () => {
+    const collectionSpy = vi.fn((_name: string) => ({
+      doc: vi.fn(() => ({
+        get: vi.fn(async () => ({ exists: true, data: () => ({ displayName: 'Ada' }) })),
+      })),
+    }));
+    const firestore = { collection: collectionSpy } as unknown as FirestoreHandle;
+    await readStoredUserProfiles(firestore, ['u1']);
+    expect(collectionSpy).toHaveBeenCalledWith('users');
+  });
+
+  it('treats an explicit exists:false as missing even when data() still returns a value', async () => {
+    // The guard is `snap.exists === false ? undefined : snap.data()`. A stale
+    // backend can report exists:false yet still hand back a data() payload; the
+    // reader must honour exists:false and omit the doc.
+    const firestore = {
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({
+          get: vi.fn(async () => ({ exists: false, data: () => ({ displayName: 'Stale' }) })),
+        })),
+      })),
+    } as unknown as FirestoreHandle;
+    const map = await readStoredUserProfiles(firestore, ['u1']);
+    expect(map.has('u1')).toBe(false);
+  });
+
   it('treats a bare snapshot without an `exists` field as present', async () => {
     // Mirrors mocks that return only `{ data }`; only an explicit exists:false is missing.
     const firestore = {
