@@ -80,6 +80,12 @@ describe('isDomainShaped', () => {
   it('is false for a plain object that happens to have code/status', () => {
     expect(isDomainShaped({ code: 'X', status: 400 })).toBe(false);
   });
+  it('is false for an Error with a string code but a non-number status', () => {
+    const e = new Error('m') as Error & { code: string; status: unknown };
+    e.code = 'X';
+    e.status = 'oops';
+    expect(isDomainShaped(e)).toBe(false);
+  });
 });
 
 describe('formatLogLine', () => {
@@ -108,6 +114,15 @@ describe('handleException', () => {
     expect(json).toHaveBeenCalledWith({ error: { code: 'GONE', message: 'g' } });
   });
 
+  it('does not attach a details KEY at all when the domain exception has none', () => {
+    // toHaveBeenCalledWith ignores undefined keys, so assert key absence directly
+    // to lock the `if (exception.details)` guard.
+    const { host, json } = buildHost();
+    handleException(host, new FakeDomainException('GONE', 'g', 404), quietLogger());
+    const body = json.mock.calls[0][0];
+    expect('details' in body.error).toBe(false);
+  });
+
   it('maps a BadRequestException to VALIDATION_FAILED + fieldErrors when validation is on', () => {
     const { host, status, json } = buildHost();
     const dtoErr = new BadRequestException({
@@ -121,6 +136,52 @@ describe('handleException', () => {
     expect(body.error.code).toBe('VALIDATION_FAILED');
     expect(body.error.details.fieldErrors.title).toHaveLength(2);
     expect(body.error.details.fieldErrors.price).toHaveLength(1);
+  });
+
+  it('uses the canonical "Request body failed validation." message', () => {
+    const { host, json } = buildHost();
+    handleException(host, new BadRequestException({ message: ['x must be set'] }), quietLogger(), {
+      validation: true,
+    });
+    expect(json.mock.calls[0][0].error.message).toBe('Request body failed validation.');
+  });
+
+  it('wraps a single STRING validation message into one field group', () => {
+    // payload.message is a bare string (not an array) → normalizeMessages must
+    // wrap it; otherwise parseFieldErrors would iterate the string char-by-char.
+    const { host, json } = buildHost();
+    handleException(
+      host,
+      new BadRequestException({ message: 'title must be provided' }),
+      quietLogger(),
+      { validation: true },
+    );
+    const fieldErrors = json.mock.calls[0][0].error.details.fieldErrors;
+    expect(fieldErrors.title).toEqual(['title must be provided']);
+  });
+
+  it('produces empty fieldErrors when there is no validation message', () => {
+    const { host, json } = buildHost();
+    handleException(
+      host,
+      new BadRequestException({ error: 'Bad Request', statusCode: 400 }),
+      quietLogger(),
+      { validation: true },
+    );
+    expect(json.mock.calls[0][0].error.details.fieldErrors).toEqual({});
+  });
+
+  it('skips blank validation messages rather than keying them under an empty field', () => {
+    const { host, json } = buildHost();
+    handleException(
+      host,
+      new BadRequestException({ message: ['', 'price must be positive'] }),
+      quietLogger(),
+      { validation: true },
+    );
+    const fieldErrors = json.mock.calls[0][0].error.details.fieldErrors;
+    expect('' in fieldErrors).toBe(false);
+    expect(fieldErrors.price).toEqual(['price must be positive']);
   });
 
   it('treats a BadRequestException as a plain HttpException when validation is off', () => {
