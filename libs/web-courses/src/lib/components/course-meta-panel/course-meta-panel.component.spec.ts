@@ -24,6 +24,16 @@ describe('CourseMetaPanelComponent', () => {
     return fixture;
   }
 
+  it('starts with empty drafts and syncDrafts() seeds them from the course', () => {
+    const fixture = build();
+    const c = fixture.componentInstance;
+    expect(c.draftTitle()).toBe('');
+    expect(c.draftDescription()).toBe('');
+    c.syncDrafts();
+    expect(c.draftTitle()).toBe('Original');
+    expect(c.draftDescription()).toBe('D');
+  });
+
   it('emits update with new title on blur after edit', () => {
     const fixture = build();
     const spy = vi.spyOn(fixture.componentInstance.update, 'emit');

@@ -17,6 +17,26 @@ describe('ConfirmDialogComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Delete this lesson?');
   });
 
+  it('uses the default Delete/Cancel labels when none are supplied', () => {
+    const { fixture } = build();
+    fixture.componentRef.setInput('message', 'Are you sure?');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="confirm-go"]')!.textContent).toContain('Delete');
+    expect(el.querySelector('[data-testid="confirm-cancel"]')!.textContent).toContain('Cancel');
+  });
+
+  it('renders custom confirm/cancel labels when provided', () => {
+    const { fixture } = build();
+    fixture.componentRef.setInput('message', 'Are you sure?');
+    fixture.componentRef.setInput('confirmLabel', 'Remove it');
+    fixture.componentRef.setInput('cancelLabel', 'Keep it');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="confirm-go"]')!.textContent).toContain('Remove it');
+    expect(el.querySelector('[data-testid="confirm-cancel"]')!.textContent).toContain('Keep it');
+  });
+
   it('emits confirmed=true when Confirm is clicked', () => {
     const { fixture, cmp } = build();
     const spy = vi.spyOn(cmp.closed, 'emit');

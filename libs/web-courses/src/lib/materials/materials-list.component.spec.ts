@@ -63,6 +63,107 @@ describe('MaterialsListComponent', () => {
     expect(testIds(fixture, 'material-name')[0].textContent).toContain('Doc One');
   });
 
+  it('starts with an empty draft name and no load error', () => {
+    const { fixture } = render(apiMock());
+    const cmp = fixture.componentInstance;
+    expect(cmp.draftName()).toBe('');
+    expect(cmp.loadError()).toBe(false);
+  });
+
+  it('renames only the targeted material, leaving siblings untouched', async () => {
+    const api = apiMock({
+      listMaterials: vi.fn().mockReturnValue(of([mat('m1', 'Doc One'), mat('m2', 'Doc Two')])),
+      rename: vi.fn().mockReturnValue(of(mat('m1', 'Renamed One'))),
+    });
+    const { fixture } = render(api);
+    const cmp = fixture.componentInstance;
+    cmp.startRename(mat('m1', 'Doc One'));
+    cmp.draftName.set('Renamed One');
+    await cmp.commitRename(mat('m1', 'Doc One'));
+    const byId = Object.fromEntries(cmp.materials().map((x) => [x.id, x.displayName]));
+    expect(byId['m1']).toBe('Renamed One');
+    expect(byId['m2']).toBe('Doc Two'); // sibling unchanged
+  });
+
+  it('removes only the confirmed material, keeping the others', async () => {
+    const api = apiMock({
+      listMaterials: vi.fn().mockReturnValue(of([mat('m1', 'Doc One'), mat('m2', 'Doc Two')])),
+    });
+    const { fixture } = render(api);
+    const cmp = fixture.componentInstance;
+    cmp.askRemove(mat('m1', 'Doc One'));
+    await cmp.confirmRemoval(true);
+    expect(cmp.materials().map((x) => x.id)).toEqual(['m2']);
+  });
+
+  it('on a 404 download error removes only the missing material, keeping siblings', async () => {
+    const api = apiMock({
+      listMaterials: vi.fn().mockReturnValue(of([mat('m1', 'Doc One'), mat('m2', 'Doc Two')])),
+      getDownloadUrl: vi.fn().mockReturnValue(throwError(() => ({ status: 404 }))),
+    });
+    const { fixture } = render(api);
+    const cmp = fixture.componentInstance;
+    await cmp.download(mat('m1', 'Doc One'));
+    expect(cmp.materials().map((x) => x.id)).toEqual(['m2']);
+  });
+
+  it('treats a null/undefined download error gracefully (no status, no removal)', async () => {
+    const api = apiMock({
+      // throw a non-object error so (err as {status?}).status would dereference null
+      getDownloadUrl: vi.fn().mockReturnValue(throwError(() => null)),
+    });
+    const { fixture } = render(api);
+    const cmp = fixture.componentInstance;
+    expect(cmp.materials()).toHaveLength(1);
+    await cmp.download(mat('m1', 'Doc One'));
+    expect(cmp.materials()).toHaveLength(1);
+    expect(cmp.removedNotice()).toBeNull();
+  });
+
+  it('openDownload creates an anchor with download="" and rel="noopener", then clicks and removes it', () => {
+    const { fixture } = render(apiMock());
+    const cmp = fixture.componentInstance as unknown as { openDownload: (u: string) => void };
+
+    let created: HTMLAnchorElement | undefined;
+    let clicked = false;
+    let appended = false;
+    let removed = false;
+    const realCreate = document.createElement.bind(document);
+    const createSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag) as HTMLElement;
+      if (tag === 'a') {
+        created = el as HTMLAnchorElement;
+        (el as HTMLAnchorElement).click = () => {
+          clicked = true;
+        };
+        const realRemove = el.remove.bind(el);
+        el.remove = () => {
+          removed = true;
+          realRemove();
+        };
+      }
+      return el;
+    });
+    const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(((node: Node) => {
+      appended = true;
+      return node;
+    }) as typeof document.body.appendChild);
+
+    cmp.openDownload('https://files/x.pdf');
+
+    expect(created).toBeDefined();
+    expect(created!.tagName).toBe('A');
+    expect(created!.href).toContain('https://files/x.pdf');
+    expect(created!.getAttribute('download')).toBe('');
+    expect(created!.rel).toBe('noopener');
+    expect(appended).toBe(true);
+    expect(clicked).toBe(true);
+    expect(removed).toBe(true);
+
+    createSpy.mockRestore();
+    appendSpy.mockRestore();
+  });
+
   it('shows the empty state when the lesson has no materials', () => {
     const { fixture } = render(apiMock({ listMaterials: vi.fn().mockReturnValue(of([])) }));
     expect(testIds(fixture, 'materials-empty')).toHaveLength(1);
@@ -143,10 +244,11 @@ describe('MaterialsListComponent', () => {
       const uploadSpy = vi.spyOn(cmp.upload, 'uploadFiles').mockResolvedValue(1);
       const file = new File(['data'], 'notes.pdf', { type: 'application/pdf' });
 
-      await cmp.onFilesSelected({
-        target: { files: [file], value: 'notes.pdf' },
-      } as unknown as Event);
+      const target = { files: [file], value: 'notes.pdf' };
+      await cmp.onFilesSelected({ target } as unknown as Event);
 
+      // the input is reset so re-selecting the same file fires a change event again
+      expect(target.value).toBe('');
       expect(uploadSpy).toHaveBeenCalledWith(
         { courseId: 'c1', moduleId: 'm1', lessonId: 'l1' },
         [file],

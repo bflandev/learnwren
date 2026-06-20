@@ -17,6 +17,12 @@ describe('CoursesListPageComponent', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
+  it('starts with error cleared', () => {
+    const fixture = TestBed.createComponent(CoursesListPageComponent);
+    expect(fixture.componentInstance.error()).toBe(false);
+    http.expectOne('/api/courses').flush([]);
+  });
+
   it('renders the empty state when there are no courses', async () => {
     const fixture = TestBed.createComponent(CoursesListPageComponent);
     fixture.detectChanges();

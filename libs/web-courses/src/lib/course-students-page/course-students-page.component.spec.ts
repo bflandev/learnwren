@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { CourseRosterView } from '@learnwren/shared-data-models';
@@ -65,6 +65,42 @@ const VIEW_CROSS: CourseRosterView = {
   ],
 };
 
+/** Three students in SCRAMBLED progress order so a broken comparator (e.g. +
+ *  instead of -) cannot accidentally produce the sorted output. */
+const VIEW_THREE: CourseRosterView = {
+  courseId: 'course-1' as never,
+  totalLessons: 10,
+  students: [
+    {
+      userId: 'u-mid' as never,
+      displayName: 'Mid',
+      email: 'mid@example.com',
+      enrolledAt: '2026-05-22T00:00:00.000Z' as never,
+      completedLessons: 5,
+      totalLessons: 10,
+      progressPercent: 50,
+    },
+    {
+      userId: 'u-low' as never,
+      displayName: 'Low',
+      email: 'low@example.com',
+      enrolledAt: '2026-05-21T00:00:00.000Z' as never,
+      completedLessons: 1,
+      totalLessons: 10,
+      progressPercent: 10,
+    },
+    {
+      userId: 'u-high' as never,
+      displayName: 'High',
+      email: 'high@example.com',
+      enrolledAt: '2026-05-23T00:00:00.000Z' as never,
+      completedLessons: 9,
+      totalLessons: 10,
+      progressPercent: 90,
+    },
+  ],
+};
+
 function setup() {
   TestBed.configureTestingModule({
     imports: [CourseStudentsPageComponent],
@@ -114,6 +150,63 @@ describe('CourseStudentsPageComponent', () => {
     expect(names).toEqual(['Bo', 'Ada']); // Bo enrolled 05-25, Ada 05-20
   });
 
+  it('starts with sortKey=enrolledAt and sortDir=desc (initial header arrow is ▼)', async () => {
+    const s = setup();
+    http = s.http;
+    http.expectOne('/api/courses/course-1/students').flush(VIEW);
+    await s.fixture.whenStable();
+    s.fixture.detectChanges();
+    const comp = s.fixture.componentInstance;
+    expect(comp.sortKey()).toBe('enrolledAt');
+    expect(comp.sortDir()).toBe('desc');
+    // The enrolledAt header (and only it) shows the descending arrow on first load.
+    const text = (s.fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('▼');
+    expect(text).not.toContain('▲');
+  });
+
+  it('cid() falls back to empty (no throw) when the paramMap signal has not emitted', () => {
+    TestBed.configureTestingModule({
+      imports: [CourseStudentsPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { paramMap: new Subject() } },
+      ],
+    });
+    const localHttp = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(CourseStudentsPageComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.cid()).toBe('');
+    localHttp.expectOne('/api/courses//students').flush({
+      courseId: '',
+      totalLessons: 0,
+      students: [],
+    } as CourseRosterView);
+  });
+
+  it('cid() falls back to empty when the route paramMap has no id key', () => {
+    TestBed.configureTestingModule({
+      imports: [CourseStudentsPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { paramMap: of(new Map()) } },
+      ],
+    });
+    const localHttp = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(CourseStudentsPageComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.cid()).toBe('');
+    localHttp.expectOne('/api/courses//students').flush({
+      courseId: '',
+      totalLessons: 0,
+      students: [],
+    } as CourseRosterView);
+  });
+
   it('sorts by progress ascending when the progress header is toggled', async () => {
     const s = setup();
     http = s.http;
@@ -127,6 +220,20 @@ describe('CourseStudentsPageComponent', () => {
       (s.fixture.nativeElement as HTMLElement).querySelectorAll('[data-testid="student-name"]'),
     ).map((el) => el.textContent?.trim());
     expect(names).toEqual(['Ada', 'Bo']); // 50% then 90%
+  });
+
+  it('is in the loading state while the roster request is in flight', () => {
+    const s = setup();
+    // request issued by the constructor, not yet flushed
+    expect(s.fixture.componentInstance.state()).toBe('loading');
+    s.http.expectOne('/api/courses/course-1/students').flush(VIEW);
+  });
+
+  it('transitions to the loaded state once the roster arrives', async () => {
+    const s = setup();
+    s.http.expectOne('/api/courses/course-1/students').flush(VIEW);
+    await s.fixture.whenStable();
+    expect(s.fixture.componentInstance.state()).toBe('loaded');
   });
 
   it('shows the empty state when no students are enrolled', async () => {
@@ -213,6 +320,26 @@ describe('CourseStudentsPageComponent', () => {
     anchorSpy.mockRestore();
   });
 
+  it('rows() is empty before the roster loads (view is null)', () => {
+    const s = setup();
+    // Do NOT flush — view() is still null.
+    expect(s.fixture.componentInstance.rows()).toEqual([]);
+    s.http.expectOne('/api/courses/course-1/students').flush(VIEW);
+  });
+
+  it('toggleSort flips the exact direction string desc->asc->desc on the active key', async () => {
+    const s = setup();
+    s.http.expectOne('/api/courses/course-1/students').flush(VIEW);
+    await s.fixture.whenStable();
+    s.fixture.detectChanges();
+    const comp = s.fixture.componentInstance;
+    expect(comp.sortDir()).toBe('desc');
+    comp.toggleSort('enrolledAt'); // active key, desc -> asc
+    expect(comp.sortDir()).toBe('asc');
+    comp.toggleSort('enrolledAt'); // active key, asc -> desc
+    expect(comp.sortDir()).toBe('desc');
+  });
+
   it('flips sort direction when the active key is re-selected', async () => {
     const s = setup();
     s.http.expectOne('/api/courses/course-1/students').flush(VIEW);
@@ -292,6 +419,39 @@ describe('CourseStudentsPageComponent', () => {
     comp.toggleSort('progress'); // flip to desc: Bo (90%), Ada (10%)
     s.fixture.detectChanges();
     expect(readNames(s.fixture)).toEqual(['Bo', 'Ada']);
+  });
+
+  it('fully sorts three scrambled students by progress asc then desc (kills - vs + comparator)', async () => {
+    const s = setup();
+    s.http.expectOne('/api/courses/course-1/students').flush(VIEW_THREE);
+    await s.fixture.whenStable();
+    s.fixture.detectChanges();
+    const comp = s.fixture.componentInstance;
+
+    comp.toggleSort('progress'); // asc -> 10, 50, 90
+    s.fixture.detectChanges();
+    expect(comp.rows().map((r) => r.progressPercent)).toEqual([10, 50, 90]);
+    expect(readNames(s.fixture)).toEqual(['Low', 'Mid', 'High']);
+
+    comp.toggleSort('progress'); // desc -> 90, 50, 10
+    s.fixture.detectChanges();
+    expect(comp.rows().map((r) => r.progressPercent)).toEqual([90, 50, 10]);
+    expect(readNames(s.fixture)).toEqual(['High', 'Mid', 'Low']);
+  });
+
+  it('fully sorts three scrambled students by enrolledAt asc then desc (kills cmp*dir direction)', async () => {
+    const s = setup();
+    s.http.expectOne('/api/courses/course-1/students').flush(VIEW_THREE);
+    await s.fixture.whenStable();
+    s.fixture.detectChanges();
+    const comp = s.fixture.componentInstance;
+
+    // default enrolledAt desc -> High(23), Mid(22), Low(21)
+    expect(readNames(s.fixture)).toEqual(['High', 'Mid', 'Low']);
+
+    comp.toggleSort('enrolledAt'); // asc -> Low(21), Mid(22), High(23)
+    s.fixture.detectChanges();
+    expect(readNames(s.fixture)).toEqual(['Low', 'Mid', 'High']);
   });
 
   it('switches from progress key to enrolledAt key (cross-order data)', async () => {

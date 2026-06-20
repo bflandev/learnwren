@@ -27,6 +27,7 @@ export class CourseStudentsPageComponent {
   private readonly paramMap = toSignal(this.route.paramMap);
   readonly cid = computed(() => this.paramMap()?.get('id') ?? '');
 
+  // Stryker disable next-line StringLiteral: equivalent — the constructor calls load() which synchronously runs state.set('loading') before any observer reads the initial value.
   readonly state = signal<State>('loading');
   readonly view = signal<CourseRosterView | null>(null);
   readonly sortKey = signal<SortKey>('enrolledAt');
@@ -41,6 +42,7 @@ export class CourseStudentsPageComponent {
         key === 'progress'
           ? a.progressPercent - b.progressPercent
           : a.enrolledAt.localeCompare(b.enrolledAt);
+      // Stryker disable next-line ArithmeticOperator: equivalent — dir is always +1 or -1, so cmp * dir and cmp / dir are numerically identical.
       return cmp * dir;
     });
   });

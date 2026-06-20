@@ -33,6 +33,7 @@ describe('CourseCoverService', () => {
     const p = svc.upload(CID, file);
     const req = http.expectOne(`/api/courses/${CID}/cover`);
     expect(req.request.method).toBe('PUT');
+    expect(req.request.withCredentials).toBe(true);
     const body = req.request.body as FormData;
     expect(body.has('file')).toBe(true);
     expect((body.get('file') as File).name).toBe('cover.jpg');
@@ -50,6 +51,7 @@ describe('CourseCoverService', () => {
     const p = svc.remove(CID);
     const req = http.expectOne(`/api/courses/${CID}/cover`);
     expect(req.request.method).toBe('DELETE');
+    expect(req.request.withCredentials).toBe(true);
     req.flush(null, { status: 204, statusText: 'No Content' });
     await expect(p).resolves.toBeUndefined();
   });
@@ -70,6 +72,16 @@ describe('CourseCoverService', () => {
 
   it('validateLocally accepts a 1 KB JPEG', () => {
     const f = new File([new Uint8Array(1024)], 'x.jpg', { type: 'image/jpeg' });
+    expect(svc.validateLocally(f)).toEqual({ ok: true });
+  });
+
+  it('validateLocally accepts a PNG', () => {
+    const f = new File([new Uint8Array(1024)], 'x.png', { type: 'image/png' });
+    expect(svc.validateLocally(f)).toEqual({ ok: true });
+  });
+
+  it('validateLocally accepts a file at exactly the 10 MB limit (boundary, not over)', () => {
+    const f = new File([new Uint8Array(10_000_000)], 'x.jpg', { type: 'image/jpeg' });
     expect(svc.validateLocally(f)).toEqual({ ok: true });
   });
 });

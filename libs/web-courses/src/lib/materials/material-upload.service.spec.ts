@@ -60,9 +60,12 @@ describe('MaterialUploadService', () => {
 
   it('uploads a valid file end-to-end (createUploadUrl → PUT → complete)', async () => {
     const { svc, api } = setup();
-    const completed = await svc.uploadFiles(ctx, [makeFile('notes.pdf')]);
+    const completed = await svc.uploadFiles(ctx, [makeFile('notes.pdf', 4242)]);
     expect(completed).toBe(1);
-    expect(api.createUploadUrl).toHaveBeenCalled();
+    expect(api.createUploadUrl).toHaveBeenCalledWith('c1', 'm1', 'l1', {
+      filename: 'notes.pdf',
+      sizeBytes: 4242,
+    });
     expect(api.complete).toHaveBeenCalledWith('mat1');
     expect(svc.failures()).toEqual([]);
   });
@@ -284,6 +287,98 @@ describe('MaterialUploadService', () => {
     // After each progress event the signal has EXACTLY one entry (no duplicates
     // because setProgress filters by filename), and percent equals the latest value.
     expect(captured).toEqual([25, 1, 50, 1, 100, 1]);
+  });
+
+  it('starts with empty failures before any upload', () => {
+    const { svc } = setup();
+    expect(svc.failures()).toEqual([]);
+    expect(svc.inFlight()).toEqual([]);
+  });
+
+  it('the default MATERIAL_XHR_FACTORY produces a real XMLHttpRequest', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const factory = TestBed.inject(MATERIAL_XHR_FACTORY);
+    const xhr = factory();
+    expect(xhr).toBeInstanceOf(XMLHttpRequest);
+  });
+
+
+  it('treats a no-dot filename that equals a supported extension ("pdf") as unsupported', async () => {
+    // dot < 0 -> ext must be '' (not the whole filename); "pdf" alone must NOT pass.
+    const { svc, api } = setup();
+    const completed = await svc.uploadFiles(ctx, [makeFile('pdf')]);
+    expect(completed).toBe(0);
+    expect(svc.failures()[0].reason).toMatch(/unsupported/i);
+    expect(api.createUploadUrl).not.toHaveBeenCalled();
+  });
+
+  it('treats a PUT status of exactly 300 as a failure (>= 300 boundary)', async () => {
+    const { svc, api } = setup({ put: 300 });
+    const completed = await svc.uploadFiles(ctx, [makeFile('notes.pdf')]);
+    expect(completed).toBe(0);
+    expect(svc.failures()[0].reason).toMatch(/status 300/i);
+    expect(api.complete).not.toHaveBeenCalled();
+  });
+
+  it('does NOT record progress for a non-lengthComputable event', async () => {
+    const xhr = fakeXhr(200);
+    let snapshotDuringNonComputable: number | undefined;
+    TestBed.configureTestingModule({
+      providers: [
+        MaterialUploadService,
+        {
+          provide: MaterialsService,
+          useValue: {
+            createUploadUrl: vi.fn().mockReturnValue(
+              of({ materialId: 'm', uploadUrl: '/u', expiresAt: 'T' }),
+            ),
+            complete: vi.fn().mockReturnValue(of({})),
+            remove: vi.fn().mockReturnValue(of(undefined)),
+          },
+        },
+        { provide: MATERIAL_XHR_FACTORY, useValue: () => xhr },
+      ],
+    });
+    const svc = TestBed.inject(MaterialUploadService);
+    const realSend = xhr.send;
+    xhr.send = vi.fn(function (this: typeof xhr) {
+      // setProgress(file, 0) already pushed one entry at percent 0; a
+      // non-computable event must NOT overwrite it to some computed percent.
+      this.upload.onprogress?.({ lengthComputable: false, loaded: 99, total: 100 } as ProgressEvent);
+      snapshotDuringNonComputable = svc.inFlight()[0]?.percent;
+      realSend.call(this);
+    }) as never;
+    await svc.uploadFiles(ctx, [makeFile('notes.pdf')]);
+    // The in-flight percent stayed at the initial 0 — the branch did not fire.
+    expect(snapshotDuringNonComputable).toBe(0);
+  });
+
+  it('setProgress replaces only the matching file and clearProgress removes only the named one', () => {
+    const { svc } = setup();
+    // Exercise the per-filename filters in setProgress/clearProgress directly so
+    // a broken predicate (drop all / drop none) is observable with two entries.
+    const s = svc as unknown as {
+      setProgress(f: string, p: number): void;
+      clearProgress(f: string): void;
+      inFlight(): { filename: string; percent: number }[];
+    };
+    s.setProgress('a.pdf', 10);
+    s.setProgress('b.pdf', 20);
+    expect(s.inFlight()).toHaveLength(2);
+
+    // Update a.pdf — b.pdf must remain untouched and a.pdf is not duplicated.
+    s.setProgress('a.pdf', 55);
+    const after = s.inFlight();
+    expect(after).toHaveLength(2);
+    expect(after.find((p) => p.filename === 'b.pdf')?.percent).toBe(20);
+    expect(after.find((p) => p.filename === 'a.pdf')?.percent).toBe(55);
+
+    // clearProgress removes ONLY the named file.
+    s.clearProgress('a.pdf');
+    const cleared = s.inFlight();
+    expect(cleared).toHaveLength(1);
+    expect(cleared[0].filename).toBe('b.pdf');
   });
 
   it('records a failure when the XHR fires onerror (network failure → status 0)', async () => {

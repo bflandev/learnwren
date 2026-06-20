@@ -129,6 +129,7 @@ describe('CoursePublishBarComponent', () => {
     await fixture.whenStable();
 
     expect(coursesSvc.restoreCourse).toHaveBeenCalledWith('c1');
+    expect(coursesSvc.publishCourse).not.toHaveBeenCalled(); // restore must NOT also publish
     expect(updated?.status).toBe('DRAFT');
   });
 
@@ -186,6 +187,19 @@ describe('CoursePublishBarComponent', () => {
     expect(publishSvc.eligibility()).toEqual({ eligible: false, reasons });
   });
 
+  it('handles a PUBLISH_NOT_ELIGIBLE error with NO details by setting empty reasons', async () => {
+    fixture.componentRef.setInput('course', COURSE_DRAFT_BASE);
+    publishSvc.setEligibility({ eligible: true, reasons: [] });
+    // details omitted entirely — details?.reasons must guard against undefined.
+    coursesSvc.publishCourse.mockRejectedValue({ error: { code: 'PUBLISH_NOT_ELIGIBLE' } });
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('[data-testid="publish-bar-primary"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+
+    expect(publishSvc.eligibility()).toEqual({ eligible: false, reasons: [] });
+  });
+
   it('shows a refresh prompt when a transition fails with INVALID_TRANSITION', async () => {
     fixture.componentRef.setInput('course', { ...COURSE_DRAFT_BASE, status: 'PUBLISHED' });
     coursesSvc.unpublishCourse.mockRejectedValue({ error: { code: 'INVALID_TRANSITION' } });
@@ -210,5 +224,122 @@ describe('CoursePublishBarComponent', () => {
 
     const banner = fixture.nativeElement.querySelector('.banner');
     expect(banner?.textContent).toContain('Something went wrong');
+  });
+
+  it('marks the primary button busy while a transition is in flight, then settles', async () => {
+    fixture.componentRef.setInput('course', COURSE_DRAFT_BASE);
+    publishSvc.setEligibility({ eligible: true, reasons: [] });
+    let resolve!: (c: Course) => void;
+    coursesSvc.publishCourse.mockReturnValue(new Promise<Course>((r) => { resolve = r; }));
+    fixture.detectChanges();
+    const primary = fixture.nativeElement.querySelector('[data-testid="publish-bar-primary"]') as HTMLButtonElement;
+
+    primary.click(); // starts the transition
+    fixture.detectChanges();
+    // disabled by inFlight (independently of eligibility, which is true here)
+    expect(primary.hasAttribute('disabled')).toBe(true);
+
+    resolve({ ...COURSE_DRAFT_BASE, status: 'PUBLISHED' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    // inFlight cleared in finally; published course → primary is now Unpublish (not disabled by inFlight)
+    expect((fixture.nativeElement.querySelector('[data-testid="publish-bar-primary"]') as HTMLButtonElement).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('disables the archive button while a transition is in flight', async () => {
+    fixture.componentRef.setInput('course', { ...COURSE_DRAFT_BASE, status: 'PUBLISHED' });
+    let resolve!: (c: Course) => void;
+    coursesSvc.archiveCourse.mockReturnValue(new Promise<Course>((r) => { resolve = r; }));
+    fixture.detectChanges();
+    fixture.componentInstance.runConfirmedTransition('archive');
+    fixture.detectChanges();
+    const archive = fixture.nativeElement.querySelector('[data-testid="publish-bar-archive"]') as HTMLButtonElement;
+    expect(archive.hasAttribute('disabled')).toBe(true);
+    resolve({ ...COURSE_DRAFT_BASE, status: 'ARCHIVED' });
+    await fixture.whenStable();
+  });
+
+  it('shows the archive button for DRAFT and PUBLISHED but hides it for ARCHIVED', () => {
+    const archiveBtn = () => fixture.nativeElement.querySelector('[data-testid="publish-bar-archive"]');
+
+    fixture.componentRef.setInput('course', COURSE_DRAFT_BASE); // DRAFT
+    fixture.detectChanges();
+    expect(archiveBtn()).not.toBeNull();
+
+    fixture.componentRef.setInput('course', { ...COURSE_DRAFT_BASE, status: 'PUBLISHED' });
+    fixture.detectChanges();
+    expect(archiveBtn()).not.toBeNull();
+
+    fixture.componentRef.setInput('course', { ...COURSE_DRAFT_BASE, status: 'ARCHIVED' });
+    fixture.detectChanges();
+    expect(archiveBtn()).toBeNull();
+  });
+
+  it('onPrimary does nothing for an unknown course status (no transition, no confirm)', () => {
+    // Cast an out-of-union status so primaryKind() is null and onPrimary early-returns.
+    fixture.componentRef.setInput('course', { ...COURSE_DRAFT_BASE, status: 'WEIRD' as never });
+    fixture.detectChanges();
+    let confirmed = false;
+    fixture.componentInstance.requestConfirm.subscribe(() => { confirmed = true; });
+    (fixture.componentInstance as unknown as { onPrimary: () => void }).onPrimary();
+    expect(confirmed).toBe(false);
+    expect(coursesSvc.publishCourse).not.toHaveBeenCalled();
+    expect(coursesSvc.restoreCourse).not.toHaveBeenCalled();
+  });
+
+  it('primaryKind/primaryLabel are null/"" for an unknown status', () => {
+    fixture.componentRef.setInput('course', { ...COURSE_DRAFT_BASE, status: 'WEIRD' as never });
+    fixture.detectChanges();
+    const internal = fixture.componentInstance as unknown as {
+      primaryKind: () => string | null;
+      primaryLabel: () => string;
+      canArchive: () => boolean;
+    };
+    expect(internal.primaryKind()).toBeNull();
+    expect(internal.primaryLabel()).toBe('');
+    expect(internal.canArchive()).toBe(false);
+    // the primary button renders with an empty label for an unknown status
+    const primary = fixture.nativeElement.querySelector('[data-testid="publish-bar-primary"]');
+    expect(primary?.textContent?.trim()).toBe('');
+    // and the archive button is hidden (canArchive false)
+    expect(fixture.nativeElement.querySelector('[data-testid="publish-bar-archive"]')).toBeNull();
+  });
+
+  it('clicking Publish does NOT restore, and restore path is gated on the restore kind', async () => {
+    // DRAFT → publish branch only (kind === 'publish' true; kind === 'restore' false)
+    fixture.componentRef.setInput('course', COURSE_DRAFT_BASE);
+    publishSvc.setEligibility({ eligible: true, reasons: [] });
+    coursesSvc.publishCourse.mockResolvedValue({ ...COURSE_DRAFT_BASE, status: 'PUBLISHED' });
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('[data-testid="publish-bar-primary"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(coursesSvc.publishCourse).toHaveBeenCalledTimes(1);
+    expect(coursesSvc.restoreCourse).not.toHaveBeenCalled();
+  });
+
+  it('runConfirmedTransition unpublish does NOT archive and vice-versa', async () => {
+    fixture.componentRef.setInput('course', { ...COURSE_DRAFT_BASE, status: 'PUBLISHED' });
+    coursesSvc.unpublishCourse.mockResolvedValue({ ...COURSE_DRAFT_BASE, status: 'DRAFT' });
+    fixture.detectChanges();
+    fixture.componentInstance.runConfirmedTransition('unpublish');
+    await fixture.whenStable();
+    expect(coursesSvc.unpublishCourse).toHaveBeenCalledTimes(1);
+    expect(coursesSvc.archiveCourse).not.toHaveBeenCalled();
+  });
+
+  it('clears a stale error and resets inFlight via the finally block on each transition', async () => {
+    fixture.componentRef.setInput('course', { ...COURSE_DRAFT_BASE, status: 'PUBLISHED' });
+    coursesSvc.unpublishCourse.mockRejectedValue(new Error('boom'));
+    fixture.detectChanges();
+    fixture.componentInstance.runConfirmedTransition('unpublish');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.banner')?.textContent).toContain('Something went wrong');
+    // a subsequent successful archive clears the banner (genericError.set(null)) and inFlight resets
+    coursesSvc.archiveCourse.mockResolvedValue({ ...COURSE_DRAFT_BASE, status: 'ARCHIVED' });
+    fixture.componentInstance.runConfirmedTransition('archive');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.banner')).toBeNull();
   });
 });

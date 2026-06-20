@@ -25,6 +25,7 @@ export class CourseAnalyticsPageComponent {
   private readonly paramMap = toSignal(this.route.paramMap);
   readonly cid = computed(() => this.paramMap()?.get('id') ?? '');
 
+  // Stryker disable next-line StringLiteral: equivalent — the constructor calls load() which synchronously runs state.set('loading') before any observer reads the initial value.
   readonly state = signal<State>('loading');
   readonly view = signal<CourseAnalyticsView | null>(null);
 

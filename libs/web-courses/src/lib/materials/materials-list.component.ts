@@ -34,7 +34,9 @@ export class MaterialsListComponent {
   readonly moduleId = input.required<ModuleId>();
   readonly lessonId = input.required<LessonId>();
 
+  // Stryker disable next-line ArrayDeclaration: equivalent — the constructor effect subscribes to listMaterials synchronously and overwrites materials before any observer reads the initial value.
   readonly materials = signal<Material[]>([]);
+  // Stryker disable next-line BooleanLiteral: equivalent — the constructor effect sets loadError (false on success / true on error) synchronously before any observer reads the initial value.
   readonly loadError = signal(false);
   readonly editingId = signal<MaterialId | null>(null);
   readonly draftName = signal('');

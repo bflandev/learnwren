@@ -69,6 +69,7 @@ interface EditorInternals {
   onVideoStateChanged(state: VideoState): void;
   onJumpToModule(id: string): void;
   onJumpToLesson(id: string): void;
+  onCoverChanged(e: { coverImageUrl: string | undefined; updatedAt: string }): void;
   publishBar?: CoursePublishBarComponent;
 }
 
@@ -701,6 +702,26 @@ describe('CourseEditorPageComponent', () => {
       expect(fixture.componentInstance.notice()).toContain('Notified 5 students');
     });
 
+    it('uses the singular "student" when exactly one is notified', async () => {
+      notifications.notifyModule.mockResolvedValue({ notifiedCount: 1 });
+      const fixture = await initEditor();
+      const pending = fixture.componentInstance.onNotifyModule('mid-1');
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+      expect(fixture.componentInstance.notice()).toBe('Notified 1 student.');
+    });
+
+    it('uses the plural "students" for zero notified', async () => {
+      notifications.notifyModule.mockResolvedValue({ notifiedCount: 0 });
+      const fixture = await initEditor();
+      const pending = fixture.componentInstance.onNotifyModule('mid-1');
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+      expect(fixture.componentInstance.notice()).toBe('Notified 0 students.');
+    });
+
     it('shows an error when the call fails', async () => {
       notifications.notifyModule.mockRejectedValue(new Error('boom'));
       const fixture = await initEditor();
@@ -708,6 +729,199 @@ describe('CourseEditorPageComponent', () => {
       await fixture.componentInstance.onNotifyModule('mid-1');
 
       expect(fixture.componentInstance.error()).toBeTruthy();
+    });
+  });
+
+  describe('nodes() projection', () => {
+    it('is an empty array before the tree loads', () => {
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+      // tree() is null at this point
+      expect(fixture.componentInstance.nodes()).toEqual([]);
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+    });
+
+    it('maps each tree module to a { module, lessons } node', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+      const nodes = fixture.componentInstance.nodes();
+      expect(nodes.map((n) => n.module.id)).toEqual(['mid-1', 'mid-2']);
+      expect(nodes[0].lessons.map((l) => l.id)).toEqual(['lid-1', 'lid-2']);
+    });
+  });
+
+  describe('refresh guard', () => {
+    it('does NOT issue a GET when there is no course id in the route', () => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [CourseEditorPageComponent],
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([]),
+          { provide: ActivatedRoute, useValue: { paramMap: of(new Map()) } },
+          { provide: NotificationsService, useValue: notifications },
+        ],
+      });
+      const localHttp = TestBed.inject(HttpTestingController);
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+      localHttp.expectNone(() => true); // empty cid → refresh returns early, no request
+    });
+  });
+
+  describe('onCoverChanged', () => {
+    it('updates the course cover + updatedAt in the tree', async () => {
+      const fixture = await initEditor();
+      internals(fixture.componentInstance).onCoverChanged({
+        coverImageUrl: 'https://cdn/cover.jpg',
+        updatedAt: '2026-06-01T00:00:00.000Z',
+      });
+      const course = fixture.componentInstance.tree()?.course;
+      expect(course?.coverImageUrl).toBe('https://cdn/cover.jpg');
+      expect(course?.updatedAt).toBe('2026-06-01T00:00:00.000Z');
+      // unrelated fields preserved
+      expect(course?.title).toBe('T');
+    });
+
+    it('is a no-op when there is no tree loaded', () => {
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+      // tree() null — must not throw and must leave tree null
+      internals(fixture.componentInstance).onCoverChanged({
+        coverImageUrl: 'x',
+        updatedAt: '2026-06-01T00:00:00.000Z',
+      });
+      expect(fixture.componentInstance.tree()).toBeNull();
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+    });
+  });
+
+  describe('onCourseUpdated guard', () => {
+    it('does nothing when the tree has not loaded yet', () => {
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+      internals(fixture.componentInstance).onCourseUpdated({
+        ...(buildTree() as { course: Course }).course,
+        title: 'X',
+      });
+      expect(fixture.componentInstance.tree()).toBeNull();
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+    });
+  });
+
+  describe('add-module form lifecycle', () => {
+    it('starts collapsed with an empty title', async () => {
+      const fixture = await initEditor();
+      expect(fixture.componentInstance.addingModule()).toBe(false);
+      expect(fixture.componentInstance.newModuleTitle()).toBe('');
+    });
+
+    it('startAddModule opens the form with a cleared title', async () => {
+      const fixture = await initEditor();
+      fixture.componentInstance.newModuleTitle.set('stale');
+      fixture.componentInstance.startAddModule();
+      expect(fixture.componentInstance.addingModule()).toBe(true);
+      expect(fixture.componentInstance.newModuleTitle()).toBe('');
+    });
+
+    it('cancelAddModule closes the form and clears the typed title', async () => {
+      const fixture = await initEditor();
+      fixture.componentInstance.startAddModule();
+      fixture.componentInstance.newModuleTitle.set('typed something');
+      fixture.componentInstance.cancelAddModule();
+      expect(fixture.componentInstance.addingModule()).toBe(false);
+      expect(fixture.componentInstance.newModuleTitle()).toBe('');
+    });
+  });
+
+  describe('reorder projection details', () => {
+    it('onReorderModules reorders modules by the given id order (optimistic)', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+      const pending = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
+      // optimistic local order is applied immediately
+      expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual([
+        'mid-2',
+        'mid-1',
+      ]);
+      // lessons of the moved modules are carried along
+      const reordered = fixture.componentInstance.tree()?.modules;
+      expect(reordered?.[1].lessons.map((l) => l.id)).toEqual(['lid-1', 'lid-2']);
+      http.expectOne('/api/courses/cid-1/modules/order').flush([]);
+      await pending;
+    });
+
+    it('onReorderModules drops ids that are not present in the tree', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+      const pending = fixture.componentInstance.onReorderModules(['mid-2', 'ghost', 'mid-1']);
+      // 'ghost' has no matching module and is filtered out
+      expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual([
+        'mid-2',
+        'mid-1',
+      ]);
+      http.expectOne('/api/courses/cid-1/modules/order').flush([]);
+      await pending;
+    });
+
+    it('onReorderLessons leaves OTHER modules (and their lessons) untouched and drops unknown lesson ids', async () => {
+      // mid-2 has its OWN lessons so an over-eager projection that reorders ALL
+      // modules with mid-1's lessonIds would wipe mid-2's lessons to [].
+      const treeBothPopulated = {
+        course: (buildTreeWithLessons() as { course: unknown }).course,
+        modules: [
+          (buildTreeWithLessons() as { modules: unknown[] }).modules[0],
+          {
+            module: { id: 'mid-2', courseId: 'cid-1', title: 'M2', order: 1, createdAt: TS, updatedAt: TS },
+            lessons: [
+              { id: 'lid-9', moduleId: 'mid-2', title: 'L9', order: 0, createdAt: TS, updatedAt: TS },
+            ],
+          },
+        ],
+      };
+      const fixture = await initEditor(treeBothPopulated);
+      const pending = fixture.componentInstance.onReorderLessons({
+        moduleId: 'mid-1',
+        lessonIds: ['lid-2', 'ghost', 'lid-1'],
+      });
+      const modules = fixture.componentInstance.tree()?.modules;
+      // target module reordered, ghost filtered out
+      expect(modules?.[0].lessons.map((l) => l.id)).toEqual(['lid-2', 'lid-1']);
+      // the OTHER module is returned untouched — its own lesson survives intact
+      expect(modules?.[1].module.id).toBe('mid-2');
+      expect(modules?.[1].lessons.map((l) => l.id)).toEqual(['lid-9']);
+      http.expectOne('/api/courses/cid-1/modules/mid-1/lessons/order').flush([]);
+      await pending;
+    });
+
+    it('onReorderModules is a no-op (no PUT) when the tree has not loaded', () => {
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+      // snapshot is null → runOptimisticReorder returns early
+      void fixture.componentInstance.onReorderModules(['mid-1']);
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      http.expectNone('/api/courses/cid-1/modules/order');
+    });
+  });
+
+  describe('confirm delegation guards', () => {
+    it('onConfirmClosed does not throw delegating a publish transition when no publish bar exists', async () => {
+      // Build without resolving the tree so the publish bar (rendered only when a
+      // course exists) is absent, exercising the optional chain publishBar?.…
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+      http.expectOne('/api/courses/cid-1').flush({}, { status: 500, statusText: 'Server Error' });
+      await fixture.whenStable();
+      internals(fixture.componentInstance).requestPublishConfirm('unpublish');
+      await expect(fixture.componentInstance.onConfirmClosed(true)).resolves.toBeUndefined();
+    });
+  });
+
+  it('requestDeleteLesson stores a deleteLesson pending confirmation with the ids', async () => {
+    const fixture = await initEditor(buildTreeWithLessons());
+    fixture.componentInstance.requestDeleteLesson({ moduleId: 'mid-1', lessonId: 'lid-1' });
+    expect(fixture.componentInstance.pendingConfirm()).toEqual({
+      kind: 'deleteLesson',
+      moduleId: 'mid-1',
+      lessonId: 'lid-1',
     });
   });
 });

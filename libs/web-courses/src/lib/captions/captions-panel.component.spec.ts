@@ -91,4 +91,94 @@ describe('CaptionsPanelComponent', () => {
     await fixture.componentInstance.onRemove();
     expect(emitted).toEqual([null]);
   });
+
+  it('starts not busy with no error', () => {
+    expect(fixture.componentInstance.busy()).toBe(false);
+    expect(fixture.componentInstance.error()).toBeNull();
+  });
+
+  it('emits metaChange(null) when ngOnInit getMeta rejects (non-fatal)', async () => {
+    svc.getMeta.mockRejectedValue(new Error('network'));
+    const emitted: Array<VideoCaptionsMeta | null> = [];
+    fixture.componentInstance.metaChange.subscribe((v) => emitted.push(v));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(emitted).toEqual([null]);
+    expect(fixture.componentInstance.meta()).toBeNull();
+  });
+
+  it('sets busy true during an upload and clears it in the finally block', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    let resolve!: (m: VideoCaptionsMeta) => void;
+    svc.upload.mockReturnValue(new Promise<VideoCaptionsMeta>((r) => { resolve = r; }));
+    const p = fixture.componentInstance.onFileChosen(new File(['WEBVTT'], 'c.vtt', { type: 'text/vtt' }));
+    expect(fixture.componentInstance.busy()).toBe(true);
+    resolve({ language: 'en', label: 'English', updatedAt: 'now' });
+    await p;
+    expect(fixture.componentInstance.busy()).toBe(false);
+  });
+
+  it('shows the exact upload-failure message and clears busy on upload error', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    svc.upload.mockRejectedValue(new Error('boom'));
+    await fixture.componentInstance.onFileChosen(new File(['WEBVTT'], 'c.vtt', { type: 'text/vtt' }));
+    expect(fixture.componentInstance.error()).toBe('Upload failed. Try again.');
+    expect(fixture.componentInstance.busy()).toBe(false);
+  });
+
+  it('sets busy true during a remove and clears it in the finally block', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    let resolve!: () => void;
+    svc.remove.mockReturnValue(new Promise<void>((r) => { resolve = r; }));
+    const p = fixture.componentInstance.onRemove();
+    expect(fixture.componentInstance.busy()).toBe(true);
+    resolve();
+    await p;
+    expect(fixture.componentInstance.busy()).toBe(false);
+  });
+
+  it('shows the exact remove-failure message and clears busy on remove error', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    svc.remove.mockRejectedValue(new Error('boom'));
+    await fixture.componentInstance.onRemove();
+    expect(fixture.componentInstance.error()).toBe('Remove failed. Try again.');
+    expect(fixture.componentInstance.busy()).toBe(false);
+  });
+
+  it('onInputChange uploads the chosen file and resets the input value', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const file = new File(['WEBVTT'], 'c.vtt', { type: 'text/vtt' });
+    const input = { files: [file] as unknown as FileList, value: 'c.vtt' };
+    fixture.componentInstance.onInputChange({ target: input } as unknown as Event);
+    await fixture.whenStable();
+    expect(svc.upload).toHaveBeenCalledTimes(1);
+    expect(input.value).toBe('');
+  });
+
+  it('onInputChange does nothing (no upload) when no file is selected, but still resets the value', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    svc.upload.mockClear();
+    const input = { files: [] as unknown as FileList, value: '' };
+    fixture.componentInstance.onInputChange({ target: input } as unknown as Event);
+    await fixture.whenStable();
+    expect(svc.upload).not.toHaveBeenCalled();
+    expect(input.value).toBe('');
+  });
+
+  it('onInputChange handles a null FileList gracefully (no upload, value reset)', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    svc.upload.mockClear();
+    const input = { files: null, value: 'stale' };
+    fixture.componentInstance.onInputChange({ target: input } as unknown as Event);
+    await fixture.whenStable();
+    expect(svc.upload).not.toHaveBeenCalled();
+    expect(input.value).toBe('');
+  });
 });

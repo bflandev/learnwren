@@ -16,6 +16,7 @@ import { CoursesService } from '../courses.service';
 export class CoursesListPageComponent {
   private readonly service = inject(CoursesService);
   readonly courses = signal<Course[] | null>(null);
+  // Stryker disable next-line BooleanLiteral: equivalent — the constructor calls refresh() which synchronously runs error.set(false) before any observer can read the initial value.
   readonly error = signal<boolean>(false);
   readonly coverToneForId = coverToneForId;
 

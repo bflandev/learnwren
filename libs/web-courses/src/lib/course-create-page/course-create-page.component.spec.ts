@@ -27,6 +27,20 @@ describe('CourseCreatePageComponent', () => {
     expect(submit.disabled).toBe(true);
   });
 
+  it('initializes every control with an empty-string default value', () => {
+    const fixture = TestBed.createComponent(CourseCreatePageComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.form.getRawValue()).toEqual({
+      title: '',
+      description: '',
+      longDescription: '',
+      category: '',
+      difficulty: '',
+    });
+    // empty required fields ⇒ the form is invalid out of the box
+    expect(fixture.componentInstance.form.invalid).toBe(true);
+  });
+
   it('POSTs to /api/courses on submit and navigates to /courses/:id/edit', async () => {
     const router = TestBed.inject(Router);
     const navSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
@@ -185,6 +199,46 @@ describe('CourseCreatePageComponent', () => {
     await cmp.submit();
     fixture.detectChanges();
     expect(cmp.genericError()).toBe('Failed to create course.');
+  });
+
+  it('ignores a non-HTTP error body and never reads its .error.message', async () => {
+    const service = TestBed.inject(CoursesService);
+    // A plain object whose `.error` IS a CoursesApiErrorBody. If the early
+    // `instanceof` return is skipped (mutant), handleSubmitError would read
+    // body.error.message and surface 'leaked-from-body'. The guard must prevent that.
+    vi.spyOn(service, 'createCourse').mockRejectedValue({
+      error: { error: { code: 'SOMETHING', message: 'leaked-from-body' } },
+    });
+
+    const fixture = TestBed.createComponent(CourseCreatePageComponent);
+    fixture.detectChanges();
+    const cmp = fixture.componentInstance;
+    cmp.form.controls.title.setValue('T');
+    cmp.form.controls.description.setValue('D');
+
+    await cmp.submit();
+    expect(cmp.genericError()).toBe('Failed to create course.');
+  });
+
+  it('uses the default message when an HTTP error body has no error field at all', async () => {
+    const fixture = TestBed.createComponent(CourseCreatePageComponent);
+    fixture.detectChanges();
+    const cmp = fixture.componentInstance;
+    cmp.form.controls.title.setValue('T');
+    cmp.form.controls.description.setValue('D');
+    fixture.detectChanges();
+
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('[data-testid="submit"]')!
+      .click();
+
+    // body present ({}) but body.error is undefined — the ?. chain must guard it.
+    const req = http.expectOne('/api/courses');
+    req.flush({}, { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(cmp.genericError()).toBe('Failed to create course.');
+    expect(cmp.fieldErrors()).toEqual({});
   });
 
   describe('form validators', () => {
