@@ -51,6 +51,7 @@ export class CatalogPageComponent {
   }
 
   private async load(params: ParamMap): Promise<void> {
+    // Stryker disable next-line UpdateOperator: ++/-- both yield unique monotonic tokens; only consumer is the !== staleness check — equivalent
     const token = ++this.loadToken;
     const category = (params.get('category') as CourseCategory | null) ?? undefined;
     const difficulty = (params.get('difficulty') as CourseDifficulty | null) ?? undefined;

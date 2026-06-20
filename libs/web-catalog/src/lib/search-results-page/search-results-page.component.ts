@@ -39,6 +39,7 @@ export class SearchResultsPageComponent {
   }
 
   private async load(params: ParamMap): Promise<void> {
+    // Stryker disable next-line UpdateOperator: ++/-- both yield unique monotonic tokens; only consumer is the !== staleness check — equivalent
     const token = ++this.loadToken;
     const q = (params.get('q') ?? '').trim();
     if (!q) {

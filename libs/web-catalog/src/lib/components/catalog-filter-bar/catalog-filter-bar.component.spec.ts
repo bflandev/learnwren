@@ -8,6 +8,12 @@ describe('CatalogFilterBarComponent', () => {
     TestBed.configureTestingModule({ imports: [CatalogFilterBarComponent] });
   });
 
+  it('defaults the sort input to NEWEST', () => {
+    const fixture = TestBed.createComponent(CatalogFilterBarComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.sort()).toBe('NEWEST');
+  });
+
   it('emits a category change when the category select changes', () => {
     const fixture = TestBed.createComponent(CatalogFilterBarComponent);
     fixture.detectChanges();
