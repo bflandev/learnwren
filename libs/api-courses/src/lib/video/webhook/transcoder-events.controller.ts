@@ -14,6 +14,7 @@ import { PubSubPushGuard } from './pubsub-push.guard';
 @UseFilters(VideoExceptionFilter)
 @UseGuards(PubSubPushGuard)
 export class TranscoderEventsController {
+  // Stryker disable next-line StringLiteral: Logger category label — log-only, no observable behavior
   private readonly logger = new Logger('TranscoderEventsController');
 
   constructor(
@@ -27,6 +28,7 @@ export class TranscoderEventsController {
     try {
       event = await this.transcoder.parseEvent(body);
     } catch (err) {
+      // Stryker disable next-line StringLiteral: diagnostic log message — observable ack body asserted separately
       this.logger.error(`Discarding malformed event: ${(err as Error).message}`);
       res.status(200).json({ acked: true, reason: 'MALFORMED' });
       return;
@@ -39,10 +41,12 @@ export class TranscoderEventsController {
         return;
       }
       this.logger.log(
+        // Stryker disable next-line StringLiteral: diagnostic log message — observable ack body (200 + {acked,reason}) asserted separately
         `No-op for videoId=${event.videoId} jobName=${event.jobName}: ${outcome.reason}`,
       );
       res.status(200).json({ acked: true, reason: outcome.reason });
     } catch (err) {
+      // Stryker disable next-line StringLiteral: diagnostic log message — observable 500 status asserted separately
       this.logger.error(`Transient failure: ${(err as Error).message}`);
       res.status(500).send();
     }

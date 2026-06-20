@@ -24,6 +24,7 @@ export class AnalyticsController {
   @UseGuards(CourseOwnerGuard)
   getAnalytics(@Req() req: CourseScopedRequest): Promise<CourseAnalyticsView> {
     if (!req.course) {
+      // Stryker disable next-line StringLiteral: guard-invariant message; unreachable when CourseOwnerGuard runs (the test asserts a rejection, not this exact text)
       return Promise.reject(new Error('AnalyticsController: CourseOwnerGuard did not attach course'));
     }
     return this.service.getAnalytics(req.course);

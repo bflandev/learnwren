@@ -259,6 +259,37 @@ describe('VideoService.completeUpload — slice A (guard tests)', () => {
       UploadObjectMissingException,
     );
     expect(repo.releaseUploadCompletionClaim).toHaveBeenCalledWith('v1');
+    // headObject must receive the exact {bucket, path} from the video source;
+    // an emptied object literal would HEAD the wrong (undefined) location.
+    expect(storage.headObject).toHaveBeenCalledWith({
+      bucket: 'src-bucket',
+      path: 'videos/v1/source.mp4',
+    });
+  });
+
+  it('claims with a staleBefore exactly CLAIM_TTL_MS (10 min) before now', async () => {
+    // Pins CLAIM_TTL_MS = 10 * 60_000: staleBefore must be now − 600000 ms.
+    // The `*`→`/` mutant would make the window ~0.000167 ms, so a crashed
+    // claim seconds old would no longer be re-claimable. Assert the gap.
+    const repo = makeRepo();
+    const storage = makeStorage();
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo());
+    storage.headObject.mockResolvedValue(null); // bail right after the claim
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(
+      UploadObjectMissingException,
+    );
+    const [, nowArg, staleArg] = repo.claimUploadCompletion.mock.calls[0]! as [
+      string,
+      string,
+      string,
+    ];
+    expect(Date.parse(nowArg) - Date.parse(staleArg)).toBe(10 * 60_000);
   });
 
   it('throws UPLOAD_OBJECT_SIZE_MISMATCH and deletes object when over tolerance and releases the claim', async () => {
@@ -400,6 +431,99 @@ describe('VideoService.delete', () => {
     );
     await expect(svc.delete('v1' as VideoId)).rejects.toBeInstanceOf(VideoNotFoundException);
     expect(repo.deleteVideoAndDetach).not.toHaveBeenCalled();
+  });
+
+  it('allows deleting an UPLOADED video (DELETABLE_STATES membership)', async () => {
+    // Pins the 'UPLOADED' literal in DELETABLE_STATES: blanking it would make
+    // .has('UPLOADED') false and reject the delete with InvalidVideoState.
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = makeTranscoder();
+    repo.getVideo.mockResolvedValue(baseVideo({ state: 'UPLOADED' }));
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      transcoder as never,
+    );
+    await expect(svc.delete('v1' as VideoId)).resolves.toBeUndefined();
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
+    // Not TRANSCODING → no job to cancel (also pins the L329 whole-condition
+    // guard: forcing it true would call cancelJob on a non-TRANSCODING video).
+    expect(transcoder.cancelJob).not.toHaveBeenCalled();
+  });
+
+  it('allows deleting a FAILED video (DELETABLE_STATES membership)', async () => {
+    // Pins the 'FAILED' literal in DELETABLE_STATES.
+    const repo = makeRepo();
+    const storage = makeStorage();
+    repo.getVideo.mockResolvedValue(baseVideo({ state: 'FAILED' }));
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    await expect(svc.delete('v1' as VideoId)).resolves.toBeUndefined();
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
+  });
+});
+
+describe('VideoService.tearDownVideoSideEffects — cancelJob failure logging', () => {
+  it('delete() logs a warning when cancelJob fails (logCancelFailures: true)', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = makeTranscoder();
+    repo.getVideo.mockResolvedValue(
+      baseVideo({ state: 'TRANSCODING', transcoderJobName: 'jobs/abc' }),
+    );
+    transcoder.cancelJob.mockRejectedValue(new Error('cancel boom'));
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      transcoder as never,
+    );
+    const warn = vi.spyOn(
+      (svc as unknown as { logger: { warn: (m: string) => void } }).logger,
+      'warn',
+    );
+
+    await svc.delete('v1' as VideoId);
+
+    // logCancelFailures:true means the failed cancel MUST be logged. Emptying
+    // the opts object (→ undefined) or flipping the boolean to false would
+    // suppress this warning.
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toMatch(/cancelJob failed for jobs\/abc/);
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
+  });
+
+  it('deleteForLesson() does NOT log when cancelJob fails (logCancelFailures: false)', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = makeTranscoder();
+    repo.getVideoByLesson.mockResolvedValue(
+      baseVideo({ state: 'TRANSCODING', transcoderJobName: 'jobs/xyz' }),
+    );
+    transcoder.cancelJob.mockRejectedValue(new Error('cancel boom'));
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      transcoder as never,
+    );
+    const warn = vi.spyOn(
+      (svc as unknown as { logger: { warn: (m: string) => void } }).logger,
+      'warn',
+    );
+
+    await svc.deleteForLesson('l1' as LessonId);
+
+    // logCancelFailures:false → the cascade swallows the cancel failure
+    // silently. Flipping the boolean to true would emit a warning here.
+    expect(warn).not.toHaveBeenCalled();
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
   });
 });
 
@@ -571,15 +695,40 @@ describe('VideoService.completeUpload — slice B', () => {
   });
 
   it('ffprobe failure → markFailedFromSubmission with SOURCE_PROBE_FAILED', async () => {
-    const { svc, repo, transcoder } = makeServiceWithTranscoder({
+    const { svc, repo, storage, transcoder } = makeServiceWithTranscoder({
       probeThrows: new Error('bad source'),
     });
     const video = await svc.completeUpload('v1' as VideoId);
     expect(video.state).toBe('FAILED');
     expect(transcoder.submitJob).not.toHaveBeenCalled();
+    // The probe error message must be carried into the reason — this pins the
+    // `{ ok: false, error: message }` object (an emptied literal would drop
+    // `error`, yielding "SOURCE_PROBE_FAILED: undefined").
     expect(repo.markFailedFromSubmission).toHaveBeenCalledWith(
-      expect.objectContaining({ failureReason: expect.stringMatching(/SOURCE_PROBE_FAILED/) }),
+      expect.objectContaining({
+        failureReason: 'SOURCE_PROBE_FAILED: bad source',
+      }),
     );
+    // probeSource must be called with the exact {bucket, path} from the source;
+    // an emptied object literal would probe the wrong (undefined) location.
+    expect(storage.probeSource).toHaveBeenCalledWith({
+      bucket: 'src-bucket',
+      path: 'videos/v1/source.mp4',
+    });
+  });
+
+  it('caps the failure reason at 500 characters', async () => {
+    // Pins `.slice(0, 500)`: a 1000-char probe error must be truncated to a
+    // 500-char stored reason. Dropping the slice would persist the full string.
+    const longDetail = 'x'.repeat(1000);
+    const { svc, repo } = makeServiceWithTranscoder({
+      probeThrows: new Error(longDetail),
+    });
+    await svc.completeUpload('v1' as VideoId);
+    const reason = (repo.markFailedFromSubmission.mock.calls[0]![0] as { failureReason: string })
+      .failureReason;
+    expect(reason).toHaveLength(500);
+    expect(reason.startsWith('SOURCE_PROBE_FAILED: ')).toBe(true);
   });
 
   it('retries submitJob up to 3 times before failing', async () => {
@@ -618,6 +767,10 @@ describe('VideoService.completeUpload — slice B', () => {
         outputUriPrefix: 'gs://out-bucket/videos/v1/hls/',
         encryptionKey: expect.objectContaining({ bytes: expect.any(Uint8Array) }),
         sourceHeight: 720,
+        // cfg has no transcoderTopic (fake mode), so `cfg.transcoderTopic ?? ''`
+        // must resolve to the empty string. The `??`→`&&` mutant yields
+        // undefined; the ''→'Stryker was here!' mutant yields the marker.
+        topic: '',
       }),
     );
   });
@@ -845,6 +998,27 @@ describe('VideoService.delete — slice B state widening', () => {
     expect(transcoder.cancelJob).not.toHaveBeenCalled();
   });
 
+  it('non-TRANSCODING video with a stale transcoderJobName does NOT cancel (kills the `state === TRANSCODING` -> true operand mutant)', async () => {
+    // UPLOADED is deletable; it carries a leftover transcoderJobName. The
+    // `v.state === 'TRANSCODING'` operand must gate the cancel: forcing it true
+    // would make `true && jobName` enter the block and call cancelJob.
+    const { svc, transcoder } = build('UPLOADED', { transcoderJobName: 'jobs/stale' });
+    await svc.delete('v1' as VideoId);
+    expect(transcoder.cancelJob).not.toHaveBeenCalled();
+  });
+
+  it('non-READY video with an output.bucket does NOT delete the prefix (kills the `state === READY` -> true operand mutant)', async () => {
+    // UPLOADED with a populated output block. The `v.state === 'READY'` operand
+    // must gate the prefix delete: forcing it true would call deletePrefix.
+    const { svc, storage } = build('UPLOADED', {
+      output: { bucket: 'out', manifestPath: 'videos/v1/hls/manifest.m3u8', durationSec: 60 },
+    });
+    await svc.delete('v1' as VideoId);
+    expect(
+      (storage as unknown as { deletePrefix: ReturnType<typeof vi.fn> }).deletePrefix,
+    ).not.toHaveBeenCalled();
+  });
+
   it('TRANSCODING: cancelJob failure is swallowed and cleanup proceeds', async () => {
     const { svc, transcoder, repo } = build('TRANSCODING', { transcoderJobName: 'jobs/abc' });
     transcoder.cancelJob.mockRejectedValue(new Error('boom'));
@@ -867,5 +1041,15 @@ describe('VideoService.delete — slice B state widening', () => {
   it('rejects unknown post-slice-B states', async () => {
     const { svc } = build('UPLOADING' as Video['state']);
     await expect(svc.delete('v1' as VideoId)).rejects.toBeInstanceOf(InvalidVideoStateException);
+  });
+
+  it('READY video with no output: skips deletePrefix without throwing', async () => {
+    // Pins `v.output?.bucket` optional chaining (and the `&&` short-circuit):
+    // a READY video missing its output block must NOT touch deletePrefix and
+    // must not throw. Removing the `?.` would dereference undefined and crash.
+    const { svc, storage, repo } = build('READY', { output: undefined });
+    await expect(svc.delete('v1' as VideoId)).resolves.toBeUndefined();
+    expect((storage as unknown as { deletePrefix: ReturnType<typeof vi.fn> }).deletePrefix).not.toHaveBeenCalled();
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
   });
 });

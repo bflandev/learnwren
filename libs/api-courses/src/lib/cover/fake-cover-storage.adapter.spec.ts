@@ -36,4 +36,15 @@ describe('FakeCoverStorageAdapter', () => {
     await fake.deleteObject({ path: 'p' });
     expect(fake.has('p')).toBe(false);
   });
+
+  it('clear() empties every stored blob', async () => {
+    const fake = new FakeCoverStorageAdapter({ bucket: 'b' });
+    await fake.putObject({ path: 'a', contentType: 'image/jpeg', body: Buffer.from('1') });
+    await fake.putObject({ path: 'b', contentType: 'image/jpeg', body: Buffer.from('2') });
+    expect(fake.has('a')).toBe(true);
+    expect(fake.has('b')).toBe(true);
+    fake.clear();
+    expect(fake.has('a')).toBe(false);
+    expect(fake.has('b')).toBe(false);
+  });
 });

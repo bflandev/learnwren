@@ -50,15 +50,16 @@ const readyVideo: Video = {
 };
 
 describe('EnrollmentOrOwnerGuard', () => {
-  it('throws VIDEO_NOT_FOUND when :vid is missing from params', async () => {
-    const guard = new EnrollmentOrOwnerGuard(
-      makeRepo(null),
-      makeEnrollment(false),
-      makeCourses('PUBLISHED'),
-    );
+  it('throws VIDEO_NOT_FOUND when :vid is missing from params (without hitting the repo)', async () => {
+    // Defends the `if (!vid)` guard: with vid absent the original short-circuits
+    // BEFORE calling getVideo. A ConditionalExpression mutant that drops the
+    // check would proceed and call getVideo(undefined).
+    const repo = makeRepo(readyVideo);
+    const guard = new EnrollmentOrOwnerGuard(repo, makeEnrollment(false), makeCourses('PUBLISHED'));
     await expect(
       guard.canActivate(ctxFor({ params: {}, user: { uid: 'u1' } })),
     ).rejects.toBeInstanceOf(VideoNotFoundException);
+    expect(repo.getVideo).not.toHaveBeenCalled();
   });
 
   it('throws VIDEO_NOT_FOUND when the video does not exist', async () => {
@@ -138,6 +139,19 @@ describe('EnrollmentOrOwnerGuard', () => {
       makeRepo(readyVideo),
       makeEnrollment(true),
       makeCourses('ARCHIVED'),
+    );
+    await expect(
+      guard.canActivate(ctxFor({ params: { vid: 'v1' }, user: { uid: 'u2' } })),
+    ).rejects.toBeInstanceOf(NotVideoOwnerException);
+  });
+
+  it('throws NOT_VIDEO_OWNER for an enrolled non-owner when the course no longer exists (null)', async () => {
+    // Defends `course?.status`: a null course must safely fall through to
+    // NotVideoOwnerException; removing `?.` would throw a TypeError instead.
+    const guard = new EnrollmentOrOwnerGuard(
+      makeRepo(readyVideo),
+      makeEnrollment(true),
+      makeCourses(null),
     );
     await expect(
       guard.canActivate(ctxFor({ params: { vid: 'v1' }, user: { uid: 'u2' } })),

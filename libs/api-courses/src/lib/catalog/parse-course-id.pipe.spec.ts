@@ -35,4 +35,19 @@ describe('ParseCourseIdPipe', () => {
     expect(() => pipe.transform('foo.bar', meta)).toThrow(CourseNotFoundException);
     expect(() => pipe.transform('foo$', meta)).toThrow(CourseNotFoundException);
   });
+
+  it('rejects non-string inputs (kills the `typeof value !== string` left operand)', () => {
+    // Drives the first operand of the `||` to TRUE on its own. A regex-only
+    // check would call PATTERN.test(123) (coerced to "123", which passes) and
+    // wrongly accept it.
+    expect(() => pipe.transform(123 as never, meta)).toThrow(CourseNotFoundException);
+    expect(() => pipe.transform(null as never, meta)).toThrow(CourseNotFoundException);
+    expect(() => pipe.transform(undefined as never, meta)).toThrow(CourseNotFoundException);
+  });
+
+  it('accepts a valid id without throwing (kills the condition -> true mutant)', () => {
+    // Forcing the whole guard condition to `true` would reject this valid id;
+    // forcing it to `false` is killed by the rejection tests above.
+    expect(pipe.transform('valid-Course_01', meta)).toBe('valid-Course_01');
+  });
 });

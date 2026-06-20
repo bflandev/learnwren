@@ -76,4 +76,22 @@ describe('EnrollmentService.getEnrollmentStatus', () => {
     const view = await service.getEnrollmentStatus(UID, CID);
     expect(view).toEqual({ enrollment: null, isOwner: false });
   });
+
+  it('does not throw when getCourse genuinely returns null (kills `course?.instructorId` optional chain)', async () => {
+    // The `make` helper coalesces a null course back to publishedCourse, so it
+    // can't exercise the null branch. Build the mocks directly with a real null
+    // course: `course?.instructorId` must short-circuit to undefined (isOwner
+    // false). The non-optional `course.instructorId` mutant would throw.
+    const courses = {
+      getCourse: vi.fn().mockResolvedValue(null),
+    } as unknown as CoursesRepository;
+    const enrollments = {
+      getEnrollment: vi.fn().mockResolvedValue(null),
+    } as unknown as EnrollmentRepository;
+    const service = new EnrollmentService(enrollments, courses);
+
+    const view = await service.getEnrollmentStatus(UID, CID);
+
+    expect(view).toEqual({ enrollment: null, isOwner: false });
+  });
 });

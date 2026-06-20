@@ -100,7 +100,7 @@ interface QuerySpec {
   /** Collection path, or the collection-group id when `group` is true. */
   path: string;
   group: boolean;
-  filters: { field: string; value: unknown }[];
+  filters: { field: string; op: string; value: unknown }[];
   order: { field: string; dir: 'asc' | 'desc' }[];
   limit?: number;
 }
@@ -168,6 +168,12 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
       if (matchesSource) hits.push({ path, data });
     }
     for (const filter of spec.filters) {
+      // Honor the comparison operator so a mutated/blanked op (e.g. '==' -> '')
+      // is observable: only the supported '==' operator matches.
+      if (filter.op !== '==') {
+        hits = [];
+        break;
+      }
       hits = hits.filter((hit) => hit.data[filter.field] === filter.value);
     }
     // Apply orderBy clauses right-to-left so the first clause is the primary key.
@@ -194,8 +200,8 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
 
   function makeQuery(spec: QuerySpec): FakeQuery {
     return {
-      where: (field, _op, value) =>
-        makeQuery({ ...spec, filters: [...spec.filters, { field, value }] }),
+      where: (field, op, value) =>
+        makeQuery({ ...spec, filters: [...spec.filters, { field, op, value }] }),
       orderBy: (field, dir = 'asc') =>
         makeQuery({ ...spec, order: [...spec.order, { field, dir }] }),
       limit: (n) => makeQuery({ ...spec, limit: n }),

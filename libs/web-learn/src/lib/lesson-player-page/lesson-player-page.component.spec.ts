@@ -1295,6 +1295,815 @@ describe('LessonPlayerPageComponent captionsTrack computed', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Mutation-hardening blocks. Each test below pins an exact survivor identified
+// by Stryker. createNoInit() lets us read signal INITIAL values before ngOnInit
+// (detectChanges) overwrites them in load()/applyRouteParams.
+// ---------------------------------------------------------------------------
+
+function createNoInit(): ComponentFixture<LessonPlayerPageComponent> {
+  // No detectChanges() → ngOnInit has not run yet → initial signal values intact.
+  return TestBed.createComponent(LessonPlayerPageComponent);
+}
+
+/** Controllable matchMedia capturing its query arg + the registered 'change' handler. */
+function withControllableMatchMedia(matches: boolean): {
+  restore: () => void;
+  queries: string[];
+  addEventArgs: Array<[string, (e: MediaQueryListEvent) => void]>;
+  removeEventArgs: Array<[string, (e: MediaQueryListEvent) => void]>;
+  fireChange: (m: boolean) => void;
+} {
+  const queries: string[] = [];
+  const addEventArgs: Array<[string, (e: MediaQueryListEvent) => void]> = [];
+  const removeEventArgs: Array<[string, (e: MediaQueryListEvent) => void]> = [];
+  let changeHandler: ((e: MediaQueryListEvent) => void) | null = null;
+  const mql = {
+    matches,
+    media: '(min-width: 1024px)',
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn((evt: string, h: (e: MediaQueryListEvent) => void) => {
+      addEventArgs.push([evt, h]);
+      if (evt === 'change') changeHandler = h;
+    }),
+    removeEventListener: vi.fn((evt: string, h: (e: MediaQueryListEvent) => void) => {
+      removeEventArgs.push([evt, h]);
+    }),
+    dispatchEvent: vi.fn(),
+  };
+  const prev = window.matchMedia;
+  window.matchMedia = vi.fn((q: string) => {
+    queries.push(q);
+    return mql;
+  }) as unknown as typeof window.matchMedia;
+  return {
+    restore: () => { window.matchMedia = prev; },
+    queries,
+    addEventArgs,
+    removeEventArgs,
+    fireChange: (m: boolean) => changeHandler?.({ matches: m } as MediaQueryListEvent),
+  };
+}
+
+describe('LessonPlayerPageComponent mutation hardening', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('state() initial value is exactly "LOADING" before ngOnInit runs (kills L63 StringLiteral)', () => {
+    configure();
+    const fixture = createNoInit();
+    expect(fixture.componentInstance.state()).toBe('LOADING');
+  });
+
+  it('markBusy() initial value is false before ngOnInit (kills L73 BooleanLiteral)', () => {
+    configure();
+    const fixture = createNoInit();
+    expect(fixture.componentInstance.markBusy()).toBe(false);
+  });
+
+  it('completedAt() is null (not a throw) when view has progress:null (kills L67 OptionalChaining)', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, null));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    // progress is null: `view()?.progress?.completedAt` short-circuits to null.
+    // The mutant `view()?.progress.completedAt` would throw on null.progress.
+    expect(fixture.componentInstance.completedAt()).toBeNull();
+  });
+
+  it('lastWatchedSeconds() is 0 (not a throw) when view has progress:null (kills L70 OptionalChaining)', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, null));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.lastWatchedSeconds()).toBe(0);
+  });
+
+  it('rowState() returns exactly {status:"idle"} for an unknown id (kills L79 ObjectLiteral + StringLiteral)', () => {
+    configure();
+    const { fixture } = create();
+    expect(fixture.componentInstance.rowState('nope' as MaterialId)).toEqual({ status: 'idle' });
+  });
+
+  it('captionsTrack() is null (not a throw) when view() is null (kills L86 OptionalChaining)', () => {
+    configure();
+    const fixture = createNoInit();
+    expect(fixture.componentInstance.view()).toBeNull();
+    expect(fixture.componentInstance.captionsTrack()).toBeNull();
+  });
+
+  describe('responsive matchMedia wiring', () => {
+    it('queries window.matchMedia with the exact "(min-width: 1024px)" string (kills L96 StringLiteral arg)', () => {
+      const mm = withControllableMatchMedia(false);
+      try {
+        configure();
+        createNoInit();
+        expect(mm.queries).toContain('(min-width: 1024px)');
+      } finally {
+        mm.restore();
+      }
+    });
+
+    it('isDesktop drives outlineMode="sidebar" and outlineOpen=true when matchMedia matches:true (kills isDesktop/outlineOpen init mutants)', () => {
+      const mm = withControllableMatchMedia(true);
+      try {
+        configure();
+        const fixture = createNoInit();
+        expect(fixture.componentInstance.outlineMode()).toBe('sidebar');
+        expect(fixture.componentInstance.outlineOpen()).toBe(true);
+      } finally {
+        mm.restore();
+      }
+    });
+
+    it('outlineMode="drawer" and outlineOpen=false when matchMedia matches:false', () => {
+      const mm = withControllableMatchMedia(false);
+      try {
+        configure();
+        const fixture = createNoInit();
+        expect(fixture.componentInstance.outlineMode()).toBe('drawer');
+        expect(fixture.componentInstance.outlineOpen()).toBe(false);
+      } finally {
+        mm.restore();
+      }
+    });
+
+    it('ngOnInit registers the "change" listener on the media query (kills L129 StringLiteral + OptionalChaining)', () => {
+      const mm = withControllableMatchMedia(false);
+      try {
+        configure();
+        create(); // runs ngOnInit
+        const changeReg = mm.addEventArgs.find((a) => a[0] === 'change');
+        expect(changeReg).toBeDefined();
+      } finally {
+        mm.restore();
+      }
+    });
+
+    it('the registered change handler flips isDesktop → outlineMode reactively (kills onDesktopChange + isDesktop.set)', () => {
+      const mm = withControllableMatchMedia(false);
+      try {
+        configure();
+        const { fixture } = create();
+        expect(fixture.componentInstance.outlineMode()).toBe('drawer');
+        mm.fireChange(true);
+        expect(fixture.componentInstance.outlineMode()).toBe('sidebar');
+        mm.fireChange(false);
+        expect(fixture.componentInstance.outlineMode()).toBe('drawer');
+      } finally {
+        mm.restore();
+      }
+    });
+
+    it('ngOnDestroy removes the "change" listener from the media query (kills L169 StringLiteral + OptionalChaining)', () => {
+      const mm = withControllableMatchMedia(false);
+      try {
+        configure();
+        const { fixture } = create();
+        fixture.componentInstance.ngOnDestroy();
+        const changeRemove = mm.removeEventArgs.find((a) => a[0] === 'change');
+        expect(changeRemove).toBeDefined();
+      } finally {
+        mm.restore();
+      }
+    });
+  });
+
+  describe('event-listener registration exact names', () => {
+    it('ngOnInit adds "pagehide" on window and "visibilitychange" on document with the SAME handler used by removeEventListener', () => {
+      const winAdd = vi.spyOn(window, 'addEventListener');
+      const docAdd = vi.spyOn(document, 'addEventListener');
+      const winRemove = vi.spyOn(window, 'removeEventListener');
+      const docRemove = vi.spyOn(document, 'removeEventListener');
+      configure();
+      const { fixture } = create();
+      const pagehideAdd = winAdd.mock.calls.find((c) => c[0] === 'pagehide');
+      const visAdd = docAdd.mock.calls.find((c) => c[0] === 'visibilitychange');
+      expect(pagehideAdd).toBeDefined();
+      expect(visAdd).toBeDefined();
+      fixture.componentInstance.ngOnDestroy();
+      const pagehideRemove = winRemove.mock.calls.find((c) => c[0] === 'pagehide');
+      const visRemove = docRemove.mock.calls.find((c) => c[0] === 'visibilitychange');
+      expect(pagehideRemove).toBeDefined();
+      expect(visRemove).toBeDefined();
+      // Same handler reference added and removed (kills handler-swap mutants).
+      expect(pagehideRemove?.[1]).toBe(pagehideAdd?.[1]);
+      expect(visRemove?.[1]).toBe(visAdd?.[1]);
+    });
+
+    it('the registered pagehide handler invokes saver.flushBeacon (kills onPageHide OptionalChaining)', () => {
+      const winAdd = vi.spyOn(window, 'addEventListener');
+      configure();
+      const { fixture } = create();
+      const handler = winAdd.mock.calls.find((c) => c[0] === 'pagehide')?.[1] as () => void;
+      expect(handler).toBeDefined();
+      const flushBeacon = vi.fn();
+      (fixture.componentInstance as unknown as { saver: { flushBeacon: () => void; stop: () => void } | null }).saver = {
+        flushBeacon, stop: () => undefined,
+      };
+      handler();
+      expect(flushBeacon).toHaveBeenCalledTimes(1);
+    });
+
+    it('the registered visibilitychange handler invokes saver.flushBeacon only when hidden (kills L117 guards + onVisibilityChange OptionalChaining)', () => {
+      const docAdd = vi.spyOn(document, 'addEventListener');
+      configure();
+      const { fixture } = create();
+      const handler = docAdd.mock.calls.find((c) => c[0] === 'visibilitychange')?.[1] as () => void;
+      expect(handler).toBeDefined();
+      const flushBeacon = vi.fn();
+      (fixture.componentInstance as unknown as { saver: { flushBeacon: () => void; stop: () => void } | null }).saver = {
+        flushBeacon, stop: () => undefined,
+      };
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      handler();
+      expect(flushBeacon).not.toHaveBeenCalled();
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      handler();
+      expect(flushBeacon).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('applyRouteParams dedup guard (L148)', () => {
+    it('does NOT refetch when the same courseId+lessonId is pushed and a view is loaded', async () => {
+      const subject = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // Push the identical param map again — dedup short-circuit means no 2nd request.
+      subject.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-1' }));
+      await fixture.whenStable();
+      http.expectNone('/api/learn/courses/c-1/lessons/l-1');
+    });
+
+    it('DOES refetch when only the lessonId differs (proves the equality guard is per-field)', async () => {
+      const subject = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      subject.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-9' }));
+      await fixture.whenStable();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-9').flush(makeView({ id: 'l-9' as LessonId }));
+      await fixture.whenStable();
+    });
+
+    it('DOES refetch when only the courseId differs (kills L148 first equality clause)', async () => {
+      const subject = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // Same lessonId, DIFFERENT courseId, view already loaded. The first clause
+      // `courseId === this.courseId` must be false → dedup must NOT short-circuit.
+      subject.next(convertToParamMap({ courseId: 'c-2', lessonId: 'l-1' }));
+      await fixture.whenStable();
+      http.expectOne('/api/learn/courses/c-2/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+    });
+
+    it('refetches the same lessonId when no view is loaded yet (view()===null branch is required)', async () => {
+      // First load FAILS (no view set), then the same params arrive again — the
+      // `&& this.view() !== null` clause means dedup must NOT short-circuit.
+      const subject = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush('boom', { status: 500, statusText: 'Server Error' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.view()).toBeNull();
+
+      subject.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-1' }));
+      await fixture.whenStable();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+    });
+  });
+
+  describe('load() token + state strings', () => {
+    it('sets state to exactly "PROCESSING" when the video is not READY (kills L186 StringLiteral)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({ videoState: 'TRANSCODING' }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.state()).toBe('PROCESSING');
+    });
+
+    it('sets state to exactly "READY" when the video is READY', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.state()).toBe('READY');
+    });
+
+    it('a stale SUCCESS response (resolves last) does not overwrite the view (kills L175 UpdateOperator + L179 token guard)', async () => {
+      const subject = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+      const { fixture, http } = create();
+      const reqA = http.expectOne('/api/learn/courses/c-1/lessons/l-1');
+      subject.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-2' }));
+      const reqB = http.expectOne('/api/learn/courses/c-1/lessons/l-2');
+      reqB.flush(makeView({ id: 'l-2' as LessonId, title: 'Lesson B' }));
+      await fixture.whenStable();
+      reqA.flush(makeView({ id: 'l-1' as LessonId, title: 'Lesson A' }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.view()?.lesson.title).toBe('Lesson B');
+      expect(fixture.componentInstance.state()).toBe('READY');
+    });
+
+    it('a non-HttpErrorResponse rejection carrying status:403 still maps to LOAD_ERROR (kills L190 instanceof guard)', async () => {
+      // The catch-block `err instanceof HttpErrorResponse` guard mutated to
+      // `true` would read `.status` off a plain object and mis-route a non-HTTP
+      // error with a `status:403` field to NOT_ENROLLED. The original ignores it
+      // (not an HttpErrorResponse) → LOAD_ERROR.
+      configure();
+      const { fixture } = create();
+      const learn = (fixture.componentInstance as unknown as { learn: { getLessonView: (...a: unknown[]) => Promise<unknown> } }).learn;
+      vi.spyOn(learn, 'getLessonView').mockRejectedValue({ status: 403, message: 'plain' });
+      fixture.componentInstance.retry();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.state()).toBe('LOAD_ERROR');
+    });
+
+    it('onMetadata with no duration arg reads playerRef.playerEl.nativeElement.duration (kills L229 OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 30 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const seekTo = vi.fn();
+      (fixture.componentInstance as unknown as { playerRef: unknown }).playerRef = {
+        seekTo,
+        currentTime: () => 0,
+        playerEl: { nativeElement: { duration: 100 } },
+      };
+      // No duration arg → d is read from playerRef.playerEl.nativeElement.duration (100).
+      // saved=30, d=100 → seek to 30. The OptionalChaining mutants on the
+      // playerRef chain would yield d=0 → no seek.
+      fixture.componentInstance.onMetadata();
+      expect(seekTo).toHaveBeenCalledWith(30);
+    });
+
+    it('onMetadata with no duration and NO playerRef returns cleanly (kills L229 outer OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 30 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const seek = vi.spyOn(fixture.componentInstance, 'seekVideoTo').mockImplementation(() => undefined);
+      (fixture.componentInstance as unknown as { playerRef: unknown }).playerRef = undefined;
+      // d = duration(undefined) ?? playerRef?.… ?? 0 = 0 → no seek. The mutant
+      // `this.playerRef.playerEl` throws on undefined.
+      expect(() => fixture.componentInstance.onMetadata()).not.toThrow();
+      expect(seek).not.toHaveBeenCalled();
+    });
+
+    it('onMetadata with no duration and a playerRef lacking playerEl returns cleanly (kills L229 inner OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 30 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const seek = vi.spyOn(fixture.componentInstance, 'seekVideoTo').mockImplementation(() => undefined);
+      // playerRef present but no playerEl → `playerRef?.playerEl?.nativeElement`
+      // short-circuits to undefined → d=0. The mutant `playerEl.nativeElement`
+      // throws on undefined.playerEl.
+      (fixture.componentInstance as unknown as { playerRef: unknown }).playerRef = { seekTo: vi.fn() };
+      expect(() => fixture.componentInstance.onMetadata()).not.toThrow();
+      expect(seek).not.toHaveBeenCalled();
+    });
+
+    it('a stale ERROR response (resolves last) does not overwrite a good view (kills L189 token guard)', async () => {
+      const subject = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+      const { fixture, http } = create();
+      const reqA = http.expectOne('/api/learn/courses/c-1/lessons/l-1');
+      subject.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-2' }));
+      const reqB = http.expectOne('/api/learn/courses/c-1/lessons/l-2');
+      // Newer (B) succeeds first.
+      reqB.flush(makeView({ id: 'l-2' as LessonId, title: 'Lesson B' }));
+      await fixture.whenStable();
+      // Stale (A) then errors — must be ignored, view + state stay B/READY.
+      reqA.flush('boom', { status: 500, statusText: 'Server Error' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.view()?.lesson.title).toBe('Lesson B');
+      expect(fixture.componentInstance.state()).toBe('READY');
+    });
+  });
+
+  describe('onLessonSelected warning string (L216)', () => {
+    it('logs exactly the expected warning text when flush rejects', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
+        flush: vi.fn().mockRejectedValue(new Error('network')),
+        stop: () => undefined,
+      };
+      await fixture.componentInstance.onLessonSelected('lnext' as LessonId);
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[learn] flushPosition rejected during outline nav',
+        expect.anything(),
+      );
+    });
+  });
+
+  describe('onMetadata seek math (L232, real seekVideoTo via playerRef)', () => {
+    function withFakePlayer(fixture: ComponentFixture<LessonPlayerPageComponent>): {
+      seekTo: ReturnType<typeof vi.fn>; currentTime: ReturnType<typeof vi.fn>;
+    } {
+      const seekTo = vi.fn();
+      const currentTime = vi.fn(() => 0);
+      (fixture.componentInstance as unknown as { playerRef: unknown }).playerRef = {
+        seekTo,
+        currentTime,
+        playerEl: { nativeElement: { duration: 0 } },
+      };
+      return { seekTo, currentTime };
+    }
+
+    it('seekVideoTo calls playerRef.seekTo with the computed seconds (kills L262 OptionalChaining + L261 BlockStatement)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 30 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const { seekTo } = withFakePlayer(fixture);
+      fixture.componentInstance.onMetadata(60);
+      expect(seekTo).toHaveBeenCalledWith(30);
+    });
+
+    it('saved === duration seeks to 0; saved just above duration also seeks to 0 (kills L232 EqualityOperator saved>=d)', async () => {
+      // saved === d : `>=` true → seek 0. The `>` mutant would make this FALSE
+      // and fall through to Math.min(saved, d-5) = d-5, a different seek.
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 60 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const seek = vi.spyOn(fixture.componentInstance, 'seekVideoTo').mockImplementation(() => undefined);
+      fixture.componentInstance.onMetadata(60); // saved === d
+      expect(seek).toHaveBeenCalledWith(0);
+    });
+  });
+
+  describe('onPlayed start() arrow + currentTime (L242)', () => {
+    it('passes a getTime callback that reads playerRef.currentTime() to saver.start (kills L242 ArrowFunction/Logical/OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const start = vi.fn();
+      (fixture.componentInstance as unknown as { saver: { start: (cb: () => number) => void; stop: () => void } | null }).saver = {
+        start, stop: () => undefined,
+      };
+      const currentTime = vi.fn(() => 42);
+      (fixture.componentInstance as unknown as { playerRef: unknown }).playerRef = { currentTime };
+      fixture.componentInstance.onPlayed();
+      expect(start).toHaveBeenCalledTimes(1);
+      const cb = start.mock.calls[0][0] as () => number;
+      // The arrow must invoke currentTime() and return its value (kills the
+      // ArrowFunction `() => undefined` mutant and the `?? 0` LogicalOperator).
+      expect(cb()).toBe(42);
+      expect(currentTime).toHaveBeenCalled();
+    });
+
+    it('the getTime callback returns 0 when playerRef is absent (kills L242 ?? 0)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const start = vi.fn();
+      (fixture.componentInstance as unknown as { saver: { start: (cb: () => number) => void; stop: () => void } | null }).saver = {
+        start, stop: () => undefined,
+      };
+      (fixture.componentInstance as unknown as { playerRef: unknown }).playerRef = undefined;
+      fixture.componentInstance.onPlayed();
+      const cb = start.mock.calls[0][0] as () => number;
+      expect(cb()).toBe(0);
+    });
+  });
+
+  describe('saver method calls on the real component (kills L214/L250/L256 OptionalChaining + L242 saver.start)', () => {
+    it('onPlayed actually calls saver.start when not owner-preview', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const start = vi.fn();
+      (fixture.componentInstance as unknown as { saver: { start: () => void; stop: () => void } | null }).saver = {
+        start, stop: () => undefined,
+      };
+      fixture.componentInstance.onPlayed();
+      expect(start).toHaveBeenCalledTimes(1);
+    });
+
+    it('onEnded calls saver.flush', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const flush = vi.fn().mockResolvedValue(undefined);
+      (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
+        flush, stop: () => undefined,
+      };
+      fixture.componentInstance.onEnded();
+      expect(flush).toHaveBeenCalledTimes(1);
+    });
+
+    it('onSaverRevoked calls saver.stop (kills L256 OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const stop = vi.fn();
+      (fixture.componentInstance as unknown as { saver: { stop: () => void } | null }).saver = { stop };
+      fixture.componentInstance.onSaverRevoked();
+      expect(stop).toHaveBeenCalledTimes(1);
+    });
+
+    it('onLessonSelected calls saver.flush before navigating (kills L214 OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      const flush = vi.fn().mockResolvedValue(undefined);
+      (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
+        flush, stop: () => undefined,
+      };
+      await fixture.componentInstance.onLessonSelected('lnext' as LessonId);
+      expect(flush).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('onMarkComplete preserves lastWatchedSeconds via optional chaining (L276)', () => {
+    it('reads v.progress?.lastWatchedSeconds — preserves a non-zero value (kills L276 OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 99 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const p = fixture.componentInstance.onMarkComplete();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1/complete').flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+      await p;
+      expect(fixture.componentInstance.view()?.progress?.lastWatchedSeconds).toBe(99);
+    });
+  });
+
+  describe('onDownloadMaterial state transitions (L290/L294/L298 + setRow object literals)', () => {
+    const oneMaterial: LessonView['materials'] = [
+      { id: 'mat-x' as MaterialId, displayName: 'X.pdf', extension: 'pdf', sizeBytes: 10 },
+    ];
+
+    it('rowState goes idle → preparing → idle on success (kills L290 ObjectLiteral/StringLiteral + L294)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }, [], oneMaterial));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const learn = (fixture.componentInstance as unknown as { learn: { requestDownloadUrl: (id: MaterialId) => Promise<{ downloadUrl: string; expiresAt: ISODateString }> } }).learn;
+      let resolveDl!: (v: { downloadUrl: string; expiresAt: ISODateString }) => void;
+      vi.spyOn(learn, 'requestDownloadUrl').mockReturnValue(
+        new Promise((res) => { resolveDl = res; }),
+      );
+      const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+      expect(fixture.componentInstance.rowState('mat-x' as MaterialId)).toEqual({ status: 'idle' });
+      const p = fixture.componentInstance.onDownloadMaterial('mat-x' as MaterialId);
+      // While the request is in flight the row is exactly {status:'preparing'}.
+      expect(fixture.componentInstance.rowState('mat-x' as MaterialId)).toEqual({ status: 'preparing' });
+      resolveDl({ downloadUrl: 'https://x/sig', expiresAt: '2026-05-26T00:00:00.000Z' as ISODateString });
+      await p;
+      expect(openSpy).toHaveBeenCalledWith('https://x/sig', '_blank', 'noopener');
+      expect(fixture.componentInstance.rowState('mat-x' as MaterialId)).toEqual({ status: 'idle' });
+    });
+
+    it('maps 404→gone, 403→forbidden, 500→other exactly (kills L298 StringLiterals)', async () => {
+      for (const [status, kind] of [[404, 'gone'], [403, 'forbidden'], [500, 'other']] as const) {
+        vi.clearAllMocks();
+        configure();
+        const { fixture, http } = create();
+        http
+          .expectOne('/api/learn/courses/c-1/lessons/l-1')
+          .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }, [], oneMaterial));
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const learn = (fixture.componentInstance as unknown as { learn: { requestDownloadUrl: (id: MaterialId) => Promise<unknown> } }).learn;
+        vi.spyOn(learn, 'requestDownloadUrl').mockRejectedValue(
+          new HttpErrorResponse({ status, statusText: 'err' }),
+        );
+        await fixture.componentInstance.onDownloadMaterial('mat-x' as MaterialId);
+        expect(fixture.componentInstance.rowState('mat-x' as MaterialId)).toEqual({ status: 'error', kind });
+        TestBed.resetTestingModule();
+      }
+    });
+  });
+
+  describe('null-saver optional chaining (no throw)', () => {
+    it('onEnded is a no-op when saver is null (kills L250 OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = null;
+      expect(() => fixture.componentInstance.onEnded()).not.toThrow();
+    });
+
+    it('onSaverRevoked is a no-op (beyond state) when saver is null (kills L256 OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = null;
+      expect(() => fixture.componentInstance.onSaverRevoked()).not.toThrow();
+      expect(fixture.componentInstance.state()).toBe('NOT_ENROLLED');
+    });
+
+    it('onLessonSelected with a null saver navigates WITHOUT logging a warning (kills L214 OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const router = TestBed.inject(Router);
+      const navSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = null;
+      await fixture.componentInstance.onLessonSelected('lnext' as LessonId);
+      expect(navSpy).toHaveBeenCalledWith('/learn/c-1/lnext');
+      // The `?.` short-circuits cleanly. The mutant `this.saver.flush()` would
+      // throw on null → caught by the try/catch → console.warn fires.
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('the visibilitychange handler is a no-op when saver is null and document is hidden (kills L118 OptionalChaining)', () => {
+      const docAdd = vi.spyOn(document, 'addEventListener');
+      configure();
+      const { fixture } = create();
+      const handler = docAdd.mock.calls.find((c) => c[0] === 'visibilitychange')?.[1] as () => void;
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = null;
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      expect(() => handler()).not.toThrow();
+    });
+
+    it('seekVideoTo is a no-op when playerRef is undefined (kills L262 OptionalChaining)', () => {
+      configure();
+      const { fixture } = create();
+      (fixture.componentInstance as unknown as { playerRef: unknown }).playerRef = undefined;
+      expect(() => fixture.componentInstance.seekVideoTo(10)).not.toThrow();
+    });
+
+    it('seekVideoTo calls playerRef.seekTo when present', () => {
+      configure();
+      const { fixture } = create();
+      const seekTo = vi.fn();
+      (fixture.componentInstance as unknown as { playerRef: unknown }).playerRef = { seekTo };
+      fixture.componentInstance.seekVideoTo(10);
+      expect(seekTo).toHaveBeenCalledWith(10);
+    });
+  });
+
+  describe('hasResumed initial false + onPlayed owner-preview early return', () => {
+    it('hasResumed starts false so the first onMetadata seeks (kills L107 BooleanLiteral)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 25 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const seek = vi.spyOn(fixture.componentInstance, 'seekVideoTo').mockImplementation(() => undefined);
+      fixture.componentInstance.onMetadata(60);
+      expect(seek).toHaveBeenCalledWith(25);
+    });
+
+    it('onPlayed returns early in owner-preview and never calls saver.start (kills L240 ConditionalExpression)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, null));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const start = vi.fn();
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = { start, stop: () => undefined };
+      fixture.componentInstance.onPlayed();
+      expect(start).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onMarkComplete with null progress (owner-preview) optional chaining (L276)', () => {
+    it('does not throw and writes lastWatchedSeconds 0 when prior progress is null (kills L276 OptionalChaining)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, null));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      // progress is null: `v.progress?.lastWatchedSeconds ?? 0` → 0. The mutant
+      // `v.progress.lastWatchedSeconds` would throw on null.progress.
+      const p = fixture.componentInstance.onMarkComplete();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1/complete').flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+      await p;
+      expect(fixture.componentInstance.view()?.progress?.lastWatchedSeconds).toBe(0);
+      expect(fixture.componentInstance.markError()).toBeNull();
+    });
+  });
+
+  describe('ensureSaver (L312/L313/L317)', () => {
+    it('creates a saver when none exists and not owner-preview', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = null;
+      fixture.componentInstance.onPlayed(); // calls ensureSaver
+      expect((fixture.componentInstance as unknown as { saver: unknown }).saver).not.toBeNull();
+    });
+
+    it('does NOT create a saver in owner-preview mode (kills L312 LogicalOperator/ConditionalExpression)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, null));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = null;
+      fixture.componentInstance.onPlayed();
+      expect((fixture.componentInstance as unknown as { saver: unknown }).saver).toBeNull();
+    });
+
+    it('does NOT replace an existing saver (kills L312 saver-present guard)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const sentinel = { start: vi.fn(), stop: vi.fn() };
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = sentinel;
+      fixture.componentInstance.onPlayed();
+      expect((fixture.componentInstance as unknown as { saver: unknown }).saver).toBe(sentinel);
+    });
+
+    it('the saver onRevoked wiring drives onSaverRevoked → NOT_ENROLLED (kills L317 ArrowFunction)', async () => {
+      configure();
+      const { fixture, http } = create();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+      await fixture.whenStable();
+      fixture.detectChanges();
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = null;
+      fixture.componentInstance.onPlayed();
+      const saver = (fixture.componentInstance as unknown as { saver: { onRevoked: () => void } }).saver;
+      // Invoke the onRevoked callback captured in the PositionSaver options.
+      (saver as unknown as { onRevoked: () => void }).onRevoked();
+      expect(fixture.componentInstance.state()).toBe('NOT_ENROLLED');
+    });
+  });
+});
+
 describe('formatBytes', () => {
   // Pins every unit threshold, the per-unit divisor + toFixed precision, and the
   // unit suffix strings. Boundary cases sit exactly on each 1024 cutover so the

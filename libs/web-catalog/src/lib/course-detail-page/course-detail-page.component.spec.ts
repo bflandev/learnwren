@@ -3,8 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, type ParamMap } from '@angular/router';
 import { signal } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import { BehaviorSubject, Subject } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { EnrollmentStatusView } from '@learnwren/shared-data-models';
 import { AuthService } from '@learnwren/web-auth';
@@ -294,6 +294,65 @@ describe('CourseDetailPageComponent', () => {
 
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('[data-testid="start-learning"]')).toBeNull();
+  });
+
+  it('does NOT fetch enrollment status for a guest (unauthenticated) user', async () => {
+    // Pins `if (this.auth.currentUser())` in load(). With the guard mutated to
+    // always-true, a guest would still issue the enrollment-status request.
+    const getStatusSpy = vi.fn(() => Promise.resolve({ enrollment: null, isOwner: false }));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [CourseDetailPageComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: new BehaviorSubject<ParamMap>(convertToParamMap({ id: 'c-1' })),
+          },
+        },
+        { provide: AuthService, useValue: { currentUser: signal(null) } },
+        { provide: EnrollmentService, useValue: { getEnrollmentStatus: getStatusSpy } },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    await fixture.whenStable();
+    expect(getStatusSpy).not.toHaveBeenCalled();
+  });
+
+  it('DOES fetch enrollment status for an authenticated user', async () => {
+    // Drives the true side of the same guard so killing it requires BOTH cases.
+    const getStatusSpy = vi.fn(() => Promise.resolve({ enrollment: null, isOwner: false }));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [CourseDetailPageComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: new BehaviorSubject<ParamMap>(convertToParamMap({ id: 'c-1' })),
+          },
+        },
+        { provide: AuthService, useValue: { currentUser: signal({ uid: 'u-1' } as unknown) } },
+        { provide: EnrollmentService, useValue: { getEnrollmentStatus: getStatusSpy } },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    await fixture.whenStable();
+    expect(getStatusSpy).toHaveBeenCalledWith('c-1');
   });
 
   it('hides Start Learning for an authenticated but unenrolled student', async () => {
@@ -628,5 +687,266 @@ describe('CourseDetailPageComponent', () => {
     // after the route change.
     expect(component.enrollmentStatus()).not.toBeNull();
     expect(el.querySelector('[data-testid="start-learning"]')).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Computed-level unit tests
+//
+// These create the component against a route whose paramMap NEVER emits, so
+// load() never runs and the public signals can be driven directly. This pins
+// the pure computeds (coverTone, firstLessonHref, resumeTarget, resumeHref,
+// resumeLabel, showNoLessons) and the onEnrollmentStatusChanged refetch hook,
+// independent of the HTTP/route choreography exercised above.
+// ---------------------------------------------------------------------------
+
+type Course = (typeof COURSE_WITH_LESSONS) & { id: string };
+
+function makeComponent(opts: {
+  enrollmentView?: EnrollmentStatusView;
+  getStatusSpy?: ReturnType<typeof vi.fn>;
+} = {}): CourseDetailPageComponent {
+  const getEnrollmentStatus =
+    opts.getStatusSpy ??
+    vi.fn(() =>
+      opts.enrollmentView
+        ? Promise.resolve(opts.enrollmentView)
+        : Promise.reject(new Error('none')),
+    );
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    imports: [CourseDetailPageComponent],
+    providers: [
+      provideRouter([]),
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      // paramMap never emits -> load() is never invoked.
+      { provide: ActivatedRoute, useValue: { paramMap: new Subject<ParamMap>() } },
+      { provide: AuthService, useValue: { currentUser: signal(null) } },
+      { provide: EnrollmentService, useValue: { getEnrollmentStatus } },
+    ],
+  });
+  return TestBed.createComponent(CourseDetailPageComponent).componentInstance;
+}
+
+function activeEnrollment(over: Record<string, unknown> = {}): EnrollmentStatusView {
+  return {
+    enrollment: {
+      id: 'u-1__c-1' as never,
+      userId: 'u-1' as never,
+      courseId: 'c-1' as never,
+      status: 'ACTIVE',
+      progress: [],
+      withdrawnAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z' as never,
+      updatedAt: '2026-01-01T00:00:00.000Z' as never,
+      ...over,
+    },
+    isOwner: false,
+  } as EnrollmentStatusView;
+}
+
+describe('CourseDetailPageComponent computeds', () => {
+  it('initialises notFound and error to false', () => {
+    const c = makeComponent();
+    expect(c.notFound()).toBe(false);
+    expect(c.error()).toBe(false);
+  });
+
+  it('coverTone falls back to "ink" when there is no course', () => {
+    const c = makeComponent();
+    expect(c.course()).toBeNull();
+    expect(c.coverTone()).toBe('ink');
+  });
+
+  it('coverTone derives a non-ink tone from the course id when a course is present', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS } as unknown as Course);
+    // The computed body must actually run coverToneForId — a stubbed-out body
+    // would leave coverTone returning undefined.
+    const tone = c.coverTone();
+    expect(tone).toBeDefined();
+    expect(typeof tone).toBe('string');
+  });
+
+  it('firstLessonHref is null when there is no course', () => {
+    const c = makeComponent();
+    expect(c.firstLessonHref()).toBeNull();
+  });
+
+  it('firstLessonHref is null when the course has no modules', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS, modules: [] } as unknown as Course);
+    expect(c.firstLessonHref()).toBeNull();
+  });
+
+  it('firstLessonHref is null when the modules property is absent (optional-chaining guard)', () => {
+    // `modules` undefined: `c?.modules?.[0]` must short-circuit. Without the
+    // second `?.` the mutant `c?.modules[0]` throws on undefined.
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS, modules: undefined } as unknown as Course);
+    expect(c.firstLessonHref()).toBeNull();
+  });
+
+  it('firstLessonHref is null when the first module has no lessons', () => {
+    const c = makeComponent();
+    c.course.set({
+      ...COURSE_WITH_LESSONS,
+      modules: [{ title: 'M', lessons: [] }],
+    } as unknown as Course);
+    expect(c.firstLessonHref()).toBeNull();
+  });
+
+  it('firstLessonHref is null when the first module lacks a lessons property (optional-chaining guard)', () => {
+    // `lessons` undefined: `firstModule?.lessons?.[0]` must short-circuit.
+    const c = makeComponent();
+    c.course.set({
+      ...COURSE_WITH_LESSONS,
+      modules: [{ title: 'M' }],
+    } as unknown as Course);
+    expect(c.firstLessonHref()).toBeNull();
+  });
+
+  it('firstLessonHref points at the first lesson of the first module', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS } as unknown as Course);
+    expect(c.firstLessonHref()).toEqual(['/learn', 'c-1', 'L_FIRST']);
+  });
+
+  it('resumeTarget is null when there is no enrollment (optional-chaining guard)', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS } as unknown as Course);
+    c.enrollmentStatus.set({ enrollment: null, isOwner: true });
+    expect(c.resumeHref()).toEqual(['/learn', 'c-1', 'L_FIRST']);
+    expect(c.resumeLabel()).toBe('Start Learning');
+  });
+
+  it('resumeTarget is null when the enrollment is not ACTIVE', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS } as unknown as Course);
+    c.enrollmentStatus.set(
+      activeEnrollment({ status: 'WITHDRAWN', lastAccessedLessonId: 'L_SECOND' }),
+    );
+    expect(c.resumeLabel()).toBe('Start Learning');
+    expect(c.resumeHref()).toEqual(['/learn', 'c-1', 'L_FIRST']);
+  });
+
+  it('resumeTarget is null when lastAccessedLessonId is absent', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS } as unknown as Course);
+    c.enrollmentStatus.set(activeEnrollment({ lastAccessedLessonId: null }));
+    expect(c.resumeLabel()).toBe('Start Learning');
+  });
+
+  it('resumeTarget resolves to lastAccessedLessonId when it matches a live lesson', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS } as unknown as Course);
+    c.enrollmentStatus.set(activeEnrollment({ lastAccessedLessonId: 'L_SECOND' }));
+    expect(c.resumeLabel()).toBe('Continue Learning');
+    expect(c.resumeHref()).toEqual(['/learn', 'c-1', 'L_SECOND']);
+  });
+
+  it('resumeTarget is null when lastAccessedLessonId no longer matches any lesson (some over modules+lessons)', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS } as unknown as Course);
+    c.enrollmentStatus.set(activeEnrollment({ lastAccessedLessonId: 'GONE' }));
+    // Every module/lesson is scanned; none match -> fall back to first lesson.
+    expect(c.resumeLabel()).toBe('Start Learning');
+    expect(c.resumeHref()).toEqual(['/learn', 'c-1', 'L_FIRST']);
+  });
+
+  it('resumeHref reads safely when enrollmentStatus is null (optional-chaining guard)', () => {
+    // `this.enrollmentStatus()?.enrollment` with a null status: dropping the
+    // `?.` (mutant `this.enrollmentStatus().enrollment`) throws here. A course
+    // is present so the computed advances to the enrollment read.
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS } as unknown as Course);
+    c.enrollmentStatus.set(null);
+    expect(c.resumeHref()).toEqual(['/learn', 'c-1', 'L_FIRST']);
+    expect(c.resumeLabel()).toBe('Start Learning');
+  });
+
+  it('resumeTarget reads safely when the course has no modules property (optional-chaining guard)', () => {
+    // ACTIVE enrollment + lastAccessedLessonId so the `found` line runs, but
+    // `modules` is undefined: `c.modules?.some(...)` must short-circuit.
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS, modules: undefined } as unknown as Course);
+    c.enrollmentStatus.set(activeEnrollment({ lastAccessedLessonId: 'L_SECOND' }));
+    expect(c.resumeHref()).toBeNull();
+    expect(c.resumeLabel()).toBe('Start Learning');
+  });
+
+  it('resumeTarget reads safely when a module lacks a lessons property (optional-chaining guard)', () => {
+    // `m.lessons?.some(...)` must short-circuit when a module has no lessons.
+    const c = makeComponent();
+    c.course.set({
+      ...COURSE_WITH_LESSONS,
+      modules: [{ title: 'M-empty' }],
+    } as unknown as Course);
+    c.enrollmentStatus.set(activeEnrollment({ lastAccessedLessonId: 'L_SECOND' }));
+    expect(c.resumeHref()).toBeNull();
+    expect(c.resumeLabel()).toBe('Start Learning');
+  });
+
+  it('resumeTarget matches a lesson in a NON-first module (some must scan all modules)', () => {
+    const c = makeComponent();
+    c.course.set({
+      ...COURSE_WITH_LESSONS,
+      modules: [
+        { title: 'M1', lessons: [{ id: 'L_FIRST', title: 'a' }] },
+        { title: 'M2', lessons: [{ id: 'L_DEEP', title: 'b' }] },
+      ],
+    } as unknown as Course);
+    c.enrollmentStatus.set(activeEnrollment({ lastAccessedLessonId: 'L_DEEP' }));
+    // If `.some` were replaced with `.every`, the first module (no L_DEEP) would
+    // short-circuit to false and this would fall back to Start Learning.
+    expect(c.resumeLabel()).toBe('Continue Learning');
+    expect(c.resumeHref()).toEqual(['/learn', 'c-1', 'L_DEEP']);
+  });
+
+  it('showNoLessons is false when there IS a first lesson, regardless of ownership', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS } as unknown as Course);
+    c.enrollmentStatus.set({ enrollment: null, isOwner: true });
+    expect(c.showNoLessons()).toBe(false);
+  });
+
+  it('showNoLessons is true for an owner of a lessonless course', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS, modules: [] } as unknown as Course);
+    c.enrollmentStatus.set({ enrollment: null, isOwner: true });
+    expect(c.showNoLessons()).toBe(true);
+  });
+
+  it('showNoLessons is false for a guest viewing a lessonless course', () => {
+    const c = makeComponent();
+    c.course.set({ ...COURSE_WITH_LESSONS, modules: [] } as unknown as Course);
+    c.enrollmentStatus.set(null);
+    expect(c.showNoLessons()).toBe(false);
+  });
+
+  it('onEnrollmentStatusChanged refetches enrollment status when a course is loaded', async () => {
+    const getStatusSpy = vi.fn(() =>
+      Promise.resolve(activeEnrollment({ lastAccessedLessonId: 'L_SECOND' })),
+    );
+    const c = makeComponent({ getStatusSpy });
+    c.course.set({ ...COURSE_WITH_LESSONS } as unknown as Course);
+
+    await c['onEnrollmentStatusChanged']();
+
+    expect(getStatusSpy).toHaveBeenCalledWith('c-1');
+    expect(c.enrollmentStatus()).not.toBeNull();
+    expect(c.resumeLabel()).toBe('Continue Learning');
+  });
+
+  it('onEnrollmentStatusChanged is a no-op when no course is loaded (id optional-chaining + guard)', async () => {
+    const getStatusSpy = vi.fn(() => Promise.resolve(activeEnrollment()));
+    const c = makeComponent({ getStatusSpy });
+    expect(c.course()).toBeNull();
+
+    await c['onEnrollmentStatusChanged']();
+
+    expect(getStatusSpy).not.toHaveBeenCalled();
+    expect(c.enrollmentStatus()).toBeNull();
   });
 });

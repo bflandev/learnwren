@@ -136,6 +136,16 @@ hls_.m3u8
     );
   });
 
+  it('strips a leading directory from the variant URI before extracting the rendition', () => {
+    // Defends `uri.slice(uri.lastIndexOf('/') + 1)` -> `uri` (MethodExpression
+    // mutant). With only the basename used, `subdir/hls_720p.m3u8` resolves to
+    // the allowed `720p`; the mutant keeps the whole path and yields an
+    // unknown rendition `subdir/hls_720p`.
+    const body = `#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nsubdir/hls_720p.m3u8\n`;
+    const out = rewriteMaster(body, VID);
+    expect(out).toContain(`/api/playback/manifest/${VID}/rendition/720p`);
+  });
+
   it('uses startsWith (not endsWith) when probing the lookahead URI for "#"', () => {
     // Defends `uri.startsWith('#')` -> `uri.endsWith('#')`. A URI like `bad#`
     // ends with '#' but does not start with one — the *startsWith* branch must let
@@ -268,6 +278,53 @@ https://storage.googleapis.com/b/segment_001.ts?signature=xyz
     expect(signed).toContain('init.mp4');
     expect(out).toContain('#EXT-X-MAP:URI="signed://init.mp4"');
     expect(out).not.toContain('#EXT-X-MAP:URI="init.mp4"');
+  });
+
+  it('passes a #EXT-X-MAP line with no URI attribute through unchanged', async () => {
+    // Defends the `if (!match)` conditional+block in rewriteMapDirective: a MAP
+    // line without a URI="" attribute must be emitted verbatim and never signed.
+    const signer = vi.fn(async () => 'NEVER');
+    const body = `#EXTM3U\n#EXT-X-MAP:BYTERANGE="1000@0"\n#EXT-X-ENDLIST\n`;
+    const out = await rewriteRendition(body, VID, signer);
+    expect(out).toContain('#EXT-X-MAP:BYTERANGE="1000@0"');
+    expect(signer).not.toHaveBeenCalled();
+  });
+
+  it('rejects a segment whose extension is not ts/m4s/mp4', async () => {
+    // Defends the SAFE_SEGMENT_NAME extension alternation: a valid-looking name
+    // with a disallowed extension (.txt) must be rejected without signing.
+    const signer = vi.fn(async () => 'X');
+    const body = `#EXTM3U\n#EXTINF:6.000,\nsegment_001.txt\n#EXT-X-ENDLIST\n`;
+    await expect(rewriteRendition(body, VID, signer)).rejects.toThrow(/unsafe segment filename/);
+    expect(signer).not.toHaveBeenCalled();
+  });
+
+  it('accepts m4s and mp4 segment extensions', async () => {
+    const seen: string[] = [];
+    const signer = async (s: string) => {
+      seen.push(s);
+      return `signed://${s}`;
+    };
+    const body = `#EXTM3U\n#EXTINF:6.000,\nseg.m4s\n#EXTINF:6.000,\nseg.mp4\n#EXT-X-ENDLIST\n`;
+    await rewriteRendition(body, VID, signer);
+    expect(seen).toEqual(['seg.m4s', 'seg.mp4']);
+  });
+
+  it('rejects a segment whose valid extension is followed by trailing content (kills the `$` end-anchor mutant)', async () => {
+    // "seg.ts.bin" has a valid ".ts" but more after it. The end-anchor `$` must
+    // reject it; dropping `$` would let the regex match the ".ts" prefix and sign
+    // an attacker-controlled name.
+    const signer = vi.fn(async () => 'X');
+    const body = `#EXTM3U\n#EXTINF:6.000,\nseg.ts.bin\n#EXT-X-ENDLIST\n`;
+    await expect(rewriteRendition(body, VID, signer)).rejects.toThrow(/unsafe segment filename/);
+    expect(signer).not.toHaveBeenCalled();
+  });
+
+  it('rejects a segment name with no extension at all', async () => {
+    const signer = vi.fn(async () => 'X');
+    const body = `#EXTM3U\n#EXTINF:6.000,\nsegment_001\n#EXT-X-ENDLIST\n`;
+    await expect(rewriteRendition(body, VID, signer)).rejects.toThrow(/unsafe segment filename/);
+    expect(signer).not.toHaveBeenCalled();
   });
 
   it('preserves non-URI attributes on #EXT-X-MAP when rewriting', async () => {

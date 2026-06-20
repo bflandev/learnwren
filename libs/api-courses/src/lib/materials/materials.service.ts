@@ -34,6 +34,7 @@ import { UPLOAD_SIZE_TOLERANCE } from '../upload-tolerance';
  *  MIME type is unreliable for Office formats, so the extension is authoritative. */
 function parseExtension(filename: string): SupportedMaterialExtension {
   const dot = filename.lastIndexOf('.');
+  // Stryker disable next-line StringLiteral: equivalent — the no-dot fallback ('') is not a SUPPORTED_MATERIAL_EXTENSIONS member, so it throws UnsupportedMaterialTypeException; any other non-member literal (e.g. "Stryker was here!") throws the identical exception, and `ext` is never observed on this path.
   const ext = dot >= 0 ? filename.slice(dot + 1).toLowerCase() : '';
   if (!(SUPPORTED_MATERIAL_EXTENSIONS as readonly string[]).includes(ext)) {
     throw new UnsupportedMaterialTypeException();

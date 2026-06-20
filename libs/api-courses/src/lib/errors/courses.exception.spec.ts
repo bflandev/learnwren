@@ -121,15 +121,18 @@ describe('Slice C notification exceptions', () => {
     const e = new CourseNotPublishedForNotifyException();
     expect(e.code).toBe('COURSE_NOT_PUBLISHED_FOR_NOTIFY');
     expect(e.status).toBe(409);
+    expect(e.message).toBe('Only a published course can notify its enrolled students.');
   });
   it('ModuleHasNoLessonsException → MODULE_HAS_NO_LESSONS / 409', () => {
     const e = new ModuleHasNoLessonsException();
     expect(e.code).toBe('MODULE_HAS_NO_LESSONS');
     expect(e.status).toBe(409);
+    expect(e.message).toBe('A module must have at least one lesson before students are notified.');
   });
   it('ModuleAlreadyNotifiedException → MODULE_ALREADY_NOTIFIED / 409', () => {
     const e = new ModuleAlreadyNotifiedException();
     expect(e.code).toBe('MODULE_ALREADY_NOTIFIED');
     expect(e.status).toBe(409);
+    expect(e.message).toBe('Students have already been notified about this module.');
   });
 });

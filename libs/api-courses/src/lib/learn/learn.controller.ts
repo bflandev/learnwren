@@ -60,11 +60,13 @@ export class LearnController {
     @Req() req: LessonScopedRequest,
     @Body() body: { seconds?: unknown },
   ): Promise<{ lastWatchedSeconds: number }> {
+    // Stryker disable next-line ConditionalExpression,LogicalOperator: unreachable defensive invariant — LessonEnrollmentGuard (applied via @UseGuards) always attaches req.course, req.lesson and req.user before this handler runs, so the guard never throws and both the false-mutant and the &&-mutant are observationally equivalent.
     if (!req.course || !req.lesson || !req.user) {
       throw new Error('LearnController: guard did not attach course/lesson/user');
     }
     const seconds = body?.seconds;
     if (
+      // Stryker disable next-line ConditionalExpression: equivalent — Number.isFinite returns false for every non-number, so `!Number.isFinite(seconds)` already rejects all non-numbers; the typeof guard never changes whether the throw happens.
       typeof seconds !== 'number' ||
       !Number.isFinite(seconds) ||
       seconds < 0 ||

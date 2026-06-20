@@ -81,6 +81,7 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort {
   }): Promise<MaterialObjectMetadata | null> {
     try {
       const [meta] = await this.fileRef(input).getMetadata();
+      // Stryker disable next-line ConditionalExpression: equivalent — for a numeric meta.size, Number(n) === n, so forcing the string branch (Number(...)) produces the identical value; the two branches are observationally the same for every number input.
       const size = typeof meta.size === 'string' ? Number(meta.size) : (meta.size as number);
       return { size };
     } catch (err) {

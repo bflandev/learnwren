@@ -30,6 +30,26 @@ describe('CatalogService', () => {
     expect(result.page).toBe(2);
   });
 
+  it('GET /api/catalog omits optional params when not provided', async () => {
+    const promise = service.getCatalogue({});
+    const req = http.expectOne((r) => r.url === '/api/catalog');
+    expect(req.request.params.has('page')).toBe(false);
+    expect(req.request.params.has('sort')).toBe(false);
+    expect(req.request.params.has('category')).toBe(false);
+    expect(req.request.params.has('difficulty')).toBe(false);
+    req.flush({ items: [], page: 1, pageSize: 20, total: 0, totalPages: 0 });
+    await promise;
+  });
+
+  it('GET /api/catalog/search omits page when not provided', async () => {
+    const promise = service.search('rust');
+    const req = http.expectOne((r) => r.url === '/api/catalog/search');
+    expect(req.request.params.get('q')).toBe('rust');
+    expect(req.request.params.has('page')).toBe(false);
+    req.flush({ items: [], page: 1, pageSize: 20, total: 0, totalPages: 0 });
+    await promise;
+  });
+
   it('GET /api/catalog/search with the q param', async () => {
     const promise = service.search('rust', 1);
     const req = http.expectOne((r) => r.url === '/api/catalog/search');

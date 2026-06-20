@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   Course,
@@ -329,21 +330,34 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
     expect(touchSpy).not.toHaveBeenCalled();
   });
 
-  it('returns the view even when touchLastAccessed throws (best-effort)', async () => {
-    const touchSpy = vi.fn(async () => { throw new Error('boom'); });
-    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
-    const enrollment = {
-      getEnrollment: vi.fn().mockResolvedValue({
-        id: 's__c', userId: 's', courseId: 'c', status: 'ACTIVE',
-        progress: [],
-        withdrawnAt: null, createdAt: 't', updatedAt: 't',
-      }),
-      touchLastAccessed: touchSpy,
-    } as unknown as EnrollmentRepository;
-    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
-    const view = await service.getLessonView(STUDENT_UID, COURSE, LESSON);
-    expect(view.course.id).toBe(COURSE.id);
-    expect(touchSpy).toHaveBeenCalledTimes(1);
+  it('returns the view even when touchLastAccessed throws, and logs a warning naming the user/course/lesson (kills catch block + log message)', async () => {
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    try {
+      const touchSpy = vi.fn(async () => { throw new Error('boom'); });
+      const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
+      const enrollment = {
+        getEnrollment: vi.fn().mockResolvedValue({
+          id: 's__c', userId: 's', courseId: 'c', status: 'ACTIVE',
+          progress: [],
+          withdrawnAt: null, createdAt: 't', updatedAt: 't',
+        }),
+        touchLastAccessed: touchSpy,
+      } as unknown as EnrollmentRepository;
+      const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
+      const view = await service.getLessonView(STUDENT_UID, COURSE, LESSON);
+      // Did NOT propagate — the view resolved.
+      expect(view.course.id).toBe(COURSE.id);
+      expect(touchSpy).toHaveBeenCalledTimes(1);
+      // The catch block ran and logged a message naming the failure context.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const msg = String(warnSpy.mock.calls[0]![0]);
+      expect(msg).toContain('touchLastAccessed failed');
+      expect(msg).toContain(STUDENT_UID);
+      expect(msg).toContain(COURSE.id);
+      expect(msg).toContain(LESSON.id);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('propagates lastWatchedSeconds from the matching LessonProgress row', async () => {
@@ -409,6 +423,10 @@ describe('LearnService.getLessonView outline (Slice D)', () => {
     expect(view.outline.modules[1]!.lessons[0]!.videoState).toBe('READY');
     expect(view.outline.modules[1]!.lessons[1]!.videoState).toBe('TRANSCODING');
     expect(view.outline.modules[0]!.lessons[0]!.videoState).toBeNull();
+    // listVideoStatesForLessons is fed the FLATTENED lesson ids (kills the
+    // `.map((l) => l.id)` arrow being replaced with a constant). Order across
+    // modules: m2's lessons then m1's (persisted module order).
+    expect(videos.listVideoStatesForLessons).toHaveBeenCalledWith(['l3', 'l1', 'l2']);
   });
 
   it('joins completedAt from the caller enrolment by lessonId', async () => {
@@ -609,4 +627,81 @@ describe('UC-04-02 materials projection', () => {
     const m = view.materials[0]!;
     expect(Object.keys(m).sort()).toEqual(['displayName', 'extension', 'id', 'sizeBytes']);
   });
+});
+
+describe('LearnService.markLessonComplete', () => {
+  it('delegates to enrollment.markLessonComplete with userId/courseId/lessonId/timestamp and returns its result', async () => {
+    const completedAt = '2026-05-25T12:00:00.000Z' as ISODateString;
+    const markSpy = vi.fn(async () => ({ completedAt }));
+    const enrollment = {
+      markLessonComplete: markSpy,
+    } as unknown as EnrollmentRepository;
+    const svc = new LearnService(
+      makeVideoRepo(),
+      enrollment,
+      makeEmptyCoursesRepo(),
+      makeMaterialsService(),
+      makeCaptionsService(),
+    );
+
+    const result = await svc.markLessonComplete(STUDENT_ID, baseCourse, baseLesson);
+
+    expect(result).toEqual({ completedAt });
+    expect(markSpy).toHaveBeenCalledTimes(1);
+    expect(markSpy).toHaveBeenCalledWith(STUDENT_ID, baseCourse.id, baseLesson.id, expect.any(String));
+  });
+});
+
+describe('LearnService.savePosition', () => {
+  it('delegates to enrollment.setLastWatchedSeconds with userId/courseId/lessonId/seconds and returns its result', async () => {
+    const setSpy = vi.fn(async () => ({ lastWatchedSeconds: 42 }));
+    const enrollment = {
+      setLastWatchedSeconds: setSpy,
+    } as unknown as EnrollmentRepository;
+    const svc = new LearnService(
+      makeVideoRepo(),
+      enrollment,
+      makeEmptyCoursesRepo(),
+      makeMaterialsService(),
+      makeCaptionsService(),
+    );
+
+    const result = await svc.savePosition(STUDENT_ID, baseCourse, baseLesson, 42);
+
+    expect(result).toEqual({ lastWatchedSeconds: 42 });
+    expect(setSpy).toHaveBeenCalledTimes(1);
+    expect(setSpy).toHaveBeenCalledWith(STUDENT_ID, baseCourse.id, baseLesson.id, 42);
+  });
+});
+
+describe('LearnService.resolveProgress lessonId matching', () => {
+  it('matches the progress row by lessonId only, ignoring rows for other lessons (kills find→true)', async () => {
+    // Enrolment has a row for a DIFFERENT lesson first (with distinctive values),
+    // then the row for THIS lesson. A find() forced to `true` would return the
+    // first (wrong) row and surface its completedAt/lastWatchedSeconds.
+    const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
+    const enrollment = {
+      getEnrollment: vi.fn().mockResolvedValue({
+        id: 's__c', userId: 's', courseId: 'c', status: 'ACTIVE',
+        progress: [
+          { lessonId: 'other-lesson', completedAt: '2026-01-01T00:00:00.000Z', lastWatchedSeconds: 999 },
+          { lessonId: 'l1', completedAt: null, lastWatchedSeconds: 7 },
+        ],
+        withdrawnAt: null, createdAt: 't', updatedAt: 't',
+      }),
+      touchLastAccessed: vi.fn(async () => undefined),
+    } as unknown as EnrollmentRepository;
+    const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
+    const view = await service.getLessonView(
+      's' as UserId,
+      makeCourse({ instructorId: 'owner-1' as UserId }),
+      makeLesson({ id: 'l1' as LessonId }),
+    );
+    // Must reflect the l1 row (completedAt null, seconds 7) — NOT other-lesson's.
+    expect(view.progress).toEqual({ completedAt: null, lastWatchedSeconds: 7 });
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });

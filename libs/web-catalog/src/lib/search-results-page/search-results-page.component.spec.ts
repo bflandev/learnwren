@@ -1,7 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
+import { Subject } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { SearchResultsPageComponent } from './search-results-page.component';
@@ -125,6 +126,27 @@ describe('SearchResultsPageComponent', () => {
     expect(router.url).toContain('page=2');
   });
 
+  it('exposes the default initial signal values before any query params arrive', () => {
+    // A route whose queryParamMap never emits lets us observe the initial
+    // signal values BEFORE load() overwrites them — pinning signal('') for
+    // query and signal(false) for error.
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [SearchResultsPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { queryParamMap: new Subject() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(SearchResultsPageComponent);
+    const c = fixture.componentInstance;
+    expect(c.query()).toBe('');
+    expect(c.error()).toBe(false);
+    expect(c.result()).toBeNull();
+  });
+
   it('ignores a stale search response that resolves after a newer request', async () => {
     // Race guard: a slow earlier page request must not overwrite the newer one.
     await router.navigate(['/search'], { queryParams: { q: 'rust', page: 1 } });
@@ -148,6 +170,32 @@ describe('SearchResultsPageComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
+    expect(fixture.componentInstance.result()?.page).toBe(2);
+  });
+
+  it('ignores a stale FAILED search response so a superseded error does not surface', async () => {
+    // Race guard on the catch branch: an older request failing after a newer
+    // one succeeded must not flip error to true.
+    await router.navigate(['/search'], { queryParams: { q: 'rust', page: 1 } });
+    const fixture = TestBed.createComponent(SearchResultsPageComponent);
+    fixture.detectChanges();
+    const reqA = http.expectOne(
+      (r) => r.url === '/api/catalog/search' && r.params.get('page') === '1',
+    );
+
+    fixture.componentInstance.goToPage(2);
+    await fixture.whenStable();
+    const reqB = http.expectOne(
+      (r) => r.url === '/api/catalog/search' && r.params.get('page') === '2',
+    );
+
+    reqB.flush({ items: [], page: 2, pageSize: 20, total: 40, totalPages: 2 });
+    await fixture.whenStable();
+    reqA.flush('boom', { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.error()).toBe(false);
     expect(fixture.componentInstance.result()?.page).toBe(2);
   });
 });

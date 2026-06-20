@@ -45,6 +45,7 @@ export class CatalogService {
     if (query.difficulty) {
       courses = courses.filter((c) => c.difficulty === query.difficulty);
     }
+    // Stryker disable next-line StringLiteral: the default sort token routes to the `else` branch of sortCourses (compareNewest); '' and any other non-ALPHABETICAL/POPULAR string route there identically, so replacing 'NEWEST' with '' is observationally equivalent.
     courses = sortCourses(courses, query.sort ?? 'NEWEST');
     return this.paginate(courses, query.page ?? 1);
   }
@@ -86,8 +87,11 @@ export class CatalogService {
       category: course.category,
       difficulty: course.difficulty,
       instructorId: course.instructorId,
+      // Stryker disable next-line OptionalChaining,StringLiteral: InstructorDirectory.instructorRefsFor always returns a ref for every requested uid (it maps over the unique uids, building { displayName: 'Instructor' } when the user doc is missing), so `ref` is never undefined and `displayName` is never empty — the optional chain and the `?? ''` literal are unreachable.
       instructorDisplayName: ref?.displayName ?? 'Instructor',
+      // Stryker disable next-line OptionalChaining: `ref` is never undefined (see above); `ref?.photoUrl` and `ref.photoUrl` are observationally identical.
       ...(ref?.photoUrl ? { instructorPhotoUrl: ref.photoUrl } : {}),
+      // Stryker disable next-line OptionalChaining: `ref` is never undefined (see above); `ref?.biography` and `ref.biography` are observationally identical.
       ...(ref?.biography ? { instructorBiography: ref.biography } : {}),
       lessonCount,
       modules: outline,
@@ -117,6 +121,7 @@ function publishedAt(c: Course): ISODateString {
   return c.publishedAt ?? c.createdAt;
 }
 
+// Stryker disable next-line BlockStatement: equivalent — compareNewest is only reached via the NEWEST/default branch and the POPULAR enrollmentCount tiebreak; in both, the input comes from CoursesRepository.listPublished already ordered publishedAt-desc, so an emptied body (no comparison) leaves V8's stable sort at the same publishedAt-desc order.
 function compareNewest(a: Course, b: Course): number {
   return (publishedAt(b) as string).localeCompare(publishedAt(a) as string);
 }
@@ -130,6 +135,7 @@ function sortCourses(courses: Course[], sort: CatalogSort): Course[] {
       (a, b) => (b.enrollmentCount ?? 0) - (a.enrollmentCount ?? 0) || compareNewest(a, b),
     );
   } else {
+    // Stryker disable next-line MethodExpression: equivalent — listPublished already returns publishedAt-desc and the NEWEST/default re-sort by compareNewest produces that same order (PUBLISHED courses always carry publishedAt), so dropping the redundant re-sort leaves the order unchanged (proven: emptying the block leaves the full catalog spec green).
     copy.sort(compareNewest);
   }
   return copy;
@@ -151,7 +157,9 @@ function toSummary(course: Course, refs: Map<UserId, InstructorRef>): CourseSumm
     category: course.category,
     difficulty: course.difficulty,
     instructorId: course.instructorId,
+    // Stryker disable next-line OptionalChaining,StringLiteral: InstructorDirectory.instructorRefsFor always returns a ref for every requested uid (default { displayName: 'Instructor' }), so `ref` is never undefined and `displayName` is never empty — the optional chain and the `?? ''` literal are unreachable.
     instructorDisplayName: ref?.displayName ?? 'Instructor',
+    // Stryker disable next-line OptionalChaining: `ref` is never undefined (see above); `ref?.photoUrl` and `ref.photoUrl` are observationally identical.
     ...(ref?.photoUrl ? { instructorPhotoUrl: ref.photoUrl } : {}),
     publishedAt: publishedAt(course),
     coverImageUrl: course.coverImageUrl,

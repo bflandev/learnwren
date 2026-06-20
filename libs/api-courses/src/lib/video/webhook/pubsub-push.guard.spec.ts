@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   PubSubInvalidTokenException,
   PubSubWrongAudienceException,
   PubSubWrongInvokerException,
 } from '../errors/video.exception';
-import { PubSubPushGuard } from './pubsub-push.guard';
+import { ID_TOKEN_VERIFIER, PubSubPushGuard } from './pubsub-push.guard';
 
 function ctx(headers: Record<string, string | string[] | undefined>) {
   return {
@@ -186,6 +186,10 @@ describe('PubSubPushGuard', () => {
           iss: 'https://accounts.google.com',
           aud: cfg.audience,
           email: 'someone-else@p.iam.gserviceaccount.com',
+          // email_verified MUST be true here so assertEmailVerified does NOT
+          // throw — that isolates assertInvoker as the sole source of the
+          // rejection (otherwise the email-mismatch throw is masked).
+          email_verified: true,
           exp: Math.floor(Date.now() / 1000) + 60,
         }),
       })),
@@ -232,5 +236,76 @@ describe('PubSubPushGuard', () => {
       code: 'PUBSUB_INVALID_TOKEN',
       message: expect.stringContaining('token expired'),
     });
+  });
+
+  it('rejects when invokerSaEmail config is missing (assertConfigComplete fails loudly)', async () => {
+    // Config missing invokerSaEmail: the guard must throw BEFORE verifying the
+    // token (verifier never called). Kills the `||`/conditional mutants and the
+    // throw block in assertConfigComplete.
+    const verifier = vi.fn();
+    const g = new PubSubPushGuard(
+      { webhookAudience: 'https://aud', invokerSaEmail: '' } as never,
+      { verifyIdToken: verifier } as never,
+    );
+    await expect(
+      g.canActivate(ctx({ authorization: 'Bearer xyz' })),
+    ).rejects.toMatchObject({
+      code: 'PUBSUB_INVALID_TOKEN',
+      message: expect.stringContaining('webhook invoker config missing'),
+    });
+    expect(verifier).not.toHaveBeenCalled();
+  });
+
+  it('rejects when webhookAudience config is missing (assertConfigComplete fails loudly)', async () => {
+    const verifier = vi.fn();
+    const g = new PubSubPushGuard(
+      { webhookAudience: '', invokerSaEmail: 'sa@p.iam.gserviceaccount.com' } as never,
+      { verifyIdToken: verifier } as never,
+    );
+    await expect(
+      g.canActivate(ctx({ authorization: 'Bearer xyz' })),
+    ).rejects.toMatchObject({
+      code: 'PUBSUB_INVALID_TOKEN',
+      message: expect.stringContaining('webhook invoker config missing'),
+    });
+    expect(verifier).not.toHaveBeenCalled();
+  });
+});
+
+describe('PubSubPushGuard — exp boundary (< vs <=)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('accepts a token whose exp*1000 equals exactly now (boundary is exclusive)', async () => {
+    const cfg = { audience: 'https://aud', invokerSaEmail: 'sa@p.iam.gserviceaccount.com' };
+    // Pin the clock to a millisecond divisible by 1000 so exp*1000 === Date.now().
+    const fixedNow = 1_900_000_000_000; // ms, divisible by 1000
+    vi.useFakeTimers();
+    vi.setSystemTime(fixedNow);
+    const exp = fixedNow / 1000; // exp*1000 === Date.now()
+    const g = new PubSubPushGuard(
+      { webhookAudience: cfg.audience, invokerSaEmail: cfg.invokerSaEmail } as never,
+      {
+        verifyIdToken: vi.fn(async () => ({
+          getPayload: () => ({
+            iss: 'https://accounts.google.com',
+            aud: cfg.audience,
+            email: cfg.invokerSaEmail,
+            email_verified: true,
+            exp,
+          }),
+        })),
+      } as never,
+    );
+    // With `<`, exp*1000 < now is FALSE at the boundary → not expired → passes.
+    // A `<=` mutant would make it expired and throw, failing this test.
+    await expect(
+      g.canActivate(ctx({ authorization: 'Bearer xyz' })),
+    ).resolves.toBe(true);
+  });
+});
+
+describe('ID_TOKEN_VERIFIER token', () => {
+  it('has the exact registered key', () => {
+    expect(Symbol.keyFor(ID_TOKEN_VERIFIER)).toBe('learnwren.api-video.idTokenVerifier');
   });
 });

@@ -16,6 +16,20 @@ describe('CourseSearchBarComponent', () => {
     vi.spyOn(TestBed.inject(Router), 'navigate').mockImplementation(navigate);
   });
 
+  it('initialises the query signal to an empty string', () => {
+    const fixture = TestBed.createComponent(CourseSearchBarComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.query()).toBe('');
+  });
+
+  it('navigates to /catalog on submit when the query was never typed', () => {
+    // Pins the empty initial value: a non-empty default would route to /search.
+    const fixture = TestBed.createComponent(CourseSearchBarComponent);
+    fixture.detectChanges();
+    fixture.componentInstance.submit();
+    expect(navigate).toHaveBeenCalledWith(['/catalog']);
+  });
+
   it('navigates to /search with the query on submit', () => {
     const fixture = TestBed.createComponent(CourseSearchBarComponent);
     fixture.detectChanges();

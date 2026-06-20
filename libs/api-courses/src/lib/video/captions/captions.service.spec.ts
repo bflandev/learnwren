@@ -61,6 +61,38 @@ describe('CaptionsService', () => {
     await expect(svc.put(VID, big)).rejects.toBeInstanceOf(CaptionTooLargeException);
   });
 
+  it('accepts a body of exactly 256_000 bytes (boundary is inclusive)', async () => {
+    // Defends the `>` vs `>=` boundary at MAX_CAPTION_BYTES: a body whose length
+    // equals the limit must be ALLOWED. The padding is trailing newlines so the
+    // body stays valid WebVTT.
+    const repo = makeRepo();
+    const svc = new CaptionsService(repo as never);
+    const pad = 256_000 - VALID.length;
+    const exact = Buffer.concat([VALID, Buffer.from('\n'.repeat(pad), 'utf-8')]);
+    expect(exact.length).toBe(256_000);
+    const meta = await svc.put(VID, exact);
+    expect(meta.language).toBe('en');
+    expect(repo.upsertCaptions).toHaveBeenCalledOnce();
+  });
+
+  it('getMeta delegates to the repo and returns its metadata', async () => {
+    const existing = {
+      videoId: VID, language: 'en', label: 'English', format: 'vtt',
+      content: 'WEBVTT\n', createdAt: 'x', updatedAt: '2026-02-02T00:00:00.000Z',
+    } as VideoCaptions;
+    const repo = makeRepo(existing);
+    const svc = new CaptionsService(repo as never);
+    const meta = await svc.getMeta(VID);
+    expect(repo.getCaptionsMeta).toHaveBeenCalledWith(VID);
+    expect(meta).toEqual({ language: 'en', label: 'English', updatedAt: '2026-02-02T00:00:00.000Z' });
+  });
+
+  it('getMeta returns null when no captions exist', async () => {
+    const repo = makeRepo(null);
+    const svc = new CaptionsService(repo as never);
+    expect(await svc.getMeta(VID)).toBeNull();
+  });
+
   it('getForDelivery returns the stored captions', async () => {
     const existing = { videoId: VID, content: 'WEBVTT\n', language: 'en', label: 'English', format: 'vtt', createdAt: 'x', updatedAt: 'x' } as VideoCaptions;
     const svc = new CaptionsService(makeRepo(existing) as never);

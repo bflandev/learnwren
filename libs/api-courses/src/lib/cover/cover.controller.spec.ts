@@ -55,12 +55,28 @@ describe('CoverController', () => {
     );
   });
 
+  it('accepts image/png (ALLOWED_MIME contains both jpeg and png)', async () => {
+    const svc = makeSvc();
+    const ctl = new CoverController(svc as unknown as CoverImageService);
+    await ctl.upload(CID, makeFile('image/png'));
+    expect(svc.uploadCover).toHaveBeenCalledWith(CID, expect.any(Buffer), 'image/png');
+  });
+
   it('throws CoverTooLargeException when file exceeds 10 MB', async () => {
     const svc = makeSvc();
     const ctl = new CoverController(svc as unknown as CoverImageService);
     await expect(ctl.upload(CID, makeFile('image/jpeg', 10_000_001))).rejects.toBeInstanceOf(
       CoverTooLargeException,
     );
+  });
+
+  it('accepts a file at exactly MAX_BYTES (10 MB) — boundary is inclusive, kills > vs >=', async () => {
+    const svc = makeSvc();
+    const ctl = new CoverController(svc as unknown as CoverImageService);
+    // size === 10_000_000 must NOT throw: `file.size > MAX_BYTES` is false at the
+    // boundary. A `>=` mutant would reject this and fail the test.
+    await expect(ctl.upload(CID, makeFile('image/jpeg', 10_000_000))).resolves.toBeDefined();
+    expect(svc.uploadCover).toHaveBeenCalled();
   });
 
   it('throws UnsupportedCoverFormatException when no file is provided', async () => {

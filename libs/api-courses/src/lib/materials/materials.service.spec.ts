@@ -127,6 +127,23 @@ describe('MaterialsService.createUploadUrl', () => {
     ).rejects.toThrow(/Unsupported file type/);
   });
 
+  it('rejects a dot-less filename even when the whole name equals a supported extension', async () => {
+    // Defends `dot >= 0 ? filename.slice(dot + 1)... : ''`. For "pdf" (no dot,
+    // lastIndexOf = -1) the original yields ext='' → rejected. A Conditional
+    // mutant forcing the branch true would slice(0)='pdf' and wrongly accept it.
+    const svc = new MaterialsService(repo as never, fakeStorage().port, cfg);
+    await expect(
+      svc.createUploadUrl({
+        uid: 'u1' as UserId,
+        courseId: 'c1' as CourseId,
+        lessonId: 'l1' as LessonId,
+        filename: 'pdf',
+        sizeBytes: 1,
+      }),
+    ).rejects.toThrow(/Unsupported file type/);
+    expect(repo.store.size).toBe(0);
+  });
+
   it('accepts a leading-dot filename whose extension is supported (e.g. ".pdf")', async () => {
     // ".pdf" → lastIndexOf('.') = 0 → dot >= 0 is true, ext = 'pdf' — accepted.
     // With the mutant `dot > 0` the condition is false, ext = '', rejected.
@@ -147,12 +164,21 @@ describe('MaterialsService.complete', () => {
   it('flips PENDING_UPLOAD → READY and records the actual size', async () => {
     const repo = fakeRepo();
     await repo.create(seedMaterial('m1'));
+    const headArgs: Array<{ bucket: string; path: string }> = [];
     const svc = new MaterialsService(
       repo as never,
-      fakeStorage({ headObject: async () => ({ size: 4096 }) }).port,
+      fakeStorage({
+        headObject: async (i) => {
+          headArgs.push(i);
+          return { size: 4096 };
+        },
+      }).port,
       cfg,
     );
     const r = await svc.complete('m1' as MaterialId);
+    // Defends the headObject({ bucket, path }) object literal: the HEAD must
+    // target the material's exact stored bucket+path.
+    expect(headArgs).toEqual([{ bucket: 'b', path: 'materials/m1/source.pdf' }]);
     expect(r.state).toBe('READY');
     expect(r.sizeBytes).toBe(4096);
     expect(typeof r.updatedAt).toBe('string');

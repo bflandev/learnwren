@@ -8,6 +8,7 @@ import { MaterialException } from './errors/material.exception';
 
 @Catch(MaterialException, CoursesException, AuthException, HttpException)
 export class MaterialsExceptionFilter implements ExceptionFilter {
+  // Stryker disable next-line StringLiteral: the Logger category name is a cosmetic log label with no behavioral effect; nothing observable depends on its exact value.
   private readonly logger = new Logger('MaterialsExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {

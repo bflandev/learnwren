@@ -120,6 +120,11 @@ describe('LessonEnrollmentOrOwnerGuard', () => {
     await expect(guard.canActivate(ctxFor(req))).resolves.toBe(true);
     expect(req['course']).toEqual(publishedCourse);
     expect(req['lesson']).toEqual(testLesson);
+    // extractLessonScope must return BOTH params: getCourse is keyed on the real
+    // cid (kills the `return { cid, lid }` -> `{}` mutant, which would call
+    // getCourse(undefined)), and the lesson lookup is keyed on the real lid.
+    expect(courses.getCourse).toHaveBeenCalledWith(COURSE_ID);
+    expect(courses.getLesson).toHaveBeenCalledWith(COURSE_ID, testModule.id, LESSON_ID);
   });
 
   it('allows the owner of a DRAFT course (owners not status-gated)', async () => {
@@ -146,6 +151,20 @@ describe('LessonEnrollmentOrOwnerGuard', () => {
 
   it('throws LessonNotFoundException when the course is missing', async () => {
     const courses = makeCourses(null, [], null);
+    const guard = new LessonEnrollmentOrOwnerGuard(courses, makeEnrollment(null));
+    await expect(
+      guard.canActivate(
+        ctxFor({ params: { cid: COURSE_ID, lid: LESSON_ID }, user: { uid: INSTRUCTOR_ID } }),
+      ),
+    ).rejects.toBeInstanceOf(LessonNotFoundException);
+  });
+
+  it('throws on a missing course even when a lesson would resolve (kills the !course conditional-false)', async () => {
+    // getCourse returns null but the modules/lesson ARE present, so
+    // findLessonInCourse would succeed. The `if (!course)` guard MUST short-circuit
+    // to 404 first; a mutant that skips it would dereference course.instructorId
+    // (TypeError) instead of throwing LessonNotFoundException.
+    const courses = makeCourses(null, [testModule], testLesson);
     const guard = new LessonEnrollmentOrOwnerGuard(courses, makeEnrollment(null));
     await expect(
       guard.canActivate(

@@ -155,6 +155,32 @@ describe('composeReasons', () => {
     ]);
   });
 
+  it('treats a falsy (empty-string) videoId as no-video even if the state map has an entry for it', () => {
+    // Defends the `if (!lesson.videoId)` conditional+block: with an empty-string
+    // videoId (falsy) the original returns LESSON_HAS_NO_VIDEO BEFORE consulting
+    // the state map. A ConditionalExpression-false / empty-block mutant would
+    // skip the check, look up the '' key, find READY, and wrongly mark eligible.
+    const m = makeModule('m1', 'M1', 0);
+    const l = {
+      id: 'l1' as LessonId,
+      moduleId: 'm1' as ModuleId,
+      title: 'L1',
+      order: 0,
+      videoId: '' as VideoId,
+      createdAt: NOW,
+      updatedAt: NOW,
+    } as Lesson;
+    const r = composeReasons([m], [[l]], new Map([['' as VideoId, 'READY']]));
+    expect(r.eligible).toBe(false);
+    expect(r.reasons).toEqual([
+      {
+        kind: 'LESSON_HAS_NO_VIDEO',
+        moduleId: 'm1', moduleTitle: 'M1', moduleOrder: 0,
+        lessonId: 'l1', lessonTitle: 'L1', lessonOrder: 0,
+      },
+    ]);
+  });
+
   it('emits at most one reason per lesson — orphan takes precedence over not-ready', () => {
     const m = makeModule('m1', 'M1', 0);
     const l = makeLesson('l1', 'L1', 0, 'm1', 'v-orphan');

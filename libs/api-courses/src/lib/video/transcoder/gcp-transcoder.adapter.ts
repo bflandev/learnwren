@@ -48,6 +48,7 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
     const cfg = buildJobConfig(input);
     const sdkConfig = {
       ...cfg,
+      // Stryker disable next-line OptionalChaining: equivalent — buildJobConfig always returns a non-empty `encryptions` array (the `?` in its return type is for the shared shape only), so cfg.encryptions is never nullish here and `?.map` vs `.map` are identical.
       encryptions: cfg.encryptions?.map((e) => ({
         id: e.id,
         aes128: { keyBytes: Buffer.from(input.encryptionKey.bytes) },

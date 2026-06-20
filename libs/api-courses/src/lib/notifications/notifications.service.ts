@@ -22,6 +22,7 @@ interface Recipient {
 
 @Injectable()
 export class NotificationsService {
+  // Stryker disable next-line StringLiteral: the Logger category name is a cosmetic log label with no behavioral effect; nothing observable depends on its exact value.
   private readonly logger = new Logger('NotificationsService');
 
   constructor(

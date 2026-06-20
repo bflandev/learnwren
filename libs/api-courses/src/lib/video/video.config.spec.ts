@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { readVideoConfigFromEnv } from './video.config';
+import { readVideoConfigFromEnv, VIDEO_CONFIG } from './video.config';
+
+describe('VIDEO_CONFIG token', () => {
+  it('is the globally-registered symbol with the canonical key', () => {
+    // Pins the Symbol.for() key string: an empty key would still be a symbol
+    // but would collide across modules and break DI resolution.
+    expect(Symbol.keyFor(VIDEO_CONFIG)).toBe('learnwren.api-video.config');
+    expect(VIDEO_CONFIG).toBe(Symbol.for('learnwren.api-video.config'));
+  });
+});
 
 describe('readVideoConfigFromEnv', () => {
   const baseEnv = (): NodeJS.ProcessEnv => ({
@@ -39,6 +48,19 @@ describe('readVideoConfigFromEnv', () => {
     expect(cfg.outputBucket).toBeTruthy();
     expect(cfg.transcoderImpl).toBe('fake');
     expect(cfg.playbackStorageImpl).toBe('fake');
+  });
+
+  it('falls back to the literal "fake" transcoder impl when the env var is unset and not production', () => {
+    // Pins the `(isProduction ? 'gcp' : 'fake')` else-literal: mutating 'fake'
+    // to '' would make implRaw '' and trip the "must be gcp or fake" guard
+    // instead of returning a valid fake config. Set buckets so only the
+    // transcoder default is under test.
+    const cfg = readVideoConfigFromEnv({
+      LEARNWREN_VIDEO_SOURCE_BUCKET: 'b',
+      LEARNWREN_VIDEO_OUTPUT_BUCKET: 'out',
+      // LEARNWREN_VIDEO_TRANSCODER deliberately unset
+    });
+    expect(cfg.transcoderImpl).toBe('fake');
   });
 
   it('throws on a non-numeric threshold', () => {

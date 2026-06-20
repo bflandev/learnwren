@@ -12,6 +12,7 @@ import { LearnException } from './errors/learn.exception';
 // TOCTOU if the enrollment is withdrawn between the guard check and the commit.
 @Catch(LearnException, CoursesException, AuthException, HttpException)
 export class LearnExceptionFilter implements ExceptionFilter {
+  // Stryker disable next-line StringLiteral: Logger context label; log-only, no observable behavior
   private readonly logger = new Logger('LearnExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {

@@ -25,6 +25,7 @@ export class NotificationsController {
   notify(@Req() req: CourseScopedRequest, @Param('mid') mid: ModuleId): Promise<NotifyModuleResult> {
     if (!req.course) {
       return Promise.reject(
+        // Stryker disable next-line StringLiteral: unreachable defensive guard — CourseOwnerGuard always attaches req.course before this runs; the message text is diagnostic-only and never asserted.
         new Error('NotificationsController: CourseOwnerGuard did not attach course'),
       );
     }

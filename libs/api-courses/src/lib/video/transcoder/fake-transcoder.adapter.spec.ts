@@ -25,6 +25,18 @@ describe('FakeTranscoderAdapter.submitJob', () => {
     const { jobName } = await adapter.submitJob(baseInput());
     expect(adapter.peekJob(jobName)).toBeDefined();
   });
+
+  it('stores the submitted input and an initial cancelled=false flag', async () => {
+    // Defends the `{ input, cancelled: false }` object literal and the `false`
+    // boolean literal: a freshly recorded job must carry its input and start
+    // not-cancelled.
+    const adapter = new FakeTranscoderAdapter();
+    const input = baseInput();
+    const { jobName } = await adapter.submitJob(input);
+    const rec = adapter.peekJob(jobName);
+    expect(rec?.cancelled).toBe(false);
+    expect(rec?.input).toEqual(input);
+  });
 });
 
 function pubsubEnvelope(payload: object): unknown {
@@ -103,6 +115,24 @@ describe('FakeTranscoderAdapter.parseEvent', () => {
   it('throws on missing message.data', async () => {
     const adapter = new FakeTranscoderAdapter();
     await expect(adapter.parseEvent({ message: {} })).rejects.toThrow(/data/);
+  });
+
+  it('throws the explicit "missing message.data" error when the envelope has no message', async () => {
+    // Defends `envelope.message?.data`: no `message` key → explicit Error via the
+    // optional chain; removing `?.` would throw a TypeError instead.
+    const adapter = new FakeTranscoderAdapter();
+    await expect(adapter.parseEvent({})).rejects.toThrow(
+      'Pub/Sub envelope missing message.data.',
+    );
+  });
+
+  it('throws the explicit "missing labels.videoid" error when job has no labels', async () => {
+    // Defends `job.labels?.['videoid']`: no `labels` key → explicit Error via the
+    // optional chain, not a TypeError.
+    const adapter = new FakeTranscoderAdapter();
+    await expect(
+      adapter.parseEvent(pubsubEnvelope({ job: { name: 'n', state: 'SUCCEEDED' } })),
+    ).rejects.toThrow('Pub/Sub payload missing labels.videoid.');
   });
 
   it('throws on payload missing the job field', async () => {

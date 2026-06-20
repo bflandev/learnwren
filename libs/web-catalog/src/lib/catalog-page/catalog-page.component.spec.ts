@@ -1,8 +1,9 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
+import { Subject } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CourseCatalogPage } from '@learnwren/shared-data-models';
 
@@ -253,6 +254,62 @@ describe('CatalogPageComponent', () => {
     expect(fixture.componentInstance.result()).not.toBeNull();
   });
 
+  it('exposes the default initial signal values before any query params arrive', () => {
+    // A route whose queryParamMap never emits lets us observe the initial
+    // signal values BEFORE load() overwrites them — pinning signal(false) for
+    // error/filtersActive and signal('NEWEST') for sort.
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [CatalogPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { queryParamMap: new Subject() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    const c = fixture.componentInstance;
+    expect(c.error()).toBe(false);
+    expect(c.filtersActive()).toBe(false);
+    expect(c.sort()).toBe('NEWEST');
+    expect(c.result()).toBeNull();
+  });
+
+  it('merges query params (not replace) when changing filters via onFilterChange', async () => {
+    await router.navigate(['/catalog'], { queryParams: { sort: 'TITLE_ASC' } });
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/catalog').flush(page());
+    await fixture.whenStable();
+
+    const spy = vi.spyOn(router, 'navigate');
+    fixture.componentInstance.onFilterChange({ category: 'PROGRAMMING' });
+    expect(spy).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ queryParamsHandling: 'merge' }),
+    );
+    http.match((r) => r.url === '/api/catalog').forEach((req) => req.flush(page()));
+    await fixture.whenStable();
+  });
+
+  it('merges query params (not replace) when paginating via goToPage', async () => {
+    await router.navigate(['/catalog']);
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/catalog').flush(page());
+    await fixture.whenStable();
+
+    const spy = vi.spyOn(router, 'navigate');
+    fixture.componentInstance.goToPage(2);
+    expect(spy).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ queryParamsHandling: 'merge' }),
+    );
+    http.match((r) => r.url === '/api/catalog').forEach((req) => req.flush(page()));
+    await fixture.whenStable();
+  });
+
   it('ignores a stale catalogue response that resolves after a newer request', async () => {
     // Race guard: the HTTP wrapper returns a non-cancellable Promise. If the
     // user paginates while an earlier request is still in flight and the older
@@ -277,6 +334,30 @@ describe('CatalogPageComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
+    expect(fixture.componentInstance.result()?.page).toBe(2);
+  });
+
+  it('ignores a stale FAILED response so a superseded error does not surface', async () => {
+    // Race guard on the catch branch: if request A (older) fails AFTER request B
+    // (newer) succeeds, the stale failure must NOT flip error to true.
+    await router.navigate(['/catalog'], { queryParams: { page: 1 } });
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    fixture.detectChanges();
+    const reqA = http.expectOne((r) => r.url === '/api/catalog' && r.params.get('page') === '1');
+
+    fixture.componentInstance.goToPage(2);
+    await fixture.whenStable();
+    const reqB = http.expectOne((r) => r.url === '/api/catalog' && r.params.get('page') === '2');
+
+    // Newer (B) succeeds first.
+    reqB.flush(page({ page: 2, total: 40, totalPages: 2 }));
+    await fixture.whenStable();
+    // Stale (A) fails last — must be discarded by the catch-branch guard.
+    reqA.flush('boom', { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.error()).toBe(false);
     expect(fixture.componentInstance.result()?.page).toBe(2);
   });
 });
