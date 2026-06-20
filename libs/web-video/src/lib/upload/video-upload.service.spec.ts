@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CreateUploadSessionResponse } from '../video.service';
@@ -592,5 +592,329 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('VideoUploadService — transient states & guards (mutation hardening)', () => {
+  let svc: VideoUploadService;
+  let api: ReturnType<typeof makeVideoSvc>;
+  let xhrs: FakeXhr[];
+  const CTX = { courseId: 'c1' as never, moduleId: 'm1' as never, lessonId: 'l1' as never };
+
+  beforeEach(() => {
+    xhrs = [];
+    api = makeVideoSvc();
+    TestBed.configureTestingModule({
+      providers: [
+        VideoUploadService,
+        { provide: VideoService, useValue: api },
+        {
+          provide: XHR_FACTORY,
+          useValue: () => {
+            const x = new FakeXhr();
+            xhrs.push(x);
+            return x;
+          },
+        },
+      ],
+    });
+    svc = TestBed.inject(VideoUploadService);
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  const sized = (bytes: number, type = 'video/mp4'): File => {
+    const f = new File([new Uint8Array(1)], 'f.mp4', { type });
+    Object.defineProperty(f, 'size', { value: bytes });
+    return f;
+  };
+  const drain = async (n = 6): Promise<void> => {
+    for (let i = 0; i < n; i++) await Promise.resolve();
+  };
+
+  // ---- L99: the transient 'finalizing' state object/string is observable ----
+  it('enters the exact { kind: "finalizing", videoId } state while completeUpload is pending', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    // Do NOT resolve completeUpload — hold the finalize in flight.
+    const finalize = new Subject<unknown>();
+    api.completeUpload.mockReturnValue(finalize.asObservable());
+
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 200;
+    xhrs.at(-1)!.onload!();
+    await drain();
+
+    // At this moment the chunk upload finished but completeUpload has not.
+    expect(svc.state()).toEqual({ kind: 'finalizing', videoId: 'v1' });
+
+    // Release the finalize so start() can settle.
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+    finalize.next({ id: 'v1', state: 'UPLOADED' });
+    finalize.complete();
+    await done;
+    expect(svc.state().kind).toBe('complete');
+  });
+
+  // ---- L118: the transient 'canceling' state object/string is observable ----
+  it('enters the exact { kind: "canceling", videoId } state while DELETE is pending', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    const del = new Subject<unknown>();
+    api.delete.mockReturnValue(del.asObservable());
+
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    expect(svc.state().kind).toBe('uploading');
+
+    // Wire abort to resolve the in-flight putChunk like a real browser.
+    const x = xhrs.at(-1)!;
+    x.abort.mockImplementation(() => {
+      x.status = 0;
+      x.onabort?.();
+    });
+
+    const cancelP = svc.cancel(); // sets 'canceling' then awaits DELETE
+    await drain();
+    expect(svc.state()).toEqual({ kind: 'canceling', videoId: 'v1' });
+
+    // Release DELETE → cancel resolves to idle.
+    del.next(undefined);
+    del.complete();
+    await cancelP;
+    await done;
+    expect(svc.state().kind).toBe('idle');
+  });
+
+  // ---- L116: cancel-guard branches (uploading || finalizing || failed) ----
+  it('cancel() from creating-session does NOT enter canceling and does NOT delete', async () => {
+    // creating-session is none of uploading/finalizing/failed → the if is false.
+    const session = new Subject<unknown>();
+    api.createUploadSession.mockReturnValue(session.asObservable());
+    api.delete.mockReturnValue(of(undefined));
+
+    const p = svc.start(CTX, sized(8));
+    expect(svc.state().kind).toBe('creating-session');
+
+    const observed: string[] = [];
+    // Spy on cancel's transitions by snapshotting before/after.
+    await svc.cancel();
+    observed.push(svc.state().kind);
+    expect(observed).toEqual(['idle']);
+    expect(api.delete).not.toHaveBeenCalled();
+
+    session.next({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' });
+    session.complete();
+    await p;
+  });
+
+  // ---- L128: retry-guard `s.kind !== 'failed' || !s.videoId` ----
+  it('retry() proceeds only when failed AND a videoId is present', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v7' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.markFailed.mockReturnValue(of({ id: 'v7', state: 'FAILED' }));
+    api.delete.mockReturnValue(of(undefined));
+    vi.useFakeTimers();
+    try {
+      const done = svc.start(CTX, sized(8));
+      await Promise.resolve();
+      for (let i = 0; i < 4; i++) {
+        xhrs.at(-1)!.status = 403;
+        xhrs.at(-1)!.onload!();
+        await vi.runAllTimersAsync();
+        await Promise.resolve();
+      }
+      await done;
+      expect(svc.state()).toEqual({ kind: 'failed', reason: expect.stringContaining('403'), videoId: 'v7' });
+    } finally {
+      vi.useRealTimers();
+    }
+    await svc.retry();
+    expect(api.delete).toHaveBeenCalledWith('v7');
+    expect(svc.state()).toEqual({ kind: 'idle' });
+  });
+
+  // ---- L165: aborted-guard returns false (stops retry loop on abort) ----
+  it('an abort detected after the XHR resolves stops the retry loop (no markFailed)', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.markFailed.mockReturnValue(of({ id: 'v1', state: 'FAILED' }));
+    api.delete.mockReturnValue(of(undefined));
+
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    expect(svc.state().kind).toBe('uploading');
+
+    const x = xhrs.at(-1)!;
+    // Mark aborted (as cancel() would) and resolve the chunk with a 5xx that
+    // WOULD otherwise retry. The L165 `if (this.aborted) return false` must
+    // short-circuit BEFORE the status checks → no retry, no markFailed.
+    x.abort.mockImplementation(() => {
+      x.status = 503;
+      x.onload?.();
+    });
+    await svc.cancel();
+    await done;
+
+    expect(api.markFailed).not.toHaveBeenCalled();
+    expect(xhrs.length).toBe(1); // never retried after abort
+    expect(svc.state().kind).toBe('idle');
+  });
+
+  // ---- L168 + L24: backoff delay is BACKOFF_MS[attempt] (1000 on first retry) ----
+  it('waits exactly 1000ms before the first retry and 2000ms before the second (BACKOFF_MS)', async () => {
+    vi.useFakeTimers();
+    try {
+      api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+      api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+      const done = svc.start(CTX, sized(8));
+      await Promise.resolve();
+
+      // Attempt 0 fails with 5xx → schedules a 1000ms backoff.
+      xhrs.at(-1)!.status = 503;
+      xhrs.at(-1)!.onload!();
+      await Promise.resolve();
+      // 999ms is not enough — no new XHR yet (kills BACKOFF_MS[0] !== 1000).
+      await vi.advanceTimersByTimeAsync(999);
+      expect(xhrs.length).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(xhrs.length).toBe(2); // retry fired at exactly 1000ms
+
+      // Attempt 1 fails → schedules a 2000ms backoff.
+      xhrs.at(-1)!.status = 503;
+      xhrs.at(-1)!.onload!();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(xhrs.length).toBe(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(xhrs.length).toBe(3); // retry fired at exactly 2000ms
+
+      // Let it succeed to settle the promise.
+      xhrs.at(-1)!.status = 200;
+      xhrs.at(-1)!.onload!();
+      await vi.runAllTimersAsync();
+      await done;
+      expect(svc.state().kind).toBe('complete');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // ---- L209: errorMessage object/message-in guard ----
+  it('extracts the message from an error object that HAS a message field', async () => {
+    api.createUploadSession.mockReturnValue(throwError(() => ({ message: 'boom-from-object' })));
+    await svc.start(CTX, sized(8));
+    expect(svc.state()).toEqual({ kind: 'failed', reason: 'boom-from-object' });
+  });
+
+  it('falls back to "Unknown error." for a null-ish error (no message field)', async () => {
+    api.createUploadSession.mockReturnValue(throwError(() => null));
+    await svc.start(CTX, sized(8));
+    expect(svc.state()).toEqual({ kind: 'failed', reason: 'Unknown error.' });
+  });
+
+  it('falls back to "Unknown error." for an object WITHOUT a message field', async () => {
+    api.createUploadSession.mockReturnValue(throwError(() => ({ code: 42 })));
+    await svc.start(CTX, sized(8));
+    expect(svc.state()).toEqual({ kind: 'failed', reason: 'Unknown error.' });
+  });
+
+  // ---- L116: cancel from the 'finalizing' state must delete (||-clause live) ----
+  it('cancel() while finalizing enters canceling and deletes the video', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    const finalize = new Subject<unknown>();
+    api.completeUpload.mockReturnValue(finalize.asObservable());
+    api.delete.mockReturnValue(of(undefined));
+
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 200;
+    xhrs.at(-1)!.onload!();
+    await drain();
+    // Now stuck in 'finalizing' (completeUpload pending).
+    expect(svc.state()).toEqual({ kind: 'finalizing', videoId: 'v1' });
+
+    // cancel() from finalizing must hit the `|| s.kind === 'finalizing'` clause →
+    // transition to canceling and DELETE. A dead clause would skip the delete.
+    await svc.cancel();
+    expect(api.delete).toHaveBeenCalledWith('v1');
+    expect(svc.state().kind).toBe('idle');
+
+    finalize.next({ id: 'v1', state: 'UPLOADED' });
+    finalize.complete();
+    await done;
+  });
+
+  it('cancel() from the complete state takes the false branch (no canceling, no delete)', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 200;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(svc.state().kind).toBe('complete');
+    // 'complete' is none of uploading/finalizing/failed → the whole `if` is false
+    // → straight to idle, no DELETE. Kills the ConditionalExpression→false mutant
+    // (which would force the branch true and delete a completed video).
+    await svc.cancel();
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(svc.state().kind).toBe('idle');
+  });
+
+  // ---- L128: retry-guard must return early when NOT failed (no delete) ----
+  it('retry() from idle returns early without touching delete (guard true → return)', async () => {
+    // A mutant turning the guard into `false` would NOT return → it would call
+    // delete(undefined). Make delete resolvable so the proceed-path would complete,
+    // then assert delete is never called and state stays idle.
+    api.delete.mockReturnValue(of(undefined));
+    expect(svc.state()).toEqual({ kind: 'idle' });
+    await svc.retry();
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(svc.state()).toEqual({ kind: 'idle' });
+  });
+
+  it('retry() from a non-failed state that HAS a videoId still returns early (kind!==failed clause is live)', async () => {
+    // Drive to 'complete' (has videoId, kind !== 'failed'). The left clause
+    // `s.kind !== 'failed'` is TRUE here, so the guard returns early. A mutant
+    // blanking that clause to `false` would fall through to `!s.videoId` (false,
+    // since videoId is present) and DELETE a completed video.
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+    api.delete.mockReturnValue(of(undefined));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 200;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(svc.state()).toEqual(expect.objectContaining({ kind: 'complete', videoId: 'v1' }));
+
+    await svc.retry();
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(svc.state()).toEqual(expect.objectContaining({ kind: 'complete', videoId: 'v1' }));
+  });
+
+  // ---- L47: aborted starts false → a clean upload completes ----
+  it('a clean upload completes, proving the abort flag does not block the first chunk', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 200;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(svc.state()).toEqual(expect.objectContaining({ kind: 'complete', videoId: 'v1' }));
+  });
+});
+
+describe('XHR_FACTORY injection token (default factory)', () => {
+  it('default factory yields a callable that produces an XMLHttpRequest', () => {
+    TestBed.configureTestingModule({
+      providers: [{ provide: VideoService, useValue: makeVideoSvc() }, VideoUploadService],
+    });
+    // No XHR_FACTORY override → the token's default factory runs. Kills the
+    // providedIn/factory ObjectLiteral and the nested ArrowFunction(s): a
+    // `() => undefined` factory would not return a real XHR.
+    const factory = TestBed.inject(XHR_FACTORY);
+    expect(typeof factory).toBe('function');
+    const xhr = factory();
+    expect(xhr).toBeInstanceOf(XMLHttpRequest);
   });
 });

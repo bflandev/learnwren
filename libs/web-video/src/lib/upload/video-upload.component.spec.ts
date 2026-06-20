@@ -73,6 +73,12 @@ describe('VideoUploadComponent', () => {
     const file = new File(['x'], 'test.mp4', { type: 'video/mp4' });
     await fixture.componentInstance.onFile(file);
     expect(spy).toHaveBeenCalledWith('v-new');
+    // The upload context object must carry the three bound input ids (kills the
+    // ObjectLiteral → {} mutant on the ctx passed to svc.start).
+    expect(svc.start).toHaveBeenCalledWith(
+      { courseId: 'c1', moduleId: 'm1', lessonId: 'l1' },
+      file,
+    );
   });
 
   it('calls svc.cancel on cancel button click', () => {

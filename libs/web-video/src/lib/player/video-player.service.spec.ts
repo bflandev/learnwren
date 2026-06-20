@@ -156,4 +156,84 @@ describe('VideoPlayerService', () => {
     svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
     expect(onFatalError).toHaveBeenCalledWith('Your browser does not support HLS playback.');
   });
+
+  it('returns a no-op disposable on the unsupported path (callable, no throw)', () => {
+    // Kills the ObjectLiteral {} and the ArrowFunction `() => undefined` mutants on
+    // the final `return { dispose: () => undefined };`.
+    isSupportedMock.mockReturnValue(false);
+    const el = videoEl('');
+    const handle = svc.attach(el, '/api/playback/manifest/v1', { onFatalError: vi.fn() });
+    expect(handle).toBeTruthy();
+    expect(typeof handle.dispose).toBe('function');
+    expect(() => handle.dispose()).not.toThrow();
+  });
+
+  it('does NOT attach withCredentials when the segment URL is malformed (isSameOrigin catch)', () => {
+    const el = videoEl();
+    svc.attach(el, '/api/playback/manifest/v1', { onFatalError: vi.fn() });
+    const xhrSetup = (instances[0]!.config as { xhrSetup: (xhr: XMLHttpRequest, url: string) => void }).xhrSetup;
+    // A URL that makes `new URL()` throw → the catch returns false → cookie NOT
+    // attached. The catch-block and its `return false` are exercised here.
+    const xhr = { withCredentials: false } as XMLHttpRequest;
+    xhrSetup(xhr, 'http://[malformed');
+    expect(xhr.withCredentials).toBe(false);
+  });
+
+  it('hls dispose removes the src attribute and destroys the instance', () => {
+    const el = videoEl();
+    el.setAttribute('src', 'blob:something'); // prove removeAttribute('src') runs
+    const handle = svc.attach(el, '/api/playback/manifest/v1', { onFatalError: vi.fn() });
+    handle.dispose();
+    expect(instances[0]!.destroy).toHaveBeenCalledOnce();
+    expect(el.getAttribute('src')).toBeNull();
+  });
+
+  it('native-HLS path probes canPlayType with the apple mpegurl MIME exactly', () => {
+    isSupportedMock.mockReturnValue(false);
+    const el = videoEl('maybe');
+    const canPlaySpy = vi.spyOn(el, 'canPlayType');
+    svc.attach(el, '/api/playback/manifest/v1', { onFatalError: vi.fn() });
+    // Kills the StringLiteral mutant on canPlayType('application/vnd.apple.mpegurl').
+    expect(canPlaySpy).toHaveBeenCalledWith('application/vnd.apple.mpegurl');
+  });
+
+  it('maps MEDIA_ERR_DECODE (code 3) to the decode message on the native path', () => {
+    isSupportedMock.mockReturnValue(false);
+    const el = videoEl('maybe');
+    const onFatalError = vi.fn();
+    svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
+    Object.defineProperty(el, 'error', { configurable: true, value: { code: 3 } });
+    el.dispatchEvent(new Event('error'));
+    // Kills the `case 3:` ConditionalExpression and the StringLiteral on its return.
+    expect(onFatalError).toHaveBeenCalledWith('Playback failed — try again.');
+  });
+
+  it('native dispose removes the error listener (no further onFatalError after dispose)', () => {
+    isSupportedMock.mockReturnValue(false);
+    const el = videoEl('maybe');
+    const onFatalError = vi.fn();
+    const handle = svc.attach(el, '/api/playback/manifest/v1', { onFatalError });
+    el.setAttribute('src', '/api/playback/manifest/v1');
+    handle.dispose();
+    // After dispose the listener is gone → a fresh error event must NOT fire the
+    // callback (kills the removeEventListener('error', …) StringLiteral) and the
+    // src attribute is cleared.
+    Object.defineProperty(el, 'error', { configurable: true, value: { code: 2 } });
+    el.dispatchEvent(new Event('error'));
+    expect(onFatalError).not.toHaveBeenCalled();
+    expect(el.getAttribute('src')).toBeNull();
+  });
+});
+
+describe('HLS_CONSTRUCTOR injection token (default factory)', () => {
+  it('resolves to the real Hls implementation when no override is provided', () => {
+    TestBed.configureTestingModule({ providers: [VideoPlayerService] });
+    // No { provide: HLS_CONSTRUCTOR } override → the token's default factory runs.
+    const Hls = TestBed.inject(HLS_CONSTRUCTOR);
+    // Kills the providedIn/factory ObjectLiteral and the factory ArrowFunction:
+    // a `() => undefined` factory or a {} config would not yield the Hls class.
+    expect(Hls).toBeDefined();
+    expect(typeof Hls).toBe('function');
+    expect(typeof Hls.isSupported).toBe('function');
+  });
 });
