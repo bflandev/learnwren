@@ -62,6 +62,10 @@ export default defineConfig({
       // Surface the in-process outbox via GET /api/auth/_test/last-email so
       // the suite can recover unlock tokens, which are now hashed in Firestore.
       LEARNWREN_TEST_OUTBOX_ENABLED: '1',
+      // All parallel workers share 127.0.0.1, so the production per-IP burst
+      // limit (100/10s) can trip mid-suite (CI-observed 429 on register).
+      LEARNWREN_THROTTLE_BURST_LIMIT: '10000',
+      LEARNWREN_THROTTLE_SUSTAINED_LIMIT: '50000',
     },
   },
   projects: [
