@@ -62,6 +62,10 @@ export default defineConfig({
           'http://localhost:9199/v0/b/learnwren-e2e-pictures/o',
         LEARNWREN_EMAIL_TRANSPORT: 'console',
         LEARNWREN_TEST_OUTBOX_ENABLED: '1',
+        // All parallel workers share 127.0.0.1, so the production per-IP burst
+        // limit (100/10s) can trip mid-suite (CI-observed 429 on register).
+        LEARNWREN_THROTTLE_BURST_LIMIT: '10000',
+        LEARNWREN_THROTTLE_SUSTAINED_LIMIT: '50000',
       },
     },
   ],

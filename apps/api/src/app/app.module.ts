@@ -7,6 +7,7 @@ import { CoursesModule, VideoModule } from '@learnwren/api-courses';
 import { ProfileModule } from '@learnwren/api-profile';
 
 import { AppController } from './app.controller';
+import { resolveThrottleTiers } from './throttle.config';
 
 @Module({
   imports: [
@@ -21,10 +22,9 @@ import { AppController } from './app.controller';
     // distributed burst can reach up to ~10x these limits. That is acceptable
     // here — this is an amplification/scraping guard, not a hard quota; a strict
     // global limit would need a shared store (e.g. Redis via ThrottlerStorage).
-    ThrottlerModule.forRoot([
-      { name: 'burst', ttl: 10_000, limit: 100 },
-      { name: 'sustained', ttl: 60_000, limit: 1000 },
-    ]),
+    // Limits are env-overridable (LEARNWREN_THROTTLE_{BURST,SUSTAINED}_LIMIT)
+    // for e2e runs where all parallel workers share one IP.
+    ThrottlerModule.forRoot(resolveThrottleTiers(process.env)),
     AuthModule,
     CoursesModule,
     VideoModule,
