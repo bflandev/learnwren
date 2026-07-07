@@ -53,7 +53,11 @@ describe('FakeMaterialsController', () => {
     const storage = fakeStorage();
     const ctrl = new FakeMaterialsController(repoReturning(material), storage.handle);
     const boom = new Error('stream boom');
-    const req = new Readable({ read() {} }) as never as import('express').Request;
+    const req = new Readable({
+      read() {
+        /* no-op: data is never pushed; the test emits an error below */
+      },
+    }) as never as import('express').Request;
     const promise = ctrl.upload('m1' as MaterialId, req);
     // Emit an error on the next tick, after collectStream has subscribed.
     setImmediate(() => (req as unknown as Readable).emit('error', boom));
