@@ -7,8 +7,7 @@
         lwInput
         data-testid="course-title"
         type="text"
-        [ngModel]="draftTitle() || course().title"
-        (focus)="syncDrafts()"
+        [ngModel]="draftTitle()"
         (ngModelChange)="draftTitle.set($event)"
         (blur)="commitTitle()"
         maxlength="100"
@@ -21,8 +20,7 @@
       <textarea
         lwInput
         data-testid="course-description"
-        [ngModel]="draftDescription() || course().description"
-        (focus)="syncDrafts()"
+        [ngModel]="draftDescription()"
         (ngModelChange)="draftDescription.set($event)"
         (blur)="commitDescription()"
         maxlength="500"

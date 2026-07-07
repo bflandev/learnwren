@@ -39,6 +39,24 @@ describe('rosterRowsToCsv', () => {
     expect(rosterRowsToCsv([]).trim()).toBe('"Display Name","Email","Enrollment Date","Progress (%)"');
   });
 
+  it('neutralizes a formula-leading display name with a leading apostrophe', () => {
+    const csv = rosterRowsToCsv([row({ displayName: '=HYPERLINK("http://evil","x")' })]);
+    expect(csv).toContain('"\'=HYPERLINK(""http://evil"",""x"")"');
+  });
+
+  it('prefixes every dangerous leading character (=, +, -, @, tab, CR)', () => {
+    for (const lead of ['=', '+', '-', '@', '\t', '\r']) {
+      const csv = rosterRowsToCsv([row({ displayName: `${lead}payload` })]);
+      expect(csv).toContain(`"'${lead}payload"`);
+    }
+  });
+
+  it('does not prefix values that merely contain (not start with) a formula character', () => {
+    const csv = rosterRowsToCsv([row({ displayName: 'Anne-Marie @ HQ' })]);
+    expect(csv).toContain('"Anne-Marie @ HQ"');
+    expect(csv).not.toContain("'Anne-Marie");
+  });
+
   it('terminates every line (including the last) with a CRLF', () => {
     const csv = rosterRowsToCsv([row({})]);
     expect(csv).toBe(

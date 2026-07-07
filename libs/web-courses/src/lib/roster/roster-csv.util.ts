@@ -2,9 +2,15 @@ import type { CourseRosterRow } from '@learnwren/shared-data-models';
 
 const HEADERS = ['Display Name', 'Email', 'Enrollment Date', 'Progress (%)'];
 
-/** RFC-4180 field: wrap in quotes, double any internal quote. */
+/**
+ * RFC-4180 field: wrap in quotes, double any internal quote. A leading
+ * formula character (=, +, -, @, tab, CR) is neutralized with an apostrophe
+ * so spreadsheet apps don't execute user-controlled values (CSV injection,
+ * CWE-1236) — quoting alone does not prevent this.
+ */
 function field(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
 }
 
 /** ISO timestamp → YYYY-MM-DD (the calendar date portion). */

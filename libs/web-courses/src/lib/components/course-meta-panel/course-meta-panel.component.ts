@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  linkedSignal,
+  output,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import type { Course } from '@learnwren/shared-data-models';
@@ -18,8 +25,14 @@ export class CourseMetaPanelComponent {
   readonly update = output<UpdateCourseInput>();
   readonly deleteCourse = output<void>();
 
-  readonly draftTitle = signal('');
-  readonly draftDescription = signal('');
+  // Drafts are linked to the VALUE (via computed), not the course object:
+  // unrelated course refreshes (cover upload, video polling) replace the
+  // object without changing these strings and must not clobber an
+  // in-progress edit. A real value change (own save landing) still reseeds.
+  private readonly courseTitle = computed(() => this.course().title);
+  private readonly courseDescription = computed(() => this.course().description);
+  readonly draftTitle = linkedSignal(() => this.courseTitle());
+  readonly draftDescription = linkedSignal(() => this.courseDescription());
 
   commitTitle(): void {
     const next = this.draftTitle().trim();
@@ -31,10 +44,5 @@ export class CourseMetaPanelComponent {
     const next = this.draftDescription().trim();
     if (next.length === 0 || next === this.course().description) return;
     this.update.emit({ description: next });
-  }
-
-  syncDrafts(): void {
-    this.draftTitle.set(this.course().title);
-    this.draftDescription.set(this.course().description);
   }
 }
