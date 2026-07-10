@@ -73,6 +73,16 @@ export class EnrollmentRepository {
     return snap.docs.map((d) => d.data() as Enrollment);
   }
 
+  /** All ACTIVE enrollments for a user — GET /api/enrollments + profile/catalog badges. */
+  async listActiveByUser(userId: UserId): Promise<Enrollment[]> {
+    const snap = await this.db
+      .collection(ENROLLMENTS)
+      .where('userId', '==', userId)
+      .where('status', '==', 'ACTIVE')
+      .get();
+    return snap.docs.map((d) => d.data() as Enrollment);
+  }
+
   /** True only when an ACTIVE enrollment exists. Consumed by the access guards. */
   async isEnrolled(userId: UserId, courseId: CourseId): Promise<boolean> {
     const enrollment = await this.getEnrollment(userId, courseId);
@@ -292,6 +302,25 @@ export class EnrollmentRepository {
       const now = nowIso();
       t.update(enrollmentRef, { progress, updatedAt: now });
       return { lastWatchedSeconds: seconds };
+    });
+  }
+
+  /**
+   * Lazy backfill stamp (US-06-02): sets completedAt on an unstamped
+   * enrollment. Transactional read-then-write so a concurrent stamp (or the
+   * mark-complete path) is never overwritten with a later date.
+   */
+  async stampCompleted(
+    userId: UserId,
+    courseId: CourseId,
+    completedAtIso: ISODateString,
+  ): Promise<void> {
+    const ref = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
+    await this.db.runTransaction(async (t) => {
+      const snap = await t.get(ref);
+      const existing = snap.exists ? (snap.data() as Enrollment) : null;
+      if (!existing || existing.completedAt != null) return;
+      t.update(ref, { completedAt: completedAtIso, updatedAt: completedAtIso });
     });
   }
 }

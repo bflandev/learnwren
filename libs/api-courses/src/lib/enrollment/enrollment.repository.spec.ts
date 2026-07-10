@@ -907,3 +907,65 @@ describe('EnrollmentRepository.enroll (Slice C fields)', () => {
     expect(result.progress[0].lastWatchedSeconds).toBe(42);
   });
 });
+
+describe('EnrollmentRepository.stampCompleted', () => {
+  function activeEnrollment(over: Partial<Enrollment> = {}): Enrollment {
+    return {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'ACTIVE',
+      progress: [],
+      withdrawnAt: null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      ...over,
+    };
+  }
+
+  it('stamps an unstamped enrollment', async () => {
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: activeEnrollment() });
+    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString);
+    expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBe('2026-07-09T00:00:00.000Z');
+  });
+
+  it('leaves an existing stamp untouched', async () => {
+    const { repo, db } = repoWith({
+      [`enrollments/${ID}`]: { ...activeEnrollment(), completedAt: '2026-07-01T00:00:00.000Z' },
+    });
+    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString);
+    expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBe('2026-07-01T00:00:00.000Z');
+  });
+});
+
+describe('EnrollmentRepository.listActiveByUser', () => {
+  function activeEnrollment(over: Partial<Enrollment> = {}): Enrollment {
+    return {
+      id: ID,
+      userId: UID,
+      courseId: CID,
+      status: 'ACTIVE',
+      progress: [],
+      withdrawnAt: null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-01-01T00:00:00.000Z' as ISODateString,
+      ...over,
+    };
+  }
+
+  it("returns only the caller's ACTIVE enrollments", async () => {
+    const other = { ...activeEnrollment(), id: 'u2__c1', userId: 'u2' as UserId };
+    const withdrawn = { ...activeEnrollment(), id: `${UID}__c2`, courseId: 'c2' as CourseId, status: 'WITHDRAWN' as const, withdrawnAt: '2026-01-01T00:00:00.000Z' as ISODateString };
+    const { repo } = repoWith({
+      [`enrollments/${ID}`]: activeEnrollment(),
+      ['enrollments/u2__c1']: other,
+      [`enrollments/${UID}__c2`]: withdrawn,
+    });
+    const rows = await repo.listActiveByUser(UID);
+    expect(rows.map((r) => r.id)).toEqual([ID]);
+  });
+});
