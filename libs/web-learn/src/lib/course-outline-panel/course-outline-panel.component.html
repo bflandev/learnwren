@@ -10,9 +10,19 @@
   [cdkTrapFocus]="mode() === 'drawer' && outlineOpen()"
   [cdkTrapFocusAutoCapture]="mode() === 'drawer' && outlineOpen()"
 >
+  @if (courseComplete()) {
+    <p data-testid="course-complete-banner" class="course-complete-banner text-ink" role="status">
+      &#127881; Course completed
+    </p>
+  }
   @for (m of outline().modules; track m.id) {
     <section>
-      <h3>{{ m.title }}</h3>
+      <h3>
+        {{ m.title }}
+        @if (isModuleComplete(m)) {
+          <span data-testid="module-complete" aria-label="Module completed" class="text-ink-2">&#10003;</span>
+        }
+      </h3>
       <ol>
         @for (l of m.lessons; track l.id) {
           <li>
