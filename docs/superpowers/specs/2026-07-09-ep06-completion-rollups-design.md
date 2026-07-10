@@ -1,7 +1,7 @@
 # EP-06 Completion Rollups — Design
 
 > [!NOTE]
-> DOCUMENT STATUS: DRAFT
+> DOCUMENT STATUS: APPROVED (2026-07-09) — implemented in merge `8d43a0b`
 
 **Date:** 2026-07-09
 **Scope:** The remaining Acceptance Criteria of US-06-02 (Track Lesson Completion): module-level completion indicators in the course outline, and a "Course Completed" badge. Closes the last open ACs of the MVP epics (EP-01–EP-06).
