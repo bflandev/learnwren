@@ -26,8 +26,9 @@ Learn Wren is a self-hosted, open-source educational platform as a platform for 
 > - **EP-07 Slice C: New-module notification (US-07-03)** — a course owner clicks **Notify students** on a module in the course editor to email every active enrollee that a new module is available, with a link to the course (`/catalog/:id`). Owner-only, one-shot per module (`POST /api/courses/:cid/modules/:mid/notify`, `CourseOwnerGuard`), gated to a published course with at least one lesson; the module is stamped `studentsNotifiedAt` so the action cannot repeat. Best-effort email through the shared `EmailTransport` seam (console in dev, SMTP in prod). No in-app notifications, no student opt-out, no retries/queue (deferred). **EP-07 (Instructor Dashboard) is complete with this slice.**
 >
 > - **Course cover image upload** — instructors can upload a cover from the course editor (JPEG or PNG, ≥1280×720, ≤10 MB); uploads are auto-resized to a canonical 1920×1080 JPEG. Replace or remove from the same panel.
+> - **Admin course-category management shipped 2026-07-10 (US-08-02)**: categories are no longer a hardcoded union — they live in the admin-managed `courseCategories` Firestore collection (doc id = stable slug referenced by `Course.category`; the six historical values seed lazily on first read, so existing course docs need no migration). An ADMIN navigates to `/admin/categories` via the **Categories** nav link to **create** (name → slugged id, `CATEGORY_EXISTS` on collision), **rename** (display name only — course docs are never rewritten), and **delete** a category; deleting always prompts for a reassignment target, and the API moves every referencing course (any status) in one transaction before removing the category doc. The last remaining category cannot be deleted (`LAST_CATEGORY`). The course creation form and the catalogue filter fetch the live list from public `GET /api/categories` (alphabetical by name); course create/update validates the referenced category server-side (`CATEGORY_NOT_FOUND`, 404).
 >
-> Not built yet: the remaining EP-08 admin stories (Manage Categories, Monitor Platform Health). All of EP-01–EP-06 (MVP), EP-07 (Instructor Dashboard), and **US-08-01 (Manage Users — directory, promote/demote, suspend, delete + anonymise)** plus US-08-03 (admin instructor-application review) are shipped. `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
+> Not built yet: US-08-04 (Monitor Platform Health), the last EP-08 admin story. All of EP-01–EP-06 (MVP), EP-07 (Instructor Dashboard), and EP-08's US-08-01 (Manage Users), US-08-02 (Manage Categories), and US-08-03 (admin instructor-application review) are shipped. `docs/USER_GUIDE.md` is the authoritative end-to-end feature matrix.
 
 ---
 
@@ -53,7 +54,7 @@ learnwren/
 │   ├── web-catalog/         # Angular standalone components for public course discovery (catalogue, search, course detail)
 │   ├── web-enrollment/      # Angular enroll/leave panel for the course detail page
 │   ├── web-learn/           # Angular standalone student lesson player page at /learn/:cid/:lid
-│   ├── web-admin/           # Angular admin surface: /admin/instructor-applications queue (US-08-03), /admin/users directory + promote/demote/suspend/delete (US-08-01 A–D)
+│   ├── web-admin/           # Angular admin surface: /admin/instructor-applications queue (US-08-03), /admin/users directory + promote/demote/suspend/delete (US-08-01 A–D), /admin/categories management (US-08-02)
 │   └── web-ui/              # Shared Angular UI primitives (cover tones, buttons, etc.)
 ├── tools/
 │   ├── promote-to-instructor.ts                    # CLI: promote a STUDENT to INSTRUCTOR via custom claim
@@ -87,7 +88,7 @@ learnwren/
 | `web-catalog` | Library | Angular standalone components for public course discovery (catalogue, search, course detail) |
 | `web-enrollment` | Library | Angular standalone `EnrollmentService` + `CourseEnrollmentPanelComponent` |
 | `web-learn` | Library | Angular standalone `LearnService` + `LessonPlayerPageComponent`; the `/learn/:cid/:lid` student playback route |
-| `web-admin` | Library | Angular standalone admin surface: the `/admin/instructor-applications` review queue (US-08-03) + the `/admin/users` user directory (`AdminUsersPageComponent` + `AdminUserDetailPageComponent`, US-08-01 Slice A) with promote/demote (Slice B) and suspend/delete + anonymise (Slices C+D) actions on the detail page |
+| `web-admin` | Library | Angular standalone admin surface: the `/admin/instructor-applications` review queue (US-08-03) + the `/admin/users` user directory (`AdminUsersPageComponent` + `AdminUserDetailPageComponent`, US-08-01 Slice A) with promote/demote (Slice B) and suspend/delete + anonymise (Slices C+D) actions on the detail page + the `/admin/categories` management page (`AdminCategoriesPageComponent`, US-08-02) |
 | `web-ui` | Library | Shared Angular UI primitives (deterministic course-cover tones, etc.) consumed by `web-catalog` and `web-courses` |
 | `web-e2e`, `api-e2e` | E2E suite | Playwright (api-e2e covers `/auth/**` end-to-end including lockout + Firestore rules) |
 
@@ -191,6 +192,15 @@ The API endpoints exposed by US-08-01 Slices A–B (admin user directory + role 
 | `GET` | `/api/admin/users/:uid` | One user's detail: profile, role, registration date, enrollment history (any status), and authored courses. `USER_NOT_FOUND` → 404. |
 | `POST` | `/api/admin/users/:uid/promote` | Promote a Student to Instructor. `INVALID_ROLE_TRANSITION` → 409 if the user is not a Student; `USER_NOT_FOUND` → 404. |
 | `POST` | `/api/admin/users/:uid/demote` | Demote an Instructor to Student and revoke their session (immediate effect); authored courses untouched. `INVALID_ROLE_TRANSITION` → 409 if the user is not an Instructor; `USER_NOT_FOUND` → 404. |
+
+The API endpoints exposed by US-08-02 (course-category management):
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/api/categories` | **Public.** All categories, alphabetical by display name. Lazily seeds the six defaults on first read. |
+| `POST` | `/api/admin/categories` | ADMIN. Create `{ name }` (≤ 60 chars); id = slugified name. `CATEGORY_EXISTS` → 409 on id or case-insensitive name collision. |
+| `PATCH` | `/api/admin/categories/:id` | ADMIN. Rename `{ name }` — display name only, course docs are never rewritten. `CATEGORY_NOT_FOUND` → 404; `CATEGORY_EXISTS` → 409. |
+| `DELETE` | `/api/admin/categories/:id?reassignTo=` | ADMIN. Delete; when courses reference the category, `reassignTo` is required (`CATEGORY_IN_USE` → 409 with `courseCount`) and every referencing course is moved in one transaction. `LAST_CATEGORY` → 409 for the final category. Returns `{ reassignedCourses }`. |
 
 The API endpoints exposed by slice D (course publish gate):
 

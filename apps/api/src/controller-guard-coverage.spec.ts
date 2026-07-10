@@ -26,6 +26,8 @@ const PUBLIC_ALLOWLIST = new Set([
   'api-auth/src/lib/auth.controller.ts',
   // Public, read-only course discovery.
   'api-courses/src/lib/catalog/catalog.controller.ts',
+  // Public, read-only category list (US-08-02) — catalogue filter + course form need it.
+  'api-courses/src/lib/categories/categories.controller.ts',
   // Returns only the non-sensitive { fakePlayback } flag.
   'api-courses/src/lib/video/playback/playback-config.controller.ts',
   // Authenticated by OIDC via PubSubPushGuard, not a session cookie.

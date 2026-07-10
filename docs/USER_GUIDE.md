@@ -33,6 +33,7 @@ This guide covers **every feature wired up so far** from two angles:
 | Identity | Email change, password change | Built (2026-05-28 / 2026-05-29) |
 | Identity | Instructor role request (self-service) | Built (2026-05-29) |
 | Administration | Admin review of instructor applications | Built (2026-05-29) |
+| Administration | Course category management (create / rename / delete + reassign) | Built (2026-07-10) |
 | Authoring | Instructor role promotion (CLI tool) | Built |
 | Authoring | Course create / edit / delete | Built |
 | Authoring | Modules & lessons, drag-and-drop reorder | Built |
@@ -784,6 +785,30 @@ is rejected (`409 LAST_ADMIN`).
 
 ---
 
+## 2.19c Admin: managing course categories (US-08-02)
+
+Course categories are admin-managed. They seed themselves with six defaults
+(Programming, Design, Business, Marketing, Personal Development, Other) the first
+time anything reads them, so a fresh deployment works with no setup.
+
+As an ADMIN, open **Categories** in the header nav (`/admin/categories`):
+
+- **Create** — type a name (≤ 60 characters) and click **Add**. The stable id is
+  derived from the name ("Data Science & AI" → `DATA_SCIENCE_AI`); a duplicate id
+  or a case-insensitive duplicate name is rejected.
+- **Rename** — click **Rename** on a row, edit inline, **Save**. Only the display
+  name changes; courses referencing the category are untouched, and the new name
+  appears immediately in the course form and catalogue filter.
+- **Delete** — click **Delete** on a row. The row asks which category the deleted
+  one's courses should move to (the AC's reassignment prompt); confirming moves
+  every referencing course — draft, published, or archived — in one transaction,
+  then removes the category. The last remaining category cannot be deleted.
+
+Instructors pick from the live list in the course form, and the public catalogue
+filter shows the same list — both alphabetical by name.
+
+---
+
 ## 2.20 Viewing enrolled students (EP-07 Slice A, US-07-01)
 
 Course owners can view a roster of their enrolled students from the course editor.
@@ -1019,6 +1044,22 @@ All admin endpoints require a valid session cookie **and** the `ADMIN` role
 | `POST` | `/api/admin/instructor-applications/:uid/approve` | Approve the application; grant `INSTRUCTOR` role. Requires applicant's email to be verified. |
 | `POST` | `/api/admin/instructor-applications/:uid/decline` | Decline the application; the applicant may re-apply. |
 
+### Course categories (US-08-02)
+
+The public list endpoint is unauthenticated; the mutations require `ADMIN`.
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/api/categories` | **Public.** All categories, alphabetical by display name. Lazily seeds the six defaults on first read. |
+| `POST` | `/api/admin/categories` | Create `{ name }` (≤ 60 chars); id = slugified name. |
+| `PATCH` | `/api/admin/categories/:id` | Rename `{ name }` — display name only; course docs are never rewritten. |
+| `DELETE` | `/api/admin/categories/:id?reassignTo=` | Delete; `reassignTo` required when courses reference the category. Returns `{ reassignedCourses }`. |
+
+**Error codes** specific to the categories domain: `VALIDATION_FAILED` (400),
+`CATEGORY_NOT_FOUND` (404), `CATEGORY_EXISTS` (409), `CATEGORY_IN_USE` (409, with
+`courseCount` in details), `LAST_CATEGORY` (409). Course create/update returns
+`CATEGORY_NOT_FOUND` (404) for an unknown `category` id.
+
 ## 3.8 Materials endpoints
 
 Create / list / mutate endpoints require session + `INSTRUCTOR` and are gated
@@ -1097,6 +1138,7 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `/courses/:cid/students` | `instructorRoleGuard` + `CourseOwnerGuard` | Enrolled students roster for the course (US-07-01). |
 | `/courses/:cid/analytics` | `instructorRoleGuard` + `CourseOwnerGuard` | Live course analytics: enrolled total, avg. completion, new enrollments, per-lesson breakdown (US-07-02). |
 | `/admin/instructor-applications` | `adminRoleGuard` | Pending instructor-application review queue (US-08-03). |
+| `/admin/categories` | `adminRoleGuard` | Course-category management: create, rename, delete with course reassignment (US-08-02). |
 
 ## 3.11 Roles and guards
 

@@ -49,13 +49,22 @@ describe('CreateCourseDto', () => {
     expect(errors).toContain('isLength');
   });
 
-  it('rejects unknown category', async () => {
+  it('accepts any string category (existence is validated in CoursesService, US-08-02)', async () => {
     const errors = await errorsFor(CreateCourseDto, {
       title: 'T',
       description: 'D',
-      category: 'NONSENSE',
+      category: 'ANYTHING_GOES',
     });
-    expect(errors).toContain('isIn');
+    expect(errors).toEqual([]);
+  });
+
+  it('rejects a non-string category', async () => {
+    const errors = await errorsFor(CreateCourseDto, {
+      title: 'T',
+      description: 'D',
+      category: 42,
+    });
+    expect(errors).toContain('isString');
   });
 
   it('rejects unknown difficulty', async () => {

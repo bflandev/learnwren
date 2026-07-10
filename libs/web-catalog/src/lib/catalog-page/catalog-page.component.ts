@@ -6,12 +6,14 @@ import type {
   CatalogSort,
   CourseCatalogPage,
   CourseCategory,
+  CourseCategoryDoc,
   CourseDifficulty,
 } from '@learnwren/shared-data-models';
 import { AuthService } from '@learnwren/web-auth';
 import { EnrollmentService } from '@learnwren/web-enrollment';
 
 import { CatalogService } from '../catalog.service';
+import { CategoriesService } from '../categories.service';
 import {
   CatalogFilterBarComponent,
   type CatalogFilterChange,
@@ -29,6 +31,7 @@ export class CatalogPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly service = inject(CatalogService);
+  private readonly categoriesService = inject(CategoriesService);
   private readonly auth = inject(AuthService);
   private readonly enrollments = inject(EnrollmentService);
 
@@ -38,6 +41,8 @@ export class CatalogPageComponent {
   readonly difficulty = signal<CourseDifficulty | undefined>(undefined);
   readonly sort = signal<CatalogSort>('NEWEST');
   readonly filtersActive = signal(false);
+  /** Admin-managed categories for the filter bar (US-08-02); API returns them alphabetical. */
+  readonly categories = signal<readonly CourseCategoryDoc[]>([]);
 
   /** Course ids the signed-in caller has completed — overlays a badge on cards. */
   readonly completedCourseIds = signal<ReadonlySet<string>>(new Set());
@@ -55,6 +60,14 @@ export class CatalogPageComponent {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       void this.load(params);
     });
+
+    // Filter options are orthogonal to filter state — load once.
+    void this.categoriesService
+      .list()
+      .then((cats) => this.categories.set(cats))
+      .catch(() => {
+        // The category dropdown is best-effort — the catalogue renders without it.
+      });
 
     // Completion badges are orthogonal to filters — load once, not per filter change.
     if (this.auth.currentUser()) {

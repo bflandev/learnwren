@@ -29,9 +29,9 @@ describe('CatalogQueryDto', () => {
     expect(validateSync(dto).length).toBeGreaterThan(0);
   });
 
-  it('rejects an unknown category', () => {
+  it('accepts any string category — an unknown id just matches no courses (US-08-02)', () => {
     const dto = plainToInstance(CatalogQueryDto, { category: 'COOKING' });
-    expect(validateSync(dto).length).toBeGreaterThan(0);
+    expect(validateSync(dto)).toEqual([]);
   });
 });
 

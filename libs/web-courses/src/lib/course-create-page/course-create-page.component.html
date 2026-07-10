@@ -50,8 +50,8 @@
         <span class="text-sm font-medium text-ink-2">Category (optional)</span>
         <select lwInput formControlName="category" class="mt-1">
           <option value="">—</option>
-          @for (c of categories; track c) {
-            <option [value]="c">{{ c }}</option>
+          @for (c of categories(); track c.id) {
+            <option [value]="c.id">{{ c.name }}</option>
           }
         </select>
       </label>

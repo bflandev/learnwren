@@ -22,6 +22,13 @@ export const adminRoutes: Route[] = [
           ),
       },
       {
+        path: 'categories',
+        loadComponent: () =>
+          import('./admin-categories-page/admin-categories-page.component').then(
+            (m) => m.AdminCategoriesPageComponent,
+          ),
+      },
+      {
         path: 'instructor-applications',
         loadComponent: () =>
           import(

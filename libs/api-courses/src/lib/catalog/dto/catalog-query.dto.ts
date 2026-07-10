@@ -1,9 +1,8 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 import {
   CATALOG_SORT_OPTIONS,
-  COURSE_CATEGORIES,
   COURSE_DIFFICULTIES,
   type CatalogSort,
   type CourseCategory,
@@ -26,8 +25,9 @@ export class CatalogQueryDto {
   @IsIn(CATALOG_SORT_OPTIONS as readonly string[])
   sort?: CatalogSort;
 
+  // Categories are admin-managed (US-08-02); an unknown id simply matches no courses.
   @IsOptional()
-  @IsIn(COURSE_CATEGORIES as readonly string[])
+  @IsString()
   category?: CourseCategory;
 
   @IsOptional()

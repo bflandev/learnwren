@@ -1,14 +1,12 @@
-import type { CourseId, ISODateString, UserId } from './common';
+import type { CategoryId, CourseId, ISODateString, UserId } from './common';
 
-export const COURSE_CATEGORIES = [
-  'PROGRAMMING',
-  'DESIGN',
-  'BUSINESS',
-  'MARKETING',
-  'PERSONAL_DEVELOPMENT',
-  'OTHER',
-] as const;
-export type CourseCategory = (typeof COURSE_CATEGORIES)[number];
+/**
+ * A course's category reference is the CATEGORY DOC ID (US-08-02). Categories
+ * live in the admin-managed `courseCategories` collection; renaming a category
+ * edits its `name` only, so course docs never need rewriting. The alias keeps
+ * the historical field-type name compiling across the codebase.
+ */
+export type CourseCategory = CategoryId;
 
 export const COURSE_DIFFICULTIES = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'] as const;
 export type CourseDifficulty = (typeof COURSE_DIFFICULTIES)[number];

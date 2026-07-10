@@ -4,12 +4,13 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
 import {
-  COURSE_CATEGORIES,
   COURSE_DIFFICULTIES,
   type CourseCategory,
+  type CourseCategoryDoc,
   type CourseDifficulty,
 } from '@learnwren/shared-data-models';
 
+import { CategoriesService } from '@learnwren/web-catalog';
 import { LwButtonDirective, LwCardComponent, LwInputDirective } from '@learnwren/web-ui';
 
 import type { CoursesApiErrorBody } from '@learnwren/shared-data-models';
@@ -25,11 +26,22 @@ import { CoursesService } from '../courses.service';
 })
 export class CourseCreatePageComponent {
   private readonly service = inject(CoursesService);
+  private readonly categoriesService = inject(CategoriesService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
 
-  readonly categories = COURSE_CATEGORIES;
+  /** Admin-managed categories (US-08-02); API returns them alphabetical. */
+  readonly categories = signal<readonly CourseCategoryDoc[]>([]);
   readonly difficulties = COURSE_DIFFICULTIES;
+
+  constructor() {
+    void this.categoriesService
+      .list()
+      .then((cats) => this.categories.set(cats))
+      .catch(() => {
+        // The category dropdown is best-effort — the form still submits without one.
+      });
+  }
 
   readonly form = this.fb.nonNullable.group({
     title: ['', [Validators.required, Validators.maxLength(100)]],

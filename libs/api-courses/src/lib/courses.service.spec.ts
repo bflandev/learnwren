@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  CategoryId,
   Course,
+  CourseCategory,
   CourseId,
   ISODateString,
   Lesson,
@@ -11,6 +13,8 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
+import { CategoryNotFoundException } from './categories/categories.exception';
+import type { CategoriesRepository } from './categories/categories.repository';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
 import { CourseNotFoundException } from './errors/courses.exception';
@@ -76,6 +80,18 @@ function buildEnrollmentRepoFake() {
   };
 }
 
+/** Every category exists by default; individual tests override `get`. */
+function buildCategoriesRepoFake() {
+  return {
+    get: vi.fn(async (id: CategoryId) => ({
+      id,
+      name: 'Any',
+      createdAt: FIXED_DATE,
+      updatedAt: FIXED_DATE,
+    })),
+  };
+}
+
 function buildRepoFake(): RepoFake {
   return {
     newId: vi.fn(() => 'generated-id'),
@@ -101,10 +117,12 @@ function buildRepoFake(): RepoFake {
 
 describe('CoursesService — course operations', () => {
   let repo: RepoFake;
+  let categoriesRepo: ReturnType<typeof buildCategoriesRepoFake>;
   let service: CoursesService;
 
   beforeEach(() => {
     repo = buildRepoFake();
+    categoriesRepo = buildCategoriesRepoFake();
     let counter = 0;
     repo.newId.mockImplementation(() => `id-${++counter}`);
     service = new CoursesService(
@@ -113,6 +131,7 @@ describe('CoursesService — course operations', () => {
       buildMaterialsSvcFake() as never,
       buildCoverSvcFake() as never,
       buildEnrollmentRepoFake() as never,
+      categoriesRepo as unknown as CategoriesRepository,
     );
   });
 
@@ -144,12 +163,31 @@ describe('CoursesService — course operations', () => {
         title: 'T',
         description: 'D',
         longDescription: 'LD',
-        category: 'PROGRAMMING',
+        category: 'PROGRAMMING' as CourseCategory,
         difficulty: 'BEGINNER',
       });
       expect(out.longDescription).toBe('LD');
       expect(out.category).toBe('PROGRAMMING');
       expect(out.difficulty).toBe('BEGINNER');
+      expect(categoriesRepo.get).toHaveBeenCalledWith('PROGRAMMING');
+    });
+
+    it('rejects an unknown category without writing the course (US-08-02)', async () => {
+      categoriesRepo.get.mockResolvedValue(null);
+
+      await expect(
+        service.createCourse(INSTRUCTOR_UID, {
+          title: 'T',
+          description: 'D',
+          category: 'NOPE' as CourseCategory,
+        }),
+      ).rejects.toBeInstanceOf(CategoryNotFoundException);
+      expect(repo.createCourse).not.toHaveBeenCalled();
+    });
+
+    it('skips category validation when no category is supplied', async () => {
+      await service.createCourse(INSTRUCTOR_UID, { title: 'T', description: 'D' });
+      expect(categoriesRepo.get).not.toHaveBeenCalled();
     });
   });
 
@@ -211,13 +249,27 @@ describe('CoursesService — course operations', () => {
       await service.updateCourse('cid-1' as CourseId, {
         title: 'X',
         description: 'Y',
-        category: 'DESIGN',
+        category: 'DESIGN' as CourseCategory,
       });
       expect(repo.updateCourse).toHaveBeenCalledWith('cid-1', {
         title: 'X',
         description: 'Y',
         category: 'DESIGN',
       });
+      expect(categoriesRepo.get).toHaveBeenCalledWith('DESIGN');
+    });
+
+    it('rejects an unknown category without writing (US-08-02)', async () => {
+      categoriesRepo.get.mockResolvedValue(null);
+      await expect(
+        service.updateCourse('cid-1' as CourseId, { category: 'NOPE' as CourseCategory }),
+      ).rejects.toBeInstanceOf(CategoryNotFoundException);
+      expect(repo.updateCourse).not.toHaveBeenCalled();
+    });
+
+    it('skips category validation when the patch has no category', async () => {
+      await service.updateCourse('cid-1' as CourseId, { title: 'New' });
+      expect(categoriesRepo.get).not.toHaveBeenCalled();
     });
 
     it('throws CourseNotFoundException when the course is gone', async () => {

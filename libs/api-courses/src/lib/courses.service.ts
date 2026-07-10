@@ -13,6 +13,8 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
+import { CategoryNotFoundException } from './categories/categories.exception';
+import { CategoriesRepository } from './categories/categories.repository';
 import { CoursesRepository } from './courses.repository';
 import {
   CourseNotFoundException,
@@ -57,9 +59,18 @@ export class CoursesService {
     private readonly materialsSvc: MaterialsService,
     private readonly coverSvc: CoverImageService,
     private readonly enrollmentRepo: EnrollmentRepository,
+    private readonly categoriesRepo: CategoriesRepository,
   ) {}
 
+  /** Categories are admin-managed (US-08-02): a referenced id must exist. */
+  private async assertCategoryExists(category: CourseCategory | undefined): Promise<void> {
+    if (!category) return;
+    const found = await this.categoriesRepo.get(category);
+    if (!found) throw new CategoryNotFoundException();
+  }
+
   async createCourse(uid: UserId, input: CreateCourseInput): Promise<Course> {
+    await this.assertCategoryExists(input.category);
     const now = nowIso();
     const course: Course = {
       id: this.repo.newId<CourseId>(),
@@ -97,6 +108,7 @@ export class CoursesService {
   }
 
   async updateCourse(cid: CourseId, patch: UpdateCourseInput): Promise<void> {
+    await this.assertCategoryExists(patch.category);
     // Match the updateModule/updateLesson pattern: pre-check existence so a
     // PATCH to a since-deleted course (the race between CourseOwnerGuard's
     // read and this write) surfaces a structured 404 instead of a raw
