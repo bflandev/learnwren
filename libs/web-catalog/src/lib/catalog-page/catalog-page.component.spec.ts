@@ -375,6 +375,7 @@ describe('CatalogPageComponent', () => {
     enrollmentsMock.listMyEnrollments.mockResolvedValue({
       enrollments: [
         { courseId: 'c1', courseTitle: 'One', completedAt: '2026-07-09T00:00:00.000Z' },
+        { courseId: 'c2', courseTitle: 'Two', completedAt: null },
       ],
     });
     await router.navigate(['/catalog']);

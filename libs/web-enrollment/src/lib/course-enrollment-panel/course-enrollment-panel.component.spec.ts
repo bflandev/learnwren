@@ -279,6 +279,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     // ngOnInit kicked off resolveStatus(), but the HTTP is still pending.
     expect(fixture.componentInstance.state()).toBe('LOADING');
     expect(fixture.componentInstance.busy()).toBe(false);
+    expect(fixture.componentInstance.completed()).toBe(false);
     http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
     await fixture.whenStable();
   });

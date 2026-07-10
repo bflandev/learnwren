@@ -853,10 +853,14 @@ describe('LearnService.getLessonView — lazy completion stamp', () => {
     });
     enrollment.stampCompleted = vi.fn().mockRejectedValue(new Error('boom'));
     const svc = new LearnService(makeVideos(), enrollment, courses, makeMaterialsService(), makeCaptionsService());
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
     const view = await svc.getLessonView(STUDENT_ID, course, lesson);
 
     expect(view.outline.modules.length).toBeGreaterThan(0);
+    expect(warnSpy).toHaveBeenCalledWith(
+      `stampCompleted failed for user=${STUDENT_ID} course=${CID}: boom`,
+    );
   });
 });
 

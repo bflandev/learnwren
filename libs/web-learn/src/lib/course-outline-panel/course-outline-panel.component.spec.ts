@@ -270,6 +270,14 @@ describe('CourseOutlinePanelComponent (completion rollups)', () => {
     const fixture = buildWithOutline({ modules: [] });
     expect(fixture.nativeElement.querySelector('[data-testid="course-complete-banner"]')).toBeNull();
   });
+
+  it('does not mark an empty module complete (vacuous every() guarded by a lessons.length check)', () => {
+    const fixture = buildWithOutline({
+      modules: [{ id: 'm1' as ModuleId, title: 'Empty module', lessons: [] }],
+    });
+    const marks = fixture.nativeElement.querySelectorAll('[data-testid="module-complete"]');
+    expect(marks).toHaveLength(0);
+  });
 });
 
 describe('CourseOutlinePanelComponent (default Input values)', () => {

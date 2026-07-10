@@ -428,6 +428,52 @@ describe('EnrollmentRepository.markLessonComplete', () => {
     expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBeUndefined();
   });
 
+  it('does not stamp when another lesson has an explicit null completedAt row', async () => {
+    // Distinct from the previous test: l2 is already PRESENT in `progress` with
+    // completedAt: null (not merely absent), so it exercises the
+    // `p.completedAt != null` check in the doneByLesson map rather than a
+    // missing-key lookup.
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({
+        progress: [{ lessonId: 'l2' as LessonId, completedAt: null, lastWatchedSeconds: 0 }],
+      }),
+    });
+    await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l1' as LessonId,
+      '2026-07-09T00:00:00.000Z' as ISODateString,
+      ['l1', 'l2'] as LessonId[],
+    );
+    expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBeUndefined();
+  });
+
+  it('does not overwrite an existing stamp when a later-added lesson completes the course again', async () => {
+    // A course completed earlier, then the instructor adds a new lesson (l3).
+    // Completing l3 makes "every lesson complete" true again, but the original
+    // stamp must be preserved verbatim — no restamping (decision 1).
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({
+        completedAt: '2026-06-01T00:00:00.000Z' as ISODateString,
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-06-01T00:00:00.000Z' as ISODateString, lastWatchedSeconds: 10 },
+        ],
+      }),
+    });
+    await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l3' as LessonId,
+      '2026-07-09T00:00:00.000Z' as ISODateString,
+      ['l1', 'l3'] as LessonId[],
+    );
+    expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBe(
+      '2026-06-01T00:00:00.000Z',
+    );
+  });
+
   it('does not restamp an already-stamped enrollment (idempotent re-mark)', async () => {
     const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
     const { repo, db } = repoWith({
