@@ -128,7 +128,8 @@ registered user) and an **instructor** (a student promoted to author courses).
 
 > Today, students can browse and enroll in published courses, watch any lesson in an
 > enrolled course (`/learn/:cid/:lid`), and mark lessons complete. Resume / last-watched
-> tracking and the course-outline panel are shipped with EP-06 Slices C & D.
+> tracking and the course-outline panel are shipped with EP-06 Slices C & D, and module /
+> course completion rollups close out the epic — see [2.18b Course and module completion](#218b-course-and-module-completion-us-06-02).
 
 ## 2.1 Creating an account
 
@@ -505,11 +506,10 @@ An enrolled student can leave any course they are enrolled in:
 Re-enrolling within the 90-day window restores the same enrollment record (including
 any progress data written by EP-06).
 
-> **Note — what is deferred.** Module-completion and course-completion rollups,
-> the "Course Completed" badge, and per-lesson progress indicators on the catalog
-> detail page ship with later EP-06 slices. The **Start Learning** button, lesson
-> player, **Continue Learning** resume tracking, mark-complete, and the course-outline
-> panel are all live now (see 2.16–2.18 below). The 90-day hard-delete of withdrawn
+> **Note — what is deferred.** The **Start Learning** button, lesson player,
+> **Continue Learning** resume tracking, mark-complete, the course-outline panel,
+> and module / course completion rollups (including the "Course Completed" badge)
+> are all live now (see 2.16–2.18b below). The 90-day hard-delete of withdrawn
 > enrollment records remains deferred (soft-delete and restore on re-enroll are live;
 > the scheduled purge is not). Access IS revoked when an instructor unpublishes a
 > course — the lesson endpoint and the manifest endpoint both require
@@ -550,8 +550,9 @@ are **off by default** — use the **CC** button in the player's native controls
 them. Only one English track is available per lesson in this release.
 
 **Shipped in later EP-06 slices:** progress / last-watched tracking (Slice C),
-the **Continue Learning** resume button (Slice C), and the collapsible course-outline
-panel with completion checkmarks (Slice D).
+the **Continue Learning** resume button (Slice C), the collapsible course-outline
+panel with completion checkmarks (Slice D), and module / course completion rollups
+(see [2.18b Course and module completion](#218b-course-and-module-completion-us-06-02)).
 
 ---
 
@@ -583,9 +584,8 @@ If the student's enrolment is withdrawn in another tab between page load and
 click, the POST returns 403 and the page surfaces an inline banner: "Your
 enrolment is no longer active" with a link back to `/catalog/:cid`.
 
-**Deferred to later EP-06 slices:** module-completion and course-completion
-rollups, the "Course Completed" badge, and per-lesson progress indicators on the
-catalog detail page.
+**Module and course completion rollups** build on this per-lesson stamp — see
+[2.18b Course and module completion](#218b-course-and-module-completion-us-06-02).
 
 ---
 
@@ -608,6 +608,7 @@ page.
 
 - The **currently active lesson** is highlighted so you always know where you are.
 - Lessons you've **completed** display a checkmark (✓).
+- A **module** header shows its own checkmark once every lesson inside it is complete.
 - Lessons whose **video is still processing** (`UPLOADING` / `TRANSCODING`) appear
   dimmed with a `(processing)` suffix and cannot be clicked. Attempting to click
   one surfaces an inline notice.
@@ -620,6 +621,42 @@ page.
 - On **narrower screens** it appears as a **drawer** that slides in from the left.
   It closes automatically when you select a lesson, on backdrop click, or when you
   press `Escape`.
+
+---
+
+## 2.18b Course and module completion (US-06-02)
+
+Finishing every lesson in a course earns a persistent **Course Completed** badge, and
+finishing a module rolls up into a checkmark on that module's header — closing out the
+last open Acceptance Criteria of EP-06.
+
+**Where it shows up:**
+
+- **Lesson player outline** — a module header shows its checkmark once every lesson
+  inside it is complete (see 2.18 above); the outline banners **"Course completed"**
+  once every lesson in the course is.
+- **Course detail page** — a **Course Completed** badge appears next to the enrolled
+  state.
+- **Catalog cards** — while signed in, your completed courses carry a **Completed**
+  pill on their catalog card. (Search results are unaffected — the pill is scoped to
+  the browse grid.)
+- **Profile page** — `/settings/profile` gains a **Completed courses** section listing
+  every course you've finished, with a link back to its catalog page and the date you
+  completed it. The section is hidden entirely if you haven't completed any course yet.
+
+**How the stamp is set:** completing a course's last remaining lesson stamps
+`completedAt` on your enrollment in the same transaction as that lesson's own
+completion. If you finished every lesson before this feature shipped, there's nothing
+left to mark complete — so the stamp is also applied the first time you open any
+lesson of that course afterward (a one-time backfill, invisible to you).
+
+**Deliberate exclusions:**
+
+- **No un-stamping.** If the instructor adds a new lesson to a course you've already
+  completed, your **Course Completed** badge stays — you completed the course as it
+  existed at the time. There's no mechanism to revoke it.
+- **No certificates.** Completion earns a badge, not a downloadable certificate or
+  other proof.
 
 ---
 
@@ -942,6 +979,7 @@ the session, never from the request body or path.
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/api/enrollments` | `{ courseId }` | `201` `Enrollment` | Enroll, or restore a `WITHDRAWN` enrollment. Idempotent — re-enrolling when already `ACTIVE` returns the existing record unchanged. |
 | `DELETE` | `/api/enrollments/:courseId` | — | `204` | Unenroll — soft-delete the caller's enrollment; progress retained for 90 days. |
+| `GET` | `/api/enrollments` | — | `200` `EnrollmentListView` | The caller's `ACTIVE` enrollments joined to course title and `completedAt` (US-06-02). Enrollments whose course was deleted are omitted; empty array when the caller has none. Registered before the `:courseId` route below so it never binds as a course id. |
 | `GET` | `/api/enrollments/:courseId` | — | `200` `EnrollmentStatusView` | The caller's enrollment for that course and whether they own it; drives the course-detail page button state. |
 
 Error codes specific to enrollment:
@@ -1108,13 +1146,18 @@ fields are **string-literal unions** (not TypeScript enums).
 - **`PublishEligibility`** — `{ eligible: true, reasons: [] }` or
   `{ eligible: false, reasons: PublishBlockReason[] }`.
 - **`Enrollment`** — `id` (composite `${userId}__${courseId}`), `userId`, `courseId`,
-  `status (ACTIVE|WITHDRAWN)`, `progress: LessonProgress[]` (owned by EP-06; always `[]`
-  in this slice), `withdrawnAt?`, `createdAt`, `updatedAt`. Stored in the top-level
-  `enrollments` Firestore collection; direct client access is denied by security rules.
+  `status (ACTIVE|WITHDRAWN)`, `progress: LessonProgress[]`, `withdrawnAt?`,
+  `lastAccessedLessonId?`, `lastAccessedAt?`, `completedAt?` (set when every lesson in
+  the course has a completed progress row; never cleared; `undefined` on pre-rollup
+  docs, treated as `null` by readers — US-06-02), `createdAt`, `updatedAt`. Stored in
+  the top-level `enrollments` Firestore collection; direct client access is denied by
+  security rules.
 - **`EnrollmentStatusView`** — `{ enrollment: Enrollment | null, isOwner: boolean }` —
   the authenticated read-model returned by `GET /api/enrollments/:courseId`.
-- **`LessonProgress`** — `lessonId`, `completedAt`, `lastWatchedSeconds` — reserved for
-  the EP-06 learning experience.
+- **`EnrollmentListView`** — `{ enrollments: EnrollmentListItem[] }`, where each item is
+  `{ courseId, courseTitle, completedAt }` — the authenticated read-model returned by
+  `GET /api/enrollments`.
+- **`LessonProgress`** — `lessonId`, `completedAt`, `lastWatchedSeconds`.
 - **`VideoCaptions`** — `videoId` (=== the Firestore doc id in the `videoCaptions`
   collection), `language` (e.g. `"en"`), `label` (e.g. `"English"`), `format`
   (`"vtt"`), `content` (the raw VTT text), `createdAt`, `updatedAt`. One document per
@@ -1184,11 +1227,6 @@ Target a single project by invoking Nx directly, e.g. `pnpm nx test api-courses`
 
 These are specified in `docs/epics/` and `docs/use-cases/` but **not yet implemented**:
 
-- **EP-06 module / course completion rollups & badges.** Module-completion and
-  course-completion rollups, the "Course Completed" badge on the dashboard, and
-  per-lesson progress indicators on the catalog detail page are deferred. Per-lesson
-  playback (Slice A), mark-complete (Slice B), resume tracking (Slice C), and the
-  course-outline panel (Slice D) are shipped.
 - **Student-facing materials browser** — `MaterialAccessGuard` already grants enrolled
   students download access, but the lesson player does not yet surface a materials panel.
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll are

@@ -8,6 +8,8 @@ import type {
   CourseCategory,
   CourseDifficulty,
 } from '@learnwren/shared-data-models';
+import { AuthService } from '@learnwren/web-auth';
+import { EnrollmentService } from '@learnwren/web-enrollment';
 
 import { CatalogService } from '../catalog.service';
 import {
@@ -27,6 +29,8 @@ export class CatalogPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly service = inject(CatalogService);
+  private readonly auth = inject(AuthService);
+  private readonly enrollments = inject(EnrollmentService);
 
   readonly result = signal<CourseCatalogPage | null>(null);
   readonly error = signal(false);
@@ -34,6 +38,9 @@ export class CatalogPageComponent {
   readonly difficulty = signal<CourseDifficulty | undefined>(undefined);
   readonly sort = signal<CatalogSort>('NEWEST');
   readonly filtersActive = signal(false);
+
+  /** Course ids the signed-in caller has completed — overlays a badge on cards. */
+  readonly completedCourseIds = signal<ReadonlySet<string>>(new Set());
 
   /**
    * Monotonic token identifying the most recent load(). The HTTP wrapper returns
@@ -48,6 +55,22 @@ export class CatalogPageComponent {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       void this.load(params);
     });
+
+    // Completion badges are orthogonal to filters — load once, not per filter change.
+    if (this.auth.currentUser()) {
+      void this.enrollments
+        .listMyEnrollments()
+        .then((view) => {
+          this.completedCourseIds.set(
+            new Set(
+              view.enrollments.filter((e) => e.completedAt != null).map((e) => e.courseId),
+            ),
+          );
+        })
+        .catch(() => {
+          // Badge overlay is best-effort — the catalog renders without it.
+        });
+    }
   }
 
   private async load(params: ParamMap): Promise<void> {

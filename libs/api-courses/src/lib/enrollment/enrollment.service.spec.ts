@@ -95,3 +95,39 @@ describe('EnrollmentService.getEnrollmentStatus', () => {
     expect(view).toEqual({ enrollment: null, isOwner: false });
   });
 });
+
+describe('EnrollmentService.listMyEnrollments', () => {
+  it('joins course titles onto the caller’s ACTIVE enrollments', async () => {
+    const { service, courses, enrollments } = make();
+    enrollments.listActiveByUser = vi.fn().mockResolvedValue([
+      { courseId: 'c1', completedAt: '2026-07-09T00:00:00.000Z' },
+      { courseId: 'c2', completedAt: null },
+    ]);
+    courses.getCourse = vi.fn(async (id: string) =>
+      id === 'c1' ? { id: 'c1', title: 'Course One' } : { id: 'c2', title: 'Course Two' },
+    ) as unknown as CoursesRepository['getCourse'];
+    const view = await service.listMyEnrollments(UID);
+    expect(view).toEqual({
+      enrollments: [
+        { courseId: 'c1', courseTitle: 'Course One', completedAt: '2026-07-09T00:00:00.000Z' },
+        { courseId: 'c2', courseTitle: 'Course Two', completedAt: null },
+      ],
+    });
+  });
+
+  it('omits enrollments whose course was deleted', async () => {
+    const { service, courses, enrollments } = make();
+    enrollments.listActiveByUser = vi.fn().mockResolvedValue([{ courseId: 'gone', completedAt: null }]);
+    courses.getCourse = vi.fn().mockResolvedValue(null);
+    const view = await service.listMyEnrollments(UID);
+    expect(view.enrollments).toEqual([]);
+  });
+
+  it('normalizes a missing completedAt (pre-rollup doc) to null', async () => {
+    const { service, courses, enrollments } = make();
+    enrollments.listActiveByUser = vi.fn().mockResolvedValue([{ courseId: 'c1' }]);
+    courses.getCourse = vi.fn().mockResolvedValue({ id: 'c1', title: 'Course One' });
+    const view = await service.listMyEnrollments(UID);
+    expect(view.enrollments[0].completedAt).toBeNull();
+  });
+});

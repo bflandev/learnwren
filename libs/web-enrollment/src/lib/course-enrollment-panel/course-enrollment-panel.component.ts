@@ -40,6 +40,7 @@ export class CourseEnrollmentPanelComponent implements OnInit {
   readonly statusChanged = output<void>();
 
   readonly state = signal<PanelState>('LOADING');
+  readonly completed = signal(false);
   readonly busy = signal(false);
   readonly actionError = signal<string | null>(null);
   readonly showConfirm = signal(false);
@@ -63,6 +64,7 @@ export class CourseEnrollmentPanelComponent implements OnInit {
   private async resolveStatus(): Promise<void> {
     try {
       const view = await this.enrollments.getEnrollmentStatus(this.courseId());
+      this.completed.set(view.enrollment?.status === 'ACTIVE' && view.enrollment.completedAt != null);
       if (view.isOwner) {
         this.state.set('OWNER');
       } else if (view.enrollment?.status === 'ACTIVE') {
@@ -134,6 +136,7 @@ export class CourseEnrollmentPanelComponent implements OnInit {
       await this.enrollments.unenroll(this.courseId());
       this.showConfirm.set(false);
       this.state.set('ENROLLABLE');
+      this.completed.set(false);
       this.statusChanged.emit();
     } catch {
       this.actionError.set('Could not leave the course. Please try again.');

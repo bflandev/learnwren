@@ -6,6 +6,8 @@ import { Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CourseCatalogPage } from '@learnwren/shared-data-models';
+import { AuthService } from '@learnwren/web-auth';
+import { EnrollmentService } from '@learnwren/web-enrollment';
 
 import { CatalogPageComponent } from './catalog-page.component';
 
@@ -16,8 +18,13 @@ function page(over: Partial<CourseCatalogPage> = {}): CourseCatalogPage {
 describe('CatalogPageComponent', () => {
   let http: HttpTestingController;
   let router: Router;
+  let authMock: { currentUser: ReturnType<typeof vi.fn> };
+  let enrollmentsMock: { listMyEnrollments: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    authMock = { currentUser: vi.fn().mockReturnValue(null) };
+    enrollmentsMock = { listMyEnrollments: vi.fn() };
+
     TestBed.configureTestingModule({
       imports: [CatalogPageComponent],
       providers: [
@@ -26,6 +33,8 @@ describe('CatalogPageComponent', () => {
         // A real route makes /catalog navigable so query params reach the
         // root ActivatedRoute the directly-created component injects.
         provideRouter([{ path: 'catalog', component: CatalogPageComponent }]),
+        { provide: AuthService, useValue: authMock },
+        { provide: EnrollmentService, useValue: enrollmentsMock },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -359,5 +368,73 @@ describe('CatalogPageComponent', () => {
 
     expect(fixture.componentInstance.error()).toBe(false);
     expect(fixture.componentInstance.result()?.page).toBe(2);
+  });
+
+  it('marks cards of completed courses when signed in', async () => {
+    authMock.currentUser.mockReturnValue({ uid: 'u1' } as never);
+    enrollmentsMock.listMyEnrollments.mockResolvedValue({
+      enrollments: [
+        { courseId: 'c1', courseTitle: 'One', completedAt: '2026-07-09T00:00:00.000Z' },
+        { courseId: 'c2', courseTitle: 'Two', completedAt: null },
+      ],
+    });
+    await router.navigate(['/catalog']);
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/catalog').flush(
+      page({
+        total: 2,
+        totalPages: 1,
+        items: [
+          {
+            id: 'c1',
+            title: 'One',
+            description: 'd',
+            instructorId: 'u-1' as never,
+            instructorDisplayName: 'Ada',
+            publishedAt: '2026-01-01T00:00:00.000Z' as never,
+          },
+          {
+            id: 'c2',
+            title: 'Two',
+            description: 'd',
+            instructorId: 'u-1' as never,
+            instructorDisplayName: 'Ada',
+            publishedAt: '2026-01-01T00:00:00.000Z' as never,
+          },
+        ],
+      }),
+    );
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    expect(component.completedCourseIds().has('c1')).toBe(true);
+    expect(component.completedCourseIds().has('c2')).toBe(false);
+  });
+
+  it('does not call the enrollments API for guests', async () => {
+    authMock.currentUser.mockReturnValue(null);
+    await router.navigate(['/catalog']);
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/catalog').flush(page());
+    await fixture.whenStable();
+
+    expect(enrollmentsMock.listMyEnrollments).not.toHaveBeenCalled();
+  });
+
+  it('a failed enrollments load leaves the catalog rendered without badges', async () => {
+    authMock.currentUser.mockReturnValue({ uid: 'u1' } as never);
+    enrollmentsMock.listMyEnrollments.mockRejectedValue(new Error('boom'));
+    await router.navigate(['/catalog']);
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/catalog').flush(page());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('No courses');
+    expect(fixture.componentInstance.completedCourseIds().size).toBe(0);
   });
 });

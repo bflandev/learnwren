@@ -73,6 +73,16 @@ export class EnrollmentRepository {
     return snap.docs.map((d) => d.data() as Enrollment);
   }
 
+  /** All ACTIVE enrollments for a user — GET /api/enrollments + profile/catalog badges. */
+  async listActiveByUser(userId: UserId): Promise<Enrollment[]> {
+    const snap = await this.db
+      .collection(ENROLLMENTS)
+      .where('userId', '==', userId)
+      .where('status', '==', 'ACTIVE')
+      .get();
+    return snap.docs.map((d) => d.data() as Enrollment);
+  }
+
   /** True only when an ACTIVE enrollment exists. Consumed by the access guards. */
   async isEnrolled(userId: UserId, courseId: CourseId): Promise<boolean> {
     const enrollment = await this.getEnrollment(userId, courseId);
@@ -134,6 +144,7 @@ export class EnrollmentRepository {
     courseId: CourseId,
     lessonId: LessonId,
     completedAtIso: ISODateString,
+    allLessonIds: LessonId[],
   ): Promise<{ completedAt: ISODateString }> {
     const enrollmentRef = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
 
@@ -160,7 +171,19 @@ export class EnrollmentRepository {
         progress.push({ lessonId, completedAt: completedAtIso, lastWatchedSeconds: 0 });
       }
 
-      t.update(enrollmentRef, { progress, updatedAt: completedAtIso });
+      const update: Record<string, unknown> = { progress, updatedAt: completedAtIso };
+
+      // Course rollup (US-06-02): when this write completes the last lesson,
+      // stamp the enrollment in the same transaction. Never restamped, never
+      // cleared (completing "the course as it was" is final by design).
+      const doneByLesson = new Map(progress.map((p) => [p.lessonId, p.completedAt != null]));
+      const allComplete =
+        allLessonIds.length > 0 && allLessonIds.every((id) => doneByLesson.get(id) === true);
+      if (allComplete && existing.completedAt == null) {
+        update['completedAt'] = completedAtIso;
+      }
+
+      t.update(enrollmentRef, update);
       return { completedAt: completedAtIso };
     });
   }
@@ -279,6 +302,25 @@ export class EnrollmentRepository {
       const now = nowIso();
       t.update(enrollmentRef, { progress, updatedAt: now });
       return { lastWatchedSeconds: seconds };
+    });
+  }
+
+  /**
+   * Lazy backfill stamp (US-06-02): sets completedAt on an unstamped
+   * enrollment. Transactional read-then-write so a concurrent stamp (or the
+   * mark-complete path) is never overwritten with a later date.
+   */
+  async stampCompleted(
+    userId: UserId,
+    courseId: CourseId,
+    completedAtIso: ISODateString,
+  ): Promise<void> {
+    const ref = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
+    await this.db.runTransaction(async (t) => {
+      const snap = await t.get(ref);
+      const existing = snap.exists ? (snap.data() as Enrollment) : null;
+      if (!existing || existing.completedAt != null) return;
+      t.update(ref, { completedAt: completedAtIso, updatedAt: completedAtIso });
     });
   }
 }

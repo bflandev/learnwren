@@ -18,6 +18,7 @@ describe('EnrollmentController', () => {
     enroll: ReturnType<typeof vi.fn>;
     unenroll: ReturnType<typeof vi.fn>;
     getEnrollmentStatus: ReturnType<typeof vi.fn>;
+    listMyEnrollments: ReturnType<typeof vi.fn>;
   };
   let controller: EnrollmentController;
 
@@ -26,6 +27,7 @@ describe('EnrollmentController', () => {
       enroll: vi.fn().mockResolvedValue({ id: 'e1' } as Enrollment),
       unenroll: vi.fn().mockResolvedValue(undefined),
       getEnrollmentStatus: vi.fn().mockResolvedValue({ enrollment: null, isOwner: false }),
+      listMyEnrollments: vi.fn().mockResolvedValue({ enrollments: [] }),
     };
     controller = new EnrollmentController(svc as unknown as EnrollmentService);
   });
@@ -43,5 +45,10 @@ describe('EnrollmentController', () => {
   it('GET /enrollments/:courseId reports the caller status for that course', async () => {
     await controller.getStatus(CID, reqAs(UID));
     expect(svc.getEnrollmentStatus).toHaveBeenCalledWith(UID, CID);
+  });
+
+  it('GET /enrollments lists the caller’s enrollments', async () => {
+    await controller.list(reqAs(UID));
+    expect(svc.listMyEnrollments).toHaveBeenCalledWith(UID);
   });
 });

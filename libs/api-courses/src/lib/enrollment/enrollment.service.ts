@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import type {
   CourseId,
   Enrollment,
+  EnrollmentListView,
   EnrollmentStatusView,
   UserId,
 } from '@learnwren/shared-data-models';
@@ -41,5 +42,17 @@ export class EnrollmentService {
       this.enrollments.getEnrollment(userId, courseId),
     ]);
     return { enrollment, isOwner: course?.instructorId === userId };
+  }
+
+  /** The caller's ACTIVE enrollments joined to course titles (GET /api/enrollments). */
+  async listMyEnrollments(userId: UserId): Promise<EnrollmentListView> {
+    const rows = await this.enrollments.listActiveByUser(userId);
+    const courses = await Promise.all(rows.map((r) => this.courses.getCourse(r.courseId)));
+    const enrollments = rows.flatMap((r, i) => {
+      const course = courses[i];
+      if (!course) return []; // course deleted — orphaned enrollment, omit
+      return [{ courseId: r.courseId, courseTitle: course.title, completedAt: r.completedAt ?? null }];
+    });
+    return { enrollments };
   }
 }

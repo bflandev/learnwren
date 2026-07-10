@@ -139,6 +139,33 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     expect(navigate).toHaveBeenCalledWith(['/catalog']);
   });
 
+  it('shows the Completed badge when the enrollment is stamped', async () => {
+    configure({ user: { uid: 'u1' } });
+    const { fixture, http } = create();
+    http.expectOne('/api/enrollments/c-1').flush({
+      enrollment: { status: 'ACTIVE', completedAt: '2026-07-09T00:00:00.000Z' },
+      isOwner: false,
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="course-completed-badge"]'),
+    ).toBeTruthy();
+  });
+
+  it('shows no badge for an unstamped active enrollment', async () => {
+    configure({ user: { uid: 'u1' } });
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/enrollments/c-1')
+      .flush({ enrollment: { status: 'ACTIVE', completedAt: null }, isOwner: false });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="course-completed-badge"]'),
+    ).toBeNull();
+  });
+
   it('shows an inline error when enroll fails for another reason', async () => {
     configure({ user: { uid: 'u1' } });
     const { fixture, http } = create();
@@ -173,6 +200,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     fixture.detectChanges();
     expect(text(fixture)).toContain('Enroll');
     expect(text(fixture)).not.toContain('Leave this course?');
+    expect(fixture.componentInstance.completed()).toBe(false);
   });
 
   it('shows a load error with a retry when the status request fails', async () => {
@@ -251,6 +279,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     // ngOnInit kicked off resolveStatus(), but the HTTP is still pending.
     expect(fixture.componentInstance.state()).toBe('LOADING');
     expect(fixture.componentInstance.busy()).toBe(false);
+    expect(fixture.componentInstance.completed()).toBe(false);
     http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
     await fixture.whenStable();
   });

@@ -37,6 +37,53 @@ async function seedCourse(
   return id;
 }
 
+/** Seed a module with N lessons under a course (module/lesson shape mirrors learn.e2e-spec.ts). */
+async function seedModuleWithLessons(
+  courseId: string,
+  _instructorId: string,
+  lessonCount: number,
+): Promise<{ moduleId: string; lessonIds: string[] }> {
+  const now = new Date().toISOString();
+  const moduleId = `enr-e2e-mod-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  await admin
+    .firestore()
+    .collection('courses')
+    .doc(courseId)
+    .collection('modules')
+    .doc(moduleId)
+    .set({
+      id: moduleId,
+      courseId,
+      title: 'M1',
+      order: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+  const lessonIds: string[] = [];
+  for (let i = 0; i < lessonCount; i++) {
+    const lessonId = `enr-e2e-les-${Date.now()}-${Math.floor(Math.random() * 1e6)}-${i}`;
+    await admin
+      .firestore()
+      .collection('courses')
+      .doc(courseId)
+      .collection('modules')
+      .doc(moduleId)
+      .collection('lessons')
+      .doc(lessonId)
+      .set({
+        id: lessonId,
+        moduleId,
+        title: `L${i}`,
+        order: i,
+        createdAt: now,
+        updatedAt: now,
+      });
+    lessonIds.push(lessonId);
+  }
+  return { moduleId, lessonIds };
+}
+
 /** Seed a READY material straight into Firestore. */
 async function seedMaterial(courseId: string, ownerInstructorId: string): Promise<string> {
   const id = `enr-e2e-mat-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
@@ -192,4 +239,71 @@ test('a non-enrolled non-owner is 403 from the material download-url endpoint', 
     headers: { cookie: student.cookieHeader },
   });
   expect(res.status()).toBe(403);
+});
+
+// ──────────────────────── GET /api/enrollments (list) ────────────────────────
+
+test('GET /api/enrollments requires a session', async ({ request }) => {
+  expect((await request.get(`${API_BASE}/enrollments`)).status()).toBe(401);
+});
+
+test('GET /api/enrollments returns [] for a fresh user', async ({ request }) => {
+  const student = await registerStudent(request);
+  const res = await request.get(`${API_BASE}/enrollments`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  expect(res.status()).toBe(200);
+  expect(await res.json()).toEqual({ enrollments: [] });
+});
+
+test('GET /api/enrollments lists an enrollment with its course title and null completedAt', async ({
+  request,
+}) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const student = await registerStudent(request);
+  const courseId = await seedCourse('PUBLISHED', instructor.uid);
+  await request.post(`${API_BASE}/enrollments`, {
+    headers: { cookie: student.cookieHeader },
+    data: { courseId },
+  });
+  const res = await request.get(`${API_BASE}/enrollments`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  const body = await res.json();
+  const row = body.enrollments.find((e: { courseId: string }) => e.courseId === courseId);
+  expect(row).toEqual({ courseId, courseTitle: 'Enrollment e2e course', completedAt: null });
+});
+
+test('completing every lesson stamps the enrollment; the list reflects it', async ({
+  request,
+}) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const student = await registerStudent(request);
+  const courseId = await seedCourse('PUBLISHED', instructor.uid);
+  const { lessonIds } = await seedModuleWithLessons(courseId, instructor.uid, 2);
+  await request.post(`${API_BASE}/enrollments`, {
+    headers: { cookie: student.cookieHeader },
+    data: { courseId },
+  });
+
+  for (const lid of lessonIds) {
+    const res = await request.post(`${API_BASE}/learn/courses/${courseId}/lessons/${lid}/complete`, {
+      headers: { cookie: student.cookieHeader },
+      data: {},
+    });
+    expect(res.status()).toBe(200);
+  }
+
+  const list = await request.get(`${API_BASE}/enrollments`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  const row = (await list.json()).enrollments.find(
+    (e: { courseId: string }) => e.courseId === courseId,
+  );
+  expect(row.completedAt).not.toBeNull();
+
+  const status = await request.get(`${API_BASE}/enrollments/${courseId}`, {
+    headers: { cookie: student.cookieHeader },
+  });
+  expect((await status.json()).enrollment.completedAt).toBe(row.completedAt);
 });

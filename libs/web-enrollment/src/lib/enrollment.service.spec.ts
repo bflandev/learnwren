@@ -39,4 +39,12 @@ describe('EnrollmentService', () => {
     req.flush(null);
     await promise;
   });
+
+  it('listMyEnrollments GETs /api/enrollments', async () => {
+    const promise = service.listMyEnrollments();
+    const req = http.expectOne('/api/enrollments');
+    expect(req.request.method).toBe('GET');
+    req.flush({ enrollments: [] });
+    expect(await promise).toEqual({ enrollments: [] });
+  });
 });

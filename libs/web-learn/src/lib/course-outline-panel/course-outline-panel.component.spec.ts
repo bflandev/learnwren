@@ -211,6 +211,75 @@ describe('CourseOutlinePanelComponent (sidebar-mode guards)', () => {
   });
 });
 
+describe('CourseOutlinePanelComponent (completion rollups)', () => {
+  function buildWithOutline(o: CourseOutline): ComponentFixture<CourseOutlinePanelComponent> {
+    TestBed.configureTestingModule({ imports: [CourseOutlinePanelComponent] });
+    const fixture = TestBed.createComponent(CourseOutlinePanelComponent);
+    fixture.componentRef.setInput('outline', o);
+    fixture.componentRef.setInput('activeLessonId', 'l1' as LessonId);
+    fixture.componentRef.setInput('courseId', CID);
+    fixture.componentRef.setInput('mode', 'sidebar');
+    fixture.componentRef.setInput('outlineOpen', true);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  const DONE = '2026-05-01T00:00:00Z' as never;
+
+  it('shows a checkmark on a module whose lessons are all complete, not on others', () => {
+    const fixture = buildWithOutline({
+      modules: [
+        {
+          id: 'm1' as ModuleId,
+          title: 'M1',
+          lessons: [{ id: 'l1' as LessonId, title: 'L1', videoState: 'READY', completedAt: DONE }],
+        },
+        {
+          id: 'm2' as ModuleId,
+          title: 'M2',
+          lessons: [
+            { id: 'l2' as LessonId, title: 'L2', videoState: 'READY', completedAt: DONE },
+            { id: 'l3' as LessonId, title: 'L3', videoState: 'READY', completedAt: null },
+          ],
+        },
+      ],
+    });
+    const marks = fixture.nativeElement.querySelectorAll('[data-testid="module-complete"]');
+    expect(marks).toHaveLength(1);
+  });
+
+  it('shows the course-complete banner only when every lesson is complete', () => {
+    const fixture = buildWithOutline({
+      modules: [
+        {
+          id: 'm1' as ModuleId,
+          title: 'M1',
+          lessons: [{ id: 'l1' as LessonId, title: 'L1', videoState: 'READY', completedAt: DONE }],
+        },
+      ],
+    });
+    expect(fixture.nativeElement.querySelector('[data-testid="course-complete-banner"]')).toBeTruthy();
+  });
+
+  it('hides the banner when any lesson is incomplete', () => {
+    const fixture = buildWithOutline(outline());
+    expect(fixture.nativeElement.querySelector('[data-testid="course-complete-banner"]')).toBeNull();
+  });
+
+  it('treats an empty outline as not complete', () => {
+    const fixture = buildWithOutline({ modules: [] });
+    expect(fixture.nativeElement.querySelector('[data-testid="course-complete-banner"]')).toBeNull();
+  });
+
+  it('does not mark an empty module complete (vacuous every() guarded by a lessons.length check)', () => {
+    const fixture = buildWithOutline({
+      modules: [{ id: 'm1' as ModuleId, title: 'Empty module', lessons: [] }],
+    });
+    const marks = fixture.nativeElement.querySelectorAll('[data-testid="module-complete"]');
+    expect(marks).toHaveLength(0);
+  });
+});
+
 describe('CourseOutlinePanelComponent (default Input values)', () => {
   it('outlineOpen defaults to true when no value is provided', () => {
     TestBed.configureTestingModule({ imports: [CourseOutlinePanelComponent] });

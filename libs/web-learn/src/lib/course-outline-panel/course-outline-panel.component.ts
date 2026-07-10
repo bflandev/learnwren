@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, HostListener, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, input, output, signal } from '@angular/core';
 import { A11yModule } from '@angular/cdk/a11y';
 
 import type { CourseId, CourseOutline, LessonId } from '@learnwren/shared-data-models';
@@ -23,6 +23,16 @@ export class CourseOutlinePanelComponent {
   readonly outlineOpenChange = output<boolean>();
 
   readonly processingNoticeFor = signal<LessonId | null>(null);
+
+  /** True when the module's every lesson is complete (US-06-02 module rollup). */
+  isModuleComplete(m: CourseOutline['modules'][number]): boolean {
+    return m.lessons.length > 0 && m.lessons.every((l) => l.completedAt != null);
+  }
+
+  readonly courseComplete = computed(() => {
+    const lessons = this.outline().modules.flatMap((m) => m.lessons);
+    return lessons.length > 0 && lessons.every((l) => l.completedAt != null);
+  });
 
   onRowClick(lessonId: LessonId, videoState: string | null): void {
     if (lessonId === this.activeLessonId()) return;

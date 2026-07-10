@@ -22,6 +22,11 @@
     }
     @case ('ENROLLED') {
       <p class="text-sm font-medium text-ink">Enrolled ✓</p>
+      @if (completed()) {
+        <p data-testid="course-completed-badge" class="text-sm font-medium text-ink">
+          🎉 Course Completed
+        </p>
+      }
       <button lwButton type="button" [disabled]="busy()" (click)="openConfirm()">
         Leave course
       </button>

@@ -105,4 +105,29 @@ describe('CourseCardComponent', () => {
     expect(el.querySelector('lw-avatar img')).toBeNull();
     expect(el.querySelector('lw-avatar .lw-avatar-initials')?.textContent?.trim()).toBe('AD');
   });
+
+  it('shows a Completed pill when completed', () => {
+    TestBed.configureTestingModule({
+      imports: [CourseCardComponent],
+      providers: [provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(CourseCardComponent);
+    fixture.componentRef.setInput('course', summary);
+    fixture.componentRef.setInput('completed', true);
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="card-completed-pill"]'),
+    ).toBeTruthy();
+  });
+
+  it('shows no Completed pill by default', () => {
+    TestBed.configureTestingModule({
+      imports: [CourseCardComponent],
+      providers: [provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(CourseCardComponent);
+    fixture.componentRef.setInput('course', summary);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="card-completed-pill"]')).toBeNull();
+  });
 });

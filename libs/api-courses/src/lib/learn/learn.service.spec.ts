@@ -117,6 +117,8 @@ function makeEnrollmentRepo(overrides: Partial<{ getEnrollment: unknown }> = {})
       'getEnrollment' in overrides ? overrides.getEnrollment : null,
     ),
     touchLastAccessed: vi.fn(async () => undefined),
+    markLessonComplete: vi.fn(async () => ({ completedAt: '2026-01-01T00:00:00.000Z' })),
+    stampCompleted: vi.fn(async () => undefined),
   } as unknown as EnrollmentRepository;
 }
 
@@ -648,7 +650,13 @@ describe('LearnService.markLessonComplete', () => {
 
     expect(result).toEqual({ completedAt });
     expect(markSpy).toHaveBeenCalledTimes(1);
-    expect(markSpy).toHaveBeenCalledWith(STUDENT_ID, baseCourse.id, baseLesson.id, expect.any(String));
+    expect(markSpy).toHaveBeenCalledWith(
+      STUDENT_ID,
+      baseCourse.id,
+      baseLesson.id,
+      expect.any(String),
+      [],
+    );
   });
 });
 
@@ -699,6 +707,160 @@ describe('LearnService.resolveProgress lessonId matching', () => {
     );
     // Must reflect the l1 row (completedAt null, seconds 7) — NOT other-lesson's.
     expect(view.progress).toEqual({ completedAt: null, lastWatchedSeconds: 7 });
+  });
+});
+
+describe('LearnService.markLessonComplete — course rollup', () => {
+  it('passes the full lesson-id list of the course to the repository', async () => {
+    const courses = makeCoursesRepo({
+      modules: [
+        { id: 'm1', title: 'M1', order: 0 },
+        { id: 'm2', title: 'M2', order: 1 },
+      ],
+      lessonsByModule: {
+        m1: [
+          { id: 'l1', title: 'L1', order: 0 },
+          { id: 'l2', title: 'L2', order: 1 },
+        ],
+        m2: [{ id: 'l3', title: 'L3', order: 0 }],
+      },
+    });
+    const enrollment = makeEnrollmentRepo({ getEnrollment: null });
+    const svc = new LearnService(makeVideoRepo(), enrollment, courses, makeMaterialsService(), makeCaptionsService());
+
+    await svc.markLessonComplete(STUDENT_ID, baseCourse, baseLesson);
+
+    expect(enrollment.markLessonComplete).toHaveBeenCalledWith(
+      STUDENT_ID,
+      baseCourse.id,
+      baseLesson.id,
+      expect.any(String),
+      ['l1', 'l2', 'l3'],
+    );
+  });
+});
+
+describe('LearnService.getLessonView — lazy completion stamp', () => {
+  const OWNER_UID = 'owner-1' as UserId;
+  const course = makeCourse({ instructorId: OWNER_UID });
+  const lesson = makeLesson({ id: 'l1' as LessonId, moduleId: 'm1' as ModuleId });
+  const courses = makeCoursesRepo({
+    modules: [{ id: 'm1', title: 'M1', order: 0 }],
+    lessonsByModule: {
+      m1: [
+        { id: 'l1', title: 'L1', order: 0 },
+        { id: 'l2', title: 'L2', order: 1 },
+      ],
+    },
+  });
+
+  function makeVideos() {
+    return {
+      getVideo: vi.fn().mockResolvedValue(null),
+      listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()),
+    } as unknown as VideoRepository;
+  }
+
+  it('stamps an unstamped enrollment whose lessons are all complete', async () => {
+    const enrollment = makeEnrollmentRepo({
+      getEnrollment: {
+        id: `${STUDENT_ID}__${CID}`,
+        userId: STUDENT_ID,
+        courseId: CID,
+        status: 'ACTIVE',
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-05-01T00:00:00Z', lastWatchedSeconds: 0 },
+          { lessonId: 'l2' as LessonId, completedAt: '2026-05-02T00:00:00Z', lastWatchedSeconds: 0 },
+        ],
+        withdrawnAt: null,
+        completedAt: null,
+      },
+    });
+    const svc = new LearnService(makeVideos(), enrollment, courses, makeMaterialsService(), makeCaptionsService());
+
+    await svc.getLessonView(STUDENT_ID, course, lesson);
+
+    expect(enrollment.stampCompleted).toHaveBeenCalledWith(STUDENT_ID, course.id, expect.any(String));
+  });
+
+  it('does not stamp when a lesson is incomplete', async () => {
+    const enrollment = makeEnrollmentRepo({
+      getEnrollment: {
+        id: `${STUDENT_ID}__${CID}`,
+        userId: STUDENT_ID,
+        courseId: CID,
+        status: 'ACTIVE',
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-05-01T00:00:00Z', lastWatchedSeconds: 0 },
+          { lessonId: 'l2' as LessonId, completedAt: null, lastWatchedSeconds: 0 },
+        ],
+        withdrawnAt: null,
+        completedAt: null,
+      },
+    });
+    const svc = new LearnService(makeVideos(), enrollment, courses, makeMaterialsService(), makeCaptionsService());
+
+    await svc.getLessonView(STUDENT_ID, course, lesson);
+
+    expect(enrollment.stampCompleted).not.toHaveBeenCalled();
+  });
+
+  it('does not stamp an already-stamped enrollment', async () => {
+    const enrollment = makeEnrollmentRepo({
+      getEnrollment: {
+        id: `${STUDENT_ID}__${CID}`,
+        userId: STUDENT_ID,
+        courseId: CID,
+        status: 'ACTIVE',
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-05-01T00:00:00Z', lastWatchedSeconds: 0 },
+          { lessonId: 'l2' as LessonId, completedAt: '2026-05-02T00:00:00Z', lastWatchedSeconds: 0 },
+        ],
+        withdrawnAt: null,
+        completedAt: '2026-05-02T00:00:00Z',
+      },
+    });
+    const svc = new LearnService(makeVideos(), enrollment, courses, makeMaterialsService(), makeCaptionsService());
+
+    await svc.getLessonView(STUDENT_ID, course, lesson);
+
+    expect(enrollment.stampCompleted).not.toHaveBeenCalled();
+  });
+
+  it('does not stamp for the course owner (no enrollment)', async () => {
+    const enrollment = makeEnrollmentRepo({ getEnrollment: null });
+    const svc = new LearnService(makeVideos(), enrollment, courses, makeMaterialsService(), makeCaptionsService());
+
+    await svc.getLessonView(OWNER_UID, course, lesson);
+
+    expect(enrollment.stampCompleted).not.toHaveBeenCalled();
+  });
+
+  it('a failing stamp write does not fail the read', async () => {
+    const enrollment = makeEnrollmentRepo({
+      getEnrollment: {
+        id: `${STUDENT_ID}__${CID}`,
+        userId: STUDENT_ID,
+        courseId: CID,
+        status: 'ACTIVE',
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-05-01T00:00:00Z', lastWatchedSeconds: 0 },
+          { lessonId: 'l2' as LessonId, completedAt: '2026-05-02T00:00:00Z', lastWatchedSeconds: 0 },
+        ],
+        withdrawnAt: null,
+        completedAt: null,
+      },
+    });
+    enrollment.stampCompleted = vi.fn().mockRejectedValue(new Error('boom'));
+    const svc = new LearnService(makeVideos(), enrollment, courses, makeMaterialsService(), makeCaptionsService());
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    const view = await svc.getLessonView(STUDENT_ID, course, lesson);
+
+    expect(view.outline.modules.length).toBeGreaterThan(0);
+    expect(warnSpy).toHaveBeenCalledWith(
+      `stampCompleted failed for user=${STUDENT_ID} course=${CID}: boom`,
+    );
   });
 });
 
