@@ -16,6 +16,7 @@ import type { AuthenticatedRequest } from '@learnwren/api-auth';
 import type {
   CourseId,
   Enrollment,
+  EnrollmentListView,
   EnrollmentStatusView,
 } from '@learnwren/shared-data-models';
 
@@ -49,6 +50,11 @@ export class EnrollmentController {
     @Req() req: AuthenticatedRequest,
   ): Promise<void> {
     await this.svc.unenroll(req.user!.uid, courseId);
+  }
+
+  @Get()
+  list(@Req() req: AuthenticatedRequest): Promise<EnrollmentListView> {
+    return this.svc.listMyEnrollments(req.user!.uid);
   }
 
   @Get(':courseId')
