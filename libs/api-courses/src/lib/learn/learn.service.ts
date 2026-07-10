@@ -115,6 +115,26 @@ export class LearnService {
       for (const row of enrolment?.progress ?? []) {
         progressByLesson.set(row.lessonId, row.completedAt ?? null);
       }
+
+      // Lazy backfill (US-06-02): a student who finished every lesson before
+      // the rollup shipped has nothing left to mark — stamp on read instead.
+      // Best-effort: a stamp failure must never fail the lesson view.
+      const allComplete =
+        allLessonIds.length > 0 &&
+        allLessonIds.every((id) => progressByLesson.get(id) != null);
+      if (enrolment?.status === 'ACTIVE' && enrolment.completedAt == null && allComplete) {
+        try {
+          await this.enrollment.stampCompleted(
+            userId,
+            course.id,
+            new Date().toISOString() as ISODateString,
+          );
+        } catch (err) {
+          this.logger.warn(
+            `stampCompleted failed for user=${userId} course=${course.id}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
     }
 
     return {
