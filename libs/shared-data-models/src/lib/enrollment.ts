@@ -21,6 +21,13 @@ export interface Enrollment {
   lastAccessedLessonId: LessonId | null;
   /** Companion timestamp for lastAccessedLessonId. Debug/observability only; not read by UI. */
   lastAccessedAt: ISODateString | null;
+  /**
+   * Set when every lesson in the course has a completed progress row
+   * (US-06-02 course rollup). Never cleared by later course edits;
+   * preserved across WITHDRAWN → ACTIVE. Missing on pre-rollup docs —
+   * readers treat undefined as null.
+   */
+  completedAt?: ISODateString | null;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
@@ -29,4 +36,16 @@ export interface Enrollment {
 export interface EnrollmentStatusView {
   enrollment: Enrollment | null; // the caller's enrollment (any status), or null
   isOwner: boolean; // true when the caller is the course's instructor
+}
+
+/** One row of GET /api/enrollments — the caller's enrollment joined to its course title. */
+export interface EnrollmentListItem {
+  courseId: CourseId;
+  courseTitle: string;
+  completedAt: ISODateString | null;
+}
+
+/** Response of GET /api/enrollments — the caller's ACTIVE enrollments. */
+export interface EnrollmentListView {
+  enrollments: EnrollmentListItem[];
 }

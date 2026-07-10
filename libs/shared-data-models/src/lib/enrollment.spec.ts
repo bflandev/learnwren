@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { CourseId, EnrollmentId, ISODateString, LessonId, UserId } from './common';
-import { ENROLLMENT_STATUSES, type Enrollment, type LessonProgress } from './enrollment';
+import { ENROLLMENT_STATUSES, type Enrollment, type EnrollmentListView, type LessonProgress } from './enrollment';
 
 describe('enrollment model', () => {
   it('exposes the ACTIVE and WITHDRAWN statuses', () => {
@@ -56,5 +56,37 @@ describe('Enrollment (Slice C)', () => {
   it('LessonProgress has a numeric lastWatchedSeconds', () => {
     const p: LessonProgress = { lessonId: 'l' as LessonId, completedAt: null, lastWatchedSeconds: 42 };
     expect(p.lastWatchedSeconds).toBe(42);
+  });
+});
+
+describe('completion rollup types', () => {
+  it('Enrollment carries a completedAt stamp', () => {
+    const enrollment: Enrollment = {
+      id: 'u1__c1' as EnrollmentId,
+      userId: 'u1' as UserId,
+      courseId: 'c1' as CourseId,
+      status: 'ACTIVE',
+      progress: [],
+      withdrawnAt: null,
+      lastAccessedLessonId: null,
+      lastAccessedAt: null,
+      completedAt: '2026-07-09T00:00:00.000Z' as ISODateString,
+      createdAt: '2026-07-01T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-07-09T00:00:00.000Z' as ISODateString,
+    };
+    expect(enrollment.completedAt).toBe('2026-07-09T00:00:00.000Z');
+  });
+
+  it('EnrollmentListView shapes the GET /api/enrollments response', () => {
+    const view: EnrollmentListView = {
+      enrollments: [
+        {
+          courseId: 'c1' as CourseId,
+          courseTitle: 'Course 1',
+          completedAt: null,
+        },
+      ],
+    };
+    expect(view.enrollments[0].courseTitle).toBe('Course 1');
   });
 });
