@@ -91,6 +91,15 @@ export class LearnService {
     };
   }
 
+  /** Every lesson id in the course, across all modules — the completion-rollup denominator. */
+  private async listAllLessonIds(course: Course): Promise<LessonId[]> {
+    const modules = await this.courses.listModulesByCourse(course.id);
+    const lessonsByModule = await Promise.all(
+      modules.map((m) => this.courses.listLessonsByModule(course.id, m.id)),
+    );
+    return lessonsByModule.flat().map((l) => l.id);
+  }
+
   private async projectOutline(userId: UserId, course: Course): Promise<CourseOutline> {
     const modules = await this.courses.listModulesByCourse(course.id);
     const lessonsByModule = await Promise.all(
@@ -128,11 +137,13 @@ export class LearnService {
     course: Course,
     lesson: Lesson,
   ): Promise<{ completedAt: ISODateString }> {
+    const allLessonIds = await this.listAllLessonIds(course);
     return this.enrollment.markLessonComplete(
       userId,
       course.id,
       lesson.id,
       new Date().toISOString() as ISODateString,
+      allLessonIds,
     );
   }
 

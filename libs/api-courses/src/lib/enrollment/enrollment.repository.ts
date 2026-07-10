@@ -134,6 +134,7 @@ export class EnrollmentRepository {
     courseId: CourseId,
     lessonId: LessonId,
     completedAtIso: ISODateString,
+    allLessonIds: LessonId[],
   ): Promise<{ completedAt: ISODateString }> {
     const enrollmentRef = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
 
@@ -160,7 +161,19 @@ export class EnrollmentRepository {
         progress.push({ lessonId, completedAt: completedAtIso, lastWatchedSeconds: 0 });
       }
 
-      t.update(enrollmentRef, { progress, updatedAt: completedAtIso });
+      const update: Record<string, unknown> = { progress, updatedAt: completedAtIso };
+
+      // Course rollup (US-06-02): when this write completes the last lesson,
+      // stamp the enrollment in the same transaction. Never restamped, never
+      // cleared (completing "the course as it was" is final by design).
+      const doneByLesson = new Map(progress.map((p) => [p.lessonId, p.completedAt != null]));
+      const allComplete =
+        allLessonIds.length > 0 && allLessonIds.every((id) => doneByLesson.get(id) === true);
+      if (allComplete && existing.completedAt == null) {
+        update['completedAt'] = completedAtIso;
+      }
+
+      t.update(enrollmentRef, update);
       return { completedAt: completedAtIso };
     });
   }

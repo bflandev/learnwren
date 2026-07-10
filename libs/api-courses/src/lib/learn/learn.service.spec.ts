@@ -648,7 +648,13 @@ describe('LearnService.markLessonComplete', () => {
 
     expect(result).toEqual({ completedAt });
     expect(markSpy).toHaveBeenCalledTimes(1);
-    expect(markSpy).toHaveBeenCalledWith(STUDENT_ID, baseCourse.id, baseLesson.id, expect.any(String));
+    expect(markSpy).toHaveBeenCalledWith(
+      STUDENT_ID,
+      baseCourse.id,
+      baseLesson.id,
+      expect.any(String),
+      [],
+    );
   });
 });
 

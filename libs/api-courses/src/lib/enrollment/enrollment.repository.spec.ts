@@ -259,6 +259,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-05-25T12:00:00.000Z' as ISODateString,
+      ['l1', 'other-lesson'] as LessonId[],
     );
     expect(result.completedAt).toBe('2026-05-25T12:00:00.000Z');
     const after = db.__store.get(`enrollments/${enrollId}`);
@@ -280,6 +281,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-05-25T12:00:00.000Z' as ISODateString,
+      ['l1', 'other-lesson'] as LessonId[],
     );
     expect(result.completedAt).toBe('2026-05-25T12:00:00.000Z');
     const after = db.__store.get(`enrollments/${enrollId}`);
@@ -303,6 +305,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-05-25T12:00:00.000Z' as ISODateString,
+      ['l1', 'other-lesson'] as LessonId[],
     );
     expect(result.completedAt).toBe('2026-05-25T08:00:00.000Z');
     const after = db.__store.get(`enrollments/${enrollId}`);
@@ -324,6 +327,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-05-25T12:00:00.000Z' as ISODateString,
+      ['l1', 'other-lesson'] as LessonId[],
     );
 
     expect(result.completedAt).toBe('2026-05-25T12:00:00.000Z');
@@ -340,6 +344,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
         'c' as CourseId,
         'l1' as LessonId,
         '2026-05-25T12:00:00.000Z' as ISODateString,
+        ['l1', 'other-lesson'] as LessonId[],
       ),
     ).rejects.toBeInstanceOf(NotEnrolledException);
   });
@@ -359,6 +364,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
         'c' as CourseId,
         'l1' as LessonId,
         '2026-05-25T12:00:00.000Z' as ISODateString,
+        ['l1', 'other-lesson'] as LessonId[],
       ),
     ).rejects.toBeInstanceOf(NotEnrolledException);
   });
@@ -378,12 +384,85 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'lb' as LessonId,
       '2026-05-25T12:00:00.000Z' as ISODateString,
+      ['la', 'lb', 'other-lesson'] as LessonId[],
     );
     const after = db.__store.get(`enrollments/${enrollId}`);
     expect(after?.['progress']).toEqual([
       { lessonId: 'la', completedAt: '2026-05-20T00:00:00.000Z', lastWatchedSeconds: 10 },
       { lessonId: 'lb', completedAt: '2026-05-25T12:00:00.000Z', lastWatchedSeconds: 22 },
     ]);
+  });
+
+  it('stamps completedAt when the marked lesson is the last incomplete one', async () => {
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-07-01T00:00:00.000Z' as ISODateString, lastWatchedSeconds: 10 },
+          { lessonId: 'l2' as LessonId, completedAt: null, lastWatchedSeconds: 5 },
+        ],
+      }),
+    });
+    await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l2' as LessonId,
+      '2026-07-09T00:00:00.000Z' as ISODateString,
+      ['l1', 'l2'] as LessonId[],
+    );
+    expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBe(
+      '2026-07-09T00:00:00.000Z',
+    );
+  });
+
+  it('does not stamp when other lessons remain incomplete', async () => {
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({ [`enrollments/${enrollId}`]: baseEnrollment() });
+    await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l1' as LessonId,
+      '2026-07-09T00:00:00.000Z' as ISODateString,
+      ['l1', 'l2'] as LessonId[],
+    );
+    expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBeUndefined();
+  });
+
+  it('does not restamp an already-stamped enrollment (idempotent re-mark)', async () => {
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({
+        completedAt: '2026-07-01T00:00:00.000Z' as ISODateString,
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-07-01T00:00:00.000Z' as ISODateString, lastWatchedSeconds: 10 },
+        ],
+      }),
+    });
+    await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l1' as LessonId,
+      '2026-07-09T00:00:00.000Z' as ISODateString,
+      ['l1'] as LessonId[],
+    );
+    expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBe(
+      '2026-07-01T00:00:00.000Z',
+    );
+  });
+
+  it('does not stamp when the lesson list is empty', async () => {
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({ progress: [] }),
+    });
+    await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l1' as LessonId,
+      '2026-07-09T00:00:00.000Z' as ISODateString,
+      [] as LessonId[],
+    );
+    expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBeUndefined();
   });
 });
 
