@@ -41,6 +41,19 @@ describe('CatalogPageComponent', () => {
     router = TestBed.inject(Router);
   });
 
+  it('loads the admin-managed categories once for the filter bar (US-08-02)', async () => {
+    await router.navigate(['/catalog']);
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    fixture.detectChanges();
+    // Empty until the fetch resolves — the catalogue must not depend on it.
+    expect(fixture.componentInstance.categories()).toEqual([]);
+    const design = { id: 'DESIGN', name: 'Design', createdAt: 'x', updatedAt: 'x' };
+    http.expectOne('/api/categories').flush([design]);
+    await fixture.whenStable();
+    expect(fixture.componentInstance.categories()).toEqual([design]);
+    http.expectOne((r) => r.url === '/api/catalog').flush(page());
+  });
+
   it('renders course cards from the catalogue response', async () => {
     await router.navigate(['/catalog']);
     const fixture = TestBed.createComponent(CatalogPageComponent);

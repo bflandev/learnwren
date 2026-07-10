@@ -2,6 +2,11 @@ import { forwardRef, Module } from '@nestjs/common';
 
 import { AuthModule } from '@learnwren/api-auth';
 
+import { AdminCategoriesController } from './categories/admin-categories.controller';
+import { CategoriesController } from './categories/categories.controller';
+import { CategoriesExceptionFilter } from './categories/categories.exception-filter';
+import { CategoriesRepository } from './categories/categories.repository';
+import { CategoriesService } from './categories/categories.service';
 import { CatalogController } from './catalog/catalog.controller';
 import { CatalogService } from './catalog/catalog.service';
 import { InstructorDirectory } from './catalog/instructor-directory';
@@ -44,11 +49,14 @@ import { VideoModule } from './video/video.module';
 // NestJS resolves both cycles with forwardRef.
 @Module({
   imports: [AuthModule, forwardRef(() => VideoModule), forwardRef(() => MaterialsModule)],
-  controllers: [CoursesController, CatalogController, EnrollmentController, LearnController, CoverController, RosterController, AnalyticsController, NotificationsController],
+  controllers: [CoursesController, CatalogController, CategoriesController, AdminCategoriesController, EnrollmentController, LearnController, CoverController, RosterController, AnalyticsController, NotificationsController],
   providers: [
     CoursesService,
     CoursesRepository,
     CoursesExceptionFilter,
+    CategoriesService,
+    CategoriesRepository,
+    CategoriesExceptionFilter,
     CourseOwnerGuard,
     PublishService,
     CatalogService,

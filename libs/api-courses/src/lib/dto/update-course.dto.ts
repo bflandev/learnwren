@@ -1,7 +1,6 @@
 import { IsIn, IsOptional, IsString, Length, MaxLength } from 'class-validator';
 
 import {
-  COURSE_CATEGORIES,
   COURSE_DIFFICULTIES,
   type CourseCategory,
   type CourseDifficulty,
@@ -24,7 +23,8 @@ export class UpdateCourseDto {
   longDescription?: string;
 
   @IsOptional()
-  @IsIn(COURSE_CATEGORIES as readonly string[])
+  // Categories are admin-managed (US-08-02); existence is validated in CoursesService.
+  @IsString()
   category?: CourseCategory;
 
   @IsOptional()

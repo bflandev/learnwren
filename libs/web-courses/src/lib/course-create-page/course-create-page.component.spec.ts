@@ -18,6 +18,24 @@ describe('CourseCreatePageComponent', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
+  it('loads the admin-managed categories for the dropdown (US-08-02)', async () => {
+    const fixture = TestBed.createComponent(CourseCreatePageComponent);
+    // Empty until the fetch resolves — the form must not depend on it.
+    expect(fixture.componentInstance.categories()).toEqual([]);
+    const design = { id: 'DESIGN', name: 'Design', createdAt: 'x', updatedAt: 'x' };
+    http.expectOne('/api/categories').flush([design]);
+    await fixture.whenStable();
+    expect(fixture.componentInstance.categories()).toEqual([design]);
+  });
+
+  it('still renders when the category fetch fails (best-effort dropdown)', async () => {
+    const fixture = TestBed.createComponent(CourseCreatePageComponent);
+    http.expectOne('/api/categories').flush(null, { status: 500, statusText: 'boom' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.categories()).toEqual([]);
+  });
+
   it('disables submit while form is invalid', () => {
     const fixture = TestBed.createComponent(CourseCreatePageComponent);
     fixture.detectChanges();

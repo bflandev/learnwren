@@ -3,19 +3,16 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@n
 import { AuthException } from '@learnwren/api-auth';
 import { handleException } from '@learnwren/api-http-errors';
 
-import { CategoriesException } from './categories/categories.exception';
-import { CoursesException } from './errors/courses.exception';
+import { CategoriesException } from './categories.exception';
 
 /**
  * Narrowed to the domain + framework exception types with a stable wire shape;
  * anything else falls through to a generic 500 (no detail leaked). Rendering is
  * delegated to the shared api-http-errors helper.
  */
-// CategoriesException covers CATEGORY_NOT_FOUND thrown by course create/update
-// category validation (US-08-02).
-@Catch(CoursesException, CategoriesException, AuthException, HttpException)
-export class CoursesExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger('CoursesExceptionFilter');
+@Catch(CategoriesException, AuthException, HttpException)
+export class CategoriesExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger('CategoriesExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {
     handleException(host, exception, this.logger, { validation: true });

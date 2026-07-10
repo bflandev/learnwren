@@ -36,7 +36,12 @@ export type CoursesErrorCode =
  * Codes a web client may receive from a courses-domain endpoint: the domain
  * codes plus the cross-cutting guard codes (auth) those routes surface.
  */
-export type CoursesApiErrorCode = CoursesErrorCode | 'INSUFFICIENT_ROLE' | 'UNAUTHENTICATED';
+export type CoursesApiErrorCode =
+  | CoursesErrorCode
+  // Course create/update validates the referenced category (US-08-02).
+  | 'CATEGORY_NOT_FOUND'
+  | 'INSUFFICIENT_ROLE'
+  | 'UNAUTHENTICATED';
 
 export type CoursesApiErrorBody = ApiErrorBody<CoursesApiErrorCode>;
 
@@ -82,3 +87,20 @@ export type AdminUsersErrorCode =
 export type AdminUsersApiErrorCode = AdminUsersErrorCode | 'INSUFFICIENT_ROLE' | 'UNAUTHENTICATED';
 
 export type AdminUsersApiErrorBody = ApiErrorBody<AdminUsersApiErrorCode>;
+
+/** Authoritative categories-domain error codes (the `code` of every CategoriesException). */
+export type CategoriesErrorCode =
+  | 'VALIDATION_FAILED'
+  | 'CATEGORY_NOT_FOUND'
+  | 'CATEGORY_EXISTS'
+  | 'CATEGORY_IN_USE'
+  | 'LAST_CATEGORY'
+  | 'INTERNAL';
+
+/**
+ * Codes a web client may receive from a categories endpoint: the domain codes
+ * plus the cross-cutting guard codes the ADMIN-guarded routes surface.
+ */
+export type CategoriesApiErrorCode = CategoriesErrorCode | 'INSUFFICIENT_ROLE' | 'UNAUTHENTICATED';
+
+export type CategoriesApiErrorBody = ApiErrorBody<CategoriesApiErrorCode>;

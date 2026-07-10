@@ -7,8 +7,8 @@
       (change)="onCategoryChange($any($event.target).value)"
     >
       <option value="">All</option>
-      @for (c of categories; track c) {
-        <option [value]="c">{{ c }}</option>
+      @for (c of categories(); track c.id) {
+        <option [value]="c.id">{{ c.name }}</option>
       }
     </select>
   </label>

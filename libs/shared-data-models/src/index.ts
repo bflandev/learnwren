@@ -2,6 +2,7 @@ export * from './lib/common';
 export * from './lib/time';
 export * from './lib/user';
 export * from './lib/course';
+export * from './lib/category';
 export * from './lib/module';
 export * from './lib/lesson';
 export * from './lib/lesson-view';

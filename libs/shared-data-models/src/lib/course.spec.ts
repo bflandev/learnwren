@@ -1,19 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Course, CourseCategory, CourseDifficulty } from '../index';
-import { COURSE_CATEGORIES, COURSE_DIFFICULTIES } from '../index';
+import type { Course, CourseCategory, CourseCategoryDoc } from '../index';
+import { CATEGORY_NAME_MAX_LENGTH, COURSE_DIFFICULTIES } from '../index';
 import type { CourseId, ISODateString, UserId } from '../index';
 
 describe('Course types', () => {
-  it('exposes the six predefined course categories', () => {
-    expect(COURSE_CATEGORIES).toEqual([
-      'PROGRAMMING',
-      'DESIGN',
-      'BUSINESS',
-      'MARKETING',
-      'PERSONAL_DEVELOPMENT',
-      'OTHER',
-    ]);
+  // Categories are admin-managed docs since US-08-02; the type contract is a
+  // branded id referencing `courseCategories/{id}` plus the doc wire shape.
+  it('models a category as an id-referenced document', () => {
+    const doc: CourseCategoryDoc = {
+      id: 'PROGRAMMING' as CourseCategory,
+      name: 'Programming',
+      createdAt: '2026-05-12T00:00:00.000Z' as ISODateString,
+      updatedAt: '2026-05-12T00:00:00.000Z' as ISODateString,
+    };
+    expect(doc.id).toBe('PROGRAMMING');
+    expect(CATEGORY_NAME_MAX_LENGTH).toBe(60);
   });
 
   it('exposes the three difficulty levels', () => {
@@ -39,7 +41,7 @@ describe('Course types', () => {
       title: 'T',
       description: 'D',
       longDescription: 'LD',
-      category: 'PROGRAMMING',
+      category: 'PROGRAMMING' as CourseCategory,
       difficulty: 'BEGINNER',
       instructorId: 'uid-1' as Course['instructorId'],
       status: 'DRAFT',

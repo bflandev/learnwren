@@ -12,6 +12,7 @@ export type EntityId<TBrand extends string> = string & { readonly __brand: TBran
 
 export type UserId = EntityId<'User'>;
 export type CourseId = EntityId<'Course'>;
+export type CategoryId = EntityId<'CourseCategory'>;
 export type ModuleId = EntityId<'Module'>;
 export type LessonId = EntityId<'Lesson'>;
 export type EnrollmentId = EntityId<'Enrollment'>;

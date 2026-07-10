@@ -14,6 +14,12 @@ describe('CatalogFilterBarComponent', () => {
     expect(fixture.componentInstance.sort()).toBe('NEWEST');
   });
 
+  it('defaults the categories input to an empty list', () => {
+    const fixture = TestBed.createComponent(CatalogFilterBarComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.categories()).toEqual([]);
+  });
+
   it('emits a category change when the category select changes', () => {
     const fixture = TestBed.createComponent(CatalogFilterBarComponent);
     fixture.detectChanges();
