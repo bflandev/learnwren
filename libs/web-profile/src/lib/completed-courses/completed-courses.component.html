@@ -1,0 +1,19 @@
+@if (completed().length > 0) {
+  <section class="mt-8 flex flex-col gap-3 border-t border-line pt-6" data-testid="completed-courses-section">
+    <h2 class="text-lg font-serif">Completed courses</h2>
+    <ul class="flex flex-col gap-2">
+      @for (c of completed(); track c.courseId) {
+        <li class="flex items-center justify-between gap-3 text-sm">
+          <a
+            class="text-ink-2 hover:underline"
+            data-testid="completed-course-link"
+            [routerLink]="['/catalog', c.courseId]"
+          >
+            🎉 {{ c.courseTitle }}
+          </a>
+          <span class="text-ink-3">Completed {{ c.completedAt | date: 'mediumDate' }}</span>
+        </li>
+      }
+    </ul>
+  </section>
+}

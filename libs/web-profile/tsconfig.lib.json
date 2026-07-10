@@ -26,13 +26,16 @@
   ],
   "references": [
     {
-      "path": "../shared-data-models/tsconfig.lib.json"
-    },
-    {
       "path": "../web-ui/tsconfig.lib.json"
     },
     {
       "path": "../web-auth/tsconfig.lib.json"
+    },
+    {
+      "path": "../shared-data-models/tsconfig.lib.json"
+    },
+    {
+      "path": "../web-enrollment/tsconfig.lib.json"
     }
   ]
 }
