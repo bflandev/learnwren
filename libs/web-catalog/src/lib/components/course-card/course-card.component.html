@@ -19,6 +19,9 @@
       @if (course().difficulty) {
         <lw-pill tone="default">{{ course().difficulty }}</lw-pill>
       }
+      @if (completed()) {
+        <lw-pill data-testid="card-completed-pill" tone="default">Completed</lw-pill>
+      }
     </div>
   </lw-card>
 </a>

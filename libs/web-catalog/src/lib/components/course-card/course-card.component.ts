@@ -19,5 +19,6 @@ import {
 })
 export class CourseCardComponent {
   readonly course = input.required<CourseSummary>();
+  readonly completed = input(false);
   readonly coverTone = computed(() => coverToneForId(this.course().id));
 }
