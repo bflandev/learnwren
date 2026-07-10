@@ -2,7 +2,11 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
-import type { Enrollment, EnrollmentStatusView } from '@learnwren/shared-data-models';
+import type {
+  Enrollment,
+  EnrollmentListView,
+  EnrollmentStatusView,
+} from '@learnwren/shared-data-models';
 
 @Injectable({ providedIn: 'root' })
 export class EnrollmentService {
@@ -20,5 +24,9 @@ export class EnrollmentService {
 
   unenroll(courseId: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`/api/enrollments/${courseId}`));
+  }
+
+  listMyEnrollments(): Promise<EnrollmentListView> {
+    return firstValueFrom(this.http.get<EnrollmentListView>('/api/enrollments'));
   }
 }
