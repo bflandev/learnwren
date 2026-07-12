@@ -1,14 +1,10 @@
-@if (mode() === 'drawer' && outlineOpen()) {
-  <div data-testid="outline-backdrop" class="outline-backdrop" role="button" tabindex="0" (click)="onBackdropClick()" (keydown.escape)="onBackdropClick()"></div>
-}
+<!-- Drawer mode is a collapsible INLINE panel, not an overlay: the old
+     backdrop/focus-trap markup relied on .is-drawer/.is-open CSS that never
+     existed, leaving the toggle inert and trapping keyboard focus. -->
 <aside
   aria-label="Course outline"
   class="course-outline"
-  [class.is-drawer]="mode() === 'drawer'"
-  [class.is-open]="outlineOpen()"
-  [attr.hidden]="mode() === 'sidebar' && !outlineOpen() ? '' : null"
-  [cdkTrapFocus]="mode() === 'drawer' && outlineOpen()"
-  [cdkTrapFocusAutoCapture]="mode() === 'drawer' && outlineOpen()"
+  [attr.hidden]="!outlineOpen() ? '' : null"
 >
   @if (courseComplete()) {
     <p data-testid="course-complete-banner" class="course-complete-banner text-ink" role="status">

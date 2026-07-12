@@ -137,7 +137,30 @@ describe('CourseOutlinePanelComponent (drawer mode)', () => {
     expect(opens).toEqual([false]);
   });
 
-  it('emits outlineOpenChange(false) when the backdrop is clicked in drawer mode', () => {
+  it('hides the panel when closed in drawer mode (the toggle must actually toggle)', () => {
+    // Regression: the closed drawer relied on `.is-drawer`/`.is-open` CSS that
+    // never existed, so on mobile the outline was always visible and the
+    // toggle was inert. Drawer mode is a collapsible inline panel: hidden
+    // means hidden.
+    TestBed.configureTestingModule({ imports: [CourseOutlinePanelComponent] });
+    const fixture = TestBed.createComponent(CourseOutlinePanelComponent);
+    fixture.componentRef.setInput('outline', outline());
+    fixture.componentRef.setInput('activeLessonId', 'l2' as LessonId);
+    fixture.componentRef.setInput('courseId', CID);
+    fixture.componentRef.setInput('mode', 'drawer');
+    fixture.componentRef.setInput('outlineOpen', false);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('aside').hasAttribute('hidden')).toBe(true);
+
+    fixture.componentRef.setInput('outlineOpen', true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('aside').hasAttribute('hidden')).toBe(false);
+  });
+
+  it('renders no backdrop and no focus trap (inline collapsible, not an overlay)', () => {
+    // The old backdrop was an unstyled zero-height div and cdkTrapFocus made
+    // the rest of the page unreachable by keyboard while the outline was open.
     TestBed.configureTestingModule({ imports: [CourseOutlinePanelComponent] });
     const fixture = TestBed.createComponent(CourseOutlinePanelComponent);
     fixture.componentRef.setInput('outline', outline());
@@ -147,12 +170,8 @@ describe('CourseOutlinePanelComponent (drawer mode)', () => {
     fixture.componentRef.setInput('outlineOpen', true);
     fixture.detectChanges();
 
-    const opens: boolean[] = [];
-    fixture.componentInstance.outlineOpenChange.subscribe((v) => opens.push(v));
-
-    const backdrop = fixture.nativeElement.querySelector('[data-testid="outline-backdrop"]');
-    backdrop.click();
-    expect(opens).toEqual([false]);
+    expect(fixture.nativeElement.querySelector('[data-testid="outline-backdrop"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('aside').classList.contains('cdk-focus-trap-anchor')).toBe(false);
   });
 });
 
@@ -175,14 +194,6 @@ describe('CourseOutlinePanelComponent (sidebar-mode guards)', () => {
     fixture.componentInstance.outlineOpenChange.subscribe((v) => opens.push(v));
 
     fixture.nativeElement.querySelectorAll('button[data-testid="outline-row"]')[0].click();
-    expect(opens).toEqual([]);
-  });
-
-  it('does NOT emit outlineOpenChange when onBackdropClick fires in sidebar mode', () => {
-    const fixture = buildSidebar();
-    const opens: boolean[] = [];
-    fixture.componentInstance.outlineOpenChange.subscribe((v) => opens.push(v));
-    fixture.componentInstance.onBackdropClick();
     expect(opens).toEqual([]);
   });
 

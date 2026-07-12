@@ -350,6 +350,20 @@ describe('AdminUserRoleService.demote', () => {
     expect(logSpy).not.toHaveBeenCalled();
   });
 
+  it('the revert also restores the Auth custom claim, not just the Firestore doc', async () => {
+    // Authorization is claim-based: after setCustomUserClaims(STUDENT)
+    // succeeded and the revoke failed, reverting only the doc would leave a
+    // directory INSTRUCTOR whose next login mints a STUDENT session (and the
+    // promote-side mirror image is fail-OPEN). Both sides must revert.
+    const fx = makeFixture({ u1: { role: 'INSTRUCTOR', status: 'ACTIVE' } });
+    auth.revokeRefreshTokens.mockRejectedValue(new Error('revoke boom'));
+    const { svc } = makeService(fx, auth);
+    await svc.demote(ACTOR, U1).catch(() => undefined);
+
+    expect(auth.setCustomUserClaims).toHaveBeenNthCalledWith(1, 'u1', { role: 'STUDENT' });
+    expect(auth.setCustomUserClaims).toHaveBeenNthCalledWith(2, 'u1', { role: 'INSTRUCTOR' });
+  });
+
   // ── authored-course guard: demote must mirror the delete path's USER_HAS_COURSES
   //    block, or a demoted instructor's PUBLISHED courses stay live but unmanageable.
 
