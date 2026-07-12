@@ -38,9 +38,13 @@ function makeCourse(overrides: Partial<Course> = {}): Course {
 interface RepoFake {
   newId: ReturnType<typeof vi.fn>;
   createCourse: ReturnType<typeof vi.fn>;
+  createCourseInTxn: ReturnType<typeof vi.fn>;
   getCourse: ReturnType<typeof vi.fn>;
+  getCourseInTxn: ReturnType<typeof vi.fn>;
   listCoursesByInstructor: ReturnType<typeof vi.fn>;
   updateCourse: ReturnType<typeof vi.fn>;
+  updateCourseInTxn: ReturnType<typeof vi.fn>;
+  rawFirestore: { runTransaction: (fn: (t: unknown) => Promise<unknown>) => Promise<unknown> };
   deleteCourseRecursive: ReturnType<typeof vi.fn>;
   appendModule: ReturnType<typeof vi.fn>;
   getModule: ReturnType<typeof vi.fn>;
@@ -80,15 +84,20 @@ function buildEnrollmentRepoFake() {
   };
 }
 
-/** Every category exists by default; individual tests override `get`. */
+/** Token standing in for a Firestore transaction in the repo fakes. */
+const FAKE_TXN = { __txn: true };
+
+/** Every category exists by default; individual tests override `get`/`getInTxn`. */
 function buildCategoriesRepoFake() {
+  const doc = (id: CategoryId) => ({
+    id,
+    name: 'Any',
+    createdAt: FIXED_DATE,
+    updatedAt: FIXED_DATE,
+  });
   return {
-    get: vi.fn(async (id: CategoryId) => ({
-      id,
-      name: 'Any',
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    })),
+    get: vi.fn(async (id: CategoryId) => doc(id)),
+    getInTxn: vi.fn(async (_t: unknown, id: CategoryId) => doc(id)),
   };
 }
 
@@ -96,9 +105,15 @@ function buildRepoFake(): RepoFake {
   return {
     newId: vi.fn(() => 'generated-id'),
     createCourse: vi.fn(async () => undefined),
+    createCourseInTxn: vi.fn(),
     getCourse: vi.fn(async () => null),
+    getCourseInTxn: vi.fn(async () => makeCourse()),
     listCoursesByInstructor: vi.fn(async () => []),
     updateCourse: vi.fn(async () => undefined),
+    updateCourseInTxn: vi.fn(),
+    rawFirestore: {
+      runTransaction: (fn: (t: unknown) => Promise<unknown>) => fn(FAKE_TXN),
+    },
     deleteCourseRecursive: vi.fn(async () => undefined),
     appendModule: vi.fn(),
     getModule: vi.fn(async () => null),
@@ -170,6 +185,11 @@ describe('CoursesService — course operations', () => {
       expect(out.category).toBe('PROGRAMMING');
       expect(out.difficulty).toBe('BEGINNER');
       expect(categoriesRepo.get).toHaveBeenCalledWith('PROGRAMMING');
+      // The write and the category-existence read share one transaction, so
+      // a concurrent category delete conflicts instead of leaving a dangling id.
+      expect(categoriesRepo.getInTxn).toHaveBeenCalledWith(FAKE_TXN, 'PROGRAMMING');
+      expect(repo.createCourseInTxn).toHaveBeenCalledWith(FAKE_TXN, out);
+      expect(repo.createCourse).not.toHaveBeenCalled();
     });
 
     it('rejects an unknown category without writing the course (US-08-02)', async () => {
@@ -182,6 +202,23 @@ describe('CoursesService — course operations', () => {
           category: 'NOPE' as CourseCategory,
         }),
       ).rejects.toBeInstanceOf(CategoryNotFoundException);
+      expect(repo.createCourse).not.toHaveBeenCalled();
+      expect(repo.createCourseInTxn).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the category is deleted between the pre-check and the write txn', async () => {
+      // Pre-check passes (categoriesRepo.get resolves), but the in-txn read
+      // sees the concurrent delete — the course write must not land.
+      categoriesRepo.getInTxn.mockResolvedValue(null);
+
+      await expect(
+        service.createCourse(INSTRUCTOR_UID, {
+          title: 'T',
+          description: 'D',
+          category: 'DESIGN' as CourseCategory,
+        }),
+      ).rejects.toBeInstanceOf(CategoryNotFoundException);
+      expect(repo.createCourseInTxn).not.toHaveBeenCalled();
       expect(repo.createCourse).not.toHaveBeenCalled();
     });
 
@@ -245,18 +282,20 @@ describe('CoursesService — course operations', () => {
       expect(repo.updateCourse).toHaveBeenCalledWith('cid-1', { title: 'New' });
     });
 
-    it('forwards a multi-field patch', async () => {
+    it('applies a category-bearing patch in one txn with the category-existence read', async () => {
       await service.updateCourse('cid-1' as CourseId, {
         title: 'X',
         description: 'Y',
         category: 'DESIGN' as CourseCategory,
       });
-      expect(repo.updateCourse).toHaveBeenCalledWith('cid-1', {
+      expect(categoriesRepo.get).toHaveBeenCalledWith('DESIGN');
+      expect(categoriesRepo.getInTxn).toHaveBeenCalledWith(FAKE_TXN, 'DESIGN');
+      expect(repo.updateCourseInTxn).toHaveBeenCalledWith(FAKE_TXN, 'cid-1', {
         title: 'X',
         description: 'Y',
         category: 'DESIGN',
       });
-      expect(categoriesRepo.get).toHaveBeenCalledWith('DESIGN');
+      expect(repo.updateCourse).not.toHaveBeenCalled();
     });
 
     it('rejects an unknown category without writing (US-08-02)', async () => {
@@ -265,6 +304,16 @@ describe('CoursesService — course operations', () => {
         service.updateCourse('cid-1' as CourseId, { category: 'NOPE' as CourseCategory }),
       ).rejects.toBeInstanceOf(CategoryNotFoundException);
       expect(repo.updateCourse).not.toHaveBeenCalled();
+      expect(repo.updateCourseInTxn).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the category is deleted between the pre-check and the write txn', async () => {
+      categoriesRepo.getInTxn.mockResolvedValue(null);
+      await expect(
+        service.updateCourse('cid-1' as CourseId, { category: 'DESIGN' as CourseCategory }),
+      ).rejects.toBeInstanceOf(CategoryNotFoundException);
+      expect(repo.updateCourse).not.toHaveBeenCalled();
+      expect(repo.updateCourseInTxn).not.toHaveBeenCalled();
     });
 
     it('skips category validation when the patch has no category', async () => {

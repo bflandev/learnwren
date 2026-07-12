@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type {
   Course,
@@ -259,7 +259,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-05-25T12:00:00.000Z' as ISODateString,
-      ['l1', 'other-lesson'] as LessonId[],
+      async () => ['l1', 'other-lesson'] as LessonId[],
     );
     expect(result.completedAt).toBe('2026-05-25T12:00:00.000Z');
     const after = db.__store.get(`enrollments/${enrollId}`);
@@ -281,7 +281,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-05-25T12:00:00.000Z' as ISODateString,
-      ['l1', 'other-lesson'] as LessonId[],
+      async () => ['l1', 'other-lesson'] as LessonId[],
     );
     expect(result.completedAt).toBe('2026-05-25T12:00:00.000Z');
     const after = db.__store.get(`enrollments/${enrollId}`);
@@ -305,7 +305,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-05-25T12:00:00.000Z' as ISODateString,
-      ['l1', 'other-lesson'] as LessonId[],
+      async () => ['l1', 'other-lesson'] as LessonId[],
     );
     expect(result.completedAt).toBe('2026-05-25T08:00:00.000Z');
     const after = db.__store.get(`enrollments/${enrollId}`);
@@ -327,7 +327,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-05-25T12:00:00.000Z' as ISODateString,
-      ['l1', 'other-lesson'] as LessonId[],
+      async () => ['l1', 'other-lesson'] as LessonId[],
     );
 
     expect(result.completedAt).toBe('2026-05-25T12:00:00.000Z');
@@ -344,7 +344,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
         'c' as CourseId,
         'l1' as LessonId,
         '2026-05-25T12:00:00.000Z' as ISODateString,
-        ['l1', 'other-lesson'] as LessonId[],
+        async () => ['l1', 'other-lesson'] as LessonId[],
       ),
     ).rejects.toBeInstanceOf(NotEnrolledException);
   });
@@ -364,7 +364,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
         'c' as CourseId,
         'l1' as LessonId,
         '2026-05-25T12:00:00.000Z' as ISODateString,
-        ['l1', 'other-lesson'] as LessonId[],
+        async () => ['l1', 'other-lesson'] as LessonId[],
       ),
     ).rejects.toBeInstanceOf(NotEnrolledException);
   });
@@ -384,7 +384,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'lb' as LessonId,
       '2026-05-25T12:00:00.000Z' as ISODateString,
-      ['la', 'lb', 'other-lesson'] as LessonId[],
+      async () => ['la', 'lb', 'other-lesson'] as LessonId[],
     );
     const after = db.__store.get(`enrollments/${enrollId}`);
     expect(after?.['progress']).toEqual([
@@ -408,7 +408,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l2' as LessonId,
       '2026-07-09T00:00:00.000Z' as ISODateString,
-      ['l1', 'l2'] as LessonId[],
+      async () => ['l1', 'l2'] as LessonId[],
     );
     expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBe(
       '2026-07-09T00:00:00.000Z',
@@ -423,7 +423,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-07-09T00:00:00.000Z' as ISODateString,
-      ['l1', 'l2'] as LessonId[],
+      async () => ['l1', 'l2'] as LessonId[],
     );
     expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBeUndefined();
   });
@@ -444,7 +444,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-07-09T00:00:00.000Z' as ISODateString,
-      ['l1', 'l2'] as LessonId[],
+      async () => ['l1', 'l2'] as LessonId[],
     );
     expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBeUndefined();
   });
@@ -467,7 +467,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l3' as LessonId,
       '2026-07-09T00:00:00.000Z' as ISODateString,
-      ['l1', 'l3'] as LessonId[],
+      async () => ['l1', 'l3'] as LessonId[],
     );
     expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBe(
       '2026-06-01T00:00:00.000Z',
@@ -489,7 +489,7 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-07-09T00:00:00.000Z' as ISODateString,
-      ['l1'] as LessonId[],
+      async () => ['l1'] as LessonId[],
     );
     expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBe(
       '2026-07-01T00:00:00.000Z',
@@ -506,9 +506,62 @@ describe('EnrollmentRepository.markLessonComplete', () => {
       'c' as CourseId,
       'l1' as LessonId,
       '2026-07-09T00:00:00.000Z' as ISODateString,
-      [] as LessonId[],
+      async () => [] as LessonId[],
     );
     expect(db.__store.get(`enrollments/${enrollId}`)?.['completedAt']).toBeUndefined();
+  });
+
+  it('does not stamp when the in-txn lesson list contains a lesson added concurrently', async () => {
+    // The rollup denominator is read INSIDE the transaction: a lesson (l3)
+    // created between the caller's outline read and this transaction must
+    // suppress the stamp, not be silently missed.
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo, db } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-07-01T00:00:00.000Z' as ISODateString, lastWatchedSeconds: 10 },
+          { lessonId: 'l2' as LessonId, completedAt: null, lastWatchedSeconds: 5 },
+        ],
+      }),
+    });
+    await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l2' as LessonId,
+      '2026-07-09T00:00:00.000Z' as ISODateString,
+      async () => ['l1', 'l2', 'l3'] as LessonId[],
+    );
+    const after = db.__store.get(`enrollments/${enrollId}`);
+    expect(after?.['completedAt']).toBeUndefined();
+    // The lesson-progress write itself still lands.
+    expect(after?.['progress']).toContainEqual({
+      lessonId: 'l2',
+      completedAt: '2026-07-09T00:00:00.000Z',
+      lastWatchedSeconds: 5,
+    });
+  });
+
+  it('does not call the lesson lister when the enrollment is already stamped', async () => {
+    // Already-stamped enrollments never restamp, so the denominator read is
+    // skipped — no wasted module/lesson reads inside the transaction.
+    const enrollId = enrollmentId('u' as UserId, 'c' as CourseId);
+    const { repo } = repoWith({
+      [`enrollments/${enrollId}`]: baseEnrollment({
+        completedAt: '2026-06-01T00:00:00.000Z' as ISODateString,
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-06-01T00:00:00.000Z' as ISODateString, lastWatchedSeconds: 10 },
+        ],
+      }),
+    });
+    const lister = vi.fn(async () => ['l1', 'l3'] as LessonId[]);
+    await repo.markLessonComplete(
+      'u' as UserId,
+      'c' as CourseId,
+      'l3' as LessonId,
+      '2026-07-09T00:00:00.000Z' as ISODateString,
+      lister,
+    );
+    expect(lister).not.toHaveBeenCalled();
   });
 });
 
@@ -971,18 +1024,72 @@ describe('EnrollmentRepository.stampCompleted', () => {
     };
   }
 
-  it('stamps an unstamped enrollment', async () => {
-    const { repo, db } = repoWith({ [`enrollments/${ID}`]: activeEnrollment() });
-    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString);
+  const fullProgress = [
+    { lessonId: 'l1' as LessonId, completedAt: '2026-07-01T00:00:00.000Z' as ISODateString, lastWatchedSeconds: 10 },
+  ];
+
+  it('stamps an unstamped enrollment whose progress covers every lesson', async () => {
+    const { repo, db } = repoWith({
+      [`enrollments/${ID}`]: activeEnrollment({ progress: fullProgress }),
+    });
+    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString, async () => [
+      'l1' as LessonId,
+    ]);
     expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBe('2026-07-09T00:00:00.000Z');
   });
 
   it('leaves an existing stamp untouched', async () => {
     const { repo, db } = repoWith({
-      [`enrollments/${ID}`]: { ...activeEnrollment(), completedAt: '2026-07-01T00:00:00.000Z' },
+      [`enrollments/${ID}`]: {
+        ...activeEnrollment({ progress: fullProgress }),
+        completedAt: '2026-07-01T00:00:00.000Z',
+      },
     });
-    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString);
+    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString, async () => [
+      'l1' as LessonId,
+    ]);
     expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBe('2026-07-01T00:00:00.000Z');
+  });
+
+  it('does not stamp a WITHDRAWN enrollment', async () => {
+    // The ACTIVE check must live inside the transaction: a withdrawal that
+    // lands between the caller's read and this transaction wins.
+    const { repo, db } = repoWith({
+      [`enrollments/${ID}`]: activeEnrollment({
+        status: 'WITHDRAWN',
+        progress: fullProgress,
+        withdrawnAt: '2026-07-08T00:00:00.000Z' as ISODateString,
+      }),
+    });
+    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString, async () => [
+      'l1' as LessonId,
+    ]);
+    expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBeUndefined();
+  });
+
+  it('does not stamp when the in-txn lesson list reveals an incomplete lesson', async () => {
+    // A lesson added between the caller's outline read and this transaction
+    // must suppress the backfill stamp.
+    const { repo, db } = repoWith({
+      [`enrollments/${ID}`]: activeEnrollment({ progress: fullProgress }),
+    });
+    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString, async () =>
+      ['l1', 'l2'] as LessonId[],
+    );
+    expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBeUndefined();
+  });
+
+  it('does not stamp when the lesson list is empty', async () => {
+    const { repo, db } = repoWith({
+      [`enrollments/${ID}`]: activeEnrollment({ progress: [] }),
+    });
+    await repo.stampCompleted(
+      UID,
+      CID,
+      '2026-07-09T00:00:00.000Z' as ISODateString,
+      async () => [] as LessonId[],
+    );
+    expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBeUndefined();
   });
 });
 

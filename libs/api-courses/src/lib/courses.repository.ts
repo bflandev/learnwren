@@ -75,6 +75,11 @@ export class CoursesRepository {
     await this.firestore.collection(COURSES).doc(course.id).set(course);
   }
 
+  /** Course create inside a caller's transaction (US-08-02 category conflict set). */
+  createCourseInTxn(t: adminFirestore.Transaction, course: Course): void {
+    t.set(this.courseRef(course.id), course);
+  }
+
   async getCourse(cid: CourseId): Promise<Course | null> {
     const snap = await this.courseRef(cid).get();
     return snap.exists ? (snap.data() as Course) : null;
@@ -107,6 +112,11 @@ export class CoursesRepository {
 
   async updateCourse(cid: CourseId, patch: Partial<Course>): Promise<void> {
     await this.courseRef(cid).update({ ...patch, updatedAt: nowIso() });
+  }
+
+  /** Course patch inside a caller's transaction (US-08-02 category conflict set). */
+  updateCourseInTxn(t: adminFirestore.Transaction, cid: CourseId, patch: Partial<Course>): void {
+    t.update(this.courseRef(cid), { ...patch, updatedAt: nowIso() });
   }
 
   /**

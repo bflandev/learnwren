@@ -6,14 +6,18 @@ import { describe, expect, it } from 'vitest';
 import { LandingPageComponent } from './landing-page.component';
 
 describe('LandingPageComponent', () => {
-  function render(): HTMLElement {
+  function renderFixture() {
     TestBed.configureTestingModule({
       imports: [LandingPageComponent],
       providers: [provideRouter([])],
     });
     const fixture = TestBed.createComponent(LandingPageComponent);
     fixture.detectChanges();
-    return fixture.nativeElement as HTMLElement;
+    return fixture;
+  }
+
+  function render(): HTMLElement {
+    return renderFixture().nativeElement as HTMLElement;
   }
 
   it('assembles all eight sections in order', () => {
@@ -35,5 +39,14 @@ describe('LandingPageComponent', () => {
   it('sets the document title', () => {
     render();
     expect(TestBed.inject(Title).getTitle()).toContain('Learn Wren');
+  });
+
+  it('restores the base title on destroy so the tagline does not leak onto other routes', () => {
+    const fixture = renderFixture();
+    expect(TestBed.inject(Title).getTitle()).toContain('slow lessons');
+
+    fixture.destroy();
+
+    expect(TestBed.inject(Title).getTitle()).toBe('Learn Wren');
   });
 });

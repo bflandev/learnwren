@@ -73,23 +73,26 @@ function makeCoursesRepo(args: {
   modules: Array<{ id: string; title: string; order: number }>;
   lessonsByModule: Record<string, Array<{ id: string; title: string; order: number; videoId?: string }>>;
 }) {
+  const modules = args.modules.map((m) => ({
+    ...m,
+    courseId: CID,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  }));
+  const lessonsFor = (mid: string) =>
+    (args.lessonsByModule[mid] ?? []).map((l) => ({
+      ...l,
+      moduleId: mid,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    }));
   return {
-    listModulesByCourse: vi.fn().mockResolvedValue(
-      args.modules.map((m) => ({
-        ...m,
-        courseId: CID,
-        createdAt: '2026-01-01T00:00:00Z',
-        updatedAt: '2026-01-01T00:00:00Z',
-      })),
-    ),
-    listLessonsByModule: vi.fn().mockImplementation(async (_cid: string, mid: string) =>
-      (args.lessonsByModule[mid] ?? []).map((l) => ({
-        ...l,
-        moduleId: mid,
-        createdAt: '2026-01-01T00:00:00Z',
-        updatedAt: '2026-01-01T00:00:00Z',
-      })),
-    ),
+    listModulesByCourse: vi.fn().mockResolvedValue(modules),
+    listLessonsByModule: vi.fn().mockImplementation(async (_cid: string, mid: string) => lessonsFor(mid)),
+    listModulesByCourseInTxn: vi.fn().mockImplementation(async () => modules),
+    listLessonsByModuleInTxn: vi
+      .fn()
+      .mockImplementation(async (_t: unknown, _cid: string, mid: string) => lessonsFor(mid)),
   } as unknown as CoursesRepository;
 }
 
@@ -655,7 +658,7 @@ describe('LearnService.markLessonComplete', () => {
       baseCourse.id,
       baseLesson.id,
       expect.any(String),
-      [],
+      expect.any(Function),
     );
   });
 });
@@ -711,7 +714,7 @@ describe('LearnService.resolveProgress lessonId matching', () => {
 });
 
 describe('LearnService.markLessonComplete — course rollup', () => {
-  it('passes the full lesson-id list of the course to the repository', async () => {
+  it('passes an in-txn lesson lister that resolves the full lesson-id list of the course', async () => {
     const courses = makeCoursesRepo({
       modules: [
         { id: 'm1', title: 'M1', order: 0 },
@@ -730,13 +733,22 @@ describe('LearnService.markLessonComplete — course rollup', () => {
 
     await svc.markLessonComplete(STUDENT_ID, baseCourse, baseLesson);
 
-    expect(enrollment.markLessonComplete).toHaveBeenCalledWith(
+    const markSpy = enrollment.markLessonComplete as ReturnType<typeof vi.fn>;
+    expect(markSpy).toHaveBeenCalledWith(
       STUDENT_ID,
       baseCourse.id,
       baseLesson.id,
       expect.any(String),
-      ['l1', 'l2', 'l3'],
+      expect.any(Function),
     );
+    // The lister must read via the transactional repo methods with the txn it
+    // is handed — that is the whole point of the closure.
+    const lister = markSpy.mock.calls[0][4];
+    const txn = { __txn: true };
+    await expect(lister(txn)).resolves.toEqual(['l1', 'l2', 'l3']);
+    expect(courses.listModulesByCourseInTxn).toHaveBeenCalledWith(txn, baseCourse.id);
+    expect(courses.listLessonsByModuleInTxn).toHaveBeenCalledWith(txn, baseCourse.id, 'm1');
+    expect(courses.listLessonsByModuleInTxn).toHaveBeenCalledWith(txn, baseCourse.id, 'm2');
   });
 });
 
@@ -780,7 +792,19 @@ describe('LearnService.getLessonView — lazy completion stamp', () => {
 
     await svc.getLessonView(STUDENT_ID, course, lesson);
 
-    expect(enrollment.stampCompleted).toHaveBeenCalledWith(STUDENT_ID, course.id, expect.any(String));
+    const stampSpy = enrollment.stampCompleted as ReturnType<typeof vi.fn>;
+    expect(stampSpy).toHaveBeenCalledWith(
+      STUDENT_ID,
+      course.id,
+      expect.any(String),
+      expect.any(Function),
+    );
+    // The backfill's in-txn lister resolves the course's lesson ids via the
+    // transactional repo methods.
+    const lister = stampSpy.mock.calls[0][3];
+    const txn = { __txn: true };
+    await expect(lister(txn)).resolves.toEqual(['l1', 'l2']);
+    expect(courses.listModulesByCourseInTxn).toHaveBeenCalledWith(txn, course.id);
   });
 
   it('does not stamp when a lesson is incomplete', async () => {

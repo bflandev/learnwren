@@ -47,12 +47,22 @@ export class AnalyticsService {
     const videos = await this.videos.listVideosForLessons(lessonIds);
 
     const nowMs = Date.now();
+    // One lookup map per enrollment, built once — keeps the per-lesson loop
+    // linear instead of re-scanning every progress array per lesson. Keeps
+    // the FIRST row per lessonId, matching the .find() it replaces.
+    const progressByEnrollment = enrollments.map((e) => {
+      const byLesson = new Map<LessonId, Enrollment['progress'][number]>();
+      for (const p of e.progress) {
+        if (!byLesson.has(p.lessonId)) byLesson.set(p.lessonId, p);
+      }
+      return byLesson;
+    });
     const lessons: LessonAnalyticsRow[] = ordered.map(({ lessonId, moduleId, title }) => {
       let completedCount = 0;
       let watchedStudents = 0;
       let watchedSecondsSum = 0;
-      for (const e of enrollments) {
-        const row = e.progress.find((p) => p.lessonId === lessonId);
+      for (const byLesson of progressByEnrollment) {
+        const row = byLesson.get(lessonId);
         if (!row) continue;
         watchedStudents += 1;
         watchedSecondsSum += row.lastWatchedSeconds;

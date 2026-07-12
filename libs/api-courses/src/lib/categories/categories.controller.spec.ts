@@ -52,4 +52,18 @@ describe('AdminCategoriesController', () => {
     await controller.remove('DESIGN', undefined);
     expect(svc.remove).toHaveBeenLastCalledWith('DESIGN', undefined);
   });
+
+  it('DELETE :id rejects a repeated reassignTo param (string[]) with a 400 validation error', async () => {
+    // ?reassignTo=A&reassignTo=B reaches Nest as string[]; without the guard
+    // it would fall through to a misleading CATEGORY_NOT_FOUND 404.
+    svc.remove.mockClear();
+    let err: unknown;
+    try {
+      await controller.remove('DESIGN', ['BUSINESS', 'MUSIC'] as unknown as string);
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
+    expect(svc.remove).not.toHaveBeenCalled();
+  });
 });

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { firestore as adminFirestore } from 'firebase-admin';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
 import { nowIso } from '@learnwren/shared-data-models';
@@ -50,6 +51,13 @@ function assertEnrollable(
 export function enrollmentId(userId: UserId, courseId: CourseId): EnrollmentId {
   return `${userId}__${courseId}` as EnrollmentId;
 }
+
+/**
+ * Resolves every lesson id in a course INSIDE the caller's transaction, so
+ * the completion-rollup denominator shares the transaction's conflict set —
+ * a lesson written concurrently forces a retry instead of being missed.
+ */
+export type TxnLessonLister = (t: adminFirestore.Transaction) => Promise<LessonId[]>;
 
 @Injectable()
 export class EnrollmentRepository {
@@ -144,7 +152,7 @@ export class EnrollmentRepository {
     courseId: CourseId,
     lessonId: LessonId,
     completedAtIso: ISODateString,
-    allLessonIds: LessonId[],
+    listAllLessonIds: TxnLessonLister,
   ): Promise<{ completedAt: ISODateString }> {
     const enrollmentRef = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
 
@@ -164,6 +172,12 @@ export class EnrollmentRepository {
         // Already complete — idempotent no-op. Return the prior value, write nothing.
         return { completedAt: existingRow.completedAt };
       }
+
+      // Rollup denominator, read inside the transaction (and before the
+      // write — Firestore requires all reads first) so a concurrently added
+      // lesson forces a retry rather than a wrong permanent stamp. Skipped
+      // when already stamped: no restamping, so no read needed.
+      const allLessonIds = existing.completedAt == null ? await listAllLessonIds(t) : [];
 
       if (existingRow) {
         progress[idx] = { ...existingRow, completedAt: completedAtIso };
@@ -306,20 +320,31 @@ export class EnrollmentRepository {
   }
 
   /**
-   * Lazy backfill stamp (US-06-02): sets completedAt on an unstamped
-   * enrollment. Transactional read-then-write so a concurrent stamp (or the
-   * mark-complete path) is never overwritten with a later date.
+   * Lazy backfill stamp (US-06-02): sets completedAt on an unstamped ACTIVE
+   * enrollment whose progress covers every lesson. Both conditions are
+   * re-verified inside the transaction so a concurrent withdrawal, stamp, or
+   * lesson addition wins over the caller's stale read.
    */
   async stampCompleted(
     userId: UserId,
     courseId: CourseId,
     completedAtIso: ISODateString,
+    listAllLessonIds: TxnLessonLister,
   ): Promise<void> {
     const ref = this.db.collection(ENROLLMENTS).doc(enrollmentId(userId, courseId));
     await this.db.runTransaction(async (t) => {
       const snap = await t.get(ref);
       const existing = snap.exists ? (snap.data() as Enrollment) : null;
-      if (!existing || existing.completedAt != null) return;
+      if (!existing || existing.status !== 'ACTIVE' || existing.completedAt != null) return;
+
+      const allLessonIds = await listAllLessonIds(t);
+      const doneByLesson = new Map(
+        (existing.progress ?? []).map((p) => [p.lessonId, p.completedAt != null]),
+      );
+      const allComplete =
+        allLessonIds.length > 0 && allLessonIds.every((id) => doneByLesson.get(id) === true);
+      if (!allComplete) return;
+
       t.update(ref, { completedAt: completedAtIso, updatedAt: completedAtIso });
     });
   }

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { firestore as adminFirestore } from 'firebase-admin';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
 import { nowIso } from '@learnwren/shared-data-models';
@@ -59,6 +60,20 @@ export class CategoriesRepository {
     // worth a second code path at this scale.
     const all = await this.listAll();
     return all.find((c) => c.id === id) ?? null;
+  }
+
+  /**
+   * Direct doc read inside a caller's transaction — puts the category in the
+   * transaction's conflict set, so a course write referencing it conflicts
+   * with a concurrent category delete instead of committing a dangling id.
+   * No lazy seed here: callers run `get` (which seeds) as their pre-check.
+   */
+  async getInTxn(
+    t: adminFirestore.Transaction,
+    id: CategoryId,
+  ): Promise<CourseCategoryDoc | null> {
+    const snap = await t.get(this.col().doc(id));
+    return snap.exists ? (snap.data() as CourseCategoryDoc) : null;
   }
 
   async create(id: CategoryId, name: string): Promise<CourseCategoryDoc> {

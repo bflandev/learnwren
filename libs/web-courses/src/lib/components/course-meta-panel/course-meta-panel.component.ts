@@ -36,13 +36,21 @@ export class CourseMetaPanelComponent {
 
   commitTitle(): void {
     const next = this.draftTitle().trim();
-    if (next.length === 0 || next === this.course().title) return;
+    if (next.length === 0 || next === this.course().title) {
+      // Abandoned edit (cleared or unchanged): restore the stored value —
+      // the linkedSignal won't reseed on its own since the source is unchanged.
+      this.draftTitle.set(this.course().title);
+      return;
+    }
     this.update.emit({ title: next });
   }
 
   commitDescription(): void {
     const next = this.draftDescription().trim();
-    if (next.length === 0 || next === this.course().description) return;
+    if (next.length === 0 || next === this.course().description) {
+      this.draftDescription.set(this.course().description);
+      return;
+    }
     this.update.emit({ description: next });
   }
 }

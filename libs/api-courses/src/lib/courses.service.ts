@@ -62,7 +62,11 @@ export class CoursesService {
     private readonly categoriesRepo: CategoriesRepository,
   ) {}
 
-  /** Categories are admin-managed (US-08-02): a referenced id must exist. */
+  /**
+   * Categories are admin-managed (US-08-02): a referenced id must exist.
+   * Also triggers the lazy default seed via categoriesRepo.get — the in-txn
+   * re-checks below rely on that having happened.
+   */
   private async assertCategoryExists(category: CourseCategory | undefined): Promise<void> {
     if (!category) return;
     const found = await this.categoriesRepo.get(category);
@@ -85,7 +89,19 @@ export class CoursesService {
       createdAt: now,
       updatedAt: now,
     };
-    await this.repo.createCourse(course);
+    const category = input.category;
+    if (category) {
+      // Category read + course write in one transaction: a concurrent admin
+      // category delete conflicts here instead of leaving a dangling id (the
+      // delete's reassign query cannot see a course that isn't written yet).
+      await this.repo.rawFirestore.runTransaction(async (t) => {
+        const found = await this.categoriesRepo.getInTxn(t, category);
+        if (!found) throw new CategoryNotFoundException();
+        this.repo.createCourseInTxn(t, course);
+      });
+    } else {
+      await this.repo.createCourse(course);
+    }
     return course;
   }
 
@@ -115,7 +131,18 @@ export class CoursesService {
     // Firestore NOT_FOUND that the exception filter falls through as 500.
     const existing = await this.repo.getCourse(cid);
     if (!existing) throw new CourseNotFoundException();
-    await this.repo.updateCourse(cid, patch);
+    const category = patch.category;
+    if (category) {
+      // Same-transaction category re-check as createCourse: a concurrent
+      // category delete must conflict, not leave a dangling id on the course.
+      await this.repo.rawFirestore.runTransaction(async (t) => {
+        const found = await this.categoriesRepo.getInTxn(t, category);
+        if (!found) throw new CategoryNotFoundException();
+        this.repo.updateCourseInTxn(t, cid, patch);
+      });
+    } else {
+      await this.repo.updateCourse(cid, patch);
+    }
   }
 
   /**

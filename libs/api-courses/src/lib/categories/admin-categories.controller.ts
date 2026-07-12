@@ -15,6 +15,7 @@ import { AdminRoleGuard, FirebaseSessionGuard } from '@learnwren/api-auth';
 import type { CategoryId, CourseCategoryDoc } from '@learnwren/shared-data-models';
 
 import { CategoriesExceptionFilter } from './categories.exception-filter';
+import { CategoryValidationException } from './categories.exception';
 import { CategoriesService } from './categories.service';
 import { CategoryNameDto } from './dto/category-name.dto';
 
@@ -41,6 +42,10 @@ export class AdminCategoriesController {
     @Param('id') id: string,
     @Query('reassignTo') reassignTo?: string,
   ): Promise<{ reassignedCourses: number }> {
+    // A repeated query param (?reassignTo=A&reassignTo=B) arrives as string[].
+    if (reassignTo !== undefined && typeof reassignTo !== 'string') {
+      throw new CategoryValidationException('reassignTo must be a single category id.');
+    }
     return this.service.remove(id as CategoryId, (reassignTo || undefined) as CategoryId | undefined);
   }
 }
