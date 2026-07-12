@@ -1160,7 +1160,7 @@ describe('UC-04-02 materials section', () => {
     expect(query(fixture, '[data-testid="lesson-materials"]')).toBeNull();
   });
 
-  it('click on material-download-{matId} calls requestDownloadUrl then window.open with the URL', async () => {
+  it('click on material-download-{matId} calls requestDownloadUrl then triggers a synchronous anchor download', async () => {
     configure();
     const { fixture, http } = create();
     http
@@ -1173,7 +1173,9 @@ describe('UC-04-02 materials section', () => {
     const reqSpy = vi
       .spyOn(learn, 'requestDownloadUrl')
       .mockResolvedValue({ downloadUrl: 'https://example.com/signed', expiresAt: '2026-05-26T12:00:00.000Z' as ISODateString });
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    const openSpy = vi
+      .spyOn(fixture.componentInstance as unknown as { openDownload: (u: string) => void }, 'openDownload')
+      .mockImplementation(() => undefined);
 
     const btn = query(fixture, '[data-testid="material-download-mat-1"]') as HTMLButtonElement;
     btn.click();
@@ -1181,7 +1183,39 @@ describe('UC-04-02 materials section', () => {
     fixture.detectChanges();
 
     expect(reqSpy).toHaveBeenCalledWith('mat-1');
-    expect(openSpy).toHaveBeenCalledWith('https://example.com/signed', '_blank', 'noopener');
+    expect(openSpy).toHaveBeenCalledWith('https://example.com/signed');
+  });
+
+  it('openDownload creates an anchor with download="" and rel="noopener", then clicks and removes it', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    const cmp = fixture.componentInstance as unknown as { openDownload: (u: string) => void };
+
+    let created: HTMLAnchorElement | undefined;
+    let clicked = false;
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+      const el = realCreate(tag);
+      if (tag === 'a') {
+        created = el as HTMLAnchorElement;
+        vi.spyOn(el as HTMLAnchorElement, 'click').mockImplementation(() => {
+          clicked = true;
+        });
+      }
+      return el;
+    }) as typeof document.createElement);
+
+    cmp.openDownload('https://files/x.pdf');
+
+    expect(created).toBeDefined();
+    const anchor = created as HTMLAnchorElement;
+    expect(anchor.href).toContain('https://files/x.pdf');
+    expect(anchor.getAttribute('download')).toBe('');
+    expect(anchor.rel).toBe('noopener');
+    expect(clicked).toBe(true);
+    expect(anchor.isConnected).toBe(false);
   });
 
   it('on 404 renders material-error-{matId} with the gone copy; sibling rows stay enabled', async () => {
@@ -1909,7 +1943,9 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       vi.spyOn(learn, 'requestDownloadUrl').mockReturnValue(
         new Promise((res) => { resolveDl = res; }),
       );
-      const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+      const openSpy = vi
+        .spyOn(fixture.componentInstance as unknown as { openDownload: (u: string) => void }, 'openDownload')
+        .mockImplementation(() => undefined);
 
       expect(fixture.componentInstance.rowState('mat-x' as MaterialId)).toEqual({ status: 'idle' });
       const p = fixture.componentInstance.onDownloadMaterial('mat-x' as MaterialId);
@@ -1917,7 +1953,7 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       expect(fixture.componentInstance.rowState('mat-x' as MaterialId)).toEqual({ status: 'preparing' });
       resolveDl({ downloadUrl: 'https://x/sig', expiresAt: '2026-05-26T00:00:00.000Z' as ISODateString });
       await p;
-      expect(openSpy).toHaveBeenCalledWith('https://x/sig', '_blank', 'noopener');
+      expect(openSpy).toHaveBeenCalledWith('https://x/sig');
       expect(fixture.componentInstance.rowState('mat-x' as MaterialId)).toEqual({ status: 'idle' });
     });
 

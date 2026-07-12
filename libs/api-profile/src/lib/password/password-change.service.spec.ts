@@ -17,17 +17,19 @@ const EMAIL = 'user@example.com';
 const VALID_NEW = 'Bb2@bbbbbbbb';
 
 function makeService(overrides: {
-  signIn?: () => Promise<unknown>;
+  verifyPassword?: () => Promise<unknown>;
   policy?: () => { valid: boolean; unmet?: string[] };
   updateUser?: () => Promise<unknown>;
   sendEmail?: () => Promise<void>;
+  revoke?: () => Promise<unknown>;
 } = {}) {
   const auth = {
     updateUser: overrides.updateUser ?? vi.fn().mockResolvedValue(undefined),
-    revokeRefreshTokens: vi.fn().mockResolvedValue(undefined),
+    revokeRefreshTokens: overrides.revoke ?? vi.fn().mockResolvedValue(undefined),
   };
-  const restClient = {
-    signInWithPassword: overrides.signIn ?? vi.fn().mockResolvedValue({ idToken: 't' }),
+  const verification = {
+    verifyPassword: overrides.verifyPassword ?? vi.fn().mockResolvedValue('t'),
+    clearFailures: vi.fn().mockResolvedValue(undefined),
   };
   const policy = {
     validate: overrides.policy ?? vi.fn().mockReturnValue({ valid: true }),
@@ -37,22 +39,33 @@ function makeService(overrides: {
   };
   const svc = new PasswordChangeService(
     auth as never,
-    restClient as never,
+    verification as never,
     policy as never,
     transport as never,
   );
-  return { svc, auth, restClient, policy, transport };
+  return { svc, auth, verification, policy, transport };
 }
 
 describe('PasswordChangeService.changePassword', () => {
   const valid = { currentPassword: 'Aa1!aaaaaaaa', newPassword: VALID_NEW };
 
   it('maps a wrong current password to CURRENT_PASSWORD_INVALID and never updates', async () => {
-    const signIn = vi.fn().mockRejectedValue(new AuthException('INVALID_CREDENTIALS', 'bad', 401));
-    const { svc, auth } = makeService({ signIn });
+    const verifyPassword = vi
+      .fn()
+      .mockRejectedValue(new AuthException('INVALID_CREDENTIALS', 'bad', 401));
+    const { svc, auth, verification } = makeService({ verifyPassword });
     await expect(svc.changePassword(UID, EMAIL, valid)).rejects.toBeInstanceOf(
       CurrentPasswordInvalidException,
     );
+    expect(auth.updateUser).not.toHaveBeenCalled();
+    expect(verification.clearFailures).not.toHaveBeenCalled();
+  });
+
+  it('rethrows ACCOUNT_LOCKED from the lockout-honoring re-auth unchanged (renders via the AuthException filter)', async () => {
+    const locked = new AuthException('ACCOUNT_LOCKED', 'Account is temporarily locked.', 423);
+    const verifyPassword = vi.fn().mockRejectedValue(locked);
+    const { svc, auth } = makeService({ verifyPassword });
+    await expect(svc.changePassword(UID, EMAIL, valid)).rejects.toBe(locked);
     expect(auth.updateUser).not.toHaveBeenCalled();
   });
 
@@ -73,16 +86,19 @@ describe('PasswordChangeService.changePassword', () => {
   });
 
   it('on success updates the password, emails a notice, then revokes tokens', async () => {
-    const { svc, auth, transport, restClient } = makeService();
+    const { svc, auth, transport, verification } = makeService();
     await svc.changePassword(UID, EMAIL, valid);
     expect(auth.updateUser).toHaveBeenCalledWith(UID, { password: VALID_NEW });
     expect(transport.sendPasswordChangedEmail).toHaveBeenCalledWith({ to: EMAIL });
     expect(auth.revokeRefreshTokens).toHaveBeenCalledWith(UID);
-    // reauth is called with the exact { email, password } object (kills the empty-object mutant)
-    expect(restClient.signInWithPassword).toHaveBeenCalledWith({
-      email: EMAIL,
-      password: valid.currentPassword,
-    });
+    // re-auth goes through the shared lockout-honoring seam with exact args
+    expect(verification.verifyPassword).toHaveBeenCalledWith(EMAIL, valid.currentPassword);
+  });
+
+  it('clears the shared lockout counter after a successful re-auth', async () => {
+    const { svc, verification } = makeService();
+    await svc.changePassword(UID, EMAIL, valid);
+    expect(verification.clearFailures).toHaveBeenCalledWith(EMAIL);
   });
 
   it('swallows a notification-email failure (password already changed) and still revokes', async () => {
@@ -94,6 +110,18 @@ describe('PasswordChangeService.changePassword', () => {
     // the catch body MUST execute (logs the swallowed failure) — kills the emptied-catch-block mutant
     expect(errSpy).toHaveBeenCalledWith(
       expect.stringContaining('[profile] password-changed notice failed'),
+    );
+    errSpy.mockRestore();
+  });
+
+  it('swallows a revokeRefreshTokens failure (password already changed) and resolves', async () => {
+    const revoke = vi.fn().mockRejectedValue(new Error('revoke down'));
+    const { svc } = makeService({ revoke });
+    const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    await expect(svc.changePassword(UID, EMAIL, valid)).resolves.toBeUndefined();
+    expect(revoke).toHaveBeenCalledWith(UID);
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[profile] password-change revoke failed'),
     );
     errSpy.mockRestore();
   });
@@ -111,8 +139,8 @@ describe('PasswordChangeService.changePassword', () => {
 
   it('maps an unexpected re-auth error to PASSWORD_CHANGE_FAILED with the cause, and never updates', async () => {
     const boom = new Error('network down');
-    const signIn = vi.fn().mockRejectedValue(boom);
-    const { svc, auth } = makeService({ signIn });
+    const verifyPassword = vi.fn().mockRejectedValue(boom);
+    const { svc, auth } = makeService({ verifyPassword });
     await expect(svc.changePassword(UID, EMAIL, valid)).rejects.toMatchObject({
       code: 'PASSWORD_CHANGE_FAILED',
       cause: boom,
@@ -120,9 +148,9 @@ describe('PasswordChangeService.changePassword', () => {
     expect(auth.updateUser).not.toHaveBeenCalled();
   });
 
-  it('maps an AuthException with a non-INVALID_CREDENTIALS code to PASSWORD_CHANGE_FAILED (not CurrentPasswordInvalid)', async () => {
-    const signIn = vi.fn().mockRejectedValue(new AuthException('NETWORK', 'down', 503));
-    const { svc, auth } = makeService({ signIn });
+  it('maps an AuthException with a non-INVALID_CREDENTIALS, non-ACCOUNT_LOCKED code to PASSWORD_CHANGE_FAILED', async () => {
+    const verifyPassword = vi.fn().mockRejectedValue(new AuthException('NETWORK', 'down', 503));
+    const { svc, auth } = makeService({ verifyPassword });
     await expect(svc.changePassword(UID, EMAIL, valid)).rejects.toBeInstanceOf(
       PasswordChangeFailedException,
     );
@@ -131,8 +159,8 @@ describe('PasswordChangeService.changePassword', () => {
 
   it('does NOT treat a plain object with code INVALID_CREDENTIALS (not an AuthException) as wrong-password', async () => {
     // instanceof guard must hold: only a real AuthException maps to CurrentPasswordInvalid.
-    const signIn = vi.fn().mockRejectedValue({ code: 'INVALID_CREDENTIALS' });
-    const { svc } = makeService({ signIn });
+    const verifyPassword = vi.fn().mockRejectedValue({ code: 'INVALID_CREDENTIALS' });
+    const { svc } = makeService({ verifyPassword });
     await expect(svc.changePassword(UID, EMAIL, valid)).rejects.toBeInstanceOf(
       PasswordChangeFailedException,
     );

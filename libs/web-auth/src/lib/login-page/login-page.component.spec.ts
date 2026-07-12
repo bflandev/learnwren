@@ -261,6 +261,20 @@ describe('LoginPageComponent.resendVerification', () => {
     expect(cmp.unverifiedState()).toEqual({ kind: 'unverified', resendSent: true });
   });
 
+  it('sets busy while resending and ignores a second click in flight (single email)', async () => {
+    const { fixture, httpMock } = setup();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ email: 'a@b.c', password: 'pw' });
+    const p1 = cmp.resendVerification();
+    expect(cmp.busy()).toBe(true);
+    const p2 = cmp.resendVerification();
+    const reqs = httpMock.match('/api/auth/resend-verification');
+    expect(reqs.length).toBe(1);
+    reqs[0].flush(null, { status: 202, statusText: 'Accepted' });
+    await Promise.all([p1, p2]);
+    expect(cmp.busy()).toBe(false);
+  });
+
   it('falls back to a generic error message on failure', async () => {
     const { fixture, httpMock } = setup();
     const cmp = fixture.componentInstance;

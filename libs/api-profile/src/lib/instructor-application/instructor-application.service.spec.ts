@@ -121,6 +121,20 @@ describe('InstructorApplicationService', () => {
     ).rejects.toBeInstanceOf(InstructorApplicationInvalidException);
   });
 
+  it('submit rejects with ALREADY_INSTRUCTOR when the existing application is APPROVED (stale STUDENT cookie)', async () => {
+    // A just-approved instructor still holding a STUDENT session cookie must
+    // not be able to overwrite their APPROVED application back to PENDING.
+    const { firestore, setFn } = makeFirestore({
+      exists: true,
+      data: { uid: UID, statement: 'x', expertise: 'y', status: 'APPROVED', createdAt: 'z' },
+    });
+    const svc = new InstructorApplicationService(firestore);
+    await expect(
+      svc.submit(UID, STUDENT, { statement: 'again', expertise: 'again' }),
+    ).rejects.toBeInstanceOf(AlreadyInstructorException);
+    expect(setFn).not.toHaveBeenCalled();
+  });
+
   it('submit rejects when a PENDING application already exists', async () => {
     const { firestore } = makeFirestore({
       exists: true,

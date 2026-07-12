@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import type { CourseAnalyticsView } from '@learnwren/shared-data-models';
@@ -31,16 +31,26 @@ export class CourseAnalyticsPageComponent {
 
   readonly clock = secondsToClock;
 
+  /** Monotonic token: discards a slow response that lands after a newer load (route :id change). */
+  private loadToken = 0;
+
   constructor() {
-    this.load();
+    // Angular reuses this component instance when only :id changes (browser
+    // back/forward between two courses' analytics) — reload on every emission.
+    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe(() => void this.load());
   }
 
   async load(): Promise<void> {
+    const token = ++this.loadToken;
     this.state.set('loading');
+    this.view.set(null);
     try {
-      this.view.set(await this.service.getAnalytics(this.cid()));
+      const view = await this.service.getAnalytics(this.cid());
+      if (token !== this.loadToken) return; // superseded by a newer load
+      this.view.set(view);
       this.state.set('loaded');
     } catch {
+      if (token !== this.loadToken) return; // superseded by a newer load
       this.state.set('error');
     }
   }

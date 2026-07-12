@@ -3,11 +3,12 @@ import { Injectable } from '@nestjs/common';
 import type { VideoId } from '@learnwren/shared-data-models';
 
 import { buildJobConfig } from './transcoder-job.builder';
-import type {
-  TranscoderEvent,
-  TranscoderJobHandle,
-  TranscoderJobInput,
-  VideoTranscoder,
+import {
+  TranscoderEventLookupError,
+  type TranscoderEvent,
+  type TranscoderJobHandle,
+  type TranscoderJobInput,
+  type VideoTranscoder,
 } from './transcoder.port';
 
 // Canonical gRPC status code for NOT_FOUND (see google.rpc.Code).
@@ -71,7 +72,17 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
     const jobName = job.name ?? '';
 
     if (job.state === 'SUCCEEDED') {
-      const [full] = await this.opts.client.getJob({ name: jobName });
+      // Structural parsing is done; getJob is I/O. Wrap its failures in the
+      // typed lookup error so the controller retries (5xx) instead of acking
+      // the event as MALFORMED and dropping it forever.
+      let full: { outputDurationSec?: number };
+      try {
+        [full] = await this.opts.client.getJob({ name: jobName });
+      } catch (err) {
+        throw new TranscoderEventLookupError(
+          `getJob failed for ${jobName}: ${(err as Error).message}`,
+        );
+      }
       const durationSec = Number(full.outputDurationSec ?? 0);
       return {
         type: 'JOB_SUCCEEDED',

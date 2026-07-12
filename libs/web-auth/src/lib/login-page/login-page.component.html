@@ -37,7 +37,14 @@
           @if (unverifiedState()?.resendSent) {
             <p class="text-sm text-good">Verification email sent. Check your inbox.</p>
           } @else {
-            <button lwButton variant="ghost" type="button" (click)="resendVerification()">
+            <button
+              lwButton
+              variant="ghost"
+              type="button"
+              class="disabled:opacity-50"
+              [disabled]="busy()"
+              (click)="resendVerification()"
+            >
               Resend verification email
             </button>
           }

@@ -115,6 +115,38 @@ describe('PublishEligibilityService', () => {
     expect(svc.lastError()).toMatch(/check publish status/i);
   });
 
+  it('discards a stale eligibility response after rebinding to another course', async () => {
+    vi.useFakeTimers();
+    svc.bindToCourse(CID);
+    svc.refresh();
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    const req = http.expectOne(ELIGIBILITY_URL);
+
+    // Navigate to another course while course-1's response is still in flight.
+    svc.bindToCourse('course-2' as CourseId);
+    req.flush(ELIGIBILITY_OK); // course-1's slow response lands late
+    await Promise.resolve();
+
+    // The stale response must NOT appear on course-2's publish bar.
+    expect(svc.eligibility()).toBeNull();
+    expect(svc.loading()).toBe(false);
+  });
+
+  it('discards a stale eligibility error after rebinding to another course', async () => {
+    vi.useFakeTimers();
+    svc.bindToCourse(CID);
+    svc.refresh();
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    const req = http.expectOne(ELIGIBILITY_URL);
+
+    svc.bindToCourse('course-2' as CourseId);
+    req.flush('Internal Server Error', { status: 500, statusText: 'Internal Server Error' });
+    await Promise.resolve();
+
+    expect(svc.lastError()).toBeNull();
+    expect(svc.eligibility()).toBeNull();
+  });
+
   it('accepts a pre-set eligibility (used after 409 PUBLISH_NOT_ELIGIBLE)', () => {
     svc.bindToCourse(CID);
     svc.setEligibility(ELIGIBILITY_NOT_OK);

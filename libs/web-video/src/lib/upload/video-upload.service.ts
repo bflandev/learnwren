@@ -170,7 +170,9 @@ export class VideoUploadService {
       const status = await this.putChunk(sessionUri, chunk, start, last, total);
       if (this.aborted) return false;
       if (status === 200 || status === 308) return true;
-      if (status >= 500 && attempt < MAX_RETRIES_PER_CHUNK) {
+      // status 0 = network error (xhr.onerror): a transient blip is retryable,
+      // same as a 5xx. Aborts also resolve 0 but are caught by the guard above.
+      if ((status === 0 || status >= 500) && attempt < MAX_RETRIES_PER_CHUNK) {
         await new Promise((res) => setTimeout(res, BACKOFF_MS[attempt] ?? 4000));
         continue;
       }

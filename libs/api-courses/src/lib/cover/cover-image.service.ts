@@ -48,10 +48,18 @@ export class CoverImageService {
       throw new CoverDimensionsTooSmallException({ width, height });
     }
 
-    const jpeg = await pipeline
-      .resize({ width: MAX_WIDTH, height: MAX_HEIGHT, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 85, mozjpeg: true })
-      .toBuffer();
+    // metadata() only reads the header; the full decode happens here and can
+    // still fail on truncated/corrupt bodies. Wrap it so the raw sharp error
+    // renders as the typed 400 instead of escaping the filter as a 500.
+    let jpeg: Buffer;
+    try {
+      jpeg = await pipeline
+        .resize({ width: MAX_WIDTH, height: MAX_HEIGHT, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85, mozjpeg: true })
+        .toBuffer();
+    } catch {
+      throw new CoverDecodeFailedException();
+    }
 
     const path = `course-covers/${courseId}/cover.jpg`;
     await this.storage.putObject({

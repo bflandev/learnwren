@@ -95,33 +95,70 @@ describe('RegisterConfirmPageComponent — resend logic', () => {
     expect(build().cmp.cooldownActive()).toBe(false);
   });
 
-  it('cooldownActive is true immediately after a resend', () => {
+  it('cooldownActive is true immediately after a resend', async () => {
     const { cmp } = build();
-    cmp.resentAt.set(new Date());
+    await cmp.resend();
     expect(cmp.cooldownActive()).toBe(true);
   });
 
-  it('cooldownActive is false once 60s have elapsed', () => {
-    const { cmp } = build();
-    cmp.resentAt.set(new Date(Date.now() - 61_000));
-    expect(cmp.cooldownActive()).toBe(false);
-  });
-
-  it('cooldownActive is false at exactly the 60s boundary (strict <)', () => {
+  it('cooldownActive clears after 60s and the button works again', async () => {
     vi.useFakeTimers();
     try {
-      const now = new Date('2026-06-20T12:00:00.000Z').getTime();
-      vi.setSystemTime(now);
-      const { cmp } = build();
-      // resent exactly 60_000ms ago → elapsed === 60_000, strict < is false
-      cmp.resentAt.set(new Date(now - 60_000));
+      const { cmp, auth } = build();
+      await cmp.resend();
+      expect(cmp.cooldownActive()).toBe(true);
+      vi.advanceTimersByTime(59_999);
+      expect(cmp.cooldownActive()).toBe(true);
+      vi.advanceTimersByTime(1);
       expect(cmp.cooldownActive()).toBe(false);
-      // one ms inside the window → still active
-      cmp.resentAt.set(new Date(now - 59_999));
+      await cmp.resend();
+      expect(auth.resendVerification).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears the pending cooldown timer on destroy', async () => {
+    vi.useFakeTimers();
+    try {
+      const auth = { resendVerification: vi.fn().mockResolvedValue(undefined) };
+      TestBed.configureTestingModule({
+        imports: [RegisterConfirmPageComponent],
+        providers: [
+          provideRouter([]),
+          { provide: AuthService, useValue: auth },
+          {
+            provide: ActivatedRoute,
+            useValue: { queryParamMap: of({ get: () => 'a@b.c' }) },
+          },
+        ],
+      });
+      const fixture = TestBed.createComponent(RegisterConfirmPageComponent);
+      fixture.detectChanges();
+      const cmp = fixture.componentInstance;
+      await cmp.resend();
+      expect(cmp.cooldownActive()).toBe(true);
+      fixture.destroy();
+      // The cooldown timer was cleared on destroy: advancing past 60s must
+      // not fire the (now-cancelled) callback that flips the signal back.
+      vi.advanceTimersByTime(60_001);
       expect(cmp.cooldownActive()).toBe(true);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('a failed resend shows an error, leaves no cooldown, and clears busy', async () => {
+    const { cmp, auth } = build();
+    auth.resendVerification.mockRejectedValue(new Error('500'));
+    await cmp.resend();
+    expect(cmp.resendError()).toBe(true);
+    expect(cmp.cooldownActive()).toBe(false);
+    expect(cmp.busy()).toBe(false);
+    // The next successful resend clears the error again.
+    auth.resendVerification.mockResolvedValue(undefined);
+    await cmp.resend();
+    expect(cmp.resendError()).toBe(false);
   });
 
   it('resend() calls resendVerification, records the time, and clears busy', async () => {
@@ -169,8 +206,8 @@ describe('RegisterConfirmPageComponent — resend logic', () => {
 
   it('resend() is a no-op during the cooldown window', async () => {
     const { cmp, auth } = build('a@b.c');
-    cmp.resentAt.set(new Date());
     await cmp.resend();
-    expect(auth.resendVerification).not.toHaveBeenCalled();
+    await cmp.resend();
+    expect(auth.resendVerification).toHaveBeenCalledTimes(1);
   });
 });

@@ -142,15 +142,68 @@ describe('CourseAnalyticsPageComponent', () => {
     const fixture = TestBed.createComponent(CourseAnalyticsPageComponent);
     fixture.detectChanges();
     expect(fixture.componentInstance.cid()).toBe('');
-    http.expectOne('/api/courses//analytics').flush({
-      courseId: '',
-      enrolledTotal: 0,
-      averageCompletionPercent: 0,
-      newEnrollments: { last7Days: 0, last30Days: 0, last90Days: 0 },
-      totalLessons: 0,
-      lessons: [],
-      generatedAt: '2026-06-01T00:00:00.000Z',
-    } as never);
+    // No paramMap emission yet → no load fires (loads are param-driven now).
+    http.expectNone(() => true);
+  });
+
+  it('reloads the analytics when the :id route param changes (component reuse)', async () => {
+    const params$ = new Subject<Map<string, string>>();
+    TestBed.configureTestingModule({
+      imports: [CourseAnalyticsPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { paramMap: params$.asObservable() } },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(CourseAnalyticsPageComponent);
+    fixture.detectChanges();
+
+    params$.next(new Map([['id', 'course-1']]));
+    http.expectOne('/api/courses/course-1/analytics').flush(VIEW);
+    await fixture.whenStable();
+    expect(fixture.componentInstance.view()?.courseId).toBe('course-1');
+
+    params$.next(new Map([['id', 'course-2']]));
+    expect(fixture.componentInstance.state()).toBe('loading');
+    expect(fixture.componentInstance.view()).toBeNull();
+    http
+      .expectOne('/api/courses/course-2/analytics')
+      .flush({ ...VIEW, courseId: 'course-2' } as CourseAnalyticsView);
+    await fixture.whenStable();
+    expect(fixture.componentInstance.view()?.courseId).toBe('course-2');
+  });
+
+  it('discards a stale analytics response that lands after navigating to another course', async () => {
+    const params$ = new Subject<Map<string, string>>();
+    TestBed.configureTestingModule({
+      imports: [CourseAnalyticsPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { paramMap: params$.asObservable() } },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(CourseAnalyticsPageComponent);
+    fixture.detectChanges();
+
+    params$.next(new Map([['id', 'course-1']]));
+    const reqA = http.expectOne('/api/courses/course-1/analytics'); // slow
+
+    params$.next(new Map([['id', 'course-2']]));
+    http
+      .expectOne('/api/courses/course-2/analytics')
+      .flush({ ...VIEW, courseId: 'course-2' } as CourseAnalyticsView);
+    await fixture.whenStable();
+
+    reqA.flush(VIEW); // course-1's response lands late — must be discarded
+    await fixture.whenStable();
+    expect(fixture.componentInstance.view()?.courseId).toBe('course-2');
+    expect(fixture.componentInstance.state()).toBe('loaded');
   });
 
   it('falls back to an empty course id when the route has no id param', () => {

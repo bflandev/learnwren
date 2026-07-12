@@ -197,6 +197,47 @@ describe('AdminInstructorApplicationService', () => {
     expect(email.sendInstructorApplicationApprovedEmail).not.toHaveBeenCalled();
   });
 
+  it('approve: missing Auth user (auth/user-not-found) -> typed ApplicationNotFoundException, not a raw 500', async () => {
+    // getUser runs before the transaction; a raw auth/user-not-found used to
+    // escape the feature filter's @Catch list and render unenveloped.
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => undefined),
+    };
+    auth.getUser = vi.fn(async () => {
+      throw Object.assign(new Error('no user'), { code: 'auth/user-not-found' });
+    });
+
+    await expect(svc.approve('u1' as never)).rejects.toThrow(ApplicationNotFoundException);
+    // Nothing was claimed or promoted.
+    expect(txn.update).not.toHaveBeenCalled();
+    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+  });
+
+  it('approve: other raw getUser failure -> typed INTERNAL AdminInstructorApplicationException with cause', async () => {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => undefined),
+    };
+    const cause = Object.assign(new Error('backend down'), { code: 'auth/internal-error' });
+    auth.getUser = vi.fn(async () => {
+      throw cause;
+    });
+
+    const err = await svc.approve('u1' as never).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AdminInstructorApplicationException);
+    expect((err as AdminInstructorApplicationException).code).toBe('INTERNAL');
+    expect((err as AdminInstructorApplicationException).status).toBe(500);
+    expect((err as Error).cause).toBe(cause);
+    expect(txn.update).not.toHaveBeenCalled();
+  });
+
   it('approve: unverified applicant -> ApplicantNotVerifiedException, no claim set', async () => {
     auth.getUser = vi.fn(async () => ({ email: 'ada@example.com', emailVerified: false }));
     docs['instructorApplications/u1'] = {

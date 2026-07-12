@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
 import type { Course, CourseId, ISODateString, Lesson, LessonId, Module, ModuleId, VideoState } from '@learnwren/shared-data-models';
 
@@ -49,19 +49,46 @@ export class CourseEditorPageComponent {
     (this.tree()?.modules ?? []).map((m) => ({ module: m.module, lessons: m.lessons })),
   );
 
+  /**
+   * Monotonic token identifying the most recent refresh(). getCourseTree is a
+   * non-cancellable Promise, so a slow response for a previous course can
+   * resolve AFTER the route has moved to another course (browser back/forward
+   * reuses this component instance). Stale results are discarded.
+   */
+  private loadToken = 0;
+
   constructor() {
-    this.refresh();
+    // Angular reuses the component instance when only the :id param changes
+    // (browser back/forward between two courses), so reload on every emission
+    // and drop the previous course's transient state.
+    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe(() => {
+      this.resetCourseState();
+      void this.refresh();
+    });
+  }
+
+  /** Drop per-course transient state when the route moves to another course. */
+  private resetCourseState(): void {
+    this.tree.set(null);
+    this.error.set(null);
+    this.notice.set(null);
+    this.pendingConfirm.set(null);
+    this.addingModule.set(false);
+    this.newModuleTitle.set('');
   }
 
   async refresh(): Promise<void> {
     const cid = this.cid();
     if (!cid) return;
+    const token = ++this.loadToken;
     try {
       const tree = await this.service.getCourseTree(cid);
+      if (token !== this.loadToken) return; // superseded by a newer load
       this.tree.set(tree);
       this.publishSvc.bindToCourse(cid);
       this.publishSvc.refresh();
     } catch {
+      if (token !== this.loadToken) return; // superseded by a newer load
       this.notice.set(null);
       this.error.set('Failed to load course.');
     }
@@ -130,6 +157,8 @@ export class CourseEditorPageComponent {
       this.publishBar?.runConfirmedTransition(pending.kind);
       return;
     }
+    this.error.set(null);
+    this.notice.set(null);
     try {
       if (pending.kind === 'deleteCourse') {
         await this.service.deleteCourse(this.cid());
@@ -250,6 +279,8 @@ export class CourseEditorPageComponent {
   ): Promise<void> {
     const snapshot = this.tree();
     if (!snapshot) return;
+    this.error.set(null);
+    this.notice.set(null);
     this.tree.set(project(snapshot));
     try {
       await commit();
@@ -267,6 +298,8 @@ export class CourseEditorPageComponent {
    * UI matches the server's view rather than relying on a local projection.
    */
   private async runWithErrorMessage(op: () => Promise<unknown>, errorMessage: string): Promise<void> {
+    this.error.set(null);
+    this.notice.set(null);
     try {
       await op();
       await this.refresh();

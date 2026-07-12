@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import type { auth as adminAuth } from 'firebase-admin';
 
 import {
   FIRESTORE,
@@ -61,7 +62,7 @@ export class AdminInstructorApplicationService {
   }
 
   async approve(uid: UserId): Promise<InstructorApplicationView> {
-    const user = await this.auth.getUser(uid);
+    const user = await this.getApplicantOrThrow(uid);
     if (!user.emailVerified) {
       throw new ApplicantNotVerifiedException();
     }
@@ -162,6 +163,35 @@ export class AdminInstructorApplicationService {
     this.logger.log(`[admin] instructor application declined uid=${uid}`);
 
     return this.viewOf(app as InstructorApplication, 'DECLINED');
+  }
+
+  /**
+   * getUser can throw raw Firebase errors that would escape the feature
+   * filter's @Catch list and render unenveloped. A missing Auth user means
+   * there is nothing left to approve (user deletion cascades the application
+   * doc away) → typed 404; anything else → typed INTERNAL.
+   */
+  private async getApplicantOrThrow(uid: UserId): Promise<adminAuth.UserRecord> {
+    try {
+      return await this.auth.getUser(uid);
+    } catch (err) {
+      if (this.isFirebaseError(err) && err.code === 'auth/user-not-found') {
+        throw new ApplicationNotFoundException();
+      }
+      // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
+      this.logger.error(`[admin] approve getUser failed uid=${uid}: ${String(err)}`);
+      throw new AdminInstructorApplicationException(
+        'INTERNAL',
+        'Failed to load the applicant.',
+        500,
+        undefined,
+        { cause: err },
+      );
+    }
+  }
+
+  private isFirebaseError(err: unknown): err is { code: string } {
+    return typeof err === 'object' && err !== null && 'code' in err;
   }
 
   // Builds the response view from the just-resolved application; the request is the sole writer, so the in-memory snapshot + new status is authoritative.

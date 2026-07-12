@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { VideoId, VideoKeyId } from '@learnwren/shared-data-models';
 
 import { GcpTranscoderAdapter } from './gcp-transcoder.adapter';
+import { TranscoderEventLookupError } from './transcoder.port';
 
 interface MockClient {
   createJob: ReturnType<typeof vi.fn>;
@@ -98,17 +99,20 @@ describe('GcpTranscoderAdapter.parseEvent — JOB_SUCCEEDED', () => {
     expect(ev.videoId).toBe('v1');
   });
 
-  it('propagates getJob failure (webhook returns 5xx so Pub/Sub retries)', async () => {
+  it('wraps getJob failure in TranscoderEventLookupError (webhook returns 5xx so Pub/Sub retries)', async () => {
+    // A structural parse error is acked MALFORMED; an I/O failure enriching a
+    // structurally-valid SUCCEEDED event must be typed so the controller can
+    // route it to the 500/retry path instead of dropping the event.
     const client = makeClient();
     client.getJob.mockRejectedValue(new Error('transient'));
     const adapter = makeAdapter(client);
-    await expect(
-      adapter.parseEvent(
-        envelope({
-          job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'v1' }, output: { uri: 'gs://x/y/' } },
-        }),
-      ),
-    ).rejects.toThrow(/transient/);
+    const rejection = adapter.parseEvent(
+      envelope({
+        job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'v1' }, output: { uri: 'gs://x/y/' } },
+      }),
+    );
+    await expect(rejection).rejects.toBeInstanceOf(TranscoderEventLookupError);
+    await expect(rejection).rejects.toThrow(/transient/);
   });
 });
 

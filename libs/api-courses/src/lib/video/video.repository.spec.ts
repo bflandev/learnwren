@@ -100,6 +100,59 @@ describe('VideoRepository — simple reads and writes', () => {
     expect(await repo.getVideoByLesson('l-none' as LessonId)).toBeNull();
   });
 
+  it('getVideoByLesson prefers the live (non-FAILED) doc when a retry left a FAILED sibling', async () => {
+    // Retry flow: a FAILED doc and a fresh session's doc share the lessonId.
+    // limit(1) with no ordering was nondeterministic; reads must pick the live doc.
+    const fake = createFakeFirestore({
+      'videos/v-failed': makeVideo({
+        id: 'v-failed' as VideoId,
+        state: 'FAILED',
+        createdAt: '2026-05-13T00:00:00.000Z' as ISODateString,
+      }),
+      'videos/v-live': makeVideo({
+        id: 'v-live' as VideoId,
+        state: 'TRANSCODING',
+        createdAt: '2026-05-12T00:00:00.000Z' as ISODateString,
+      }),
+    });
+    const repo = await buildRepo(fake);
+
+    const found = await repo.getVideoByLesson('l1' as LessonId);
+    expect(found!.id).toBe('v-live');
+  });
+
+  it('getVideoByLesson picks the newest doc when all candidates share a state', async () => {
+    const fake = createFakeFirestore({
+      'videos/v-old': makeVideo({
+        id: 'v-old' as VideoId,
+        state: 'FAILED',
+        createdAt: '2026-05-11T00:00:00.000Z' as ISODateString,
+      }),
+      'videos/v-new': makeVideo({
+        id: 'v-new' as VideoId,
+        state: 'FAILED',
+        createdAt: '2026-05-12T00:00:00.000Z' as ISODateString,
+      }),
+    });
+    const repo = await buildRepo(fake);
+
+    const found = await repo.getVideoByLesson('l1' as LessonId);
+    expect(found!.id).toBe('v-new');
+  });
+
+  it('listVideosByLesson returns ALL docs for the lesson (cascade must tear down every one)', async () => {
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo({ id: 'v1' as VideoId, state: 'FAILED' }),
+      'videos/v2': makeVideo({ id: 'v2' as VideoId, state: 'PENDING_UPLOAD' }),
+      'videos/v-other': makeVideo({ id: 'v-other' as VideoId, lessonId: 'l9' as LessonId }),
+    });
+    const repo = await buildRepo(fake);
+
+    const all = await repo.listVideosByLesson('l1' as LessonId);
+    expect(all.map((v) => v.id).sort()).toEqual(['v1', 'v2']);
+    expect(await repo.listVideosByLesson('l-none' as LessonId)).toEqual([]);
+  });
+
   it('getVideoKey returns the stored key, or null when absent', async () => {
     const key: VideoKey = {
       id: 'k1' as VideoKeyId,

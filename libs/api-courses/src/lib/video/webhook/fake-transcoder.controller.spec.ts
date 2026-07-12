@@ -1,12 +1,13 @@
 import 'reflect-metadata';
 
 import { NotFoundException } from '@nestjs/common';
-import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { EXCEPTION_FILTERS_METADATA, GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
 import type { Video, VideoId } from '@learnwren/shared-data-models';
 
+import { VideoExceptionFilter } from '../video.exception-filter';
 import { FakeTranscoderController } from './fake-transcoder.controller';
 
 function build(video: Partial<Video> | null = { transcoderJobName: 'fake-job-v1-1-0' }) {
@@ -51,6 +52,15 @@ describe('FakeTranscoderController', () => {
     // @UseGuards on the class sets GUARDS_METADATA on the constructor itself.
     const guards: unknown[] = Reflect.getMetadata(GUARDS_METADATA, FakeTranscoderController) ?? [];
     expect(guards).toContain(FirebaseSessionGuard);
+  });
+
+  it('carries VideoExceptionFilter so guard/route exceptions render the standard envelope', () => {
+    // Without a filter, FirebaseSessionGuard's UnauthenticatedException (an
+    // AuthException, not an HttpException) renders as an unenveloped 500
+    // instead of 401; the route's NotFoundException also renders unenveloped.
+    const filters: unknown[] =
+      Reflect.getMetadata(EXCEPTION_FILTERS_METADATA, FakeTranscoderController) ?? [];
+    expect(filters).toContain(VideoExceptionFilter);
   });
 
   it('complete: builds a SUCCEEDED Pub/Sub envelope and delegates to the real handler', async () => {

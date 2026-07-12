@@ -8,7 +8,7 @@ import {
   type FirebaseAuthHandle,
 } from '@learnwren/api-firebase';
 import { nowIso } from '@learnwren/shared-data-models';
-import type { AdminUserStatusResponse, UserId, UserStatus } from '@learnwren/shared-data-models';
+import type { AdminUserStatusResponse, UserId } from '@learnwren/shared-data-models';
 
 import { AdminUsersRepository } from './admin-users.repository';
 import {
@@ -18,14 +18,9 @@ import {
   LastAdminException,
   UserNotFoundException,
 } from './errors/admin-users.exception';
+import { resolveStatus } from './user-status';
 
 const USERS = 'users';
-
-/** Resolved status (absent Firestore field ≡ ACTIVE). */
-function resolveStatus(raw?: string): UserStatus {
-  if (raw === 'SUSPENDED' || raw === 'DELETED') return raw;
-  return 'ACTIVE';
-}
 
 /**
  * Admin suspend / unsuspend operations.
@@ -105,12 +100,25 @@ export class AdminUserStatusService {
     });
 
     // Side effects: disable Auth account + kill live sessions.
+    let authDisabled = false;
     try {
       await this.auth.updateUser(targetUid, { disabled: true });
+      authDisabled = true;
       await this.auth.revokeRefreshTokens(targetUid);
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message text only — no observable behaviour to assert.
       this.logger.error(`suspend side-effect failed for uid=${targetUid}: ${String(err)}; reverting status`);
+      if (authDisabled) {
+        // The disable succeeded but the revoke failed: re-enable the Auth
+        // account (best-effort) so the revert leaves a consistent state —
+        // otherwise the user is stranded (logins fail, unsuspend rejected
+        // because Firestore already says ACTIVE).
+        try {
+          await this.auth.updateUser(targetUid, { disabled: false });
+        } catch (reEnableErr) {
+          this.logger.error(`auth re-enable also failed for uid=${targetUid}: ${String(reEnableErr)}`);
+        }
+      }
       try {
         await this.firestore.collection(USERS).doc(targetUid).update({ status: 'ACTIVE', updatedAt: nowIso() });
       } catch (revertErr) {

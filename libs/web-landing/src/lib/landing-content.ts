@@ -162,7 +162,7 @@ export const FEATURES: readonly LandingFeature[] = [
   },
   {
     title: 'Open source, self-hostable',
-    body: "The whole platform is MIT-licensed. If you'd rather host your own community library, we'll help.",
+    body: "The whole platform is open source under the AGPL. If you'd rather host your own community library, we'll help.",
   },
 ];
 
@@ -202,7 +202,7 @@ export const PRICING_TIERS: readonly LandingPricingTier[] = [
   {
     name: 'Community · self-host',
     price: 'Free',
-    cadence: 'MIT-licensed',
+    cadence: 'AGPL-licensed',
     blurb: "Host your own library. Open source, forever. We'll help you stand it up.",
     cta: 'Start for free',
     featured: false,

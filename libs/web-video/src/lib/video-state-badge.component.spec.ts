@@ -222,6 +222,55 @@ describe('VideoStateBadgeComponent — slice B copy', () => {
     expect(fixture.componentInstance.canRetry()).toBe(false);
   });
 
+  it('shows a remove control for a FAILED video and emits removeRequested on click', () => {
+    fixture.componentRef.setInput('video', video('FAILED'));
+    let emissions = 0;
+    fixture.componentInstance.removeRequested.subscribe(() => emissions++);
+    fixture.detectChanges();
+
+    const btn = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '[data-testid="video-remove"]',
+    );
+    expect(btn).not.toBeNull();
+    btn!.click();
+    expect(emissions).toBe(1);
+  });
+
+  it('shows the remove control for a stalled PENDING_UPLOAD (copy promises a retry)', () => {
+    const stale: Video = {
+      ...video('PENDING_UPLOAD'),
+      updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
+    };
+    fixture.componentRef.setInput('video', stale);
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="video-remove"]'),
+    ).not.toBeNull();
+  });
+
+  it('shows the remove control for a stalled TRANSCODING (copy promises delete and re-upload)', () => {
+    const stale: Video = {
+      ...video('TRANSCODING'),
+      updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
+    };
+    fixture.componentRef.setInput('video', stale);
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="video-remove"]'),
+    ).not.toBeNull();
+  });
+
+  it('hides the remove control for READY and fresh non-terminal states', () => {
+    for (const state of ['READY', 'PENDING_UPLOAD', 'UPLOADED', 'TRANSCODING'] as const) {
+      fixture.componentRef.setInput('video', video(state));
+      fixture.detectChanges();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-testid="video-remove"]'),
+        `state ${state} must not offer remove`,
+      ).toBeNull();
+    }
+  });
+
   it('isStuck boundary: just under 30 minutes returns false (strict >)', () => {
     // 100ms shy of the threshold to avoid wall-clock race with the in-component
     // Date.now() reading. The strict > check requires ageMs > 30*60*1000, so this

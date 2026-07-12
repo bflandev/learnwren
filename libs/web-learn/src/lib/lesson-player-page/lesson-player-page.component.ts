@@ -303,7 +303,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     this.setRow(matId, { status: 'preparing' });
     try {
       const { downloadUrl } = await this.learn.requestDownloadUrl(matId);
-      window.open(downloadUrl, '_blank', 'noopener');
+      this.openDownload(downloadUrl);
       this.setRow(matId, { status: 'idle' });
     } catch (err) {
       const status = err instanceof HttpErrorResponse ? err.status : 0;
@@ -311,6 +311,20 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
         status === 404 ? 'gone' : status === 403 ? 'forbidden' : 'other';
       this.setRow(matId, { status: 'error', kind });
     }
+  }
+
+  /**
+   * Synchronous anchor click instead of window.open: window.open after an
+   * await is popup-blocked on Safari. Extracted so tests can spy on it.
+   */
+  protected openDownload(url: string): void {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
 
   private setRow(id: MaterialId, next: MaterialRowState): void {

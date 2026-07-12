@@ -197,13 +197,25 @@ jobs:
           FULL_MUTATION: ${{ inputs.full_mutation }}
         run: |
           # Collect every lib that has a root-level stryker.<lib>.config.mjs.
+          # An empty result means the configs moved/renamed — fail loud, a
+          # silently-empty list would skip the mutation gate while CI stays green.
           ALL_CONFIGS=$(ls stryker.*.config.mjs 2>/dev/null | sed 's/^stryker\.\(.*\)\.config\.mjs$/\1/' | sort)
+          if [ -z "$ALL_CONFIGS" ]; then
+            echo "::error::no stryker.<lib>.config.mjs files found — mutation gate misconfigured"
+            exit 1
+          fi
 
           if [ "$FULL_MUTATION" = "true" ]; then
             CANDIDATE_LIBS="$ALL_CONFIGS"
           else
             # Affected libs only (honoring NX_BASE / NX_HEAD set by nx-set-shas above).
-            AFFECTED=$(pnpm exec nx show projects --affected --type lib 2>/dev/null | tr '\n' ' ')
+            # Run nx as its own statement so a failure (bad base SHA, daemon
+            # crash) fails this step instead of reading as "nothing affected".
+            AFFECTED_RAW=$(pnpm exec nx show projects --affected --type lib) || {
+              echo "::error::nx show projects --affected failed — cannot compute mutation lib list"
+              exit 1
+            }
+            AFFECTED=$(printf '%s' "$AFFECTED_RAW" | tr '\n' ' ')
             # Intersect: keep only affected libs that also have a stryker config.
             CANDIDATE_LIBS=""
             for lib in $ALL_CONFIGS; do

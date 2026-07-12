@@ -58,6 +58,33 @@ describe('authGuard', () => {
     expect(result).toBe(url);
   });
 
+  it('redirects to /login when refresh rejects with a non-401 failure', async () => {
+    const url = {} as UrlTree;
+    const auth = {
+      currentUser: vi.fn().mockReturnValue(undefined),
+      refresh: vi.fn(async () => {
+        throw new Error('500');
+      }),
+    } as unknown as AuthService;
+    const router = { createUrlTree: vi.fn(() => url) } as unknown as Router;
+
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: AuthService, useValue: auth },
+        { provide: Router, useValue: router },
+      ],
+    });
+
+    const result = await TestBed.runInInjectionContext(() =>
+      authGuard({} as ActivatedRouteSnapshot, buildState('/secret')),
+    );
+
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/login'], {
+      queryParams: { redirect: '/secret' },
+    });
+    expect(result).toBe(url);
+  });
+
   it('allows immediately when already authenticated and skips refresh', async () => {
     const refresh = vi.fn();
     const auth = {

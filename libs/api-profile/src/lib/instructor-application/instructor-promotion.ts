@@ -32,7 +32,20 @@ export async function promoteUserToInstructor(
 ): Promise<void> {
   await auth.setCustomUserClaims(uid, { role: 'INSTRUCTOR' });
   await firestore.collection('users').doc(uid).update({ role: 'INSTRUCTOR', updatedAt: nowIso });
+  await resolvePendingInstructorApplication(uid, firestore, nowIso);
+}
 
+/**
+ * Resolve a PENDING instructor application to APPROVED (no-op when the
+ * application is absent or already resolved). Shared by
+ * promoteUserToInstructor and the admin role service, which claims the
+ * `users/{uid}.role` write inside its own transaction.
+ */
+export async function resolvePendingInstructorApplication(
+  uid: UserId,
+  firestore: PromotionFirestoreLike,
+  nowIso: string,
+): Promise<void> {
   const appRef = firestore.collection(INSTRUCTOR_APPLICATIONS_COLLECTION).doc(uid);
   const snap = await appRef.get();
   if (snap.exists && snap.data()?.['status'] === 'PENDING') {

@@ -9,6 +9,7 @@ import { AuthService } from './auth.service';
 import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
+import { PasswordVerificationService } from './password-verification.service';
 import { SessionCookieService } from './session-cookie.service';
 import {
   AccountLockedException,
@@ -37,6 +38,7 @@ interface FakeAuth {
 interface FakeFirestore {
   collection: ReturnType<typeof vi.fn>;
   _set: ReturnType<typeof vi.fn>;
+  _delete?: ReturnType<typeof vi.fn>;
 }
 
 function buildFakeAuth(overrides: Partial<FakeAuth> = {}): FakeAuth {
@@ -62,9 +64,10 @@ function buildFakeFirestore(overrides: { setShouldFail?: boolean } = {}): FakeFi
         throw new Error('firestore down');
       })
     : vi.fn(async () => undefined);
-  const doc = vi.fn(() => ({ set }));
+  const del = vi.fn(async () => undefined);
+  const doc = vi.fn(() => ({ set, delete: del }));
   const collection = vi.fn(() => ({ doc }));
-  return { collection, _set: set };
+  return { collection, _set: set, _delete: del };
 }
 
 function buildFakeRestClient(idToken = 'ID-TOKEN') {
@@ -95,6 +98,7 @@ async function buildModule(
     providers: [
       AuthService,
       PasswordPolicyService,
+      PasswordVerificationService,
       AuthAttemptsRepository,
       AccountRecoveryService,
       SessionCookieService,
@@ -467,6 +471,50 @@ describe('AuthService.register', () => {
     expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
   });
 
+  it('rollback also deletes the orphaned users/{uid} doc when setCustomUserClaims fails', async () => {
+    // The Firestore doc was written before the claim failed; deleting only the
+    // Auth account would orphan users/{uid} forever (the uid can never log in).
+    const auth = buildFakeAuth({
+      setCustomUserClaims: vi.fn(async () => {
+        throw new Error('claim failure');
+      }),
+    });
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(auth, firestore);
+
+    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    expect(firestore._delete).toHaveBeenCalledTimes(1);
+  });
+
+  it('rollback also deletes the orphaned users/{uid} doc when auto-login fails', async () => {
+    const auth = buildFakeAuth();
+    const firestore = buildFakeFirestore();
+    const rest = {
+      signInWithPassword: vi.fn(async () => {
+        throw new InternalAuthException();
+      }),
+    };
+    const service = await buildModule(auth, firestore, rest as never);
+
+    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+    expect(firestore._delete).toHaveBeenCalledTimes(1);
+  });
+
+  it('swallows a Firestore doc-delete failure during rollback and still rejects with the triggering error', async () => {
+    const auth = buildFakeAuth({
+      setCustomUserClaims: vi.fn(async () => {
+        throw new Error('claim failure');
+      }),
+    });
+    const firestore = buildFakeFirestore();
+    firestore._delete!.mockRejectedValue(new Error('firestore delete exploded'));
+    const service = await buildModule(auth, firestore);
+
+    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+  });
+
   it('does NOT roll back when only generateEmailVerificationLink fails; returns 201 with emailVerificationSent: false', async () => {
     const auth = buildFakeAuth({
       generateEmailVerificationLink: vi.fn(async () => {
@@ -611,6 +659,7 @@ async function buildLoginModule(
     providers: [
       AuthService,
       PasswordPolicyService,
+      PasswordVerificationService,
       AccountRecoveryService,
       SessionCookieService,
       { provide: FIREBASE_AUTH, useValue: auth },

@@ -1,9 +1,19 @@
-import { Body, Controller, NotFoundException, Param, Post, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  NotFoundException,
+  Param,
+  Post,
+  Res,
+  UseFilters,
+  UseGuards,
+} from '@nestjs/common';
 import type { Response } from 'express';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
 import type { VideoId } from '@learnwren/shared-data-models';
 
+import { VideoExceptionFilter } from '../video.exception-filter';
 import { VideoRepository } from '../video.repository';
 import { TranscoderEventsController } from './transcoder-events.controller';
 
@@ -31,7 +41,11 @@ function envelope(payload: object): {
  * staging/preview deploy (fake flag set, real network) cannot have video state
  * driven by an unauthenticated caller who knows a videoId.
  */
+// VideoExceptionFilter catches AuthException (the guard's Unauthenticated →
+// 401) and HttpException (this controller's NotFoundException), rendering the
+// standard envelope instead of Nest's unenveloped 500 fallback.
 @Controller('internal/fake-transcoder')
+@UseFilters(VideoExceptionFilter)
 @UseGuards(FirebaseSessionGuard)
 export class FakeTranscoderController {
   constructor(

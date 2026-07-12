@@ -47,7 +47,13 @@ export class InstructorApplicationComponent {
   }
 
   private async load(): Promise<void> {
-    this.application.set(await this.svc.getApplication());
+    try {
+      this.application.set(await this.svc.getApplication());
+    } catch {
+      // A failed GET would otherwise be an unhandled rejection and leave the
+      // component showing the wrong affordance — surface it on the banner.
+      this.bannerError.set('Could not load your application status. Please try again later.');
+    }
   }
 
   open(): void {

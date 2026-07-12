@@ -184,6 +184,48 @@ describe('CourseDetailPageComponent', () => {
   });
 
   // -------------------------------------------------------------------------
+  // loadToken staleness guard (rapid A→B navigation)
+  // -------------------------------------------------------------------------
+
+  it('renders course B when course A\'s slower response arrives after B\'s (rapid nav)', async () => {
+    const { http, setRouteId } = setup({ id: 'c-1' });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    const reqA = http.expectOne('/api/catalog/c-1'); // slow — not flushed yet
+
+    setRouteId('c-2');
+    const reqB = http.expectOne('/api/catalog/c-2');
+    reqB.flush({ ...COURSE_WITH_LESSONS, id: 'c-2', title: 'Course B' });
+    await fixture.whenStable();
+
+    // Course A's response lands late — without the token it would replace B
+    // and the enrollment panel would enroll the wrong course.
+    reqA.flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.course()?.id).toBe('c-2');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Course B');
+  });
+
+  it('discards a stale 404 from the previous course id (rapid nav)', async () => {
+    const { http, setRouteId } = setup({ id: 'c-1' });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    const reqA = http.expectOne('/api/catalog/c-1');
+
+    setRouteId('c-2');
+    http.expectOne('/api/catalog/c-2').flush({ ...COURSE_WITH_LESSONS, id: 'c-2' });
+    await fixture.whenStable();
+
+    reqA.flush({ error: { code: 'COURSE_NOT_FOUND' } }, { status: 404, statusText: 'Not Found' });
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.notFound()).toBe(false);
+    expect(fixture.componentInstance.course()?.id).toBe('c-2');
+  });
+
+  // -------------------------------------------------------------------------
   // Instructor card (UC-01-03 Slice B — biography surface)
   // -------------------------------------------------------------------------
 

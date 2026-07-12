@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { VideoId } from '@learnwren/shared-data-models';
 
-import type { TranscoderEvent, VideoTranscoder } from '../transcoder/transcoder.port';
+import {
+  TranscoderEventLookupError,
+  type TranscoderEvent,
+  type VideoTranscoder,
+} from '../transcoder/transcoder.port';
 import { TranscoderEventsController } from './transcoder-events.controller';
 
 function makeRes() {
@@ -84,6 +88,23 @@ describe('TranscoderEventsController.handle', () => {
     // Pin the full body — the `reason: 'MALFORMED'` discriminator is what lets
     // the dead-letter side tell a poison-pill drop apart from a no-op ack.
     expect(res.body).toEqual({ acked: true, reason: 'MALFORMED' });
+    expect(service.handleTranscoderEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 (not MALFORMED ack) when parseEvent fails with a lookup I/O error', async () => {
+    // A transient getJob failure must NOT be acked as MALFORMED — that would
+    // permanently drop the success notification (video stuck TRANSCODING, no
+    // reconciler exists). 500 makes Pub/Sub redeliver.
+    const transcoder = {
+      parseEvent: vi.fn(async () => {
+        throw new TranscoderEventLookupError('getJob failed: transient');
+      }),
+    };
+    const service = { handleTranscoderEvent: vi.fn() };
+    const res = makeRes();
+    await controller(transcoder, service).handle({}, res as never);
+    expect(res.statusCode).toBe(500);
+    expect(res.json).not.toHaveBeenCalled();
     expect(service.handleTranscoderEvent).not.toHaveBeenCalled();
   });
 

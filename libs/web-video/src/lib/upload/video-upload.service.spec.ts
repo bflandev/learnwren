@@ -492,17 +492,59 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
     expect(svc.state().kind).toBe('failed');
   });
 
-  it('treats an XHR network error (onerror) as a hard upload failure', async () => {
-    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
-    api.markFailed.mockReturnValue(of({ id: 'v1', state: 'FAILED' }));
-    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
-    const done = svc.start(CTX, sized(8));
-    await drain();
-    xhrs.at(-1)!.status = 0;
-    xhrs.at(-1)!.onerror!();
-    await done;
-    expect(api.completeUpload).not.toHaveBeenCalled();
-    expect(svc.state().kind).toBe('failed');
+  // NOTE: this replaces a test that asserted the OLD buggy behavior (a single
+  // transient network blip hard-failed the upload and marked the video FAILED).
+  it('retries an XHR network error (status 0) and succeeds on the next attempt', async () => {
+    vi.useFakeTimers();
+    try {
+      api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+      api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+      const done = svc.start(CTX, sized(8));
+      await Promise.resolve();
+
+      // One transient network blip — must schedule a backoff retry, not hard-fail.
+      xhrs.at(-1)!.status = 0;
+      xhrs.at(-1)!.onerror!();
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      expect(xhrs.length).toBe(2); // a fresh attempt was made
+
+      xhrs.at(-1)!.status = 200;
+      xhrs.at(-1)!.onload!();
+      await vi.runAllTimersAsync();
+      await done;
+      expect(svc.state().kind).toBe('complete');
+      expect(api.markFailed).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('hard-fails only after exhausting retries on persistent network errors', async () => {
+    vi.useFakeTimers();
+    try {
+      api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+      api.markFailed.mockReturnValue(of({ id: 'v1', state: 'FAILED' }));
+      api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+      const done = svc.start(CTX, sized(8));
+      await Promise.resolve();
+
+      // 4 attempts: 3 retries (with backoff) + the final failure
+      for (let i = 0; i < 4; i++) {
+        xhrs.at(-1)!.status = 0;
+        xhrs.at(-1)!.onerror!();
+        await vi.runAllTimersAsync();
+        await Promise.resolve();
+      }
+
+      await done;
+      expect(xhrs.length).toBe(4);
+      expect(api.completeUpload).not.toHaveBeenCalled();
+      expect(api.markFailed).toHaveBeenCalledWith('v1', expect.stringContaining('0'));
+      expect(svc.state().kind).toBe('failed');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // ---- chunk slicing + percent + XHR wiring ----

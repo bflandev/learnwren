@@ -7,13 +7,23 @@ export const authGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  if (auth.currentUser() === undefined) {
-    await auth.refresh();
-  }
-  if (auth.currentUser() === null) {
-    return router.createUrlTree(['/login'], {
+  const loginRedirect = () =>
+    router.createUrlTree(['/login'], {
       queryParams: { redirect: state.url },
     });
+
+  if (auth.currentUser() === undefined) {
+    try {
+      await auth.refresh();
+    } catch {
+      // Non-401 refresh failure (e.g. 500 / network): treat the user as
+      // unauthenticated instead of crashing navigation. 401 is already
+      // handled inside refresh() (it resolves with currentUser = null).
+      return loginRedirect();
+    }
+  }
+  if (auth.currentUser() === null) {
+    return loginRedirect();
   }
   return true;
 };

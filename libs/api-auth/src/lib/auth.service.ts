@@ -15,17 +15,15 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import { AccountRecoveryService } from './account-recovery.service';
-import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { isFirebaseError } from './firebase-error.util';
 import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
+import { PasswordVerificationService } from './password-verification.service';
 import { SessionCookieService, type MintedSession } from './session-cookie.service';
 import {
-  AccountLockedException,
   EmailAlreadyExistsException,
   EmailNotVerifiedException,
   EmailTooLongException,
-  InvalidCredentialsException,
   InvalidDisplayNameException,
   InvalidEmailException,
   InternalAuthException,
@@ -83,7 +81,7 @@ export class AuthService {
     @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
     @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
     private readonly restClient: FirebaseAuthRestClient,
-    private readonly attempts: AuthAttemptsRepository,
+    private readonly passwordVerification: PasswordVerificationService,
     private readonly sessionCookies: SessionCookieService,
     private readonly recovery: AccountRecoveryService,
   ) {}
@@ -212,14 +210,14 @@ export class AuthService {
   }
 
   async login(input: LoginInput): Promise<LoginResult> {
-    const emailHash = this.attempts.emailHash(input.email);
-
-    await this.throwIfAccountLocked(emailHash);
-    const idToken = await this.verifyPasswordOrCountFailure(input, emailHash);
+    // Lockout pre-check, password exchange, and failure counting all live in
+    // the shared PasswordVerificationService so the profile re-auth flows
+    // count toward the same lockout.
+    const idToken = await this.passwordVerification.verifyPassword(input.email, input.password);
     const userRecord = await this.requireVerifiedUser(idToken);
 
     const session = await this.sessionCookies.mint(idToken);
-    await this.attempts.clear(emailHash);
+    await this.passwordVerification.clearFailures(input.email);
 
     const profile = await this.loadUserProfile(userRecord.uid);
 
@@ -234,53 +232,6 @@ export class AuthService {
       cookie: session.cookie,
       maxAgeSeconds: session.maxAgeSeconds,
     };
-  }
-
-  /** Reject early if a prior lockout window is still active. */
-  private async throwIfAccountLocked(emailHash: string): Promise<void> {
-    const existing = await this.attempts.read(emailHash);
-    if (existing?.lockedUntil) {
-      throw new AccountLockedException(new Date(existing.lockedUntil));
-    }
-  }
-
-  /**
-   * Exchange password for an ID token. On bad credentials, record the failure
-   * and — if it tripped the lockout threshold — dispatch the unlock email
-   * before throwing AccountLockedException. Non-credential errors are
-   * rethrown unchanged.
-   */
-  private async verifyPasswordOrCountFailure(
-    input: LoginInput,
-    emailHash: string,
-  ): Promise<string> {
-    try {
-      const result = await this.restClient.signInWithPassword({
-        email: input.email,
-        password: input.password,
-      });
-      return result.idToken;
-    } catch (err) {
-      if (!(err instanceof InvalidCredentialsException)) throw err;
-
-      const failure = await this.attempts.recordFailure(emailHash);
-      if (failure.locked) {
-        // Log the lockout event but NOT any part of the unlock token — it is a
-        // single-use secret and even a prefix is needless exposure in Cloud
-        // Logging. The emailHash is sufficient to correlate the event.
-        // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
-        this.logger.log(`[auth] lockout fired emailHash=${emailHash}`);
-        await this.recovery.sendUnlockEmail(
-          input.email,
-          failure.unlockToken!,
-          failure.lockedUntil!,
-        );
-        throw new AccountLockedException(failure.lockedUntil!);
-      }
-      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
-      this.logger.log(`[auth] login failed code=INVALID_CREDENTIALS emailHash=${emailHash}`);
-      throw err;
-    }
   }
 
   /**
@@ -341,6 +292,16 @@ export class AuthService {
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] register rollback deleteUser failed uid=${uid}: ${String(err)}`);
+    }
+    // Stryker restore BlockStatement
+    // Also remove the users/{uid} doc: rollbacks after the Firestore write
+    // (claim assignment, auto-login) would otherwise orphan the document.
+    // Stryker disable BlockStatement: same equivalence argument as above — the catch only logs then swallows; the try body is locked by the "rollback also deletes the orphaned users/{uid} doc" specs.
+    try {
+      await this.firestore.collection('users').doc(uid).delete();
+    } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
+      this.logger.error(`[auth] register rollback users-doc delete failed uid=${uid}: ${String(err)}`);
     }
     // Stryker restore BlockStatement
   }

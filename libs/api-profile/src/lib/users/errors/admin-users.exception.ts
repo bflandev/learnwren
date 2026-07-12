@@ -46,6 +46,15 @@ export class UserHasCoursesException extends AdminUsersException {
   }
 }
 
+export class RoleChangeTargetNotActiveException extends AdminUsersException {
+  constructor(currentStatus: UserStatus, attempted: UserRole) {
+    super('INVALID_ROLE_TRANSITION', 'Cannot change the role of a user who is not active.', 409, {
+      currentStatus,
+      attempted,
+    });
+  }
+}
+
 export class InvalidStatusTransitionException extends AdminUsersException {
   constructor(currentStatus: UserStatus, attempted: 'SUSPENDED' | 'ACTIVE') {
     super('INVALID_STATUS_TRANSITION', 'Invalid status transition.', 409, { currentStatus, attempted });

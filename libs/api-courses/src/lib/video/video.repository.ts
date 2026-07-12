@@ -59,13 +59,29 @@ export class VideoRepository {
     return snap.exists ? (snap.data() as Video) : null;
   }
 
+  /**
+   * All Video docs for a lesson. The retry flow can leave multiple docs per
+   * lessonId (a FAILED doc plus a new session's doc), so cascade deletes must
+   * consume this — a limit(1) read would orphan the siblings.
+   */
+  async listVideosByLesson(lid: LessonId): Promise<Video[]> {
+    const q = await this.db.collection('videos').where('lessonId', '==', lid).get();
+    return q.docs.map((d) => d.data() as Video);
+  }
+
+  /**
+   * The lesson's "live" video for read paths: prefer non-FAILED docs, newest
+   * first. Deterministic where the old limit(1)-without-orderBy read was not
+   * (in-memory ranking avoids a composite Firestore index).
+   */
   async getVideoByLesson(lid: LessonId): Promise<Video | null> {
-    const q = await this.db
-      .collection('videos')
-      .where('lessonId', '==', lid)
-      .limit(1)
-      .get();
-    return q.empty ? null : (q.docs[0]!.data() as Video);
+    const videos = await this.listVideosByLesson(lid);
+    const ranked = [...videos].sort((a, b) => {
+      const failedRank = Number(a.state === 'FAILED') - Number(b.state === 'FAILED');
+      if (failedRank !== 0) return failedRank;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+    return ranked[0] ?? null;
   }
 
   async listVideoStatesForLessons(

@@ -55,6 +55,18 @@ describe('adminRoleGuard', () => {
     );
   });
 
+  it('redirects to /login when refresh rejects with a non-401 failure', async () => {
+    auth.refresh = vi.fn(async () => {
+      throw new Error('500');
+    });
+    const result = await runGuard();
+    expect(router.createUrlTree).toHaveBeenCalledWith(
+      ['/login'],
+      { queryParams: { redirect: '/admin/instructor-applications' } },
+    );
+    expect(result).toEqual({ __path: ['/login'] });
+  });
+
   it('refreshes when currentUser is undefined, then allows ADMIN', async () => {
     auth.refresh = vi.fn(async () => {
       auth.currentUser = signal({ role: 'ADMIN' }) as never;

@@ -1,7 +1,11 @@
 import { Body, Controller, Inject, Logger, Post, Res, UseFilters, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { VIDEO_TRANSCODER, type VideoTranscoder } from '../transcoder/transcoder.port';
+import {
+  TranscoderEventLookupError,
+  VIDEO_TRANSCODER,
+  type VideoTranscoder,
+} from '../transcoder/transcoder.port';
 import { VideoExceptionFilter } from '../video.exception-filter';
 import { VideoService } from '../video.service';
 import { PubSubPushGuard } from './pubsub-push.guard';
@@ -28,6 +32,15 @@ export class TranscoderEventsController {
     try {
       event = await this.transcoder.parseEvent(body);
     } catch (err) {
+      // Only genuinely malformed messages may be acked away. An I/O failure
+      // enriching a valid event (typed by the adapter) must 500 so Pub/Sub
+      // redelivers — acking it would drop the success notification forever.
+      if (err instanceof TranscoderEventLookupError) {
+        // Stryker disable next-line StringLiteral: diagnostic log message — observable 500 status asserted separately
+        this.logger.error(`Transient parse-time lookup failure: ${err.message}`);
+        res.status(500).send();
+        return;
+      }
       // Stryker disable next-line StringLiteral: diagnostic log message — observable ack body asserted separately
       this.logger.error(`Discarding malformed event: ${(err as Error).message}`);
       res.status(200).json({ acked: true, reason: 'MALFORMED' });
