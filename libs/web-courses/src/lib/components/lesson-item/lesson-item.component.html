@@ -40,8 +40,15 @@
         @if (v.state === 'READY') {
           <lib-video-player [videoId]="v.id" [captions]="captionsTrack()" />
         } @else {
-          <lib-video-state-badge [video]="v" (stateChanged)="onVideoStateChanged($event)" />
+          <lib-video-state-badge
+            [video]="v"
+            (stateChanged)="onVideoStateChanged($event)"
+            (removeRequested)="requestVideoRemoval()"
+          />
         }
+      }
+      @if (videoActionError(); as err) {
+        <p data-testid="video-action-error" class="text-sm text-bad">{{ err }}</p>
       }
       <lib-captions-panel [videoId]="lesson().videoId!" (metaChange)="onCaptionsMeta($event)" />
     } @else {
@@ -58,4 +65,12 @@
       [lessonId]="lesson().id"
     />
   </div>
+
+  @if (confirmingVideoRemoval()) {
+    <lib-confirm-dialog
+      message="Remove this video so a new one can be uploaded? This action cannot be undone."
+      confirmLabel="Remove video"
+      (closed)="onVideoRemovalClosed($event)"
+    />
+  }
 </div>

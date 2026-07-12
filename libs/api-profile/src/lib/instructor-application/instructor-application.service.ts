@@ -70,12 +70,21 @@ export class InstructorApplicationService {
     };
 
     // Read-then-write in one transaction: two concurrent submits (or a submit
-    // racing an admin approval) cannot both pass the PENDING check and clobber
+    // racing an admin approval) cannot both pass the status check and clobber
     // each other's write.
     await this.firestore.runTransaction(async (tx) => {
       const existing = await tx.get(ref);
-      if (existing.exists && (existing.data() as InstructorApplication).status === 'PENDING') {
-        throw new InstructorApplicationExistsException();
+      if (existing.exists) {
+        const status = (existing.data() as InstructorApplication).status;
+        if (status === 'PENDING') {
+          throw new InstructorApplicationExistsException();
+        }
+        // A stale STUDENT session cookie (role claim not yet refreshed after
+        // approval) must not regress an APPROVED application to PENDING.
+        if (status === 'APPROVED') {
+          throw new AlreadyInstructorException();
+        }
+        // DECLINED: resubmission is intended — fall through and overwrite.
       }
       tx.set(ref, doc);
     });

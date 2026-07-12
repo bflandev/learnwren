@@ -26,6 +26,7 @@ interface RepoFake {
   newId: ReturnType<typeof vi.fn>;
   getVideo: ReturnType<typeof vi.fn>;
   getVideoByLesson: ReturnType<typeof vi.fn>;
+  listVideosByLesson: ReturnType<typeof vi.fn>;
   createVideo: ReturnType<typeof vi.fn>;
   updateVideo: ReturnType<typeof vi.fn>;
   deleteVideoAndDetach: ReturnType<typeof vi.fn>;
@@ -49,6 +50,7 @@ function makeRepo(): RepoFake {
     newId: vi.fn(() => 'v-new' as VideoId),
     getVideo: vi.fn(),
     getVideoByLesson: vi.fn(),
+    listVideosByLesson: vi.fn().mockResolvedValue([]),
     createVideo: vi.fn(),
     updateVideo: vi.fn(),
     deleteVideoAndDetach: vi.fn(),
@@ -503,9 +505,9 @@ describe('VideoService.tearDownVideoSideEffects — cancelJob failure logging', 
     const repo = makeRepo();
     const storage = makeStorage();
     const transcoder = makeTranscoder();
-    repo.getVideoByLesson.mockResolvedValue(
+    repo.listVideosByLesson.mockResolvedValue([
       baseVideo({ state: 'TRANSCODING', transcoderJobName: 'jobs/xyz' }),
-    );
+    ]);
     transcoder.cancelJob.mockRejectedValue(new Error('cancel boom'));
     const svc = new VideoService(
       repo as unknown as VideoRepository,
@@ -530,7 +532,7 @@ describe('VideoService.tearDownVideoSideEffects — cancelJob failure logging', 
 describe('VideoService.deleteForLesson (cascade)', () => {
   it('no-ops when no video attached', async () => {
     const repo = makeRepo();
-    repo.getVideoByLesson.mockResolvedValue(null);
+    repo.listVideosByLesson.mockResolvedValue([]);
     const svc = new VideoService(
       repo as unknown as VideoRepository,
       makeStorage() as unknown as VideoStoragePort,
@@ -544,7 +546,7 @@ describe('VideoService.deleteForLesson (cascade)', () => {
   it('cascades regardless of video state', async () => {
     const repo = makeRepo();
     const storage = makeStorage();
-    repo.getVideoByLesson.mockResolvedValue(baseVideo({ state: 'TRANSCODING' }));
+    repo.listVideosByLesson.mockResolvedValue([baseVideo({ state: 'TRANSCODING' })]);
     const svc = new VideoService(
       repo as unknown as VideoRepository,
       storage as unknown as VideoStoragePort,
@@ -560,9 +562,9 @@ describe('VideoService.deleteForLesson (cascade)', () => {
     const repo = makeRepo();
     const storage = makeStorage();
     const transcoder = makeTranscoder();
-    repo.getVideoByLesson.mockResolvedValue(
+    repo.listVideosByLesson.mockResolvedValue([
       baseVideo({ state: 'TRANSCODING', transcoderJobName: 'jobs/xyz' }),
-    );
+    ]);
     const svc = new VideoService(
       repo as unknown as VideoRepository,
       storage as unknown as VideoStoragePort,
@@ -577,12 +579,12 @@ describe('VideoService.deleteForLesson (cascade)', () => {
   it('deletes the output prefix when cascading a READY video', async () => {
     const repo = makeRepo();
     const storage = makeStorage();
-    repo.getVideoByLesson.mockResolvedValue(
+    repo.listVideosByLesson.mockResolvedValue([
       baseVideo({
         state: 'READY',
         output: { bucket: 'out', manifestPath: 'videos/v1/hls/manifest.m3u8', durationSec: 60 },
       }),
-    );
+    ]);
     const svc = new VideoService(
       repo as unknown as VideoRepository,
       storage as unknown as VideoStoragePort,
@@ -592,6 +594,127 @@ describe('VideoService.deleteForLesson (cascade)', () => {
     await svc.deleteForLesson('l1' as LessonId);
     expect(storage.deletePrefix).toHaveBeenCalledWith({ bucket: 'out', prefix: 'videos/v1/' });
     expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
+  });
+
+  it('tears down EVERY video doc for the lesson (retry flow leaves FAILED + live siblings)', async () => {
+    // Regression: getVideoByLesson/limit(1) only cascaded one doc, orphaning
+    // the sibling's doc, videoKey, source object, and HLS output.
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = makeTranscoder();
+    repo.listVideosByLesson.mockResolvedValue([
+      baseVideo({
+        id: 'v-failed' as VideoId,
+        state: 'FAILED',
+        source: { bucket: 'src-bucket', path: 'videos/v-failed/source.mp4', sizeBytes: 1 },
+      }),
+      baseVideo({
+        id: 'v-live' as VideoId,
+        state: 'TRANSCODING',
+        transcoderJobName: 'jobs/live',
+        source: { bucket: 'src-bucket', path: 'videos/v-live/source.mp4', sizeBytes: 2 },
+      }),
+    ]);
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      transcoder as never,
+    );
+
+    await svc.deleteForLesson('l1' as LessonId);
+
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalledTimes(2);
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalledWith('v-failed', 'l1', expect.any(String));
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalledWith('v-live', 'l1', expect.any(String));
+    expect(storage.deleteObject).toHaveBeenCalledWith({
+      bucket: 'src-bucket',
+      path: 'videos/v-failed/source.mp4',
+    });
+    expect(storage.deleteObject).toHaveBeenCalledWith({
+      bucket: 'src-bucket',
+      path: 'videos/v-live/source.mp4',
+    });
+    expect(transcoder.cancelJob).toHaveBeenCalledWith('jobs/live');
+  });
+});
+
+describe('VideoService — HLS output cleanup for non-READY states', () => {
+  function build(video: Video) {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    repo.getVideo.mockResolvedValue(video);
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    return { svc, storage };
+  }
+
+  it('deletes the output prefix for a TRANSCODING video (partial segments)', async () => {
+    const { svc, storage } = build(baseVideo({ state: 'TRANSCODING', transcoderJobName: 'jobs/a' }));
+    await svc.delete('v1' as VideoId);
+    // No output doc yet → fall back to the configured output bucket.
+    expect(storage.deletePrefix).toHaveBeenCalledWith({ bucket: 'out-bucket', prefix: 'videos/v1/' });
+  });
+
+  it('deletes the output prefix for a FAILED video (partial segments)', async () => {
+    const { svc, storage } = build(baseVideo({ state: 'FAILED' }));
+    await svc.delete('v1' as VideoId);
+    expect(storage.deletePrefix).toHaveBeenCalledWith({ bucket: 'out-bucket', prefix: 'videos/v1/' });
+  });
+
+  it('does not touch the output prefix for a PENDING_UPLOAD video (no job ever ran)', async () => {
+    const { svc, storage } = build(baseVideo({ state: 'PENDING_UPLOAD' }));
+    await svc.delete('v1' as VideoId);
+    expect(storage.deletePrefix).not.toHaveBeenCalled();
+  });
+});
+
+describe('VideoService.completeUpload — finalize-txn failure cleanup', () => {
+  it('cancels the submitted job, releases the claim, and rethrows when finalize fails', async () => {
+    // submitJob runs before finalizeUploadWithJob's txn; on txn failure the GCP
+    // job would run unreferenced and the claim would lock retries for 10 min.
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = makeTranscoder();
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
+    storage.headObject.mockResolvedValue({ size: 1024 });
+    transcoder.submitJob.mockResolvedValue({ jobName: 'jobs/orphan' });
+    repo.finalizeUploadWithJob.mockRejectedValue(new Error('Lesson disappeared in transaction.'));
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      transcoder as never,
+      { sleep: async () => undefined },
+    );
+
+    await expect(svc.completeUpload('v1' as VideoId)).rejects.toThrow(/Lesson disappeared/);
+    expect(transcoder.cancelJob).toHaveBeenCalledWith('jobs/orphan');
+    expect(repo.releaseUploadCompletionClaim).toHaveBeenCalledWith('v1');
+  });
+
+  it('cleanup is best-effort: cancel/release failures do not mask the txn error', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = makeTranscoder();
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
+    storage.headObject.mockResolvedValue({ size: 1024 });
+    transcoder.cancelJob.mockRejectedValue(new Error('cancel boom'));
+    repo.releaseUploadCompletionClaim.mockRejectedValue(new Error('release boom'));
+    repo.finalizeUploadWithJob.mockRejectedValue(new Error('Video disappeared in transaction.'));
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      transcoder as never,
+      { sleep: async () => undefined },
+    );
+
+    await expect(svc.completeUpload('v1' as VideoId)).rejects.toThrow(/Video disappeared/);
   });
 });
 
@@ -1043,13 +1166,17 @@ describe('VideoService.delete — slice B state widening', () => {
     await expect(svc.delete('v1' as VideoId)).rejects.toBeInstanceOf(InvalidVideoStateException);
   });
 
-  it('READY video with no output: skips deletePrefix without throwing', async () => {
-    // Pins `v.output?.bucket` optional chaining (and the `&&` short-circuit):
-    // a READY video missing its output block must NOT touch deletePrefix and
-    // must not throw. Removing the `?.` would dereference undefined and crash.
+  it('READY video with no output block: falls back to the configured output bucket without throwing', async () => {
+    // Pins `v.output?.bucket ?? cfg.outputBucket`: a READY video missing its
+    // output block certainly produced HLS output — clean it up in the
+    // configured bucket instead of orphaning it (the pre-fix behavior).
+    // Removing the `?.` would dereference undefined and crash.
     const { svc, storage, repo } = build('READY', { output: undefined });
     await expect(svc.delete('v1' as VideoId)).resolves.toBeUndefined();
-    expect((storage as unknown as { deletePrefix: ReturnType<typeof vi.fn> }).deletePrefix).not.toHaveBeenCalled();
+    expect((storage as unknown as { deletePrefix: ReturnType<typeof vi.fn> }).deletePrefix).toHaveBeenCalledWith({
+      bucket: 'out-bucket',
+      prefix: 'videos/v1/',
+    });
     expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
   });
 });

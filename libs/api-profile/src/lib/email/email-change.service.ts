@@ -1,9 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import type { auth as adminAuth } from 'firebase-admin';
 
 import {
   AuthException,
   EMAIL_TRANSPORT,
-  FirebaseAuthRestClient,
+  PasswordVerificationService,
   type EmailTransport,
 } from '@learnwren/api-auth';
 import {
@@ -12,6 +13,7 @@ import {
   FIRESTORE,
   type FirestoreHandle,
 } from '@learnwren/api-firebase';
+import { nowIso } from '@learnwren/shared-data-models';
 import type { ConfirmEmailChangeResponse, UserId } from '@learnwren/shared-data-models';
 
 import {
@@ -32,7 +34,7 @@ export class EmailChangeService {
   constructor(
     @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
     @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
-    private readonly restClient: FirebaseAuthRestClient,
+    private readonly passwordVerification: PasswordVerificationService,
     @Inject(EMAIL_TRANSPORT) private readonly emailTransport: EmailTransport,
   ) {}
 
@@ -69,7 +71,7 @@ export class EmailChangeService {
   }
 
   async confirmChange(uid: UserId, cookieEmail: string): Promise<ConfirmEmailChangeResponse> {
-    const user = await this.auth.getUser(uid);
+    const user = await this.getUserOrThrow(uid);
     const swapped =
       !!user.email &&
       user.email.toLowerCase() !== cookieEmail.trim().toLowerCase() &&
@@ -79,21 +81,54 @@ export class EmailChangeService {
       return { changed: false };
     }
 
-    await this.firestore.collection('users').doc(uid).update({
-      email: user.email,
-      updatedAt: new Date().toISOString(),
-    });
-    await this.auth.revokeRefreshTokens(uid);
+    try {
+      await this.firestore.collection('users').doc(uid).update({
+        email: user.email,
+        updatedAt: nowIso(),
+      });
+    } catch (err) {
+      // Stryker disable next-line StringLiteral: log-only diagnostic message; the throw below is the behaviour under test.
+      this.logger.error(`[profile] email-change firestore sync failed uid=${uid}: ${String(err)}`);
+      throw new EmailChangeFailedException(err instanceof Error ? { cause: err } : undefined);
+    }
+
+    // Best-effort: the email change is already applied everywhere that matters
+    // (Auth + Firestore), so a revocation failure must not fail the request.
+    // The stale sessions carry the old email claim until they age out.
+    try {
+      await this.auth.revokeRefreshTokens(uid);
+    } catch (err) {
+      this.logger.error(`[profile] email-change revoke failed uid=${uid}: ${String(err)}`);
+    }
 
     // Stryker disable next-line StringLiteral: success log message is log-only; no behaviour depends on its text.
     this.logger.log(`[profile] email-change confirmed uid=${uid}`);
     return { changed: true, email: user.email };
   }
 
+  /** getUser can throw raw Firebase errors; wrap them so the feature filter renders the envelope. */
+  private async getUserOrThrow(uid: UserId): Promise<adminAuth.UserRecord> {
+    try {
+      return await this.auth.getUser(uid);
+    } catch (err) {
+      // Stryker disable next-line StringLiteral: log-only diagnostic message; the throw below is the behaviour under test.
+      this.logger.error(`[profile] email-change getUser failed uid=${uid}: ${String(err)}`);
+      throw new EmailChangeFailedException(err instanceof Error ? { cause: err } : undefined);
+    }
+  }
+
+  /**
+   * Re-auth via the shared lockout-honoring seam: failed guesses count toward
+   * the login lockout, and a locked account rejects with ACCOUNT_LOCKED here
+   * too (rethrown unchanged — the feature filter catches AuthException).
+   */
   private async verifyCurrentPassword(email: string, password: string): Promise<void> {
     try {
-      await this.restClient.signInWithPassword({ email, password });
+      await this.passwordVerification.verifyPassword(email, password);
     } catch (err) {
+      if (err instanceof AuthException && err.code === 'ACCOUNT_LOCKED') {
+        throw err;
+      }
       if (err instanceof AuthException && err.code === 'INVALID_CREDENTIALS') {
         throw new CurrentPasswordInvalidException();
       }
@@ -101,6 +136,7 @@ export class EmailChangeService {
       this.logger.error(`[profile] email-change reauth failed: ${String(err)}`);
       throw new EmailChangeFailedException(err instanceof Error ? { cause: err } : undefined);
     }
+    await this.passwordVerification.clearFailures(email);
   }
 
   private async generateLink(uid: UserId, currentEmail: string, newEmail: string): Promise<string> {

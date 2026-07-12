@@ -42,6 +42,8 @@ export class MaterialsListComponent {
   readonly draftName = signal('');
   readonly pendingRemoval = signal<Material | null>(null);
   readonly removedNotice = signal<string | null>(null);
+  /** Rename/remove failure message — cleared at the start of each new action. */
+  readonly actionError = signal<string | null>(null);
 
   constructor() {
     effect(() => {
@@ -98,8 +100,14 @@ export class MaterialsListComponent {
     const next = this.draftName().trim();
     this.editingId.set(null);
     if (next.length === 0 || next === m.displayName) return;
-    const updated = await firstValueFrom(this.api.rename(m.id, next));
-    this.materials.update((list) => list.map((x) => (x.id === m.id ? updated : x)));
+    this.actionError.set(null);
+    try {
+      const updated = await firstValueFrom(this.api.rename(m.id, next));
+      this.materials.update((list) => list.map((x) => (x.id === m.id ? updated : x)));
+    } catch {
+      // The row keeps its previous name — tell the instructor the rename did not stick.
+      this.actionError.set(`Couldn't rename "${m.displayName}" — please retry.`);
+    }
   }
 
   askRemove(m: Material): void {
@@ -110,8 +118,14 @@ export class MaterialsListComponent {
     const m = this.pendingRemoval();
     this.pendingRemoval.set(null);
     if (!confirmed || !m) return;
-    await firstValueFrom(this.api.remove(m.id));
-    this.materials.update((list) => list.filter((x) => x.id !== m.id));
+    this.actionError.set(null);
+    try {
+      await firstValueFrom(this.api.remove(m.id));
+      this.materials.update((list) => list.filter((x) => x.id !== m.id));
+    } catch {
+      // The row stays in the list — tell the instructor the removal did not happen.
+      this.actionError.set(`Couldn't remove "${m.displayName}" — please retry.`);
+    }
   }
 
   async download(m: Material): Promise<void> {

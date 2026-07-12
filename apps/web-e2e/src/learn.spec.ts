@@ -572,9 +572,8 @@ test('clicking a different lesson in the outline navigates and preserves checkma
   await expect(lessonACheckmark).toBeVisible();
 });
 
-test('UC-04-02 student sees the lesson materials section and Download opens a popup with a URL', async ({
+test('UC-04-02 student sees the lesson materials section and Download fetches the material URL', async ({
   page,
-  context,
 }) => {
   const { email, password } = await registerVerifiedStudent();
   const { courseId, lessonId } = await seedPublishedCourseWithReadyLesson();
@@ -598,14 +597,14 @@ test('UC-04-02 student sees the lesson materials section and Download opens a po
   const downloadButton = page.getByTestId(`material-download-${materialId}`);
   await expect(downloadButton).toBeVisible();
 
-  // Click Download — assert a popup opens with a URL targeting THIS material
+  // Click Download — the page now uses a synchronous anchor click (popup-
+  // blocker safe), so assert the browser download targets THIS material
   // (fake storage adapter returns /api/internal/fake-materials/<materialId>)
-  const popupPromise = context.waitForEvent('page');
+  const downloadPromise = page.waitForEvent('download');
   await downloadButton.click();
-  const popup = await popupPromise;
-  expect(popup.url()).not.toBe('about:blank');
-  expect(popup.url()).toMatch(/\/fake-materials\//);
-  expect(popup.url()).toContain(materialId);
+  const download = await downloadPromise;
+  expect(download.url()).toMatch(/\/fake-materials\//);
+  expect(download.url()).toContain(materialId);
 });
 
 test('UC-04-02 lesson-materials section is absent when the lesson has no materials', async ({

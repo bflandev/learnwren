@@ -86,6 +86,17 @@ describe('CoverImageService — validation', () => {
     );
   });
 
+  it('rejects a truncated image body with CoverDecodeFailedException (decode-time failure)', async () => {
+    // metadata() only reads the header, so a truncated JPEG passes the first
+    // gate; the actual decode (.resize().jpeg().toBuffer()) is what throws.
+    // That raw sharp error must be wrapped as the typed 400, not escape as 500.
+    const whole = await makeJpegBuffer(1280, 720);
+    const truncated = whole.subarray(0, Math.floor(whole.length / 2));
+    await expect(svc.uploadCover(CID, Buffer.from(truncated), 'image/jpeg')).rejects.toBeInstanceOf(
+      CoverDecodeFailedException,
+    );
+  });
+
   it('accepts a 1280x720 image (boundary, inclusive)', async () => {
     const buf = await makeJpegBuffer(1280, 720);
     const out = await svc.uploadCover(CID, buf, 'image/jpeg');

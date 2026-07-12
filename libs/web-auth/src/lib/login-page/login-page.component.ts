@@ -99,12 +99,15 @@ export class LoginPageComponent {
 
   async resendVerification(): Promise<void> {
     const email = this.form.controls.email.value;
-    if (!email) return;
+    if (!email || this.busy()) return;
+    this.busy.set(true);
     try {
       await this.auth.resendVerification(email);
       this.errorState.set({ kind: 'unverified', resendSent: true });
     } catch {
       this.errorState.set({ kind: 'generic', message: 'Could not send. Please try again.' });
+    } finally {
+      this.busy.set(false);
     }
   }
 

@@ -48,6 +48,13 @@ const EXT_BY_CONTENT_TYPE: Record<SupportedVideoContentType, 'mp4' | 'mov' | 'mk
   'video/x-matroska': 'mkv',
 };
 
+// States in which a transcode job may have written (possibly partial) HLS output.
+const HLS_OUTPUT_STATES: Readonly<Set<Video['state']>> = new Set([
+  'TRANSCODING',
+  'READY',
+  'FAILED',
+]);
+
 const DELETABLE_STATES: Readonly<Set<Video['state']>> = new Set([
   'PENDING_UPLOAD',
   'UPLOADED',
@@ -168,18 +175,34 @@ export class VideoService {
       return this.recordPipelineFailure(vid, 'TRANSCODER_SUBMIT_FAILED', submit.lastError, actualSize);
     }
 
-    return this.repo.finalizeUploadWithJob({
-      vid,
-      lid: v.lessonId,
-      actualSizeBytes: actualSize,
-      // Persist the ffprobe source duration now; applyTranscoderResult uses it
-      // for Video.output.durationSec because the GCP Transcoder job returns no
-      // reliable output duration.
-      probedDurationSec: probe.value.durationSec,
-      key,
-      transcoderJobName: submit.jobName,
-      nowIso: nowIso(),
-    });
+    try {
+      return await this.repo.finalizeUploadWithJob({
+        vid,
+        lid: v.lessonId,
+        actualSizeBytes: actualSize,
+        // Persist the ffprobe source duration now; applyTranscoderResult uses it
+        // for Video.output.durationSec because the GCP Transcoder job returns no
+        // reliable output duration.
+        probedDurationSec: probe.value.durationSec,
+        key,
+        transcoderJobName: submit.jobName,
+        nowIso: nowIso(),
+      });
+    } catch (err) {
+      // The txn failed (e.g. concurrent lesson/video delete) AFTER submitJob:
+      // the GCP job is now unreferenced and the claim would block retries for
+      // CLAIM_TTL_MS. Best-effort cancel + release, then rethrow — the plain
+      // Error's 500-for-visibility is deliberate (see requireVideoInTxn).
+      await this.transcoder.cancelJob(submit.jobName).catch((e: unknown) => {
+        // Stryker disable next-line StringLiteral: log-only message, no behavior
+        this.logger.warn(`orphaned-job cancel failed for ${submit.jobName}: ${(e as Error).message}`);
+      });
+      await this.repo.releaseUploadCompletionClaim(vid).catch((e: unknown) => {
+        // Stryker disable next-line StringLiteral: log-only message, no behavior
+        this.logger.warn(`releaseUploadCompletionClaim failed for ${vid}: ${(e as Error).message}`);
+      });
+      throw err;
+    }
   }
 
   /**
@@ -313,11 +336,15 @@ export class VideoService {
   }
 
   async deleteForLesson(lid: LessonId): Promise<void> {
-    const v = await this.repo.getVideoByLesson(lid);
-    if (!v) return;
-    // Stryker disable next-line ObjectLiteral: equivalent — emptying to {} yields opts.logCancelFailures===undefined, falsy like false, so the log branch is unchanged (BooleanLiteral mutant IS killed by the deleteForLesson no-warn test)
-    await this.tearDownVideoSideEffects(v, { logCancelFailures: false });
-    await this.repo.deleteVideoAndDetach(v.id, v.lessonId, nowIso());
+    // The retry flow can leave multiple video docs per lesson (FAILED doc +
+    // new session); tear down every one or the extras orphan their videoKeys,
+    // source objects, and HLS output.
+    const videos = await this.repo.listVideosByLesson(lid);
+    for (const v of videos) {
+      // Stryker disable next-line ObjectLiteral: equivalent — emptying to {} yields opts.logCancelFailures===undefined, falsy like false, so the log branch is unchanged (BooleanLiteral mutant IS killed by the deleteForLesson no-warn test)
+      await this.tearDownVideoSideEffects(v, { logCancelFailures: false });
+      await this.repo.deleteVideoAndDetach(v.id, v.lessonId, nowIso());
+    }
   }
 
   /**
@@ -343,9 +370,13 @@ export class VideoService {
         }
       });
     }
-    if (v.state === 'READY' && v.output?.bucket) {
+    // Any state where a transcode job may have run can leave HLS output —
+    // READY (full), TRANSCODING (partial, job cancelled above), FAILED
+    // (partial). deletePrefix is best-effort inside the adapter, so running
+    // it against an empty prefix is a harmless no-op.
+    if (HLS_OUTPUT_STATES.has(v.state)) {
       await this.storage.deletePrefix({
-        bucket: v.output.bucket,
+        bucket: v.output?.bucket ?? this.cfg.outputBucket,
         prefix: `videos/${v.id}/`,
       });
     }

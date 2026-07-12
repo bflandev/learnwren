@@ -269,6 +269,67 @@ describe('AdminUserStatusService.suspend', () => {
     }
   });
 
+  it('re-enables the Auth account when disable succeeded but revokeRefreshTokens failed (no stranded account)', async () => {
+    // Regression: updateUser(disabled:true) succeeded, then the revoke threw.
+    // Reverting only Firestore to ACTIVE left the Auth account disabled —
+    // logins fail while unsuspend is rejected (status is already ACTIVE).
+    const { firestore, repo } = makeFixture({ u5: { role: 'STUDENT', status: 'ACTIVE' } });
+    const badAuth = {
+      updateUser: vi.fn().mockResolvedValue(undefined),
+      revokeRefreshTokens: vi.fn().mockRejectedValue(new Error('revoke failure')),
+    };
+    const svc = new AdminUserStatusService(firestore as never, badAuth as never, repo);
+
+    const err = await svc.suspend('actor' as UserId, 'u5' as UserId).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(AdminUsersException);
+    expect((err as AdminUsersException).code).toBe('INTERNAL');
+    // Best-effort re-enable: disable happened first, then the revert.
+    expect(badAuth.updateUser).toHaveBeenNthCalledWith(1, 'u5', { disabled: true });
+    expect(badAuth.updateUser).toHaveBeenNthCalledWith(2, 'u5', { disabled: false });
+  });
+
+  it('does NOT attempt an Auth re-enable when the disable itself failed', async () => {
+    const { firestore, repo } = makeFixture({ u5: { role: 'STUDENT', status: 'ACTIVE' } });
+    const badAuth = {
+      updateUser: vi.fn().mockRejectedValue(new Error('Auth failure')),
+      revokeRefreshTokens: vi.fn().mockResolvedValue(undefined),
+    };
+    const svc = new AdminUserStatusService(firestore as never, badAuth as never, repo);
+
+    await svc.suspend('actor' as UserId, 'u5' as UserId).catch(() => undefined);
+
+    // Only the failed disable attempt — no {disabled:false} revert call.
+    expect(badAuth.updateUser).toHaveBeenCalledTimes(1);
+    expect(badAuth.updateUser).toHaveBeenCalledWith('u5', { disabled: true });
+  });
+
+  it('still throws INTERNAL and reverts Firestore when the Auth re-enable ALSO fails', async () => {
+    const { firestore, repo } = makeFixture({ u5: { role: 'STUDENT', status: 'ACTIVE' } });
+    const badAuth = {
+      updateUser: vi
+        .fn()
+        .mockResolvedValueOnce(undefined) // disable succeeds
+        .mockRejectedValueOnce(new Error('re-enable failure')), // revert fails
+      revokeRefreshTokens: vi.fn().mockRejectedValue(new Error('revoke failure')),
+    };
+    const svc = new AdminUserStatusService(firestore as never, badAuth as never, repo);
+
+    const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    try {
+      const err = await svc.suspend('actor' as UserId, 'u5' as UserId).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AdminUsersException);
+      expect((err as AdminUsersException).code).toBe('INTERNAL');
+      const reEnableLog = errorSpy.mock.calls
+        .map((c) => String(c[0]))
+        .find((msg) => msg.includes('auth re-enable also failed'));
+      expect(reEnableLog).toBeDefined();
+      expect(reEnableLog).toContain('u5');
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   it('InvalidStatusTransitionException records attempted=SUSPENDED', async () => {
     const { firestore, repo } = makeFixture({ u2: { role: 'STUDENT', status: 'SUSPENDED' } });
     const svc = new AdminUserStatusService(firestore as never, auth as never, repo);

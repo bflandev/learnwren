@@ -16,4 +16,5 @@ export {
   type NewModuleEmailInput,
 } from './lib/email-transport/email-transport';
 export { PasswordPolicyService } from './lib/password-policy.service';
+export { PasswordVerificationService } from './lib/password-verification.service';
 export type { PolicyRequirement, PasswordPolicyResult } from './lib/password-policy.service';

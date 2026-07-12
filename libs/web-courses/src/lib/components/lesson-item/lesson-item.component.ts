@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
 
 import type { CourseId, Lesson, Video, VideoCaptionsMeta, VideoState } from '@learnwren/shared-data-models';
 import {
@@ -24,12 +25,13 @@ import {
 import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
 
 import { CaptionsPanelComponent } from '../../captions/captions-panel.component';
+import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { MaterialsListComponent } from '../../materials/materials-list.component';
 
 @Component({
   selector: 'lib-lesson-item',
   standalone: true,
-  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, CaptionsPanelComponent, LwButtonDirective, LwInputDirective],
+  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, CaptionsPanelComponent, ConfirmDialogComponent, LwButtonDirective, LwInputDirective],
   templateUrl: './lesson-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -49,6 +51,8 @@ export class LessonItemComponent {
   readonly draftTitle = signal('');
   readonly video = signal<Video | undefined>(undefined);
   readonly captionsMeta = signal<VideoCaptionsMeta | null>(null);
+  readonly confirmingVideoRemoval = signal(false);
+  readonly videoActionError = signal<string | null>(null);
 
   // Memoized by string value: same videoId on a new Lesson object reference does not re-fire the effect.
   private readonly videoId = computed(() => this.lesson().videoId);
@@ -101,6 +105,30 @@ export class LessonItemComponent {
 
   onVideoUploaded(): void {
     this.videoChanged.emit();
+  }
+
+  requestVideoRemoval(): void {
+    this.confirmingVideoRemoval.set(true);
+  }
+
+  /**
+   * Confirmed removal of a FAILED/stalled video: the API detaches the video
+   * from the lesson, so the parent refresh (via videoChanged) brings the
+   * uploader back and the instructor can re-upload.
+   */
+  async onVideoRemovalClosed(confirmed: boolean): Promise<void> {
+    this.confirmingVideoRemoval.set(false);
+    if (!confirmed) return;
+    const vid = this.lesson().videoId;
+    if (!vid) return;
+    this.videoActionError.set(null);
+    try {
+      await firstValueFrom(this.api.delete(vid));
+      this.video.set(undefined);
+      this.videoChanged.emit();
+    } catch {
+      this.videoActionError.set("Couldn't remove the video — please retry.");
+    }
   }
 
   // The badge runs its own polling and only updates its local liveVideo signal,

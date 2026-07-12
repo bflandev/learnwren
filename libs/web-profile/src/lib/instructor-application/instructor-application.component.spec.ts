@@ -52,6 +52,17 @@ describe('InstructorApplicationComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Become an Instructor');
   });
 
+  it('shows a banner instead of rejecting when the initial load fails', async () => {
+    svc.getApplication.mockRejectedValue(new HttpErrorResponse({ status: 500, statusText: 'ISE' }));
+    const fixture = create('STUDENT');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.bannerError()).toBe(
+      'Could not load your application status. Please try again later.',
+    );
+    expect(fixture.nativeElement.textContent).toContain('Could not load your application status');
+  });
+
   it('shows the under-review card when an application is PENDING', async () => {
     svc.getApplication.mockResolvedValue({ status: 'PENDING', statement: 's', expertise: 'e', createdAt: 't' });
     const fixture = create('STUDENT');

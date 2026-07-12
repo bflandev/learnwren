@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Course, VideoState } from '@learnwren/shared-data-models';
@@ -912,6 +912,147 @@ describe('CourseEditorPageComponent', () => {
       await fixture.whenStable();
       internals(fixture.componentInstance).requestPublishConfirm('unpublish');
       await expect(fixture.componentInstance.onConfirmClosed(true)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('error banner lifecycle', () => {
+    it('clears a previous error banner when a later operation succeeds', async () => {
+      const fixture = await initEditor();
+
+      // First operation fails and pins the banner.
+      const failing = fixture.componentInstance.onRenameModule({ moduleId: 'mid-1', title: 'X' });
+      http
+        .expectOne('/api/courses/cid-1/modules/mid-1')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+      await failing;
+      expect(fixture.componentInstance.error()).toContain('Failed to rename module');
+
+      // A later successful operation must clear the stale banner.
+      const succeeding = fixture.componentInstance.onRenameModule({ moduleId: 'mid-1', title: 'Y' });
+      http.expectOne('/api/courses/cid-1/modules/mid-1').flush(null);
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await succeeding;
+      expect(fixture.componentInstance.error()).toBeNull();
+    });
+
+    it('clears a previous error banner when a confirmed delete succeeds', async () => {
+      const fixture = await initEditor();
+      fixture.componentInstance.error.set('stale error');
+
+      fixture.componentInstance.requestDeleteModule('mid-1');
+      const closing = fixture.componentInstance.onConfirmClosed(true);
+      http
+        .expectOne('/api/courses/cid-1/modules/mid-1')
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await closing;
+      expect(fixture.componentInstance.error()).toBeNull();
+    });
+
+    it('clears a previous error banner when a reorder succeeds', async () => {
+      const fixture = await initEditor();
+      fixture.componentInstance.error.set('stale error');
+
+      const pending = fixture.componentInstance.onReorderModules(['mid-1']);
+      expect(fixture.componentInstance.error()).toBeNull();
+      http.expectOne('/api/courses/cid-1/modules/order').flush([]);
+      await pending;
+      expect(fixture.componentInstance.error()).toBeNull();
+    });
+  });
+
+  describe('route param change (component reuse on back/forward)', () => {
+    /** Tree payload whose course id/title match the given cid. */
+    function treeFor(cid: string): unknown {
+      const t = buildTree() as { course: Course; modules: unknown[] };
+      return { ...t, course: { ...t.course, id: cid, title: `Course ${cid}` } };
+    }
+
+    function setupWithParams() {
+      TestBed.resetTestingModule();
+      const params$ = new Subject<Map<string, string>>();
+      TestBed.configureTestingModule({
+        imports: [CourseEditorPageComponent],
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([]),
+          { provide: ActivatedRoute, useValue: { paramMap: params$.asObservable() } },
+          { provide: NotificationsService, useValue: notifications },
+        ],
+      });
+      return { params$, http: TestBed.inject(HttpTestingController) };
+    }
+
+    it('reloads the tree and resets transient state when the :id param changes', async () => {
+      const { params$, http: localHttp } = setupWithParams();
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+
+      params$.next(new Map([['id', 'cid-1']]));
+      localHttp.expectOne('/api/courses/cid-1').flush(treeFor('cid-1'));
+      await fixture.whenStable();
+      expect(fixture.componentInstance.tree()?.course.id).toBe('cid-1');
+
+      // Dirty every piece of per-course transient state.
+      fixture.componentInstance.error.set('old error');
+      fixture.componentInstance.notice.set('old notice');
+      fixture.componentInstance.requestDeleteCourse();
+      fixture.componentInstance.startAddModule();
+      fixture.componentInstance.newModuleTitle.set('typed');
+
+      // Browser back/forward to another course reuses the component instance.
+      params$.next(new Map([['id', 'cid-2']]));
+      const req = localHttp.expectOne('/api/courses/cid-2');
+      expect(fixture.componentInstance.tree()).toBeNull();
+      expect(fixture.componentInstance.error()).toBeNull();
+      expect(fixture.componentInstance.notice()).toBeNull();
+      expect(fixture.componentInstance.pendingConfirm()).toBeNull();
+      expect(fixture.componentInstance.addingModule()).toBe(false);
+      expect(fixture.componentInstance.newModuleTitle()).toBe('');
+
+      req.flush(treeFor('cid-2'));
+      await fixture.whenStable();
+      expect(fixture.componentInstance.tree()?.course.id).toBe('cid-2');
+      expect(fixture.componentInstance.cid()).toBe('cid-2');
+    });
+
+    it('discards an in-flight response for the previous course id', async () => {
+      const { params$, http: localHttp } = setupWithParams();
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+
+      params$.next(new Map([['id', 'cid-1']]));
+      const reqA = localHttp.expectOne('/api/courses/cid-1'); // slow — not flushed yet
+
+      params$.next(new Map([['id', 'cid-2']]));
+      const reqB = localHttp.expectOne('/api/courses/cid-2');
+      reqB.flush(treeFor('cid-2'));
+      await fixture.whenStable();
+
+      // A's response lands late — it must be discarded, not rendered.
+      reqA.flush(treeFor('cid-1'));
+      await fixture.whenStable();
+      expect(fixture.componentInstance.tree()?.course.id).toBe('cid-2');
+    });
+
+    it('discards a late error from the previous course id', async () => {
+      const { params$, http: localHttp } = setupWithParams();
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+
+      params$.next(new Map([['id', 'cid-1']]));
+      const reqA = localHttp.expectOne('/api/courses/cid-1');
+
+      params$.next(new Map([['id', 'cid-2']]));
+      localHttp.expectOne('/api/courses/cid-2').flush(treeFor('cid-2'));
+      await fixture.whenStable();
+
+      reqA.flush({}, { status: 500, statusText: 'Server Error' });
+      await fixture.whenStable();
+      expect(fixture.componentInstance.error()).toBeNull();
     });
   });
 

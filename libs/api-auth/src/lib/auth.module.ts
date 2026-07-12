@@ -13,6 +13,7 @@ import { FirebaseSessionGuard } from './firebase-session.guard';
 import { AdminRoleGuard } from './admin-role.guard';
 import { InstructorRoleGuard } from './instructor-role.guard';
 import { PasswordPolicyService } from './password-policy.service';
+import { PasswordVerificationService } from './password-verification.service';
 import { SessionCookieHelper } from './session-cookie.helper';
 import { SessionCookieService } from './session-cookie.service';
 
@@ -29,6 +30,7 @@ import { SessionCookieService } from './session-cookie.service';
     FirebaseSessionGuard,
     InstructorRoleGuard,
     PasswordPolicyService,
+    PasswordVerificationService,
     SessionCookieHelper,
     SessionCookieService,
     {
@@ -44,6 +46,7 @@ import { SessionCookieService } from './session-cookie.service';
     FirebaseAuthRestClient,
     SessionCookieHelper,
     PasswordPolicyService,
+    PasswordVerificationService,
   ],
 })
 export class AuthModule {}

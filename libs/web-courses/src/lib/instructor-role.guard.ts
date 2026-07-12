@@ -8,7 +8,13 @@ export const instructorRoleGuard: CanActivateFn = async (_route, state) => {
   const router = inject(Router);
 
   if (auth.currentUser() === undefined) {
-    await auth.refresh();
+    try {
+      await auth.refresh();
+    } catch {
+      // Non-401 refresh failure (e.g. 500 / network): leave currentUser
+      // undefined and fall through to the login redirect below instead of
+      // crashing navigation. 401 is already handled inside refresh().
+    }
   }
 
   const user = auth.currentUser();

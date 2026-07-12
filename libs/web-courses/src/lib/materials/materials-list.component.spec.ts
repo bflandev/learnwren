@@ -85,6 +85,61 @@ describe('MaterialsListComponent', () => {
     expect(byId['m2']).toBe('Doc Two'); // sibling unchanged
   });
 
+  it('surfaces an error and keeps the old name when the rename request fails', async () => {
+    const api = apiMock({
+      rename: vi.fn().mockReturnValue(throwError(() => new Error('boom'))),
+    });
+    const { fixture } = render(api);
+    const cmp = fixture.componentInstance;
+    cmp.startRename(mat('m1', 'Doc One'));
+    cmp.draftName.set('New Name');
+
+    await cmp.commitRename(mat('m1', 'Doc One'));
+
+    // Row keeps its previous name (state stays consistent with the server) …
+    expect(cmp.materials()[0].displayName).toBe('Doc One');
+    // … and the failure is surfaced instead of being an unhandled rejection.
+    expect(cmp.actionError()).toContain("Couldn't rename");
+    fixture.detectChanges();
+    expect(testIds(fixture, 'material-action-error')[0].textContent).toContain("Couldn't rename");
+  });
+
+  it('surfaces an error and keeps the row when the removal request fails', async () => {
+    const api = apiMock({
+      remove: vi.fn().mockReturnValue(throwError(() => new Error('boom'))),
+    });
+    const { fixture } = render(api);
+    const cmp = fixture.componentInstance;
+    cmp.askRemove(mat('m1', 'Doc One'));
+
+    await cmp.confirmRemoval(true);
+
+    expect(cmp.materials().map((x) => x.id)).toEqual(['m1']); // row not dropped
+    expect(cmp.actionError()).toContain("Couldn't remove");
+    fixture.detectChanges();
+    expect(testIds(fixture, 'material-action-error')[0].textContent).toContain("Couldn't remove");
+  });
+
+  it('clears a previous action error when a later action succeeds', async () => {
+    const api = apiMock({
+      remove: vi
+        .fn()
+        .mockReturnValueOnce(throwError(() => new Error('boom')))
+        .mockReturnValueOnce(of(undefined)),
+    });
+    const { fixture } = render(api);
+    const cmp = fixture.componentInstance;
+
+    cmp.askRemove(mat('m1', 'Doc One'));
+    await cmp.confirmRemoval(true);
+    expect(cmp.actionError()).not.toBeNull();
+
+    cmp.askRemove(mat('m1', 'Doc One'));
+    await cmp.confirmRemoval(true);
+    expect(cmp.actionError()).toBeNull();
+    expect(cmp.materials()).toEqual([]);
+  });
+
   it('removes only the confirmed material, keeping the others', async () => {
     const api = apiMock({
       listMaterials: vi.fn().mockReturnValue(of([mat('m1', 'Doc One'), mat('m2', 'Doc Two')])),

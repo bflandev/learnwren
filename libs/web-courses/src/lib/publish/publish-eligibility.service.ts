@@ -34,6 +34,9 @@ export class PublishEligibilityService {
     this.cid = cid;
     this._eligibility.set(null);
     this._lastError.set(null);
+    // A fetch for the previous course may still be in flight; its (now stale)
+    // completion is discarded, so reset loading here for the fresh binding.
+    this._loading.set(false);
   }
 
   refresh(): void {
@@ -46,16 +49,22 @@ export class PublishEligibilityService {
   }
 
   private async fetch(): Promise<void> {
-    if (!this.cid) return;
+    // Capture the course this fetch is for: a root singleton outlives course
+    // navigation, so a slow response for course A must not land on course B's
+    // publish bar after bindToCourse(B).
+    const cid = this.cid;
+    if (!cid) return;
     this._loading.set(true);
     this._lastError.set(null);
     try {
-      const e = await this.courses.getPublishEligibility(this.cid);
+      const e = await this.courses.getPublishEligibility(cid);
+      if (cid !== this.cid) return; // rebound to another course — stale response
       this._eligibility.set(e);
     } catch {
+      if (cid !== this.cid) return; // rebound to another course — stale response
       this._lastError.set("Couldn't check publish status — please retry.");
     } finally {
-      this._loading.set(false);
+      if (cid === this.cid) this._loading.set(false);
     }
   }
 }

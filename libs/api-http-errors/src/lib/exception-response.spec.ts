@@ -60,6 +60,7 @@ describe('codeForStatus', () => {
     [413, 'PAYLOAD_TOO_LARGE'],
     [415, 'UNSUPPORTED_MEDIA_TYPE'],
     [422, 'VALIDATION_ERROR'],
+    [429, 'TOO_MANY_REQUESTS'],
     [418, 'HTTP_ERROR'],
     [500, 'HTTP_ERROR'],
   ])('maps %i to %s', (status, code) => {

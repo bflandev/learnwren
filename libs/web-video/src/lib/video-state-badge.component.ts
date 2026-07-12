@@ -14,7 +14,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { Video, VideoState } from '@learnwren/shared-data-models';
 
 import { VideoStatePollingService } from './polling/video-state-polling.service';
-import { LwPillComponent, type LwPillTone } from '@learnwren/web-ui';
+import { LwButtonDirective, LwPillComponent, type LwPillTone } from '@learnwren/web-ui';
 
 const STUCK_THRESHOLD_MIN = 30;
 const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
@@ -23,12 +23,14 @@ const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
   selector: 'lib-video-state-badge',
   standalone: true,
   templateUrl: './video-state-badge.component.html',
-  imports: [LwPillComponent],
+  imports: [LwPillComponent, LwButtonDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VideoStateBadgeComponent implements OnInit {
   readonly video = input.required<Video>();
   readonly stateChanged = output<VideoState>();
+  /** Instructor asked to remove this video (FAILED or stalled) so the uploader can reappear. */
+  readonly removeRequested = output<void>();
 
   private readonly polling = inject(VideoStatePollingService);
   private readonly destroyRef = inject(DestroyRef);
@@ -78,6 +80,17 @@ export class VideoStateBadgeComponent implements OnInit {
   });
 
   readonly canRetry = computed(() => this.isStuck(this.current(), 'PENDING_UPLOAD'));
+  /**
+   * The badge copy promises "retry" / "delete and re-upload" for these states,
+   * so a matching control must exist: FAILED is a terminal dead end, and a
+   * stalled PENDING_UPLOAD/TRANSCODING never resolves on its own.
+   */
+  readonly canRemove = computed(() => {
+    const v = this.current();
+    return (
+      v.state === 'FAILED' || this.isStuck(v, 'PENDING_UPLOAD') || this.isStuck(v, 'TRANSCODING')
+    );
+  });
   readonly showSpinner = computed(
     () => NON_TERMINAL.includes(this.current().state) && !this.canRetry(),
   );

@@ -54,6 +54,10 @@ export function codeForStatus(status: number): string {
       return 'UNSUPPORTED_MEDIA_TYPE';
     case 422:
       return 'VALIDATION_ERROR';
+    case 429:
+      // The global ThrottlerException lands here — clients must be able to
+      // distinguish "slow down" from a generic HTTP failure.
+      return 'TOO_MANY_REQUESTS';
     default:
       return 'HTTP_ERROR';
   }

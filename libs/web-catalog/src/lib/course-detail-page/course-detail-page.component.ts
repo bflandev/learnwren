@@ -91,9 +91,18 @@ export class CourseDetailPageComponent {
     });
   }
 
-  private async resolveEnrollmentStatus(courseId: string): Promise<void> {
+  /**
+   * Monotonic token identifying the most recent load(). getCourseDetail is a
+   * non-cancellable Promise, so rapid A→B navigation can resolve A's response
+   * AFTER B's — without the token, course A would render under /catalog/B and
+   * the enrollment panel would enroll the wrong course.
+   */
+  private loadToken = 0;
+
+  private async resolveEnrollmentStatus(courseId: string, token: number): Promise<void> {
     try {
       const view = await this.enrollments.getEnrollmentStatus(courseId);
+      if (token !== this.loadToken) return; // superseded by a newer load
       this.enrollmentStatus.set(view);
     } catch {
       // enrollment status is best-effort; CTA simply stays hidden on failure
@@ -102,10 +111,11 @@ export class CourseDetailPageComponent {
 
   protected async onEnrollmentStatusChanged(): Promise<void> {
     const id = this.course()?.id;
-    if (id) await this.resolveEnrollmentStatus(id);
+    if (id) await this.resolveEnrollmentStatus(id, this.loadToken);
   }
 
   private async load(params: ParamMap): Promise<void> {
+    const token = ++this.loadToken;
     const id = params.get('id');
     this.course.set(null);
     this.notFound.set(false);
@@ -116,8 +126,11 @@ export class CourseDetailPageComponent {
       return;
     }
     try {
-      this.course.set(await this.service.getCourseDetail(id));
+      const detail = await this.service.getCourseDetail(id);
+      if (token !== this.loadToken) return; // superseded by a newer load
+      this.course.set(detail);
     } catch (err) {
+      if (token !== this.loadToken) return; // superseded by a newer load
       if (err instanceof HttpErrorResponse && err.status === 404) {
         this.notFound.set(true);
       } else {
@@ -130,7 +143,7 @@ export class CourseDetailPageComponent {
     // currentUser() is populated by the auth APP_INITIALIZER before any route
     // activates, so the value here is null or a user — never undefined.
     if (this.auth.currentUser()) {
-      await this.resolveEnrollmentStatus(id);
+      await this.resolveEnrollmentStatus(id, token);
     }
   }
 }

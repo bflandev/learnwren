@@ -33,6 +33,20 @@ export type TranscoderEvent =
       reason: string; // sliced to 500 chars at construction
     };
 
+/**
+ * I/O failure while enriching a structurally-valid event (e.g. a transient
+ * getJob failure). Distinct from a structural parse error: the webhook must
+ * answer 5xx so Pub/Sub redelivers, NOT ack the message as MALFORMED — acking
+ * would permanently drop the notification (video stuck TRANSCODING forever;
+ * no reconciler exists).
+ */
+export class TranscoderEventLookupError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TranscoderEventLookupError';
+  }
+}
+
 export interface VideoTranscoder {
   submitJob(input: TranscoderJobInput): Promise<TranscoderJobHandle>;
   parseEvent(rawPubSubMessage: unknown): Promise<TranscoderEvent>;

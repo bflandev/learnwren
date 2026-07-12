@@ -12,3 +12,15 @@
   }
   {{ label() }}
 </lw-pill>
+@if (canRemove()) {
+  <button
+    lwButton
+    variant="ghost"
+    type="button"
+    data-testid="video-remove"
+    class="ml-2 text-bad"
+    (click)="removeRequested.emit()"
+  >
+    Remove video
+  </button>
+}

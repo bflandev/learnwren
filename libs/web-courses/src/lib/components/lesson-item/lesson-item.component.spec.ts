@@ -498,3 +498,90 @@ describe('LessonItemComponent video-state refetch + effect branches', () => {
     expect(c.video()).toBeUndefined();
   });
 });
+
+describe('LessonItemComponent FAILED-video removal (dead-end escape hatch)', () => {
+  const FAILED_VIDEO: Video = {
+    id: 'v1' as VideoId,
+    ownerInstructorId: 'u1' as UserId,
+    courseId: 'c1' as CourseId,
+    lessonId: 'lid-1' as LessonId,
+    state: 'FAILED',
+    source: { bucket: 'b', path: 'p' },
+    createdAt: '2026-05-12T00:00:00.000Z' as Video['createdAt'],
+    updatedAt: '2026-05-12T00:00:00.000Z' as Video['updatedAt'],
+  };
+  const LESSON_WITH_VIDEO: Lesson = { ...LESSON, videoId: 'v1' as VideoId };
+
+  function bootstrap(api: {
+    getVideo: ReturnType<typeof vi.fn>;
+    delete?: ReturnType<typeof vi.fn>;
+  }): ComponentFixture<LessonItemComponent> {
+    const materialsStub = { listMaterials: vi.fn().mockReturnValue(of([])) };
+    TestBed.configureTestingModule({
+      imports: [LessonItemComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: VideoService, useValue: api },
+        { provide: MaterialsService, useValue: materialsStub },
+      ],
+    });
+    const fixture = TestBed.createComponent(LessonItemComponent);
+    fixture.componentRef.setInput('lesson', LESSON_WITH_VIDEO);
+    fixture.componentRef.setInput('courseId', 'c1' as CourseId);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('the badge remove request opens a confirm dialog', () => {
+    const fixture = bootstrap({ getVideo: vi.fn().mockReturnValue(of(FAILED_VIDEO)) });
+    const el = fixture.nativeElement as HTMLElement;
+
+    el.querySelector<HTMLButtonElement>('[data-testid="video-remove"]')!.click();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.confirmingVideoRemoval()).toBe(true);
+    expect(el.querySelector('lib-confirm-dialog')).not.toBeNull();
+  });
+
+  it('confirming removal deletes the video and emits videoChanged (uploader can return)', async () => {
+    const del = vi.fn().mockReturnValue(of(undefined));
+    const fixture = bootstrap({ getVideo: vi.fn().mockReturnValue(of(FAILED_VIDEO)), delete: del });
+    const changed = vi.spyOn(fixture.componentInstance.videoChanged, 'emit');
+
+    fixture.componentInstance.requestVideoRemoval();
+    await fixture.componentInstance.onVideoRemovalClosed(true);
+
+    expect(del).toHaveBeenCalledWith('v1');
+    expect(changed).toHaveBeenCalled();
+    expect(fixture.componentInstance.video()).toBeUndefined();
+    expect(fixture.componentInstance.confirmingVideoRemoval()).toBe(false);
+  });
+
+  it('cancelling the confirm dialog leaves the video untouched', async () => {
+    const del = vi.fn();
+    const fixture = bootstrap({ getVideo: vi.fn().mockReturnValue(of(FAILED_VIDEO)), delete: del });
+
+    fixture.componentInstance.requestVideoRemoval();
+    await fixture.componentInstance.onVideoRemovalClosed(false);
+
+    expect(del).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.video()).toEqual(FAILED_VIDEO);
+  });
+
+  it('surfaces an error and keeps the video when the delete fails', async () => {
+    const del = vi.fn().mockReturnValue(throwError(() => new Error('boom')));
+    const fixture = bootstrap({ getVideo: vi.fn().mockReturnValue(of(FAILED_VIDEO)), delete: del });
+    const changed = vi.spyOn(fixture.componentInstance.videoChanged, 'emit');
+
+    fixture.componentInstance.requestVideoRemoval();
+    await fixture.componentInstance.onVideoRemovalClosed(true);
+
+    expect(changed).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.videoActionError()).toContain("Couldn't remove");
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="video-action-error"]'),
+    ).not.toBeNull();
+  });
+});
