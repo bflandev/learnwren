@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import { FieldValue } from 'firebase-admin/firestore';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { nowIso } from '@learnwren/shared-data-models';
 import type { MeResponse, UserId, UserRole } from '@learnwren/shared-data-models';
 
 import {
@@ -76,7 +77,7 @@ export class ProfilePictureService {
       metadata: { uid: String(uid) },
     });
 
-    const updatedAt = new Date().toISOString();
+    const updatedAt = nowIso();
     const photoUrl = `${this.cfg.publicBaseUrl}/${path}?v=${encodeURIComponent(updatedAt)}`;
     await this.firestore.collection('users').doc(uid).update({
       photoUrl,
@@ -89,13 +90,19 @@ export class ProfilePictureService {
     uid: UserId,
     fromCookie: { email: string; emailVerified: boolean },
   ): Promise<MeResponse> {
-    const path = this.pathFor(uid);
-    await this.storage.deleteObject({ path });
-    const updatedAt = new Date().toISOString();
+    // Clear the doc's photoUrl BEFORE deleting the object: a crash between the
+    // two steps then leaves an orphaned storage object (harmless — overwritten
+    // by the next upload) instead of a live photoUrl pointing at nothing.
+    // ponytail: an upload racing a remove can still interleave putObject before
+    // this deleteObject (fixed path `profile-pictures/{uid}/avatar.jpg`); a
+    // full fix needs versioned object names. Self-recovers on the next
+    // upload or remove, so we document rather than redesign.
+    const updatedAt = nowIso();
     await this.firestore.collection('users').doc(uid).update({
       photoUrl: this.fieldDeleteValue,
       updatedAt,
     });
+    await this.storage.deleteObject({ path: this.pathFor(uid) });
     return this.buildMe(uid, fromCookie);
   }
 

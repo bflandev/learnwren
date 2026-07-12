@@ -18,6 +18,7 @@ import type {
 
 import {
   InvalidVideoStateException,
+  LessonAlreadyHasVideoException,
   UploadCompletionInProgressException,
   VideoNotFoundException,
 } from './errors/video.exception';
@@ -178,8 +179,24 @@ export class VideoRepository {
     return { language: captions.language, label: captions.label, updatedAt: captions.updatedAt };
   }
 
+  /**
+   * Transactional upsert: the video doc is read in the same txn so a PUT
+   * racing deleteVideoAndDetach (which deletes captions in ITS txn) cannot
+   * recreate an orphan videoCaptions doc. An existing doc's createdAt is
+   * preserved; `captions.createdAt` is only the create-case fallback.
+   */
   async upsertCaptions(captions: VideoCaptions): Promise<void> {
-    await this.videoCaptionsRef(captions.videoId).set(captions);
+    const videoRef = this.videoRef(captions.videoId);
+    const capRef = this.videoCaptionsRef(captions.videoId);
+    await this.db.runTransaction(async (tx) => {
+      const videoSnap = await tx.get(videoRef);
+      if (!videoSnap.exists) throw new VideoNotFoundException();
+      const existingSnap = await tx.get(capRef);
+      const createdAt = existingSnap.exists
+        ? (existingSnap.data() as VideoCaptions).createdAt
+        : captions.createdAt;
+      tx.set(capRef, { ...captions, createdAt });
+    });
   }
 
   async deleteCaptions(vid: VideoId): Promise<void> {
@@ -211,7 +228,17 @@ export class VideoRepository {
       }
       const lessonSnap = await tx.get(lessonQ);
       if (lessonSnap.empty) throw new Error('Lesson disappeared in transaction.');
-      const lessonDocRef = lessonSnap.docs[0]!.ref;
+      const lessonDoc = lessonSnap.docs[0]!;
+      const lessonDocRef = lessonDoc.ref;
+      // Double-finalize guard: two concurrent upload SESSIONS create two
+      // PENDING_UPLOAD video docs for one lesson, so the state re-check above
+      // cannot stop the loser. If the lesson already points at a different
+      // video, abort with a 409 instead of silently overwriting the winner's
+      // link (which would orphan its video as a permanently-billed doc).
+      const linkedVideoId = (lessonDoc.data() as { videoId?: string }).videoId;
+      if (linkedVideoId && linkedVideoId !== args.vid) {
+        throw new LessonAlreadyHasVideoException();
+      }
 
       // Build updated doc without completeClaimedAt: the claim is fulfilled now
       // and must not persist on the document.

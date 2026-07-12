@@ -11,6 +11,7 @@ import {
 import type { Response } from 'express';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
+import { nowIso } from '@learnwren/shared-data-models';
 import type { VideoId } from '@learnwren/shared-data-models';
 
 import { VideoExceptionFilter } from '../video.exception-filter';
@@ -29,7 +30,7 @@ function envelope(payload: object): {
     message: {
       data: Buffer.from(JSON.stringify(payload)).toString('base64'),
       messageId: `fake-${Date.now()}`,
-      publishTime: new Date().toISOString(),
+      publishTime: nowIso(),
     },
     subscription: 'fake-subscription',
   };
@@ -68,7 +69,7 @@ export class FakeTranscoderController {
         labels: { videoid: vid },
         output: { uri: `gs://fake-out/videos/${vid}/hls/` },
       },
-      eventTime: new Date().toISOString(),
+      eventTime: nowIso(),
     });
     await this.real.handle(env, res);
   }
@@ -87,7 +88,7 @@ export class FakeTranscoderController {
         labels: { videoid: vid },
         error: { code: 13, message: body.reason ?? 'fake-transcoder synthetic failure' },
       },
-      eventTime: new Date().toISOString(),
+      eventTime: nowIso(),
     });
     await this.real.handle(env, res);
   }

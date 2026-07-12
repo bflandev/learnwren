@@ -151,6 +151,14 @@ export class CoursesService {
    * idempotent pair in the same order.
    */
   private async deleteLessonCascade(lid: LessonId): Promise<void> {
+    // No post-gate sweep here (unlike deleteCourse's enrollment sweep):
+    // createUploadSession does not transactionally read the lesson doc, so a
+    // video doc can be created even AFTER the lesson doc is deleted — a sweep
+    // after the gate would not be watertight either. The real guard is
+    // finalizeUploadWithJob, whose txn reads the lesson and rejects when it is
+    // gone, so such a straggler can never reach TRANSCODING (no billed job);
+    // closing the doc/source-object remnant needs a txn-gated create (a
+    // restructure, deliberately not done here).
     await this.videoSvc.deleteForLesson(lid);
     await this.materialsSvc.deleteForLesson(lid);
   }
@@ -190,6 +198,19 @@ export class CoursesService {
 
     // Step 4: recursive Firestore delete — course doc + modules/lessons subcollections.
     await this.repo.deleteCourseRecursive(cid);
+
+    // Step 5: post-gate enrollment sweep. An enroll txn committing between
+    // step 3 and step 4 survives as an orphaned ACTIVE enrollment; once the
+    // course doc is gone no new enroll can commit (the enroll txn reads it),
+    // so one more sweep catches every straggler. Best-effort: the retry gate
+    // is already deleted, so a rethrow would 500 an unretryable request.
+    // Stryker disable next-line BlockStatement: catch body is log-only; emptying it still swallows the rejection so deleteCourse resolves identically.
+    await this.enrollmentRepo.deleteAllForCourse(cid).catch((err: unknown) => {
+      this.logger.warn(
+        // Stryker disable next-line StringLiteral: warn message is diagnostic-only; nothing observable depends on its exact text.
+        `post-gate enrollment sweep failed for course ${cid}: ${(err as Error).message}`,
+      );
+    });
   }
 
   // ────────────────────────── Module ──────────────────────────

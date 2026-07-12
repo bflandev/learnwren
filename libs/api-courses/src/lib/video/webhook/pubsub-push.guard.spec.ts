@@ -178,6 +178,39 @@ describe('PubSubPushGuard', () => {
     ).rejects.toBeInstanceOf(PubSubWrongAudienceException);
   });
 
+  it('accepts an array aud claim containing the audience beyond position 0 (RFC 7519)', async () => {
+    const g = makeGuard({
+      ...cfg,
+      verifier: vi.fn(async () => ({
+        getPayload: () => ({
+          iss: 'https://accounts.google.com',
+          aud: ['https://other', cfg.audience],
+          email: cfg.invokerSaEmail,
+          email_verified: true,
+          exp: Math.floor(Date.now() / 1000) + 60,
+        }),
+      })),
+    });
+    await expect(g.canActivate(ctx({ authorization: 'Bearer xyz' }))).resolves.toBe(true);
+  });
+
+  it('rejects an array aud claim that does not contain the audience', async () => {
+    const g = makeGuard({
+      ...cfg,
+      verifier: vi.fn(async () => ({
+        getPayload: () => ({
+          iss: 'https://accounts.google.com',
+          aud: ['https://other', 'https://another'],
+          email: cfg.invokerSaEmail,
+          exp: Math.floor(Date.now() / 1000) + 60,
+        }),
+      })),
+    });
+    await expect(
+      g.canActivate(ctx({ authorization: 'Bearer xyz' })),
+    ).rejects.toBeInstanceOf(PubSubWrongAudienceException);
+  });
+
   it('rejects when invoker email does not match', async () => {
     const g = makeGuard({
       ...cfg,

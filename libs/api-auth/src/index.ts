@@ -17,4 +17,5 @@ export {
 } from './lib/email-transport/email-transport';
 export { PasswordPolicyService } from './lib/password-policy.service';
 export { PasswordVerificationService } from './lib/password-verification.service';
+export { isAuthEmulator, revokeAllUserSessions } from './lib/revoke-sessions';
 export type { PolicyRequirement, PasswordPolicyResult } from './lib/password-policy.service';

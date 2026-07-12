@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   MeResponse,
   ProfileView,
@@ -59,7 +60,7 @@ export class ProfileService {
     await this.firestore.collection('users').doc(uid).update({
       displayName,
       biography,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso(),
     });
 
     const data = await this.readUser(uid);

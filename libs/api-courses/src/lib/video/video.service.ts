@@ -197,6 +197,25 @@ export class VideoService {
         // Stryker disable next-line StringLiteral: log-only message, no behavior
         this.logger.warn(`orphaned-job cancel failed for ${submit.jobName}: ${(e as Error).message}`);
       });
+      if (err instanceof LessonAlreadyHasVideoException) {
+        // Double-finalize race: a concurrent session's video won the lesson.
+        // Park the loser in FAILED (markFailedFromSubmission strips the claim
+        // in its txn) so the retry-flow/cascade semantics treat it like any
+        // other dead session doc instead of a forever-claimable orphan.
+        await this.repo
+          .markFailedFromSubmission({
+            vid,
+            failureReason: 'LESSON_ALREADY_HAS_VIDEO: lesson already has a video',
+            actualSizeBytes: actualSize,
+            nowIso: nowIso(),
+          })
+          // Stryker disable next-line BlockStatement: log-only catch body; the .catch already swallows the rejection regardless
+          .catch((e: unknown) => {
+            // Stryker disable next-line StringLiteral: log-only message, no behavior
+            this.logger.warn(`loser markFailed failed for ${vid}: ${(e as Error).message}`);
+          });
+        throw err;
+      }
       await this.repo.releaseUploadCompletionClaim(vid).catch((e: unknown) => {
         // Stryker disable next-line StringLiteral: log-only message, no behavior
         this.logger.warn(`releaseUploadCompletionClaim failed for ${vid}: ${(e as Error).message}`);

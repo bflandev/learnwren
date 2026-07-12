@@ -38,8 +38,14 @@ export class LastAdminException extends AdminUsersException {
 }
 
 export class UserHasCoursesException extends AdminUsersException {
-  constructor(courseCount: number, courseIds: CourseId[]) {
-    super('USER_HAS_COURSES', 'Cannot delete an instructor who owns courses. Resolve the courses first.', 409, {
+  constructor(
+    courseCount: number,
+    courseIds: CourseId[],
+    // Per-throw-site message: the delete and demote paths share the code but
+    // must not claim the wrong action.
+    message = 'Cannot delete an instructor who owns courses. Resolve the courses first.',
+  ) {
+    super('USER_HAS_COURSES', message, 409, {
       courseCount,
       courseIds,
     });

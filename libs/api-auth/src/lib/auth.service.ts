@@ -7,6 +7,7 @@ import {
   FIRESTORE,
   type FirestoreHandle,
 } from '@learnwren/api-firebase';
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   ISODateString,
   MeResponse,
@@ -159,7 +160,7 @@ export class AuthService {
     email: string,
     displayName: string,
   ): Promise<void> {
-    const now = new Date().toISOString() as ISODateString;
+    const now = nowIso();
     try {
       await this.firestore.collection('users').doc(uid).set({
         id: uid,
@@ -220,6 +221,7 @@ export class AuthService {
     await this.passwordVerification.clearFailures(input.email);
 
     const profile = await this.loadUserProfile(userRecord.uid);
+    await this.syncStaleEmailBestEffort(userRecord.uid as UserId, userRecord.email, profile.email);
 
     // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
     this.logger.log(`[auth] login uid=${userRecord.uid}`);
@@ -250,14 +252,42 @@ export class AuthService {
     return userRecord;
   }
 
-  private async loadUserProfile(uid: string): Promise<{ displayName: string; role: UserRole }> {
+  private async loadUserProfile(
+    uid: string,
+  ): Promise<{ displayName: string; role: UserRole; email?: string }> {
     const userDoc = await this.firestore.collection('users').doc(uid).get();
     if (!userDoc.exists) {
       // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] login missing users/${uid}`);
       throw new InternalAuthException();
     }
-    return userDoc.data() as { displayName: string; role: UserRole };
+    return userDoc.data() as { displayName: string; role: UserRole; email?: string };
+  }
+
+  /**
+   * Lazily heal a stale users/{uid}.email: the verify-and-change-email link
+   * applies the change in Firebase Auth on click, but the Firestore mirror
+   * only syncs in the authenticated POST /profile/email/confirm — which never
+   * runs when the link is opened without a session. Converge on login.
+   * Best-effort: a sync failure must not fail the login.
+   */
+  private async syncStaleEmailBestEffort(
+    uid: UserId,
+    authEmail: string | undefined,
+    docEmail: string | undefined,
+  ): Promise<void> {
+    if (!authEmail || !docEmail || authEmail === docEmail) return;
+    try {
+      await this.firestore.collection('users').doc(uid).update({
+        email: authEmail,
+        updatedAt: nowIso(),
+      });
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
+      this.logger.log(`[auth] login healed stale users/${uid}.email`);
+    } catch (err) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
+      this.logger.warn(`[auth] login email sync failed uid=${uid}: ${String(err)}`);
+    }
   }
 
   async getMe(

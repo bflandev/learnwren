@@ -138,6 +138,40 @@ describe('AuthAttemptsRepository.read', () => {
     expect(await repo.read('hash-1')).toBeNull();
     expect(fs._docs.has('hash-1')).toBe(false);
   });
+
+  it('does NOT delete when a NEWER lock was written between the read and the lazy delete', async () => {
+    // Concurrency race: the first read saw an expired lock, but a concurrent
+    // recordFailure re-locked the account before the cleanup delete ran.
+    // Deleting would erase the fresh lock — the in-transaction re-read must
+    // see the changed lock state and leave the doc alone.
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const del = vi.fn(async () => undefined);
+    const get = vi
+      .fn()
+      // 1st read (outside the txn): expired lock.
+      .mockResolvedValueOnce({ exists: true, data: () => ({ failedCount: 3, lockedUntil: past, unlockTokenHash: 'h' }) })
+      // 2nd read (inside the txn): a newer, live lock.
+      .mockResolvedValue({ exists: true, data: () => ({ failedCount: 3, lockedUntil: future, unlockTokenHash: 'h2' }) });
+    const ref = { get, delete: del };
+    const fakeFirestore = {
+      collection: vi.fn(() => ({ doc: vi.fn(() => ref) })),
+      runTransaction: vi.fn(async (cb: (t: unknown) => unknown) =>
+        cb({
+          get: async (r: typeof ref) => r.get(),
+          delete: (r: typeof ref) => r.delete(),
+        }),
+      ),
+      _docs: new Map(),
+      _queryHits: new Map(),
+    } as unknown as FakeFirestore;
+    const repo = await buildRepo(fakeFirestore);
+
+    // Per the snapshot this call read, the lock is expired → null is correct…
+    expect(await repo.read('hash-1')).toBeNull();
+    // …but the newer lock state must survive.
+    expect(del).not.toHaveBeenCalled();
+  });
 });
 
 describe('AuthAttemptsRepository.recordFailure', () => {
@@ -154,7 +188,8 @@ describe('AuthAttemptsRepository.recordFailure', () => {
   });
 
   it('increments to 2 on second failure and preserves firstFailureAt', async () => {
-    const original = '2026-05-06T00:00:00.000Z';
+    // Within the 15-minute failure window — the count must accumulate.
+    const original = new Date(Date.now() - 60_000).toISOString();
     const fs = buildFakeFirestore({
       'hash-1': { failedCount: 1, firstFailureAt: original },
     });
@@ -175,7 +210,8 @@ describe('AuthAttemptsRepository.recordFailure', () => {
     vi.setSystemTime(frozen);
     try {
       const fs = buildFakeFirestore({
-        'hash-1': { failedCount: 2, firstFailureAt: '2026-05-06T00:00:00.000Z' },
+        // Within the 15-minute failure window relative to the frozen clock.
+        'hash-1': { failedCount: 2, firstFailureAt: '2026-05-06T11:55:00.000Z' },
       });
       const repo = await buildRepo(fs);
       const result = await repo.recordFailure('hash-1');
@@ -205,6 +241,39 @@ describe('AuthAttemptsRepository.recordFailure', () => {
     expect(result.locked).toBe(false);
     expect(fs._docs.get('hash-1')?.['failedCount']).toBe(1);
     expect(fs._docs.get('hash-1')?.['lockedUntil']).toBeNull();
+  });
+
+  it('resets the count when firstFailureAt is older than the 15-minute window (2 stale failures + 1 fresh must NOT lock)', async () => {
+    // Without a window, 2 failures today + 1 next year would lock the account.
+    const stale = new Date(Date.now() - 16 * 60 * 1000).toISOString();
+    const fs = buildFakeFirestore({
+      'hash-1': { failedCount: 2, firstFailureAt: stale, lockedUntil: null },
+    });
+    const repo = await buildRepo(fs);
+    const result = await repo.recordFailure('hash-1');
+    expect(result.locked).toBe(false);
+    const doc = fs._docs.get('hash-1')!;
+    expect(doc['failedCount']).toBe(1);
+    // A fresh streak starts now — firstFailureAt must be re-stamped.
+    expect(doc['firstFailureAt']).not.toBe(stale);
+  });
+
+  it('still locks when firstFailureAt is exactly at the 15-minute boundary (window is >, not >=)', async () => {
+    vi.useFakeTimers();
+    const frozen = new Date('2026-05-06T12:00:00.000Z');
+    vi.setSystemTime(frozen);
+    try {
+      const boundary = new Date(frozen.getTime() - 15 * 60 * 1000).toISOString();
+      const fs = buildFakeFirestore({
+        'hash-1': { failedCount: 2, firstFailureAt: boundary, lockedUntil: null },
+      });
+      const repo = await buildRepo(fs);
+      const result = await repo.recordFailure('hash-1');
+      expect(result.locked).toBe(true);
+      expect(fs._docs.get('hash-1')?.['failedCount']).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -338,6 +407,81 @@ describe('AuthAttemptsRepository.redeemUnlockToken', () => {
     const repo = await buildRepo(fakeFirestore);
 
     expect(await repo.redeemUnlockToken('tok')).toEqual({ status: 'invalid' });
+  });
+
+  it('does NOT delete a doc that was re-locked with a NEWER token between the query and the delete', async () => {
+    // Concurrency race: the query matched the old token, but a concurrent
+    // recordFailure re-locked the account with a new unlockTokenHash before we
+    // deleted. Deleting would erase the newer lock state — the in-transaction
+    // re-read must detect the mismatch and leave the doc alone.
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const del = vi.fn(async () => undefined);
+    const staleData = { failedCount: 3, lockedUntil: future, unlockTokenHash: sha256Hex('tok') };
+    const newerData = { failedCount: 3, lockedUntil: future, unlockTokenHash: sha256Hex('NEWER') };
+    const ref = {
+      get: vi.fn(async () => ({ exists: true, data: () => newerData })),
+      delete: del,
+    };
+    const fakeFirestore = {
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({ get: vi.fn(), set: vi.fn(), delete: vi.fn() })),
+        where: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            get: vi.fn(async () => ({
+              empty: false,
+              docs: [{ id: 'hash-1', exists: true, data: () => staleData, ref }],
+            })),
+          })),
+        })),
+      })),
+      runTransaction: vi.fn(async (cb: (t: unknown) => unknown) =>
+        cb({
+          get: async (r: typeof ref) => r.get(),
+          delete: (r: typeof ref) => r.delete(),
+        }),
+      ),
+      _docs: new Map(),
+      _queryHits: new Map(),
+    } as unknown as FakeFirestore;
+    const repo = await buildRepo(fakeFirestore);
+
+    expect(await repo.redeemUnlockToken('tok')).toEqual({ status: 'invalid' });
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  it('returns invalid without deleting when the doc vanished between the query and the transaction', async () => {
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const del = vi.fn(async () => undefined);
+    const staleData = { failedCount: 3, lockedUntil: future, unlockTokenHash: sha256Hex('tok') };
+    const ref = {
+      get: vi.fn(async () => ({ exists: false, data: () => undefined })),
+      delete: del,
+    };
+    const fakeFirestore = {
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({ get: vi.fn(), set: vi.fn(), delete: vi.fn() })),
+        where: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            get: vi.fn(async () => ({
+              empty: false,
+              docs: [{ id: 'hash-1', exists: true, data: () => staleData, ref }],
+            })),
+          })),
+        })),
+      })),
+      runTransaction: vi.fn(async (cb: (t: unknown) => unknown) =>
+        cb({
+          get: async (r: typeof ref) => r.get(),
+          delete: (r: typeof ref) => r.delete(),
+        }),
+      ),
+      _docs: new Map(),
+      _queryHits: new Map(),
+    } as unknown as FakeFirestore;
+    const repo = await buildRepo(fakeFirestore);
+
+    expect(await repo.redeemUnlockToken('tok')).toEqual({ status: 'invalid' });
+    expect(del).not.toHaveBeenCalled();
   });
 });
 

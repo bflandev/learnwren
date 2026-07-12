@@ -108,21 +108,60 @@ export class AdminUsersRepository {
   }
 
   /**
-   * Delete ALL enrollment documents for a user in chunked batches (≤500 per
-   * batch). Follows the no-api-courses-dependency pattern — queries Firestore
-   * directly here rather than calling into the courses lib.
+   * Delete ALL enrollment documents for a user. Follows the
+   * no-api-courses-dependency pattern — queries Firestore directly here rather
+   * than calling into the courses lib.
+   *
+   * Each ACTIVE enrollment holds a +1 in `courses/{courseId}.enrollmentCount`
+   * (maintained by enroll +1 / withdraw −1 in api-courses), so it is deleted
+   * atomically WITH its decrement in one transaction: once the enrollment doc
+   * is gone, a retry's in-txn re-read skips the decrement — no double count.
+   * WITHDRAWN enrollments were already decremented at withdraw and go through
+   * a plain chunked batch delete (≤500 per batch).
    */
   async deleteAllEnrollmentsForUser(uid: UserId): Promise<void> {
     const snap = await this.firestore.collection(ENROLLMENTS).where('userId', '==', uid).get();
-    const refs: DocWithId[] = snap.docs.map((d) => ({ id: d.id }));
-    for (let i = 0; i < refs.length; i += BATCH_DELETE_CHUNK) {
-      const chunk = refs.slice(i, i + BATCH_DELETE_CHUNK);
+    const enrollments = snap.docs.map((d) => ({ id: d.id, data: d.data() as Enrollment }));
+
+    const active = enrollments.filter((e) => e.data.status === 'ACTIVE');
+    for (const e of active) {
+      await this.deleteActiveEnrollmentWithDecrement(e.id, e.data.courseId);
+    }
+
+    const rest: DocWithId[] = enrollments.filter((e) => e.data.status !== 'ACTIVE');
+    for (let i = 0; i < rest.length; i += BATCH_DELETE_CHUNK) {
+      const chunk = rest.slice(i, i + BATCH_DELETE_CHUNK);
       const batch = this.firestore.batch();
       for (const ref of chunk) {
         batch.delete(this.firestore.collection(ENROLLMENTS).doc(ref.id));
       }
       await batch.commit();
     }
+  }
+
+  /**
+   * Delete one ACTIVE enrollment and decrement its course's enrollmentCount in
+   * a single transaction. Tolerates a missing course doc (dangling enrollment)
+   * and floors the count at 0.
+   */
+  private async deleteActiveEnrollmentWithDecrement(
+    enrollmentId: string,
+    courseId: CourseId,
+  ): Promise<void> {
+    const enrollmentRef = this.firestore.collection(ENROLLMENTS).doc(enrollmentId);
+    const courseRef = this.firestore.collection(COURSES).doc(courseId);
+    await this.firestore.runTransaction(async (txn: Transaction) => {
+      const enrollmentSnap = await txn.get(enrollmentRef);
+      // Already purged by a previous (crashed/retried) attempt — nothing to do.
+      if (!enrollmentSnap.exists) return;
+      const courseSnap = await txn.get(courseRef);
+      const stillActive = (enrollmentSnap.data() as Enrollment).status === 'ACTIVE';
+      txn.delete(enrollmentRef);
+      if (stillActive && courseSnap.exists) {
+        const count = (courseSnap.data() as Course).enrollmentCount ?? 0;
+        txn.update(courseRef, { enrollmentCount: Math.max(0, count - 1) });
+      }
+    });
   }
 
   /** Anonymise the users/{uid} document (tombstone — preserves id, role, createdAt). */

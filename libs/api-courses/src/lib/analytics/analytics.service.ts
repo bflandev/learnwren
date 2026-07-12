@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   Course,
   CourseAnalyticsView,
@@ -103,7 +104,7 @@ export class AnalyticsService {
       },
       totalLessons,
       lessons,
-      generatedAt: new Date().toISOString() as ISODateString,
+      generatedAt: nowIso(),
     };
   }
 

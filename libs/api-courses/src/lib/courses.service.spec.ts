@@ -408,6 +408,31 @@ describe('CoursesService — course operations', () => {
       expect(enrollmentRepo.deleteAllForCourse).toHaveBeenCalledWith('cid-1');
     });
 
+    it('sweeps enrollments AGAIN after the course doc (retry gate) is deleted', async () => {
+      // An enroll txn committing between the pre-gate deleteAllForCourse and
+      // the course-doc delete survives as an orphaned ACTIVE enrollment. New
+      // enrolls cannot commit once the course doc is gone (the enroll txn
+      // reads it), so one post-gate sweep catches every straggler.
+      const { svc, enrollmentRepo, fullRepo } = buildFullService();
+      await svc.deleteCourse('cid-1' as CourseId);
+
+      expect(enrollmentRepo.deleteAllForCourse).toHaveBeenCalledTimes(2);
+      const recursiveOrder = fullRepo.deleteCourseRecursive.mock.invocationCallOrder[0] as number;
+      const sweepOrders = enrollmentRepo.deleteAllForCourse.mock.invocationCallOrder;
+      expect(sweepOrders[0]!).toBeLessThan(recursiveOrder);
+      expect(sweepOrders[1]!).toBeGreaterThan(recursiveOrder);
+    });
+
+    it('a post-gate sweep failure does not fail the delete (course doc is already gone)', async () => {
+      // The retry gate is gone by then — a rethrow would 500 an operation
+      // whose retry path no longer exists (the owner guard now 404s).
+      const { svc, enrollmentRepo } = buildFullService();
+      enrollmentRepo.deleteAllForCourse
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('sweep boom'));
+      await expect(svc.deleteCourse('cid-1' as CourseId)).resolves.toBeUndefined();
+    });
+
     it('calls coverSvc.removeCover with the course id', async () => {
       const { svc, coverSvc } = buildFullService();
       await svc.deleteCourse('cid-1' as CourseId);

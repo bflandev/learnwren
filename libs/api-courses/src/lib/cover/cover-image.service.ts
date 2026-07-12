@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import sharp from 'sharp';
 
+import { nowIso } from '@learnwren/shared-data-models';
 import type { Course, CourseId } from '@learnwren/shared-data-models';
 
 import { CoursesRepository } from '../courses.repository';
@@ -74,7 +75,7 @@ export class CoverImageService {
     // a single repository.updateCourse call. CoursesRepository.updateCourse
     // overwrites updatedAt internally; we mirror its clock by formatting now()
     // the same way (UTC ISO string).
-    const updatedAt = new Date().toISOString() as Course['updatedAt'];
+    const updatedAt = nowIso();
     const coverImageUrl = `${this.cfg.publicBaseUrl}/${path}?v=${encodeURIComponent(updatedAt)}`;
     await this.courses.updateCourse(courseId, { coverImageUrl } as Partial<Course>);
     return { coverImageUrl, updatedAt };
@@ -82,12 +83,19 @@ export class CoverImageService {
 
   async removeCover(courseId: CourseId): Promise<{ updatedAt: Course['updatedAt'] }> {
     const path = `course-covers/${courseId}/cover.jpg`;
-    await this.storage.deleteObject({ path });
-    const updatedAt = new Date().toISOString() as Course['updatedAt'];
+    // Clear the Firestore field BEFORE deleting the object: if this call
+    // fails, the worst case is an orphaned object; the old order (delete
+    // object, then clear) could fail mid-way and leave coverImageUrl pointing
+    // at a deleted object (broken image on every course card).
+    // Note: an uploadCover racing this remove can still lose its object (the
+    // paths collide at cover.jpg) — fully closing that race needs versioned
+    // object names, deliberately not redesigned here.
     // Use the dedicated field-delete path: a plain updateCourse with
     // `coverImageUrl: undefined` is a no-op in Firebase Admin because
     // `.update()` strips undefined keys, leaving the URL in place.
     await this.courses.clearCoverImageUrl(courseId);
+    const updatedAt = nowIso();
+    await this.storage.deleteObject({ path });
     return { updatedAt };
   }
 }

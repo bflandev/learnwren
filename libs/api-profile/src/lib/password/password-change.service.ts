@@ -5,6 +5,7 @@ import {
   EMAIL_TRANSPORT,
   PasswordPolicyService,
   PasswordVerificationService,
+  revokeAllUserSessions,
   type EmailTransport,
 } from '@learnwren/api-auth';
 import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
@@ -63,8 +64,10 @@ export class PasswordChangeService {
     // Best-effort for the same reason: the password is already changed, so a
     // revocation failure must not surface as a failed request. The stale
     // sessions age out; the user holds the new password either way.
+    // revokeAllUserSessions (not a bare revoke) closes the same-second
+    // cookie-minting gap — see its doc comment.
     try {
-      await this.auth.revokeRefreshTokens(uid);
+      await revokeAllUserSessions(this.auth, uid);
     } catch (err) {
       this.logger.error(`[profile] password-change revoke failed uid=${uid}: ${String(err)}`);
     }

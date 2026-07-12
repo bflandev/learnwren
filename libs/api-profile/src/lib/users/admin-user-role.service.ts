@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Transaction } from 'firebase-admin/firestore';
 
+import { revokeAllUserSessions } from '@learnwren/api-auth';
 import {
   FIRESTORE,
   type FirestoreHandle,
@@ -8,22 +9,32 @@ import {
   type FirebaseAuthHandle,
 } from '@learnwren/api-firebase';
 import { nowIso } from '@learnwren/shared-data-models';
-import type { AdminUserRoleResponse, UserId, UserRole } from '@learnwren/shared-data-models';
+import type {
+  AdminUserRoleResponse,
+  CourseId,
+  InstructorApplication,
+  UserId,
+  UserRole,
+} from '@learnwren/shared-data-models';
 
 import { AdminUsersRepository } from './admin-users.repository';
 import {
   AdminUsersException,
   InvalidRoleTransitionException,
   RoleChangeTargetNotActiveException,
+  UserHasCoursesException,
   UserNotFoundException,
 } from './errors/admin-users.exception';
 import {
   resolvePendingInstructorApplication,
   type PromotionFirestoreLike,
 } from '../instructor-application/instructor-promotion';
+import { INSTRUCTOR_APPLICATIONS_COLLECTION } from '../instructor-application/instructor-applications.constants';
 import { resolveStatus } from './user-status';
 
 const USERS = 'users';
+/** Maximum number of course IDs to include in the USER_HAS_COURSES error details. */
+const COURSE_IDS_IN_ERROR = 10;
 
 /**
  * Admin promote / demote operations.
@@ -76,14 +87,20 @@ export class AdminUserRoleService {
 
   async demote(actorUid: UserId, uid: UserId): Promise<AdminUserRoleResponse> {
     const updatedAt = nowIso();
-    await this.claimRoleInTxn(uid, 'INSTRUCTOR', 'STUDENT', updatedAt);
+    // Mirror the delete path's USER_HAS_COURSES block: a demoted instructor's
+    // PUBLISHED courses would stay live but unmanageable (instructor-only
+    // guards) and undeletable.
+    await this.claimRoleInTxn(uid, 'INSTRUCTOR', 'STUDENT', updatedAt, {
+      rejectWhenAuthorOfCourses: true,
+    });
 
     try {
       // 1. Claim downgrade first: any token minted from now on is STUDENT.
       await this.auth.setCustomUserClaims(uid, { role: 'STUDENT' });
       // 2. Revoke: invalidates already-issued INSTRUCTOR session cookies (the
-      //    session guard verifies with checkRevoked=true).
-      await this.auth.revokeRefreshTokens(uid);
+      //    session guard verifies with checkRevoked=true). revokeAllUserSessions
+      //    (not a bare revoke) closes the same-second cookie-minting gap.
+      await revokeAllUserSessions(this.auth, uid);
     } catch (err) {
       // A partial failure may leave Auth/Firestore role state out of sync (and,
       // worst case, refresh tokens un-revoked). Revert the role claim so the
@@ -94,8 +111,39 @@ export class AdminUserRoleService {
       );
       throw new AdminUsersException('INTERNAL', 'An internal error occurred during demotion.', 500, undefined, { cause: err });
     }
+    // Re-open the application: an APPROVED instructorApplications/{uid} doc
+    // permanently blocks self-service re-application (submit throws
+    // ALREADY_INSTRUCTOR on APPROVED). Runs after the role txn + side effects
+    // so a crash here leaves at worst today's stale-APPROVED state.
+    await this.declineApprovedApplicationBestEffort(uid, updatedAt);
     this.logger.log(`Demoted uid=${uid} to STUDENT by actor=${actorUid}`);
     return { id: uid, role: 'STUDENT' };
+  }
+
+  /**
+   * Transition an APPROVED instructor application to DECLINED so the demoted
+   * user can re-apply (submit overwrites DECLINED docs). Best-effort: demote
+   * has already committed, so a failure only logs — loudly — because the
+   * stale APPROVED doc then needs a manual fix.
+   */
+  private async declineApprovedApplicationBestEffort(uid: UserId, resolvedAt: string): Promise<void> {
+    try {
+      const ref = this.firestore.collection(INSTRUCTOR_APPLICATIONS_COLLECTION).doc(uid);
+      await this.firestore.runTransaction(async (txn: Transaction) => {
+        const snap = await txn.get(ref);
+        if (!snap.exists) return;
+        if ((snap.data() as InstructorApplication).status !== 'APPROVED') return;
+        (txn as unknown as { update(ref: unknown, data: Record<string, unknown>): void }).update(
+          ref,
+          { status: 'DECLINED', resolvedAt },
+        );
+      });
+    } catch (err) {
+      this.logger.error(
+        `demote uid=${uid}: failed to decline the APPROVED instructor application — ` +
+          `the user cannot re-apply until it is manually set to DECLINED: ${String(err)}`,
+      );
+    }
   }
 
   /**
@@ -109,6 +157,7 @@ export class AdminUserRoleService {
     fromRole: UserRole,
     toRole: UserRole,
     updatedAt: string,
+    opts: { rejectWhenAuthorOfCourses?: boolean } = {},
   ): Promise<void> {
     await this.firestore.runTransaction(async (txn: Transaction) => {
       const user = await this.repo.getUserInTxn(txn, uid);
@@ -120,6 +169,20 @@ export class AdminUserRoleService {
       }
       if (user.role !== fromRole) {
         throw new InvalidRoleTransitionException(user.role as UserRole, toRole);
+      }
+
+      // Authored-course block (demote only) — txn-read like the delete path,
+      // so a course created concurrently aborts and retries this transaction.
+      if (opts.rejectWhenAuthorOfCourses) {
+        const ownedCourses = await this.repo.listAuthoredCoursesInTxn(txn, uid);
+        if (ownedCourses.length > 0) {
+          const ids = ownedCourses.slice(0, COURSE_IDS_IN_ERROR).map((c) => c.id as CourseId);
+          throw new UserHasCoursesException(
+            ownedCourses.length,
+            ids,
+            'Cannot demote an instructor who owns courses. Resolve the courses first.',
+          );
+        }
       }
 
       // Claim the role inside the same transaction.

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   ISODateString,
   VideoCaptions,
@@ -27,15 +28,16 @@ export class CaptionsService {
     const text = body.toString('utf-8');
     if (!isValidWebVtt(text)) throw new InvalidCaptionFileException();
 
-    const now = new Date().toISOString() as ISODateString;
-    const existing = await this.repo.getCaptions(videoId);
+    const now = nowIso();
+    // The repo's transactional upsert checks video existence and preserves an
+    // existing doc's createdAt; `createdAt: now` is only the create-case fallback.
     const captions: VideoCaptions = {
       videoId,
       language: DEFAULT_LANGUAGE,
       label: DEFAULT_LABEL,
       format: 'vtt',
       content: text,
-      createdAt: existing?.createdAt ?? now,
+      createdAt: now,
       updatedAt: now,
     };
     await this.repo.upsertCaptions(captions);

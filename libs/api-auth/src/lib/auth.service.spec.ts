@@ -911,6 +911,87 @@ describe('AuthService.login', () => {
   });
 });
 
+describe('AuthService.login — lazy heal of a stale users/{uid}.email', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const validInput = { email: 'new@example.com', password: 'Aa1!aaaaaaaa' };
+
+  /** Auth stub whose canonical (post-change) email is `authEmail`. */
+  function authWithEmail(authEmail: string): FakeAuth {
+    const auth = buildFakeAuth({
+      verifyIdToken: vi.fn(async () => ({
+        uid: 'uid-123',
+        email: authEmail,
+        role: 'STUDENT',
+        email_verified: true,
+      })),
+    });
+    (auth as unknown as { getUser: ReturnType<typeof vi.fn> }).getUser = vi.fn(async () => ({
+      uid: 'uid-123',
+      email: authEmail,
+      emailVerified: true,
+      displayName: 'Alice',
+    }));
+    return auth;
+  }
+
+  /** Firestore stub with a full user doc (including email) and an update spy. */
+  function fsWithUserEmail(
+    docEmail: string,
+    updateImpl: () => Promise<void> = async () => undefined,
+  ): { fs: FakeFirestore; update: ReturnType<typeof vi.fn> } {
+    const update = vi.fn(updateImpl);
+    const fs = buildFakeFirestore();
+    fs.collection = vi.fn(() => ({
+      doc: vi.fn(() => ({
+        get: vi.fn(async () => ({
+          exists: true,
+          data: () => ({ id: 'uid-123', displayName: 'Alice', role: 'STUDENT', email: docEmail }),
+        })),
+        set: fs._set,
+        update,
+      })),
+    })) as unknown as FakeFirestore['collection'];
+    return { fs, update };
+  }
+
+  it('syncs the doc email (+updatedAt) when Firebase Auth email differs — verify link opened without a session', async () => {
+    const auth = authWithEmail('new@example.com');
+    const { fs, update } = fsWithUserEmail('old@example.com');
+    const { repo: attempts } = buildAttemptsMock();
+    const service = await buildLoginModule(auth, fs, buildFakeRestClient('ID-TOKEN'), attempts);
+
+    const result = await service.login(validInput);
+
+    expect(update).toHaveBeenCalledWith({ email: 'new@example.com', updatedAt: expect.any(String) });
+    expect(result.email).toBe('new@example.com');
+  });
+
+  it('does not touch the doc when the emails already match', async () => {
+    const auth = authWithEmail('same@example.com');
+    const { fs, update } = fsWithUserEmail('same@example.com');
+    const { repo: attempts } = buildAttemptsMock();
+    const service = await buildLoginModule(auth, fs, buildFakeRestClient('ID-TOKEN'), attempts);
+
+    await service.login({ ...validInput, email: 'same@example.com' });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('a failed email sync must NOT fail the login (best-effort)', async () => {
+    const auth = authWithEmail('new@example.com');
+    const { fs, update } = fsWithUserEmail('old@example.com', async () => {
+      throw new Error('firestore down');
+    });
+    const { repo: attempts } = buildAttemptsMock();
+    const service = await buildLoginModule(auth, fs, buildFakeRestClient('ID-TOKEN'), attempts);
+
+    const result = await service.login(validInput);
+    expect(update).toHaveBeenCalled();
+    expect(result.uid).toBe('uid-123');
+    expect(result.cookie).toBe('COOKIE-VALUE');
+  });
+});
+
 describe('AuthService.login — lock-fired email send', () => {
   beforeEach(() => vi.clearAllMocks());
 

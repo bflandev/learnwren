@@ -52,6 +52,8 @@ function fakeFirestore(
     scanDocs?: Array<{ id: string; data: Record<string, unknown> }>;
     /** Docs returned by enrollment where().get() for delete-all (have ids). */
     enrollmentDocs?: Array<{ id: string; data: Record<string, unknown> }>;
+    /** Raw snapshot override for enrollments/{id}.get() inside a transaction. */
+    enrollmentSnapshots?: Record<string, { exists: boolean; data: () => unknown }>;
     /** Existence of the instructorApplications/{uid} doc. */
     applicationExists?: boolean;
   },
@@ -97,6 +99,11 @@ function fakeFirestore(
               if (name === 'instructorApplications') {
                 return { exists: opts.applicationExists ?? false, data: () => undefined };
               }
+              if (name === 'enrollments') {
+                if (opts.enrollmentSnapshots?.[id]) return opts.enrollmentSnapshots[id];
+                const found = opts.enrollmentDocs?.find((d) => d.id === id);
+                return { exists: found !== undefined, data: () => found?.data };
+              }
               if (name === 'courses' && opts.courseSnapshots?.[id]) {
                 return opts.courseSnapshots[id];
               }
@@ -122,6 +129,18 @@ function fakeFirestore(
         rec.batchCommits++;
       },
     }),
+    // Minimal Transaction stub: get/update/delete delegate to the ref built by
+    // collection().doc() above, so all interactions land in the recorder.
+    runTransaction: async (fn: (txn: unknown) => Promise<unknown>) =>
+      fn({
+        get: (ref: { get: () => Promise<unknown> }) => ref.get(),
+        update: (ref: { update: (p: Record<string, unknown>) => Promise<void> }, payload: Record<string, unknown>) => {
+          void ref.update(payload);
+        },
+        delete: (ref: { delete: () => Promise<void> }) => {
+          void ref.delete();
+        },
+      }),
   } as unknown as FirestoreHandle;
   return { handle, rec };
 }
@@ -424,6 +443,97 @@ describe('AdminUsersRepository', () => {
     expect(deleted).toHaveLength(501);
     expect(deleted[0]).toEqual({ collection: 'enrollments', id: 'e0' });
     expect(deleted[500]).toEqual({ collection: 'enrollments', id: 'e500' });
+  });
+
+  // ---------------------------------------------------------------------------
+  // deleteAllEnrollmentsForUser — ACTIVE enrollments must also decrement the
+  // course's enrollmentCount (kept by enroll +1 / withdraw −1 in api-courses);
+  // otherwise POPULAR catalog ranking inflates permanently.
+  // ---------------------------------------------------------------------------
+
+  it('decrements courses/{courseId}.enrollmentCount when purging an ACTIVE enrollment', async () => {
+    const { handle, rec } = fakeFirestore({
+      enrollmentDocs: [
+        { id: 'u1__c1', data: { userId: 'u1', courseId: 'c1', status: 'ACTIVE' } },
+      ],
+      coursesById: { c1: { id: 'c1', title: 'Intro', enrollmentCount: 5 } },
+    });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteAllEnrollmentsForUser('u1' as UserId);
+    // Enrollment deleted atomically with the decrement (via the transaction).
+    expect(rec.docDeletes).toContain('enrollments/u1__c1');
+    expect(rec.updates).toContainEqual({
+      collection: 'courses',
+      id: 'c1',
+      payload: { enrollmentCount: 4 },
+    });
+    // The ACTIVE path never uses the (non-atomic) batch.
+    expect(rec.batchCommits).toBe(0);
+  });
+
+  it('floors enrollmentCount at 0 and treats a missing count as 0', async () => {
+    const { handle, rec } = fakeFirestore({
+      enrollmentDocs: [
+        { id: 'u1__c1', data: { userId: 'u1', courseId: 'c1', status: 'ACTIVE' } },
+        { id: 'u1__c2', data: { userId: 'u1', courseId: 'c2', status: 'ACTIVE' } },
+      ],
+      coursesById: {
+        c1: { id: 'c1', enrollmentCount: 0 },
+        c2: { id: 'c2' }, // pre-Slice-B doc without the field
+      },
+    });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteAllEnrollmentsForUser('u1' as UserId);
+    expect(rec.updates).toContainEqual({ collection: 'courses', id: 'c1', payload: { enrollmentCount: 0 } });
+    expect(rec.updates).toContainEqual({ collection: 'courses', id: 'c2', payload: { enrollmentCount: 0 } });
+  });
+
+  it('tolerates a missing course doc: deletes the dangling ACTIVE enrollment, no course write', async () => {
+    const { handle, rec } = fakeFirestore({
+      enrollmentDocs: [
+        { id: 'u1__gone', data: { userId: 'u1', courseId: 'gone', status: 'ACTIVE' } },
+      ],
+      coursesById: {},
+    });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteAllEnrollmentsForUser('u1' as UserId);
+    expect(rec.docDeletes).toContain('enrollments/u1__gone');
+    expect(rec.updates).toEqual([]);
+  });
+
+  it('skips an ACTIVE enrollment already purged by a previous attempt (no double-decrement on retry)', async () => {
+    const { handle, rec } = fakeFirestore({
+      enrollmentDocs: [
+        { id: 'u1__c1', data: { userId: 'u1', courseId: 'c1', status: 'ACTIVE' } },
+      ],
+      // In-txn re-read: the doc vanished between the query and the transaction.
+      enrollmentSnapshots: { u1__c1: { exists: false, data: () => undefined } },
+      coursesById: { c1: { id: 'c1', enrollmentCount: 5 } },
+    });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteAllEnrollmentsForUser('u1' as UserId);
+    expect(rec.docDeletes).toEqual([]);
+    expect(rec.updates).toEqual([]);
+  });
+
+  it('does NOT decrement for WITHDRAWN enrollments (already decremented at withdraw)', async () => {
+    const { handle, rec } = fakeFirestore({
+      enrollmentDocs: [
+        { id: 'u1__c1', data: { userId: 'u1', courseId: 'c1', status: 'WITHDRAWN' } },
+        { id: 'u1__c2', data: { userId: 'u1', courseId: 'c2', status: 'ACTIVE' } },
+      ],
+      coursesById: {
+        c1: { id: 'c1', enrollmentCount: 5 },
+        c2: { id: 'c2', enrollmentCount: 5 },
+      },
+    });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteAllEnrollmentsForUser('u1' as UserId);
+    // Only the ACTIVE enrollment's course is decremented.
+    expect(rec.updates).toEqual([{ collection: 'courses', id: 'c2', payload: { enrollmentCount: 4 } }]);
+    // The WITHDRAWN one still gets batch-deleted.
+    expect(rec.batchCommits).toBe(1);
+    expect(rec.docDeletes).toContain('enrollments/u1__c2');
   });
 
   // ---------------------------------------------------------------------------
