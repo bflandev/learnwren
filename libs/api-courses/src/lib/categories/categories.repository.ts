@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { firestore as adminFirestore } from 'firebase-admin';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { FIRESTORE, type FirestoreHandle, runTransactionWithRetry } from '@learnwren/api-firebase';
 import { nowIso } from '@learnwren/shared-data-models';
 import type { CategoryId, Course, CourseCategoryDoc } from '@learnwren/shared-data-models';
 
@@ -78,7 +78,7 @@ export class CategoriesRepository {
 
   async create(id: CategoryId, name: string): Promise<CourseCategoryDoc> {
     await this.listAll(); // ensure defaults exist before the first admin write
-    return this.firestore.runTransaction(async (t) => {
+    return runTransactionWithRetry(this.firestore, async (t) => {
       const snap = await t.get(this.col());
       const existing = snap.docs.map((d) => d.data() as CourseCategoryDoc);
       if (existing.some((c) => c.id === id || sameName(c.name, name))) {
@@ -92,7 +92,7 @@ export class CategoriesRepository {
   }
 
   async rename(id: CategoryId, name: string): Promise<CourseCategoryDoc> {
-    return this.firestore.runTransaction(async (t) => {
+    return runTransactionWithRetry(this.firestore, async (t) => {
       const snap = await t.get(this.col());
       const existing = snap.docs.map((d) => d.data() as CourseCategoryDoc);
       const target = existing.find((c) => c.id === id);
@@ -117,7 +117,7 @@ export class CategoriesRepository {
     id: CategoryId,
     reassignTo: CategoryId | undefined,
   ): Promise<{ reassignedCourses: number }> {
-    return this.firestore.runTransaction(async (t) => {
+    return runTransactionWithRetry(this.firestore, async (t) => {
       const catsSnap = await t.get(this.col());
       const cats = catsSnap.docs.map((d) => d.data() as CourseCategoryDoc);
       if (!cats.some((c) => c.id === id)) throw new CategoryNotFoundException();

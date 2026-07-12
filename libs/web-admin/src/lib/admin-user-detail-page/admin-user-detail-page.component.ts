@@ -155,7 +155,8 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
     if (code === 'USER_HAS_COURSES') {
       // Stryker disable next-line OptionalChaining: equivalent — this branch is only reached when code === 'USER_HAS_COURSES', which requires body?.code to be set, so body is provably non-null here; the `body?.details` guard can never short-circuit and removing it is unobservable.
       const count = body?.details?.['courseCount'];
-      return `Cannot delete: this user owns ${count ?? 'one or more'} course(s). Transfer or delete their courses first.`;
+      // Action-neutral: USER_HAS_COURSES blocks both delete AND demote.
+      return `This user owns ${count ?? 'one or more'} course(s). Transfer or delete their courses first.`;
     }
     return 'Something went wrong. Please try again.';
   }

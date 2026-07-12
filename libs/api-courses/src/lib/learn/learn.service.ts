@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { firestore as adminFirestore } from 'firebase-admin';
 
+import { nowIso } from '@learnwren/shared-data-models';
 import type {
   Course,
   CourseOutline,
@@ -56,7 +57,7 @@ export class LearnService {
           userId,
           course.id,
           lesson.id,
-          new Date().toISOString() as ISODateString,
+          nowIso(),
         );
       } catch (err) {
         this.logger.warn(
@@ -136,7 +137,7 @@ export class LearnService {
           await this.enrollment.stampCompleted(
             userId,
             course.id,
-            new Date().toISOString() as ISODateString,
+            nowIso(),
             (t) => this.listAllLessonIdsInTxn(t, course),
           );
         } catch (err) {
@@ -171,7 +172,7 @@ export class LearnService {
       userId,
       course.id,
       lesson.id,
-      new Date().toISOString() as ISODateString,
+      nowIso(),
       (t) => this.listAllLessonIdsInTxn(t, course),
     );
   }

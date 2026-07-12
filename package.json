@@ -26,7 +26,7 @@
     "mutate:web-enrollment": "stryker run stryker.web-enrollment.config.mjs",
     "mutate:web-ui": "stryker run stryker.web-ui.config.mjs",
     "mutate:report": "node tools/mutation/report.mjs",
-    "mutate": "pnpm mutate:api-auth && pnpm mutate:api-courses && pnpm mutate:web-catalog && pnpm mutate:web-enrollment && pnpm mutate:web-ui && pnpm mutate:report",
+    "mutate": "pnpm mutate:api-auth && pnpm mutate:api-courses && pnpm mutate:web-catalog && pnpm mutate:web-enrollment && pnpm mutate:web-ui && node tools/mutation/report.mjs api-auth && node tools/mutation/report.mjs api-courses && node tools/mutation/report.mjs web-catalog && node tools/mutation/report.mjs web-enrollment && node tools/mutation/report.mjs web-ui",
     "emulators": "firebase emulators:start --config firebase.emulator.json",
     "deploy:prod": "firebase deploy --config firebase.deploy.json -P production",
     "deploy:preview": "firebase deploy --config firebase.deploy.json -P production --except hosting",

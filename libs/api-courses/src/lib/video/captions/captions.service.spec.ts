@@ -34,18 +34,15 @@ describe('CaptionsService', () => {
     );
   });
 
-  it('preserves the original createdAt on replace', async () => {
-    const existing = {
-      videoId: VID, language: 'en', label: 'English', format: 'vtt',
-      content: 'WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nold\n',
-      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-    } as VideoCaptions;
-    const repo = makeRepo(existing);
+  it('delegates the upsert atomically to the repo (no separate pre-read of existing captions)', async () => {
+    // createdAt preservation and the video-existence check both live inside
+    // the repo's transaction now — the old non-txn read-then-set here could
+    // recreate an orphan videoCaptions doc when a PUT raced deleteVideoAndDetach.
+    const repo = makeRepo();
     const svc = new CaptionsService(repo as never);
     await svc.put(VID, VALID);
-    expect(repo.upsertCaptions).toHaveBeenCalledWith(
-      expect.objectContaining({ createdAt: '2026-01-01T00:00:00.000Z' }),
-    );
+    expect(repo.getCaptions).not.toHaveBeenCalled();
+    expect(repo.upsertCaptions).toHaveBeenCalledOnce();
   });
 
   it('rejects a non-WebVTT body', async () => {

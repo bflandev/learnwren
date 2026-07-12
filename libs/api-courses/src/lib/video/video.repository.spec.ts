@@ -17,6 +17,7 @@ import type {
 
 import {
   InvalidVideoStateException,
+  LessonAlreadyHasVideoException,
   UploadCompletionInProgressException,
   VideoNotFoundException,
 } from './errors/video.exception';
@@ -296,6 +297,37 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
 
     // The first job's name survives — the loser did not corrupt the record.
     expect((fake.__store.get('videos/v1') as Video).transcoderJobName).toBe('job-A');
+  });
+
+  it('rejects with 409 when the lesson already points at a DIFFERENT video (double-finalize race)', async () => {
+    // Two concurrent upload SESSIONS create two video docs for one lesson; each
+    // is PENDING_UPLOAD so the state guard alone cannot stop the loser from
+    // overwriting Lesson.videoId and orphaning the winner's video forever.
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo(),
+      [LESSON_PATH]: lessonDoc({ videoId: 'v-winner' }),
+    });
+    const repo = await buildRepo(fake);
+
+    await expect(repo.finalizeUploadWithJob(finalizeArgs)).rejects.toBeInstanceOf(
+      LessonAlreadyHasVideoException,
+    );
+
+    // The winner's link survives; the loser's doc was not transitioned.
+    expect((fake.__store.get(LESSON_PATH) as { videoId?: string }).videoId).toBe('v-winner');
+    expect((fake.__store.get('videos/v1') as Video).state).toBe('PENDING_UPLOAD');
+    expect(fake.__store.has('videoKeys/k1')).toBe(false);
+  });
+
+  it('still finalizes when the lesson already points at THIS video', async () => {
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo(),
+      [LESSON_PATH]: lessonDoc({ videoId: 'v1' }),
+    });
+    const repo = await buildRepo(fake);
+
+    const result = await repo.finalizeUploadWithJob(finalizeArgs);
+    expect(result.state).toBe('TRANSCODING');
   });
 });
 
@@ -649,12 +681,39 @@ function makeCaptions(overrides: Partial<VideoCaptions> = {}): VideoCaptions {
 
 describe('VideoRepository — captions', () => {
   it('upsertCaptions then getCaptions round-trips', async () => {
-    const fake = createFakeFirestore();
+    const fake = createFakeFirestore({ 'videos/v1': makeVideo() });
     const repo = await buildRepo(fake);
     await repo.upsertCaptions(makeCaptions());
     const got = await repo.getCaptions('v1' as VideoId);
     expect(got?.content).toContain('WEBVTT');
     expect(got?.language).toBe('en');
+  });
+
+  it('upsertCaptions throws VIDEO_NOT_FOUND and writes nothing when the video doc is gone', async () => {
+    // Captions PUT racing a video delete: the old non-transactional
+    // read-then-set recreated an orphan videoCaptions doc that no endpoint
+    // could ever reach (every captions route resolves the video first).
+    const fake = createFakeFirestore();
+    const repo = await buildRepo(fake);
+    await expect(repo.upsertCaptions(makeCaptions())).rejects.toBeInstanceOf(
+      VideoNotFoundException,
+    );
+    expect(fake.__store.has('videoCaptions/v1')).toBe(false);
+  });
+
+  it('upsertCaptions preserves the original createdAt when replacing existing captions', async () => {
+    const OLD = '2026-01-01T00:00:00.000Z' as ISODateString;
+    const fake = createFakeFirestore({
+      'videos/v1': makeVideo(),
+      'videoCaptions/v1': makeCaptions({ createdAt: OLD }),
+    });
+    const repo = await buildRepo(fake);
+    await repo.upsertCaptions(
+      makeCaptions({ createdAt: NOW_ISO as ISODateString, updatedAt: NOW_ISO as ISODateString }),
+    );
+    const stored = fake.__store.get('videoCaptions/v1') as VideoCaptions;
+    expect(stored.createdAt).toBe(OLD);
+    expect(stored.updatedAt).toBe(NOW_ISO);
   });
 
   it('getCaptions returns null when absent', async () => {

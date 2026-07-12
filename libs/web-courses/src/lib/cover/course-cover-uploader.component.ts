@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 
+import { nowIso } from '@learnwren/shared-data-models';
 import type { CourseId, ISODateString } from '@learnwren/shared-data-models';
 import {
   LwButtonDirective,
@@ -78,7 +79,7 @@ export class CourseCoverUploaderComponent {
       await this.svc.remove(this.courseId());
       this.coverChanged.emit({
         coverImageUrl: undefined,
-        updatedAt: new Date().toISOString() as ISODateString,
+        updatedAt: nowIso(),
       });
       this.state.set({ kind: 'idle' });
     } catch (err) {

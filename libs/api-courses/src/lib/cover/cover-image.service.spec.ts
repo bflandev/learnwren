@@ -174,4 +174,23 @@ describe('CoverImageService — happy path', () => {
     expect(repo.updateCourse).not.toHaveBeenCalled();
     expect(repo.state.get(CID)!.coverImageUrl).toBeUndefined();
   });
+
+  it('removeCover clears the Firestore field BEFORE deleting the object', async () => {
+    // Failure-mode ordering: if the object delete ran first and the field
+    // clear then failed, coverImageUrl would point at a dead object (broken
+    // image). Clearing first flips that failure mode to a harmless orphaned
+    // object.
+    await storage.putObject({
+      path: 'course-covers/c1/cover.jpg',
+      contentType: 'image/jpeg',
+      body: Buffer.from('x'),
+    });
+    const deleteSpy = vi.spyOn(storage, 'deleteObject');
+
+    await svc.removeCover(CID);
+
+    const clearOrder = repo.clearCoverImageUrl.mock.invocationCallOrder[0] as number;
+    const deleteOrder = deleteSpy.mock.invocationCallOrder[0] as number;
+    expect(clearOrder).toBeLessThan(deleteOrder);
+  });
 });

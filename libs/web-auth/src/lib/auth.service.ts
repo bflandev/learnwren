@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, switchMap, tap } from 'rxjs';
 
-import type { ApiAuthErrorBody } from '@learnwren/shared-data-models';
+import type { ApiAuthErrorBody, AuthErrorCode } from '@learnwren/shared-data-models';
 
 import type { AuthenticatedUser } from './types/authenticated-user';
 
@@ -12,19 +12,25 @@ export interface RegisterInput {
   displayName: string;
 }
 
-export type LoginErrorCode =
-  | 'INVALID_CREDENTIALS'
-  | 'EMAIL_NOT_VERIFIED'
-  | 'ACCOUNT_LOCKED'
-  | 'WEAK_PASSWORD'
-  | 'EMAIL_ALREADY_EXISTS'
+// The login/register codes this client maps to specific UX; everything else
+// falls to INTERNAL by design. `satisfies` ties each literal to the shared
+// AuthErrorCode union so a renamed/removed API code fails compilation here
+// instead of silently drifting.
+const LOGIN_ERROR_CODES = [
+  'INVALID_CREDENTIALS',
+  'EMAIL_NOT_VERIFIED',
+  'ACCOUNT_LOCKED',
+  'WEAK_PASSWORD',
+  'EMAIL_ALREADY_EXISTS',
   // Register-specific 400s the API can throw; surfaced so the register page can
   // show actionable field messages instead of a generic INTERNAL fallback.
-  | 'INVALID_EMAIL'
-  | 'EMAIL_TOO_LONG'
-  | 'INVALID_DISPLAY_NAME'
-  | 'PASSWORD_TOO_LONG'
-  | 'INTERNAL';
+  'INVALID_EMAIL',
+  'EMAIL_TOO_LONG',
+  'INVALID_DISPLAY_NAME',
+  'PASSWORD_TOO_LONG',
+] as const satisfies readonly AuthErrorCode[];
+
+export type LoginErrorCode = (typeof LOGIN_ERROR_CODES)[number] | 'INTERNAL';
 
 export type LoginResult =
   | { ok: true }
@@ -136,19 +142,9 @@ export class AuthService {
     if (err instanceof HttpErrorResponse) {
       const body = err.error as ApiAuthErrorBody | undefined;
       const code = body?.error?.code;
-      if (
-        code === 'INVALID_CREDENTIALS' ||
-        code === 'EMAIL_NOT_VERIFIED' ||
-        code === 'ACCOUNT_LOCKED' ||
-        code === 'WEAK_PASSWORD' ||
-        code === 'EMAIL_ALREADY_EXISTS' ||
-        code === 'INVALID_EMAIL' ||
-        code === 'EMAIL_TOO_LONG' ||
-        code === 'INVALID_DISPLAY_NAME' ||
-        code === 'PASSWORD_TOO_LONG'
-      ) {
-        // Stryker disable next-line OptionalChaining: reaching this line requires `body?.error?.code` (line 137) to have evaluated to a matched string literal, which is only possible when both `body` and `body.error` are truthy. Therefore `body.error.details`, `body.error?.details` and `body?.error?.details` are all identical here; the optional-chaining variants are equivalent.
-        return { ok: false, code, details: body?.error?.details };
+      if (code && (LOGIN_ERROR_CODES as readonly string[]).includes(code)) {
+        // Stryker disable next-line OptionalChaining: reaching this line requires `body?.error?.code` to have evaluated to a matched string literal, which is only possible when both `body` and `body.error` are truthy. Therefore `body.error.details`, `body.error?.details` and `body?.error?.details` are all identical here; the optional-chaining variants are equivalent.
+        return { ok: false, code: code as LoginErrorCode, details: body?.error?.details };
       }
     }
     return { ok: false, code: 'INTERNAL' };

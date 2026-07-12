@@ -8,6 +8,12 @@ import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
 const COLLECTION = 'auth_attempts';
 const FAIL_LIMIT = 3;
 const LOCKOUT_MS = 15 * 60 * 1000;
+/**
+ * Failure-count window (docs/epics/01, US "a fourth login within 15 minutes"):
+ * failures only accumulate toward a lock while firstFailureAt is within this
+ * window; older streaks reset, so 2 stale failures + 1 fresh cannot lock.
+ */
+const FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const THROTTLE_MS = 60 * 1000;
 
 export interface AuthAttemptsDoc {
@@ -49,7 +55,15 @@ export class AuthAttemptsRepository {
     if (!snap.exists) return null;
     const data = snap.data() as AuthAttemptsDoc;
     if (this.isExpiredLock(data.lockedUntil)) {
-      await ref.delete();
+      // Lazy cleanup, guarded in a transaction: a concurrent recordFailure may
+      // have re-locked the account between our read and this delete — only
+      // delete while the lock state still matches what we read.
+      await this.firestore.runTransaction(async (t) => {
+        const fresh = await t.get(ref);
+        if (!fresh.exists) return;
+        const freshData = fresh.data() as AuthAttemptsDoc;
+        if (freshData.lockedUntil === data.lockedUntil) t.delete(ref);
+      });
       return null;
     }
     return data;
@@ -67,6 +81,17 @@ export class AuthAttemptsRepository {
         : this.freshDoc(nowIso);
 
       if (this.isExpiredLock(data.lockedUntil)) {
+        data = this.freshDoc(nowIso);
+      }
+
+      // Failure window: on an unlocked doc, a streak whose first failure is
+      // older than the window has lapsed — start a fresh count. (Never applied
+      // while a live lock exists; that would clear an active lockout.)
+      if (
+        !data.lockedUntil &&
+        data.firstFailureAt &&
+        now.getTime() - new Date(data.firstFailureAt).getTime() > FAILURE_WINDOW_MS
+      ) {
         data = this.freshDoc(nowIso);
       }
 
@@ -104,15 +129,19 @@ export class AuthAttemptsRepository {
 
     const docSnap = query.docs[0];
     if (!docSnap) return { status: 'invalid' };
-    const data = docSnap.data() as AuthAttemptsDoc;
 
-    if (this.isExpiredLock(data.lockedUntil)) {
-      await docSnap.ref.delete();
-      return { status: 'expired' };
-    }
+    // Re-read inside a transaction: a concurrent recordFailure may have
+    // re-locked the account with a NEW token between the query and this
+    // delete — deleting on the stale match would erase the newer lock.
+    return this.firestore.runTransaction(async (t): Promise<RedeemUnlockTokenResult> => {
+      const fresh = await t.get(docSnap.ref);
+      if (!fresh.exists) return { status: 'invalid' };
+      const data = fresh.data() as AuthAttemptsDoc;
+      if (data.unlockTokenHash !== tokenHash) return { status: 'invalid' };
 
-    await docSnap.ref.delete();
-    return { status: 'ok' };
+      t.delete(docSnap.ref);
+      return this.isExpiredLock(data.lockedUntil) ? { status: 'expired' } : { status: 'ok' };
+    });
   }
 
   private hashToken(token: string): string {

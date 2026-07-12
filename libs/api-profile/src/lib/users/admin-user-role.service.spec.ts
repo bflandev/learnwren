@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserId } from '@learnwren/shared-data-models';
 
+// revokeAllUserSessions sleeps past a real second boundary outside emulator
+// mode — run these unit tests in emulator mode so revocation is single-shot.
+process.env['FIREBASE_AUTH_EMULATOR_HOST'] = process.env['FIREBASE_AUTH_EMULATOR_HOST'] ?? '127.0.0.1:9099';
+
 import { AdminUserRoleService } from './admin-user-role.service';
 import {
   AdminUsersException,
   InvalidRoleTransitionException,
   RoleChangeTargetNotActiveException,
+  UserHasCoursesException,
   UserNotFoundException,
 } from './errors/admin-users.exception';
 import { AdminUsersRepository } from './admin-users.repository';
@@ -22,11 +27,19 @@ import { AdminUsersRepository } from './admin-users.repository';
 
 type Rec = Record<string, unknown>;
 
-function makeFixture(users: Record<string, Rec> = {}, apps: Record<string, Rec> = {}) {
+function makeFixture(
+  users: Record<string, Rec> = {},
+  apps: Record<string, Rec> = {},
+  authored: Rec[] = [],
+) {
   const txnUpdate = vi.fn();
-  const txnGet = vi.fn(async (ref: { id?: string }) => {
+  const txnGet = vi.fn(async (ref: { id?: string; _query?: string; _collection?: string }) => {
+    // Query path (listAuthoredCoursesInTxn): collection('courses').where(...).
+    if (ref._query === 'courses') {
+      return { docs: authored.map((c) => ({ data: () => c })) };
+    }
     const uid = ref.id as string;
-    const data = users[uid];
+    const data = ref._collection === 'instructorApplications' ? apps[uid] : users[uid];
     return { exists: data !== undefined, data: () => data, id: uid };
   });
   const txn = { get: txnGet, update: txnUpdate };
@@ -37,6 +50,7 @@ function makeFixture(users: Record<string, Rec> = {}, apps: Record<string, Rec> 
   const firestore = {
     runTransaction: vi.fn(async (fn: (t: typeof txn) => Promise<unknown>) => fn(txn)),
     collection: vi.fn((name: string) => ({
+      where: vi.fn(() => ({ _query: name })),
       doc: vi.fn((id: string) => ({
         id,
         _collection: name,
@@ -334,5 +348,85 @@ describe('AdminUserRoleService.demote', () => {
       'Demotion of uid=u1 failed partway; verify the Auth claim, token revocation, and Firestore role: Firestore unavailable',
     );
     expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  // ── authored-course guard: demote must mirror the delete path's USER_HAS_COURSES
+  //    block, or a demoted instructor's PUBLISHED courses stay live but unmanageable.
+
+  it('rejects demote with USER_HAS_COURSES when the instructor has authored courses', async () => {
+    const fx = makeFixture(
+      { u1: { role: 'INSTRUCTOR', status: 'ACTIVE' } },
+      {},
+      [{ id: 'c1', title: 'Live course' }, { id: 'c2', title: 'Draft' }],
+    );
+    const { svc } = makeService(fx, auth);
+    const err = await svc.demote(ACTOR, U1).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UserHasCoursesException);
+    expect((err as AdminUsersException).code).toBe('USER_HAS_COURSES');
+    expect((err as AdminUsersException).status).toBe(409);
+    expect((err as AdminUsersException).details).toEqual({ courseCount: 2, courseIds: ['c1', 'c2'] });
+    // The message must not claim this was a delete.
+    expect((err as Error).message).toBe(
+      'Cannot demote an instructor who owns courses. Resolve the courses first.',
+    );
+    // No role claim, no Auth side effects.
+    expect(fx.txnUpdate).not.toHaveBeenCalled();
+    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+  });
+
+  it('promote does NOT run the authored-course guard (a course-owning STUDENT is impossible, but the query must not gate promotion)', async () => {
+    const fx = makeFixture({ u1: { role: 'STUDENT', status: 'ACTIVE' } }, {}, [{ id: 'c1' }]);
+    const { svc } = makeService(fx, auth);
+    await expect(svc.promote(ACTOR, U1)).resolves.toEqual({ id: 'u1', role: 'INSTRUCTOR' });
+  });
+
+  // ── APPROVED application must be re-opened (DECLINED) so the user can re-apply;
+  //    submit throws ALREADY_INSTRUCTOR on an APPROVED doc forever otherwise.
+
+  it('transitions an APPROVED instructor application to DECLINED after a successful demote', async () => {
+    const fx = makeFixture(
+      { u1: { role: 'INSTRUCTOR', status: 'ACTIVE' } },
+      { u1: { uid: 'u1', status: 'APPROVED', statement: 's', expertise: 'e' } },
+    );
+    const { svc } = makeService(fx, auth);
+    await svc.demote(ACTOR, U1);
+    expect(fx.txnUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'u1', _collection: 'instructorApplications' }),
+      { status: 'DECLINED', resolvedAt: expect.any(String) },
+    );
+  });
+
+  it('leaves a PENDING or absent application untouched on demote', async () => {
+    const fx = makeFixture(
+      { u1: { role: 'INSTRUCTOR', status: 'ACTIVE' } },
+      { u1: { uid: 'u1', status: 'PENDING' } },
+    );
+    const { svc } = makeService(fx, auth);
+    await svc.demote(ACTOR, U1);
+    const appWrites = fx.txnUpdate.mock.calls.filter(
+      (c: unknown[]) => (c[0] as { _collection?: string })._collection === 'instructorApplications',
+    );
+    expect(appWrites).toHaveLength(0);
+  });
+
+  it('a failed application decline does NOT fail the demote — it logs loudly instead', async () => {
+    const fx = makeFixture(
+      { u1: { role: 'INSTRUCTOR', status: 'ACTIVE' } },
+      { u1: { uid: 'u1', status: 'APPROVED' } },
+    );
+    // Fail only the instructorApplications read inside the decline transaction.
+    const originalGet = fx.txnGet.getMockImplementation()!;
+    fx.txnGet.mockImplementation(async (ref: { _collection?: string }) => {
+      if (ref._collection === 'instructorApplications') throw new Error('Firestore unavailable');
+      return originalGet(ref as never);
+    });
+    const { svc, errorSpy } = makeService(fx, auth);
+    // Demote still succeeds…
+    await expect(svc.demote(ACTOR, U1)).resolves.toEqual({ id: 'u1', role: 'STUDENT' });
+    // …and the stale-APPROVED state is surfaced loudly.
+    const loud = errorSpy.mock.calls.map((c: unknown[]) => String(c[0])).find((m) => m.includes('re-apply'));
+    expect(loud).toBeDefined();
+    expect(loud).toContain('u1');
   });
 });

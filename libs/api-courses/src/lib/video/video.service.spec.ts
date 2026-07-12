@@ -716,6 +716,61 @@ describe('VideoService.completeUpload — finalize-txn failure cleanup', () => {
 
     await expect(svc.completeUpload('v1' as VideoId)).rejects.toThrow(/Video disappeared/);
   });
+
+  it('marks the loser FAILED (double-finalize race) instead of leaving it claimable forever', async () => {
+    // finalizeUploadWithJob rejects with LESSON_ALREADY_HAS_VIDEO when a
+    // concurrent session already attached its video to the lesson. The loser's
+    // job must be cancelled and its doc parked in FAILED (markFailedFromSubmission
+    // also strips the claim in its txn) so cascade/retry semantics stay intact.
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = makeTranscoder();
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
+    storage.headObject.mockResolvedValue({ size: 1024 });
+    transcoder.submitJob.mockResolvedValue({ jobName: 'jobs/loser' });
+    repo.finalizeUploadWithJob.mockRejectedValue(new LessonAlreadyHasVideoException());
+    repo.markFailedFromSubmission.mockResolvedValue(baseVideo({ state: 'FAILED' }));
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      transcoder as never,
+      { sleep: async () => undefined },
+    );
+
+    await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(
+      LessonAlreadyHasVideoException,
+    );
+    expect(transcoder.cancelJob).toHaveBeenCalledWith('jobs/loser');
+    expect(repo.markFailedFromSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vid: 'v1',
+        failureReason: expect.stringContaining('LESSON_ALREADY_HAS_VIDEO'),
+        actualSizeBytes: 1024,
+      }),
+    );
+  });
+
+  it('a markFailedFromSubmission failure does not mask the 409 for the double-finalize loser', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const transcoder = makeTranscoder();
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo({ state: 'PENDING_UPLOAD' }));
+    storage.headObject.mockResolvedValue({ size: 1024 });
+    repo.finalizeUploadWithJob.mockRejectedValue(new LessonAlreadyHasVideoException());
+    repo.markFailedFromSubmission.mockRejectedValue(new Error('mark boom'));
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      transcoder as never,
+      { sleep: async () => undefined },
+    );
+
+    await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(
+      LessonAlreadyHasVideoException,
+    );
+  });
 });
 
 describe('VideoService.completeUpload — slice B', () => {

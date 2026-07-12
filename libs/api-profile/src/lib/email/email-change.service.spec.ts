@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 
+// revokeAllUserSessions sleeps past a real second boundary outside emulator
+// mode — run these unit tests in emulator mode so revocation is single-shot.
+process.env['FIREBASE_AUTH_EMULATOR_HOST'] = process.env['FIREBASE_AUTH_EMULATOR_HOST'] ?? '127.0.0.1:9099';
+
 import { AuthException } from '@learnwren/api-auth';
 import type { UserId } from '@learnwren/shared-data-models';
 

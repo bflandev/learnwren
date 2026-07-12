@@ -10,6 +10,7 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import { createFakeFirestore } from '../testing/fake-firestore';
+import { MaterialNotFoundException } from './errors/material.exception';
 import { MaterialsRepository } from './materials.repository';
 
 function material(id: string, lessonId: string, over: Partial<Material> = {}): Material {
@@ -86,6 +87,16 @@ describe('MaterialsRepository', () => {
     const got = await repo.get('m1' as MaterialId);
     expect(got?.state).toBe('READY');
     expect(got?.sizeBytes).toBe(99);
+  });
+
+  it('update maps a raw Firestore NOT_FOUND to MaterialNotFoundException (race with a concurrent delete)', async () => {
+    // complete/rename pre-check via loadMaterialOrThrow, but the doc can vanish
+    // between that read and this update; the raw gRPC code-5 error must render
+    // as the typed 404, not an unenveloped 500.
+    const repo = new MaterialsRepository(createFakeFirestore() as never);
+    await expect(
+      repo.update('gone' as MaterialId, { displayName: 'x' }),
+    ).rejects.toBeInstanceOf(MaterialNotFoundException);
   });
 
   it('delete removes the document', async () => {

@@ -5,6 +5,7 @@ import {
   AuthException,
   EMAIL_TRANSPORT,
   PasswordVerificationService,
+  revokeAllUserSessions,
   type EmailTransport,
 } from '@learnwren/api-auth';
 import {
@@ -95,8 +96,10 @@ export class EmailChangeService {
     // Best-effort: the email change is already applied everywhere that matters
     // (Auth + Firestore), so a revocation failure must not fail the request.
     // The stale sessions carry the old email claim until they age out.
+    // revokeAllUserSessions (not a bare revoke) closes the same-second
+    // cookie-minting gap — see its doc comment.
     try {
-      await this.auth.revokeRefreshTokens(uid);
+      await revokeAllUserSessions(this.auth, uid);
     } catch (err) {
       this.logger.error(`[profile] email-change revoke failed uid=${uid}: ${String(err)}`);
     }

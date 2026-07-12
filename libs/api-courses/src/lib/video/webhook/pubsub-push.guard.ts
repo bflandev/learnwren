@@ -100,8 +100,12 @@ function assertNotExpired(payload: IdTokenPayload): void {
 }
 
 function assertAudience(payload: IdTokenPayload, expected: string | undefined): void {
-  const aud = Array.isArray(payload.aud) ? payload.aud[0] : payload.aud;
-  if (aud !== expected) {
+  // RFC 7519 allows aud to be a string OR an array — accept the expected
+  // audience anywhere in the array, not just position 0.
+  const matches = Array.isArray(payload.aud)
+    ? expected !== undefined && payload.aud.includes(expected)
+    : payload.aud === expected;
+  if (!matches) {
     throw new PubSubWrongAudienceException();
   }
 }

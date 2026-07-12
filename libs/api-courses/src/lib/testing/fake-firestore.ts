@@ -121,7 +121,12 @@ export function createFakeFirestore(seed: Record<string, DocData> = {}): FakeFir
   function applyUpdate(path: string, patch: DocData): void {
     const current = store.get(path);
     if (current === undefined) {
-      throw new Error(`fake-firestore: update() on a missing document: ${path}`);
+      // Mirror the real provider: firebase-admin rejects update() on a missing
+      // document with a gRPC NOT_FOUND error whose `code` is 5.
+      throw Object.assign(
+        new Error(`fake-firestore: update() on a missing document: ${path}`),
+        { code: 5 },
+      );
     }
     const next: DocData = { ...current };
     for (const [key, value] of Object.entries(patch)) {

@@ -168,4 +168,16 @@ describe('ProfilePictureService', () => {
     const doc = firestore.store.get('users/u1') as Record<string, unknown>;
     expect(doc['photoUrl']).toBeUndefined();
   });
+
+  it('removePicture clears photoUrl on the doc BEFORE deleting the object (a crash leaves an orphaned object, never a broken URL)', async () => {
+    await service.uploadPicture('u1' as UserId, await jpeg(256, 256), 'image/jpeg', { email: 'a@b.com', emailVerified: true });
+    let photoUrlAtDeleteTime: unknown = 'not-captured';
+    const originalDelete = storage.deleteObject.bind(storage);
+    storage.deleteObject = async (input: { path: string }) => {
+      photoUrlAtDeleteTime = (firestore.store.get('users/u1') as Record<string, unknown>)['photoUrl'];
+      return originalDelete(input);
+    };
+    await service.removePicture('u1' as UserId, { email: 'a@b.com', emailVerified: true });
+    expect(photoUrlAtDeleteTime).toBeUndefined();
+  });
 });
