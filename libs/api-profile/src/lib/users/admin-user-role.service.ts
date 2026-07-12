@@ -193,8 +193,19 @@ export class AdminUserRoleService {
     });
   }
 
-  /** Undo the role claim after a failed side effect so the admin can retry. */
+  /**
+   * Undo the role claim after a failed side effect so the admin can retry.
+   * Reverts BOTH sides: the Firestore doc AND the Auth custom claim.
+   * Authorization is claim-based, so reverting only the doc after a
+   * successful setCustomUserClaims would leave a fail-open divergence — a
+   * "STUDENT" in the directory whose next login mints an INSTRUCTOR session.
+   */
   private async bestEffortRevertRole(uid: UserId, role: UserRole): Promise<void> {
+    try {
+      await this.auth.setCustomUserClaims(uid, { role });
+    } catch (revertErr) {
+      this.logger.error(`role-claim revert failed for uid=${uid}: ${String(revertErr)}`);
+    }
     try {
       await this.firestore.collection(USERS).doc(uid).update({ role, updatedAt: nowIso() });
     } catch (revertErr) {
