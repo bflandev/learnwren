@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 
 import { LandingFeaturesComponent } from '../landing-features/landing-features.component';
@@ -26,10 +26,16 @@ import { LandingTestimonialComponent } from '../landing-testimonial/landing-test
   ],
   templateUrl: './landing-page.component.html',
 })
-export class LandingPageComponent implements OnInit {
+export class LandingPageComponent implements OnInit, OnDestroy {
   private readonly title = inject(Title);
 
   ngOnInit(): void {
     this.title.setTitle('Learn Wren — slow lessons for small communities');
+  }
+
+  ngOnDestroy(): void {
+    // No other page sets a title, so leaving without this restore would keep
+    // the marketing tagline on every subsequent route's tab.
+    this.title.setTitle('Learn Wren');
   }
 }

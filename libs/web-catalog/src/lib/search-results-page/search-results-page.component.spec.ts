@@ -3,15 +3,23 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { Subject } from 'rxjs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AuthService } from '@learnwren/web-auth';
+import { EnrollmentService } from '@learnwren/web-enrollment';
 
 import { SearchResultsPageComponent } from './search-results-page.component';
 
 describe('SearchResultsPageComponent', () => {
   let http: HttpTestingController;
   let router: Router;
+  let authMock: { currentUser: ReturnType<typeof vi.fn> };
+  let enrollmentsMock: { listMyEnrollments: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    authMock = { currentUser: vi.fn().mockReturnValue(null) };
+    enrollmentsMock = { listMyEnrollments: vi.fn() };
+
     TestBed.configureTestingModule({
       imports: [SearchResultsPageComponent],
       providers: [
@@ -21,6 +29,8 @@ describe('SearchResultsPageComponent', () => {
           { path: 'search', component: SearchResultsPageComponent },
           { path: 'catalog', component: SearchResultsPageComponent },
         ]),
+        { provide: AuthService, useValue: authMock },
+        { provide: EnrollmentService, useValue: enrollmentsMock },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -75,6 +85,71 @@ describe('SearchResultsPageComponent', () => {
     await fixture.whenStable();
     http.expectNone((r) => r.url === '/api/catalog/search');
     expect(router.url).toContain('/catalog');
+  });
+
+  it('marks cards of completed courses when signed in (US-06-02 parity with the catalog)', async () => {
+    authMock.currentUser.mockReturnValue({ uid: 'u1' } as never);
+    enrollmentsMock.listMyEnrollments.mockResolvedValue({
+      enrollments: [
+        { courseId: 'c-1', courseTitle: 'Rust Basics', completedAt: '2026-07-09T00:00:00.000Z' },
+      ],
+    });
+    await router.navigate(['/search'], { queryParams: { q: 'rust' } });
+    const fixture = TestBed.createComponent(SearchResultsPageComponent);
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/catalog/search').flush({
+      items: [
+        {
+          id: 'c-1',
+          title: 'Rust Basics',
+          description: 'd',
+          instructorId: 'u-1',
+          instructorDisplayName: 'Ada',
+          publishedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.completedCourseIds().has('c-1')).toBe(true);
+    const pill = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="card-completed-pill"]',
+    );
+    expect(pill?.textContent).toContain('Completed');
+  });
+
+  it('does not call the enrollments API for guests', async () => {
+    authMock.currentUser.mockReturnValue(null);
+    await router.navigate(['/search'], { queryParams: { q: 'rust' } });
+    const fixture = TestBed.createComponent(SearchResultsPageComponent);
+    fixture.detectChanges();
+    http
+      .expectOne((r) => r.url === '/api/catalog/search')
+      .flush({ items: [], page: 1, pageSize: 20, total: 0, totalPages: 0 });
+    await fixture.whenStable();
+
+    expect(enrollmentsMock.listMyEnrollments).not.toHaveBeenCalled();
+  });
+
+  it('a failed enrollments load leaves the results rendered without badges', async () => {
+    authMock.currentUser.mockReturnValue({ uid: 'u1' } as never);
+    enrollmentsMock.listMyEnrollments.mockRejectedValue(new Error('boom'));
+    await router.navigate(['/search'], { queryParams: { q: 'rust' } });
+    const fixture = TestBed.createComponent(SearchResultsPageComponent);
+    fixture.detectChanges();
+    http
+      .expectOne((r) => r.url === '/api/catalog/search')
+      .flush({ items: [], page: 1, pageSize: 20, total: 0, totalPages: 0 });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('No courses found');
+    expect(fixture.componentInstance.completedCourseIds().size).toBe(0);
   });
 
   it('renders the error state when the request fails', async () => {
@@ -138,6 +213,8 @@ describe('SearchResultsPageComponent', () => {
         provideHttpClientTesting(),
         provideRouter([]),
         { provide: ActivatedRoute, useValue: { queryParamMap: new Subject() } },
+        { provide: AuthService, useValue: authMock },
+        { provide: EnrollmentService, useValue: enrollmentsMock },
       ],
     });
     const fixture = TestBed.createComponent(SearchResultsPageComponent);

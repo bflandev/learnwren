@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { firestore as adminFirestore } from 'firebase-admin';
 
 import type {
   Course,
@@ -91,11 +92,19 @@ export class LearnService {
     };
   }
 
-  /** Every lesson id in the course, across all modules — the completion-rollup denominator. */
-  private async listAllLessonIds(course: Course): Promise<LessonId[]> {
-    const modules = await this.courses.listModulesByCourse(course.id);
+  /**
+   * Every lesson id in the course, across all modules — the completion-rollup
+   * denominator. Read via the caller's transaction so the lesson set is part
+   * of the transaction's conflict set (US-06-02: a lesson added concurrently
+   * must suppress the stamp, not be missed).
+   */
+  private async listAllLessonIdsInTxn(
+    t: adminFirestore.Transaction,
+    course: Course,
+  ): Promise<LessonId[]> {
+    const modules = await this.courses.listModulesByCourseInTxn(t, course.id);
     const lessonsByModule = await Promise.all(
-      modules.map((m) => this.courses.listLessonsByModule(course.id, m.id)),
+      modules.map((m) => this.courses.listLessonsByModuleInTxn(t, course.id, m.id)),
     );
     return lessonsByModule.flat().map((l) => l.id);
   }
@@ -128,6 +137,7 @@ export class LearnService {
             userId,
             course.id,
             new Date().toISOString() as ISODateString,
+            (t) => this.listAllLessonIdsInTxn(t, course),
           );
         } catch (err) {
           this.logger.warn(
@@ -157,13 +167,12 @@ export class LearnService {
     course: Course,
     lesson: Lesson,
   ): Promise<{ completedAt: ISODateString }> {
-    const allLessonIds = await this.listAllLessonIds(course);
     return this.enrollment.markLessonComplete(
       userId,
       course.id,
       lesson.id,
       new Date().toISOString() as ISODateString,
-      allLessonIds,
+      (t) => this.listAllLessonIdsInTxn(t, course),
     );
   }
 

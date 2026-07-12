@@ -127,4 +127,27 @@ describe('CourseMetaPanelComponent', () => {
     fixture.componentInstance.commitDescription();
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it('restores the stored title when the field is cleared and blurred', () => {
+    // Clearing and clicking away is an abandoned edit, not a save: the field
+    // must show the stored value again, not sit blank until a reload.
+    const fixture = build();
+    fixture.componentInstance.draftTitle.set('');
+    fixture.componentInstance.commitTitle();
+    expect(fixture.componentInstance.draftTitle()).toBe('Original');
+  });
+
+  it('restores the stored description when the field is cleared and blurred', () => {
+    const fixture = build();
+    fixture.componentInstance.draftDescription.set('   ');
+    fixture.componentInstance.commitDescription();
+    expect(fixture.componentInstance.draftDescription()).toBe('D');
+  });
+
+  it('normalizes an unchanged-but-padded title back to the stored value on blur', () => {
+    const fixture = build();
+    fixture.componentInstance.draftTitle.set('  Original ');
+    fixture.componentInstance.commitTitle();
+    expect(fixture.componentInstance.draftTitle()).toBe('Original');
+  });
 });

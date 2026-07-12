@@ -6,9 +6,12 @@
       [value]="category() ?? ''"
       (change)="onCategoryChange($any($event.target).value)"
     >
-      <option value="">All</option>
+      <!-- [selected] on each option: the categories arrive async, so options
+           created after the select's [value] was applied must carry the
+           active deep-linked selection themselves. -->
+      <option value="" [selected]="!category()">All</option>
       @for (c of categories(); track c.id) {
-        <option [value]="c.id">{{ c.name }}</option>
+        <option [value]="c.id" [selected]="c.id === category()">{{ c.name }}</option>
       }
     </select>
   </label>
