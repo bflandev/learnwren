@@ -376,6 +376,16 @@ export class VideoRepository {
     });
   }
 
+  /** Pending transcode backlog = videos uploaded or mid-transcode (US-08-04). */
+  async countPendingTranscodes(): Promise<number> {
+    const snap = await this.db
+      .collection('videos')
+      .where('state', 'in', ['UPLOADED', 'TRANSCODING'])
+      .count()
+      .get();
+    return snap.data().count;
+  }
+
   /**
    * Read the Video doc inside a transaction and throw if it vanished between
    * the service's pre-read and the txn — surfaces a consistent error message
