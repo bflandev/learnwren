@@ -1,0 +1,103 @@
+<section class="mx-auto max-w-3xl px-6 py-8">
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-semibold text-ink">Platform health</h1>
+    <button
+      type="button"
+      class="lw-btn lw-btn-ghost"
+      data-testid="health-refresh"
+      [disabled]="loading()"
+      (click)="refresh()"
+    >
+      Refresh
+    </button>
+  </div>
+
+  @if (loading() && !report()) {
+    <p class="mt-6 text-sm text-muted">Loading…</p>
+  } @else if (loadError()) {
+    <div class="mt-6" role="alert" data-testid="load-error">
+      <p class="text-sm text-ink-2">Could not load the health report.</p>
+      <button
+        type="button"
+        class="lw-btn lw-btn-ghost mt-2"
+        data-testid="health-retry"
+        (click)="refresh()"
+      >
+        Retry
+      </button>
+    </div>
+  } @else if (report(); as r) {
+    @if (r.alerts.length > 0) {
+      <div
+        data-testid="health-alerts"
+        role="alert"
+        class="mt-6 rounded-lg border border-amber-400 bg-amber-50 p-4"
+      >
+        <h2 class="font-semibold text-ink">Alerts</h2>
+        <ul class="mt-2 flex flex-col gap-1">
+          @for (alert of r.alerts; track alert.code) {
+            <li class="text-sm text-ink-2">{{ alert.message }}</li>
+          }
+        </ul>
+      </div>
+    }
+
+    <h2 class="mt-6 text-sm font-semibold text-ink">Services</h2>
+    <ul class="mt-2 flex flex-col gap-3" data-testid="service-list">
+      @for (row of serviceRows(); track row.key) {
+        <li class="flex items-center justify-between rounded-lg border border-line p-4">
+          <span class="font-medium text-ink">{{ row.label }}</span>
+          <span class="flex items-center gap-2">
+            @if (row.detail) {
+              <span class="text-sm text-muted">{{ row.detail }}</span>
+            }
+            <span
+              class="rounded px-2 py-0.5 text-sm font-medium"
+              [class.bg-green-100]="row.status === 'UP'"
+              [class.text-green-800]="row.status === 'UP'"
+              [class.bg-red-100]="row.status === 'DOWN'"
+              [class.text-red-800]="row.status === 'DOWN'"
+            >
+              {{ row.status }}
+            </span>
+          </span>
+        </li>
+      }
+    </ul>
+
+    <h2 class="mt-6 text-sm font-semibold text-ink">Stats</h2>
+    <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div class="rounded-lg border border-line p-4">
+        <p class="text-sm text-muted">Storage used</p>
+        <p class="text-xl font-semibold text-ink">{{ formatGb(r.stats.storageUsedBytes) }}</p>
+        @if (r.stats.storageQuotaBytes) {
+          <div data-testid="quota-bar" class="mt-2">
+            <p class="text-sm text-ink-2">
+              {{ quotaPercent() }}% of {{ formatGb(r.stats.storageQuotaBytes) }}
+            </p>
+            <div class="mt-1 h-2 rounded bg-line">
+              <div
+                class="h-2 rounded"
+                [class.bg-green-500]="(quotaPercent() ?? 0) <= 80"
+                [class.bg-red-500]="(quotaPercent() ?? 0) > 80"
+                [style.width.%]="quotaBarWidth()"
+              ></div>
+            </div>
+          </div>
+        }
+      </div>
+      <div class="rounded-lg border border-line p-4">
+        <p class="text-sm text-muted">Registered users</p>
+        <p class="text-xl font-semibold text-ink">{{ r.stats.registeredUsers }}</p>
+      </div>
+      <div class="rounded-lg border border-line p-4">
+        <p class="text-sm text-muted">Published courses</p>
+        <p class="text-xl font-semibold text-ink">{{ r.stats.publishedCourses }}</p>
+      </div>
+    </div>
+
+    <p class="mt-4 text-sm text-muted">
+      Pending transcode jobs: {{ r.stats.pendingTranscodeJobs }} · as of {{ r.generatedAt }}
+    </p>
+  }
+</section>
