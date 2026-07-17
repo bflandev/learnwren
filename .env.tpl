@@ -84,6 +84,13 @@ LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC=14400
 # validator rejects 'true' when NODE_ENV=production.
 LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true
 
+# ── Platform health (US-08-04) ────────────────────────────────────────
+# Optional storage quota, in GB, for the admin health dashboard's
+# STORAGE_QUOTA alert (fires at 80% usage) and quota bar. Unset by
+# default — the dashboard then shows raw usage with no quota bar and
+# never evaluates the alert.
+# LEARNWREN_STORAGE_QUOTA_GB=<number>
+
 # ── Reserved for later specs ──────────────────────────────────────────
 # Cloud Functions deploy spec:  FIREBASE_TOKEN
 # DRM/transcoder spec:          DRM_API_KEY, TRANSCODER_WEBHOOK_SECRET

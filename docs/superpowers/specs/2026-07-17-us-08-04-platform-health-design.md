@@ -33,7 +33,7 @@ New feature folder `libs/api-courses/src/lib/health/` (mirrors `analytics/`):
 |---|---|
 | Database status | Firestore aggregate `count()` on `users` — the probe and the registered-users stat are the same call |
 | Object storage status + storage used | List objects in the video **source** and **output** buckets via the existing `FIREBASE_STORAGE` handle, summing object sizes. One walk yields both the reachability probe and total bytes. In fake playback-storage mode the row reports `UP` with detail `fake` and the fake's usage (or 0) |
-| Transcoding queue | Firestore `count()` of `videos` where `state IN ('UPLOADED','TRANSCODING')` = pending jobs. `gcp` mode: adapter reachability-checked; `fake` mode: `UP` with detail `fake` |
+| Transcoding queue | Firestore `count()` of `videos` where `state IN ('UPLOADED','TRANSCODING')` = pending jobs. Status is derived from whether that count query itself succeeds, not from a separate adapter reachability check; `fake` mode additionally reports detail `fake` |
 | Web server / API | `UP` by construction (see §2) |
 | Published courses | Firestore `count()` on `courses` where `status == 'PUBLISHED'` |
 | Alerts | Derived server-side from the same numbers: `TRANSCODE_BACKLOG` when pending > `TRANSCODE_BACKLOG_ALERT_THRESHOLD` (10); `STORAGE_QUOTA` when used ÷ quota > `STORAGE_QUOTA_ALERT_RATIO` (0.8), only when a quota is configured |

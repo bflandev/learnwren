@@ -415,7 +415,16 @@ Manage Categories, Monitor Platform Health) remain deferred.
 
 - **US-08-01 Manage Users** — not built.
 - **US-08-02 Manage Categories** — not built.
-- **US-08-04 Monitor Platform Health** — not built.
+- **US-08-04 Monitor Platform Health** — **IMPLEMENTED — shipped 2026-07-17.** An ADMIN
+  opens `/admin/health` (via the **Health** nav link) and sees four live service rows
+  (web server/API, database, transcoding queue, object storage), three stats (storage
+  used, registered users, published courses), and up to two alerts
+  (`TRANSCODE_BACKLOG` when pending jobs exceed 10; `STORAGE_QUOTA` when usage exceeds
+  80% of the optional `LEARNWREN_STORAGE_QUOTA_GB` quota). The transcoding-queue row's
+  status is derived from whether the pending-count query succeeds, not a separate
+  adapter reachability check. Design spec:
+  `docs/superpowers/specs/2026-07-17-us-08-04-platform-health-design.md`. This closes
+  EP-08 (Platform Administration) and the entire written spec.
 
 ---
 

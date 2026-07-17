@@ -52,3 +52,8 @@ LEARNWREN_COVER_PUBLIC_BASE_URL=https://storage.googleapis.com/learn-wren-cover
 LEARNWREN_PICTURE_STORAGE=firebase
 LEARNWREN_PICTURE_BUCKET=learn-wren-picture
 LEARNWREN_PICTURE_PUBLIC_BASE_URL=https://storage.googleapis.com/learn-wren-picture
+
+# Optional storage quota, in GB, for the admin health dashboard's
+# STORAGE_QUOTA alert (fires at 80% usage) and quota bar. Unset here —
+# uncomment and set a value to enable it in production.
+# LEARNWREN_STORAGE_QUOTA_GB=<number>

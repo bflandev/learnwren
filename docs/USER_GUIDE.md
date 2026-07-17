@@ -34,6 +34,7 @@ This guide covers **every feature wired up so far** from two angles:
 | Identity | Instructor role request (self-service) | Built (2026-05-29) |
 | Administration | Admin review of instructor applications | Built (2026-05-29) |
 | Administration | Course category management (create / rename / delete + reassign) | Built (2026-07-10) |
+| Administration | Platform health dashboard | Built (2026-07-17) |
 | Authoring | Instructor role promotion (CLI tool) | Built |
 | Authoring | Course create / edit / delete | Built |
 | Authoring | Modules & lessons, drag-and-drop reorder | Built |
@@ -717,8 +718,9 @@ pnpm tools:promote-to-admin <email>
 - Sets the Firebase Auth custom claim `role: ADMIN` and updates `users/{uid}.role`.
 - **The user must sign out and sign back in** for the admin role to take effect.
 
-The remaining EP-08 admin features (Manage Categories, Monitor Platform Health) are
-deferred post-MVP.
+The rest of EP-08 has since shipped: course category management
+([2.19c](#219c-admin-managing-course-categories-us-08-02)) and the platform health
+dashboard ([2.19d](#219d-admin-monitoring-platform-health-us-08-04)).
 
 ---
 
@@ -806,6 +808,41 @@ As an ADMIN, open **Categories** in the header nav (`/admin/categories`):
 
 Instructors pick from the live list in the course form, and the public catalogue
 filter shows the same list — both alphabetical by name.
+
+---
+
+## 2.19d Admin: monitoring platform health (US-08-04)
+
+As an ADMIN, open **Health** in the header nav (`/admin/health`) to see a live
+snapshot of the platform, recomputed on every load (and on demand via the
+**Refresh** button — nothing is cached or scheduled):
+
+- **Service status rows** — four rows, each `UP` or `DOWN`:
+  - **Web server / API** — reports `UP` by construction: the response arriving
+    is itself the proof the API is serving.
+  - **Database** — a Firestore `count()` probe against the `users` collection.
+  - **Transcoding queue** — status reflects whether the pending-jobs count query
+    itself succeeds, not a separate reachability ping against the transcoder. In
+    local dev (`fake` transcoder) the row additionally shows detail `fake`.
+  - **Object storage** — a walk of the video source and output buckets; in fake
+    playback-storage mode the row shows `UP` with detail `fake` and zero usage.
+- **Stat tiles** — **Storage used**, **Registered users**, **Published courses**.
+  When `LEARNWREN_STORAGE_QUOTA_GB` (see below) is configured, the storage tile
+  also renders a usage bar against the quota; unconfigured, it shows raw bytes
+  with no bar.
+- **Alerts banner** — up to two alerts appear above the rows when triggered:
+  **transcoding backlog** (more than 10 jobs pending) and **storage quota**
+  (usage over 80% of `LEARNWREN_STORAGE_QUOTA_GB`, only evaluated when that
+  variable is set). No alerts render when nothing is over threshold.
+
+**Configuration:** `LEARNWREN_STORAGE_QUOTA_GB` is optional in every environment
+(unset by default). When set to a positive number, it enables the quota bar and
+the storage alert; a probe failure never fires an alert (a failed probe reports
+`null`, not zero). See [3.13 Video pipeline configuration](#313-video-pipeline-configuration)
+for where it's read alongside the other video/storage env vars.
+
+**US-08-04 (Monitor Platform Health) is now shipped — EP-08 (Platform
+Administration) and the entire written spec are implemented end to end.**
 
 ---
 
@@ -1060,6 +1097,12 @@ The public list endpoint is unauthenticated; the mutations require `ADMIN`.
 `courseCount` in details), `LAST_CATEGORY` (409). Course create/update returns
 `CATEGORY_NOT_FOUND` (404) for an unknown `category` id.
 
+### Platform health (US-08-04)
+
+| Method | Path | Response | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/admin/health` | `200 AdminHealthReport` | Live probes for the four service rows, the three stats, and any alerts. Never 500s on a probe failure — a failing probe degrades its own service row to `DOWN` instead. |
+
 ## 3.8 Materials endpoints
 
 Create / list / mutate endpoints require session + `INSTRUCTOR` and are gated
@@ -1139,6 +1182,7 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `/courses/:cid/analytics` | `instructorRoleGuard` + `CourseOwnerGuard` | Live course analytics: enrolled total, avg. completion, new enrollments, per-lesson breakdown (US-07-02). |
 | `/admin/instructor-applications` | `adminRoleGuard` | Pending instructor-application review queue (US-08-03). |
 | `/admin/categories` | `adminRoleGuard` | Course-category management: create, rename, delete with course reassignment (US-08-02). |
+| `/admin/health` | `adminRoleGuard` | Platform health dashboard: service status, stats, alerts (US-08-04). |
 
 ## 3.11 Roles and guards
 
@@ -1225,6 +1269,7 @@ The `VideoModule` reads its configuration from environment variables
 | `LEARNWREN_TRANSCODER_TOPIC` | *(required if `gcp`)* | Pub/Sub topic for job events. |
 | `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` | *(required if `gcp`)* | Expected audience on the webhook token. |
 | `LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL` | *(required if `gcp`)* | Service account allowed to push events. |
+| `LEARNWREN_STORAGE_QUOTA_GB` | *(unset)* | Optional, read by the platform health dashboard (US-08-04). When set to a positive number, enables the storage quota bar and the `STORAGE_QUOTA` alert at 80% usage. |
 
 `LEARNWREN_VIDEO_TRANSCODER=fake` and `LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true` are
 **rejected when `NODE_ENV=production`** — they exist only for local development.
@@ -1275,8 +1320,12 @@ These are specified in `docs/epics/` and `docs/use-cases/` but **not yet impleme
   live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than 90 days is
   not implemented.
 - **EP-07 Instructor Dashboard** — fully shipped across three slices: enrolled-students roster (US-07-01, Slice A), course analytics (US-07-02, Slice B), and new-module notifications (US-07-03, Slice C).
-- **Remaining EP-08 admin features** — Manage Users, Manage Categories, and Monitor Platform Health are deferred post-MVP. The admin instructor-application review queue (US-08-03) is shipped.
 - **Account management sub-flows** — account deletion, social auth, and App Check are out of scope for MVP. UC-01-03 (manage profile) is now fully implemented across Slices A–D (text profile, picture, email change, password change).
+
+EP-08 (Platform Administration) is now complete: the admin instructor-application
+review queue (US-08-03), user directory and account management (US-08-01), course
+category management (US-08-02), and the platform health dashboard (US-08-04) are
+all shipped. With this, every story in the written spec is implemented end to end.
 
 ## Further reading
 
