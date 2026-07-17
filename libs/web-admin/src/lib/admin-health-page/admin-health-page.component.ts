@@ -41,6 +41,13 @@ export class AdminHealthPageComponent implements OnInit {
     return Math.round((stats.storageUsedBytes / stats.storageQuotaBytes) * 100);
   });
 
+  /** Unrounded ratio > 0.8, matching the server's STORAGE_QUOTA alert threshold exactly. */
+  readonly isOverQuotaThreshold = computed(() => {
+    const stats = this.report()?.stats;
+    if (!stats?.storageQuotaBytes) return false;
+    return stats.storageUsedBytes / stats.storageQuotaBytes > 0.8;
+  });
+
   ngOnInit(): void {
     void this.reload();
   }

@@ -78,8 +78,8 @@
             <div class="mt-1 h-2 rounded bg-line">
               <div
                 class="h-2 rounded"
-                [class.bg-green-500]="(quotaPercent() ?? 0) <= 80"
-                [class.bg-red-500]="(quotaPercent() ?? 0) > 80"
+                [class.bg-green-500]="!isOverQuotaThreshold()"
+                [class.bg-red-500]="isOverQuotaThreshold()"
                 [style.width.%]="quotaBarWidth()"
               ></div>
             </div>

@@ -95,6 +95,30 @@ describe('AdminHealthPageComponent', () => {
     ).toBeNull();
   });
 
+  it('colors the quota bar red at 80.1% (unrounded), matching the server alert threshold', async () => {
+    const fixture = await setup({
+      ...BASE_REPORT,
+      stats: { ...BASE_REPORT.stats, storageUsedBytes: 801, storageQuotaBytes: 1000 },
+    });
+    const bar = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="quota-bar"] > div:last-child > div',
+    );
+    expect(bar?.classList.contains('bg-red-500')).toBe(true);
+    expect(bar?.classList.contains('bg-green-500')).toBe(false);
+  });
+
+  it('keeps the quota bar green at exactly 80% (unrounded)', async () => {
+    const fixture = await setup({
+      ...BASE_REPORT,
+      stats: { ...BASE_REPORT.stats, storageUsedBytes: 800, storageQuotaBytes: 1000 },
+    });
+    const bar = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="quota-bar"] > div:last-child > div',
+    );
+    expect(bar?.classList.contains('bg-green-500')).toBe(true);
+    expect(bar?.classList.contains('bg-red-500')).toBe(false);
+  });
+
   it('shows the load-error state and Retry re-fetches', async () => {
     const fixture = await setup(new Error('boom'));
     const el = fixture.nativeElement as HTMLElement;

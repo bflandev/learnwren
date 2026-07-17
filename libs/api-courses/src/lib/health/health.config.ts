@@ -29,6 +29,8 @@ export function readHealthConfigFromEnv(env: NodeJS.ProcessEnv): HealthConfig {
   return {
     sourceBucket: video.sourceBucket,
     outputBucket: video.outputBucket,
+    // Reuses the playback-storage flag: it's the only real/fake object-storage switch
+    // (always 'real' in production), so there's nothing health-specific to configure.
     storageImpl: video.playbackStorageImpl,
     transcoderImpl: video.transcoderImpl,
     ...(storageQuotaBytes !== undefined ? { storageQuotaBytes } : {}),
