@@ -29,6 +29,13 @@ export const adminRoutes: Route[] = [
           ),
       },
       {
+        path: 'health',
+        loadComponent: () =>
+          import('./admin-health-page/admin-health-page.component').then(
+            (m) => m.AdminHealthPageComponent,
+          ),
+      },
+      {
         path: 'instructor-applications',
         loadComponent: () =>
           import(

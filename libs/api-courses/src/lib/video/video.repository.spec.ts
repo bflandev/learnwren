@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
 import type {
@@ -869,5 +869,23 @@ describe('VideoRepository.finalizeUploadWithJob — clears completeClaimedAt', (
     // The claim stamp must be absent on the returned value and in the store.
     expect('completeClaimedAt' in result).toBe(false);
     expect('completeClaimedAt' in (fake.__store.get('videos/v1') as object)).toBe(false);
+  });
+});
+
+describe('VideoRepository.countPendingTranscodes', () => {
+  // The fake Firestore in-memory store has no aggregate .count() support, so
+  // this pins the query shape (collection/where/count/get) with a direct mock
+  // rather than createFakeFirestore — matching the constructor's single
+  // @Inject(FIRESTORE) param, no NestJS Test module needed.
+  it('counts videos in UPLOADED or TRANSCODING via an aggregate query', async () => {
+    const get = vi.fn().mockResolvedValue({ data: () => ({ count: 3 }) });
+    const count = vi.fn().mockReturnValue({ get });
+    const where = vi.fn().mockReturnValue({ count });
+    const collection = vi.fn().mockReturnValue({ where });
+    const repo = new VideoRepository({ collection } as never);
+
+    await expect(repo.countPendingTranscodes()).resolves.toBe(3);
+    expect(collection).toHaveBeenCalledWith('videos');
+    expect(where).toHaveBeenCalledWith('state', 'in', ['UPLOADED', 'TRANSCODING']);
   });
 });

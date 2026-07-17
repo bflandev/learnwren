@@ -38,7 +38,7 @@ carries at least minor drift.
 | EP-04 — Lesson Materials | 2 | **Reconciled (2026-05-26)** | UC-04-01/02 both built; UC-04-02 student download landed in `af5a928` |
 | EP-05 — Course Discovery & Enrollment | 5 | **Reconciled (2026-05-22)** | UC-05-01..05 all built across Slice A (discovery) and Slice B (enrolment) |
 | EP-06 — Learning Experience | 4 | **Reconciled (2026-05-26)** | UC-06-01..04 all built across Slices A–D; module/course rollups deferred post-MVP |
-| EP-08 — Platform Administration | — | **Partial (2026-05-29)** | US-08-03 (admin instructor-application review queue) shipped; US-08-01/02/04 (Manage Users, Manage Categories, Monitor Platform Health) deferred |
+| EP-08 — Platform Administration | — | **Reconciled (2026-07-17)** | US-08-01 (Manage Users, 2026-06-09), US-08-02 (Manage Categories, 2026-07-10), US-08-03 (Review Instructor Applications, 2026-05-29), and US-08-04 (Monitor Platform Health, 2026-07-17) all shipped — EP-08 fully built |
 
 ### Three kinds of drift
 
@@ -385,9 +385,10 @@ stale and resolved.
 
 ## EP-08 — Platform Administration
 
-**Drift: Partial (2026-05-29).** US-08-03 (Review Instructor Applications) is the first
-implemented administrator surface. The remaining EP-08 user stories (Manage Users,
-Manage Categories, Monitor Platform Health) remain deferred.
+**Drift: Reconciled (2026-07-17).** All four EP-08 user stories are now implemented:
+US-08-03 (Review Instructor Applications, 2026-05-29), US-08-01 (Manage Users,
+2026-06-09), US-08-02 (Manage Categories, 2026-07-10), and US-08-04 (Monitor
+Platform Health, 2026-07-17).
 
 ### US-08-03 — Review Instructor Applications
 
@@ -413,9 +414,18 @@ Manage Categories, Monitor Platform Health) remain deferred.
 
 ### Other EP-08 user stories
 
-- **US-08-01 Manage Users** — not built.
-- **US-08-02 Manage Categories** — not built.
-- **US-08-04 Monitor Platform Health** — not built.
+- **US-08-01 Manage Users** — **IMPLEMENTED — shipped 2026-06-09.**
+- **US-08-02 Manage Categories** — **IMPLEMENTED — shipped 2026-07-10.**
+- **US-08-04 Monitor Platform Health** — **IMPLEMENTED — shipped 2026-07-17.** An ADMIN
+  opens `/admin/health` (via the **Health** nav link) and sees four live service rows
+  (web server/API, database, transcoding queue, object storage), three stats (storage
+  used, registered users, published courses), and up to two alerts
+  (`TRANSCODE_BACKLOG` when pending jobs exceed 10; `STORAGE_QUOTA` when usage exceeds
+  80% of the optional `LEARNWREN_STORAGE_QUOTA_GB` quota). The transcoding-queue row's
+  status is derived from whether the pending-count query succeeds, not a separate
+  adapter reachability check. Design spec:
+  `docs/superpowers/specs/2026-07-17-us-08-04-platform-health-design.md`. This closes
+  EP-08 (Platform Administration) and the entire written spec.
 
 ---
 
