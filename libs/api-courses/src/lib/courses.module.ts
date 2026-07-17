@@ -41,6 +41,9 @@ import { NotificationsController } from './notifications/notifications.controlle
 import { NotificationsService } from './notifications/notifications.service';
 import { MaterialsModule } from './materials/materials.module';
 import { VideoModule } from './video/video.module';
+import { AdminHealthController } from './health/admin-health.controller';
+import { AdminHealthService } from './health/admin-health.service';
+import { HEALTH_CONFIG, readHealthConfigFromEnv } from './health/health.config';
 
 // VideoModule ↔ CoursesModule are mutually dependent (CoursesService cascades
 // deletes into VideoService; VideoController injects CoursesRepository).
@@ -49,7 +52,7 @@ import { VideoModule } from './video/video.module';
 // NestJS resolves both cycles with forwardRef.
 @Module({
   imports: [AuthModule, forwardRef(() => VideoModule), forwardRef(() => MaterialsModule)],
-  controllers: [CoursesController, CatalogController, CategoriesController, AdminCategoriesController, EnrollmentController, LearnController, CoverController, RosterController, AnalyticsController, NotificationsController],
+  controllers: [CoursesController, CatalogController, CategoriesController, AdminCategoriesController, EnrollmentController, LearnController, CoverController, RosterController, AnalyticsController, NotificationsController, AdminHealthController],
   providers: [
     CoursesService,
     CoursesRepository,
@@ -73,6 +76,8 @@ import { VideoModule } from './video/video.module';
     CoverImageService,
     CoverExceptionFilter,
     FirebaseCoverStorageAdapter,
+    AdminHealthService,
+    { provide: HEALTH_CONFIG, useFactory: () => readHealthConfigFromEnv(process.env) },
     { provide: COVER_CONFIG, useFactory: () => readCoverConfigFromEnv(process.env) },
     {
       provide: COVER_STORAGE,
