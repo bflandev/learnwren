@@ -140,4 +140,117 @@ describe('AdminHealthPageComponent', () => {
     await fixture.whenStable();
     expect(getReport).toHaveBeenCalledTimes(2);
   });
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  const flushMicrotasks = () => new Promise((r) => setTimeout(r, 0));
+
+  it('exposes safe initial state before the first load resolves', async () => {
+    getReport = vi.fn().mockReturnValue(new Promise(() => undefined));
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [AdminHealthPageComponent],
+      providers: [{ provide: AdminHealthService, useValue: { getReport } }],
+    }).compileComponents();
+    const comp = TestBed.createComponent(AdminHealthPageComponent).componentInstance;
+    expect(comp.loading()).toBe(true);
+    expect(comp.loadError()).toBe(false);
+    expect(comp.report()).toBeNull();
+    expect(comp.serviceRows()).toEqual([]);
+    expect(comp.quotaPercent()).toBeNull();
+    expect(comp.isOverQuotaThreshold()).toBe(false);
+    expect(comp.quotaBarWidth()).toBe(0);
+  });
+
+  it('computes the quota percent, threshold state, and bar width from the report', async () => {
+    const fixture = await setup({
+      ...BASE_REPORT,
+      stats: {
+        ...BASE_REPORT.stats,
+        storageUsedBytes: 5 * 1024 ** 3,
+        storageQuotaBytes: 10 * 1024 ** 3,
+      },
+    });
+    const comp = fixture.componentInstance;
+    expect(comp.quotaPercent()).toBe(50);
+    expect(comp.isOverQuotaThreshold()).toBe(false);
+    expect(comp.quotaBarWidth()).toBe(50);
+  });
+
+  it('reports null percent and a false threshold when no quota is configured', async () => {
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    expect(comp.quotaPercent()).toBeNull();
+    expect(comp.isOverQuotaThreshold()).toBe(false);
+  });
+
+  it('clamps the quota bar at 100% when usage exceeds the quota', async () => {
+    const fixture = await setup({
+      ...BASE_REPORT,
+      stats: {
+        ...BASE_REPORT.stats,
+        storageUsedBytes: 12 * 1024 ** 3,
+        storageQuotaBytes: 10 * 1024 ** 3,
+      },
+    });
+    const comp = fixture.componentInstance;
+    expect(comp.quotaPercent()).toBe(120);
+    expect(comp.quotaBarWidth()).toBe(100);
+    expect(comp.isOverQuotaThreshold()).toBe(true);
+  });
+
+  it('shows the loading state while a refresh is in flight', async () => {
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    const pending = deferred<AdminHealthReport>();
+    getReport.mockReturnValueOnce(pending.promise);
+    comp.refresh();
+    expect(comp.loading()).toBe(true);
+    pending.resolve(BASE_REPORT);
+    await fixture.whenStable();
+    expect(comp.loading()).toBe(false);
+  });
+
+  it('discards a stale success: an older in-flight response neither overwrites the report nor clears loading', async () => {
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    const stale = deferred<AdminHealthReport>();
+    const fresh = deferred<AdminHealthReport>();
+    getReport.mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise);
+    comp.refresh(); // stale request
+    comp.refresh(); // fresh request supersedes it
+    stale.resolve({ ...BASE_REPORT, stats: { ...BASE_REPORT.stats, registeredUsers: 111 } });
+    await flushMicrotasks();
+    expect(comp.report()?.stats.registeredUsers).toBe(42); // stale result discarded
+    expect(comp.loading()).toBe(true); // stale finally must not clear loading
+    fresh.resolve({ ...BASE_REPORT, stats: { ...BASE_REPORT.stats, registeredUsers: 222 } });
+    await fixture.whenStable();
+    expect(comp.report()?.stats.registeredUsers).toBe(222);
+    expect(comp.loading()).toBe(false);
+  });
+
+  it('discards a stale failure: an older in-flight rejection does not surface the error state', async () => {
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    const stale = deferred<AdminHealthReport>();
+    const fresh = deferred<AdminHealthReport>();
+    getReport.mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise);
+    comp.refresh();
+    comp.refresh();
+    stale.reject(new Error('stale failure'));
+    await flushMicrotasks();
+    expect(comp.loadError()).toBe(false);
+    fresh.resolve(BASE_REPORT);
+    await fixture.whenStable();
+    expect(comp.loadError()).toBe(false);
+    expect(comp.report()).not.toBeNull();
+  });
 });

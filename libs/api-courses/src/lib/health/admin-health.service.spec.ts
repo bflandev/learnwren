@@ -33,11 +33,12 @@ function makeService(o: Overrides = {}) {
       ? Promise.reject(o.published)
       : Promise.resolve(countSnap(o.published ?? 0)),
   );
+  const where = vi.fn(() => ({ count: () => ({ get: publishedCount }) }));
   const db = {
     collection: vi.fn((name: string) => {
       if (name === 'users') return { count: () => ({ get: usersCount }) };
       // 'courses'
-      return { where: () => ({ count: () => ({ get: publishedCount }) }) };
+      return { where };
     }),
   };
   const storage = {
@@ -60,7 +61,7 @@ function makeService(o: Overrides = {}) {
     o.config ?? FAKE_CONFIG,
     videos as never,
   );
-  return { svc, db, storage };
+  return { svc, db, storage, where };
 }
 
 function row(report: Awaited<ReturnType<AdminHealthService['getReport']>>, key: string) {
@@ -194,5 +195,49 @@ describe('AdminHealthService.getReport', () => {
     });
     const report = await svc.getReport();
     expect(report.alerts).toEqual([]);
+  });
+
+  it('a failing pending-transcodes probe degrades transcodingQueue to DOWN, zeroes the stat, and fires no alert', async () => {
+    const { svc } = makeService({ pending: new Error('aggregate query failed') });
+    const report = await svc.getReport();
+    expect(row(report, 'transcodingQueue')).toEqual({
+      key: 'transcodingQueue',
+      status: 'DOWN',
+      detail: 'aggregate query failed',
+    });
+    expect(report.stats.pendingTranscodeJobs).toBe(0);
+    expect(report.alerts).toEqual([]);
+  });
+
+  it('a failing published-courses probe zeroes the stat without touching the service rows', async () => {
+    const { svc } = makeService({ users: 42, published: new Error('index missing') });
+    const report = await svc.getReport();
+    expect(report.stats.publishedCourses).toBe(0);
+    expect(report.stats.registeredUsers).toBe(42);
+    for (const s of report.services) expect(s.status).toBe('UP');
+  });
+
+  it('real transcoder + real storage: UP rows carry no detail key at all', async () => {
+    const { svc } = makeService({
+      config: { ...FAKE_CONFIG, storageImpl: 'real', transcoderImpl: 'gcp' },
+      bucketFiles: { 'src-bucket': [], 'out-bucket': [] },
+    });
+    const report = await svc.getReport();
+    expect(row(report, 'transcodingQueue')).toEqual({ key: 'transcodingQueue', status: 'UP' });
+    expect(row(report, 'objectStorage')).toEqual({ key: 'objectStorage', status: 'UP' });
+  });
+
+  it('omits the storageQuotaBytes key entirely (not undefined-valued) when no quota is configured', async () => {
+    const { svc } = makeService();
+    const report = await svc.getReport();
+    expect('storageQuotaBytes' in report.stats).toBe(false);
+  });
+
+  it('queries the exact collections and published filter', async () => {
+    const { svc, db, where } = makeService({ users: 1, published: 1 });
+    await svc.getReport();
+    expect(db.collection).toHaveBeenCalledWith('users');
+    expect(db.collection).toHaveBeenCalledWith('courses');
+    expect(where).toHaveBeenCalledWith('status', '==', 'PUBLISHED');
   });
 });
