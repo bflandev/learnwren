@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { readHealthConfigFromEnv } from './health.config';
+import { HEALTH_CONFIG, readHealthConfigFromEnv } from './health.config';
 
 // Non-production base: video config falls back to fake mode with dev buckets.
 const BASE_ENV: NodeJS.ProcessEnv = { NODE_ENV: 'test' };
@@ -42,5 +42,14 @@ describe('readHealthConfigFromEnv', () => {
   it('treats an empty-string quota as unset', () => {
     const cfg = readHealthConfigFromEnv({ ...BASE_ENV, LEARNWREN_STORAGE_QUOTA_GB: '' });
     expect(cfg.storageQuotaBytes).toBeUndefined();
+  });
+
+  it('omits the storageQuotaBytes key entirely (not undefined-valued) when unset', () => {
+    const cfg = readHealthConfigFromEnv({ ...BASE_ENV });
+    expect('storageQuotaBytes' in cfg).toBe(false);
+  });
+
+  it('registers the DI token under the stable well-known key', () => {
+    expect(HEALTH_CONFIG.description).toBe('learnwren.api-health.config');
   });
 });

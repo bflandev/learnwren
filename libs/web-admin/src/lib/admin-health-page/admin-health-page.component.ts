@@ -62,11 +62,11 @@ export class AdminHealthPageComponent implements OnInit {
 
   /** Clamped width for the quota bar — computed here, not inline, to avoid a `??`/`>` precedence bug in the template. */
   quotaBarWidth(): number {
-    const p = this.quotaPercent() ?? 0;
-    return p > QUOTA_BAR_MAX_PERCENT ? QUOTA_BAR_MAX_PERCENT : p;
+    return Math.min(this.quotaPercent() ?? 0, QUOTA_BAR_MAX_PERCENT);
   }
 
   private async reload(): Promise<void> {
+    // Stryker disable next-line UpdateOperator: equivalent — the token only needs to be unique per reload; `--` produces a different but equally unique sequence, so every staleness comparison behaves identically
     const token = ++this.loadToken;
     this.loading.set(true);
     this.loadError.set(false);

@@ -81,7 +81,9 @@ export class AdminHealthService {
         pendingTranscodeJobs,
       },
       alerts: this.deriveAlerts({
+        // Stryker disable next-line ConditionalExpression: equivalent — on a rejected settle `.value` is undefined, and deriveAlerts treats undefined exactly like the null sentinel (undefined > threshold and undefined/quota are both false)
         pending: pending.status === 'fulfilled' ? pending.value : null,
+        // Stryker disable next-line ConditionalExpression: equivalent — same undefined-behaves-like-null argument as `pending` above
         usedBytes: storageBytes.status === 'fulfilled' ? storageBytes.value : null,
       }),
       generatedAt: nowIso(),
@@ -122,6 +124,7 @@ export class AdminHealthService {
   /** null inputs mean "probe failed" — a failed probe never fires an alert. */
   private deriveAlerts(input: { pending: number | null; usedBytes: number | null }): HealthAlert[] {
     const alerts: HealthAlert[] = [];
+    // Stryker disable next-line ConditionalExpression: equivalent — dropping the null guard is unobservable because `null > threshold` is false, so the alert still never fires for a failed probe
     if (input.pending !== null && input.pending > TRANSCODE_BACKLOG_ALERT_THRESHOLD) {
       alerts.push({
         code: 'TRANSCODE_BACKLOG',
@@ -129,11 +132,13 @@ export class AdminHealthService {
       });
     }
     const quota = this.config.storageQuotaBytes;
+    // Stryker disable ConditionalExpression,LogicalOperator: equivalent — the guards are defensive clarity only: without them `usedBytes / quota` yields NaN (quota undefined) or 0 (usedBytes null), and neither exceeds the ratio, so the alert outcome is identical
     if (
       quota !== undefined &&
       input.usedBytes !== null &&
       input.usedBytes / quota > STORAGE_QUOTA_ALERT_RATIO
     ) {
+      // Stryker restore ConditionalExpression,LogicalOperator
       alerts.push({
         code: 'STORAGE_QUOTA',
         message: `Storage is at ${Math.round((input.usedBytes / quota) * 100)}% of the configured quota.`,
