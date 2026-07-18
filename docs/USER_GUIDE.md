@@ -5,20 +5,23 @@ user can be promoted to an instructor, build video courses organised into module
 lessons, and publish them. All video is transcoded to HLS and encrypted with AES-128
 so it cannot be casually redistributed.
 
-This guide covers **every feature wired up so far** from two angles:
+A reference deployment runs at **https://learnwren.com**; the same codebase runs
+locally with zero cloud credentials via the Firebase Emulator Suite.
 
-- **Part 1 — Running the platform**: get the app on your machine.
-- **Part 2 — Using the features**: step-by-step walkthroughs for the people who use
-  the running app (students and instructors).
+This guide covers **every feature wired up today**, in three parts:
+
+- **Part 1 — Running the platform**: the hosted instance, or the app on your machine.
+- **Part 2 — Using the features**: walkthroughs organised by role — everyone,
+  students, instructors, administrators.
 - **Part 3 — Developer & API reference**: endpoints, data models, routes, roles, and
   configuration for people extending the code.
 
 > [!NOTE]
-> **STATUS: ACTIVE DEVELOPMENT.** Learn Wren is built in vertical slices. What is
-> documented below is what is *actually wired end to end today*. Features that are
-> specified but not yet built are listed in [What is not built yet](#what-is-not-built-yet).
-> The product specs in `docs/epics/` and `docs/use-cases/` describe the full intended
-> scope; this guide describes the current reality.
+> Learn Wren is built in vertical slices, and **every story in the written spec
+> (`docs/epics/`, `docs/use-cases/`) is now implemented end to end.** The short list
+> of deliberately deferred details is in
+> [What is not built](#what-is-not-built). `README.md` records the slice-by-slice
+> history; this guide describes the current behaviour.
 
 ## Feature status at a glance
 
@@ -32,37 +35,38 @@ This guide covers **every feature wired up so far** from two angles:
 | Identity | Profile picture upload / replace / remove | Built (2026-05-28) |
 | Identity | Email change, password change | Built (2026-05-28 / 2026-05-29) |
 | Identity | Instructor role request (self-service) | Built (2026-05-29) |
-| Administration | Admin review of instructor applications | Built (2026-05-29) |
-| Administration | Course category management (create / rename / delete + reassign) | Built (2026-07-10) |
-| Administration | Platform health dashboard | Built (2026-07-17) |
-| Authoring | Instructor role promotion (CLI tool) | Built |
-| Authoring | Course create / edit / delete | Built |
-| Authoring | Modules & lessons, drag-and-drop reorder | Built |
+| Authoring | Course create / edit / delete; modules & lessons; drag-and-drop reorder | Built |
+| Authoring | Course cover image upload / replace / remove | Built |
 | Video | Resumable upload (MP4 / MOV / MKV ≤ 10 GB) | Built |
 | Video | Transcode to AES-128 HLS, status polling | Built |
 | Video | Owner playback in the lesson editor (hls.js) | Built |
-| Publishing | Publish eligibility gate, publish / unpublish / archive / restore | Built |
-| Discovery | Course catalogue (browse, filter, search) | Built |
-| Discovery | Course detail page | Built |
-| Discovery | Enroll in a course, leave a course | Built |
-| Discovery | Guest auto-enroll after login | Built |
+| Video | Lesson captions (WebVTT, one English track per lesson) | Built (2026-05-30) |
+| Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
+| Materials | Student downloads from the lesson player | Built |
+| Publishing | Publish eligibility gate; publish / unpublish / archive / restore | Built |
+| Discovery | Public landing page (logged-out front door) | Built (2026-06-19) |
+| Discovery | Course catalogue (browse, filter, sort, search) + course detail | Built |
+| Discovery | Enroll / leave; guest auto-enroll after login | Built |
 | Learning | Student lesson playback (`/learn/:cid/:lid`) | Built |
 | Learning | Mark lesson complete + persistent completed pill | Built |
-| Learning | Resume / last-watched and course-outline panel | Built |
-| Learning | Completion rollups (module / course level) | Not built |
-| Instructor dashboard | Enrolled students roster (US-07-01) | Built (2026-06-01) |
+| Learning | Resume / last-watched + course-outline panel | Built |
+| Learning | Module / course completion rollups + Completed badges | Built |
+| Instructor dashboard | Enrolled-students roster (US-07-01) | Built (2026-06-01) |
 | Instructor dashboard | Course analytics (US-07-02) | Built (2026-06-01) |
-| Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
-| Cover images | Course cover image upload / replace / remove | Built |
-| Video | Lesson captions (WebVTT, one English track per lesson) | Built (2026-05-30) |
+| Instructor dashboard | New-module student notification (US-07-03) | Built |
+| Administration | Instructor-application review queue (US-08-03) | Built (2026-05-29) |
+| Administration | User directory, role management, suspend / delete (US-08-01) | Built (2026-06-03 / 06-09) |
+| Administration | Course category management (US-08-02) | Built (2026-07-10) |
+| Administration | Platform health dashboard (US-08-04) | Built (2026-07-17) |
 
 ---
 
 # Part 1 — Running the platform
 
-Learn Wren is not hosted anywhere yet — you run it locally. The default mode uses the
-Firebase Emulator Suite, so **no cloud account or credentials are needed** to try
-every feature in this guide.
+The reference instance at **https://learnwren.com** runs the code on `main`
+(Firebase Hosting + Cloud Functions). To try the platform without deploying
+anything, run it locally: the default mode uses the Firebase Emulator Suite, so
+**no cloud account or credentials are needed** for any feature in this guide.
 
 ## Prerequisites
 
@@ -121,19 +125,20 @@ LEARNWREN_FIREBASE_TARGET=production pnpm secrets:run -- pnpm start
 Each app logs a single `[learnwren] Firebase target = production` warning at boot.
 Hot-reloading the variable is not supported — restart the process to switch modes.
 
+To deploy your own production instance, see [`docs/deployment.md`](./deployment.md).
+
 ---
 
 # Part 2 — Using the features
 
-This part walks through the platform as the people who use it: a **student** (any
-registered user) and an **instructor** (a student promoted to author courses).
+Walkthroughs by role. **Everyone** covers accounts and profiles. **Students** covers
+discovering, enrolling in, and taking courses. **Instructors** covers authoring and
+teaching. **Administrators** covers platform administration. URLs below use the local
+dev address; on a deployed instance substitute its domain.
 
-> Today, students can browse and enroll in published courses, watch any lesson in an
-> enrolled course (`/learn/:cid/:lid`), and mark lessons complete. Resume / last-watched
-> tracking and the course-outline panel are shipped with EP-06 Slices C & D, and module /
-> course completion rollups close out the epic — see [2.18b Course and module completion](#218b-course-and-module-completion-us-06-02).
+## 2.1 Everyone: accounts and profiles
 
-## 2.1 Creating an account
+### Creating an account
 
 1. Visit **http://localhost:4200/register**.
 2. Enter a **display name**, an **email**, and a **password**. The password policy is:
@@ -147,7 +152,7 @@ Behind the scenes registration creates a Firebase Auth user, a `users/{uid}` Fir
 document, assigns the **`STUDENT`** role, sends a verification email, and signs you in
 with a session cookie.
 
-## 2.2 Verifying your email
+### Verifying your email
 
 You **cannot log in until your email is verified** — login returns
 `EMAIL_NOT_VERIFIED` until you do.
@@ -156,10 +161,10 @@ You **cannot log in until your email is verified** — login returns
   your user, click the inbox/envelope icon, and open the verification link.
 - **Real mode**: click the link in the email you received.
 
-After verifying, confirm in the Firestore emulator UI that a `users/{uid}` document
-exists with `role: STUDENT`.
+After verifying, you can confirm in the Firestore emulator UI that a `users/{uid}`
+document exists with `role: STUDENT`.
 
-## 2.3 Signing in and the dashboard
+### Signing in and the dashboard
 
 1. Go to **http://localhost:4200/login** and enter your email and password.
 2. On success you are redirected to **`/dashboard`**. The dashboard greets you by display
@@ -169,7 +174,10 @@ exists with `role: STUDENT`.
 The session is held in an `HttpOnly` cookie named `__session` (5-day lifetime). Click
 **Sign out** on the dashboard to clear it and return to `/login`.
 
-## 2.4 Account lockout and unlock
+The site root (`/`) is a public **landing page** for logged-out visitors; once you are
+signed in, visiting `/` redirects to `/dashboard`.
+
+### Account lockout and unlock
 
 To protect against password guessing:
 
@@ -181,7 +189,7 @@ To protect against password guessing:
   - The link lands on **`/auth/unlock?token=…`** and clears the lock.
 - The lock also **expires on its own** after 15 minutes.
 
-## 2.5 Resetting a forgotten password
+### Resetting a forgotten password
 
 1. On the login page click **Forgot password?** (route `/forgot-password`).
 2. Enter your email and submit. A reset email is sent (throttled, and the response is
@@ -189,59 +197,13 @@ To protect against password guessing:
 3. Open the reset link (Auth emulator inbox in emulator mode), set a new password, and
    sign in again.
 
-## 2.6 Becoming an instructor
-
-Course authoring requires the **`INSTRUCTOR`** role. Students can request it via a
-self-service form, and an ADMIN approves or declines the request via the admin
-review queue (see [2.19 Admin: reviewing instructor applications](#219-admin-reviewing-instructor-applications)).
-Operators can also promote users directly with a CLI tool.
-
-### Self-service request
-
-A logged-in Student sees a **Become an Instructor** section on `/settings/profile`.
-Fill in:
-
-- **Statement of intent** — why you want to create courses (free text, up to 2000 characters).
-- **Areas of expertise** — the subjects you plan to cover (free text, up to 2000 characters).
-
-Click **Submit request**. The form swaps to an "under review" card that persists
-across reload. Re-submission is blocked while a `PENDING` application is on record.
-
-Once the ADMIN approves the request, **you must sign out and sign back in** for the
-`INSTRUCTOR` role to take effect.
-
-### CLI promotion (operator/developer tool)
-
-Operators can also promote a user directly without going through the review queue:
-
-```bash
-pnpm tools:promote-to-instructor <email>
-```
-
-- The target account **must already be email-verified** — the tool refuses otherwise.
-- It sets the Firebase Auth custom claim `role: INSTRUCTOR` and updates
-  `users/{uid}.role`. If the user has a `PENDING` application on record it is
-  resolved to `APPROVED` (with `resolvedAt`) at the same time.
-- **The user must sign out and sign back in** for the new role to take effect (the
-  role is baked into the session).
-
-The tool targets the local emulators by default — `pnpm emulators` is the only
-prerequisite. To promote against the real project instead, set
-`LEARNWREN_FIREBASE_TARGET=production` together with
-`LEARNWREN_API_FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT_JSON_PATH`.
-See the header comment in `tools/promote-to-instructor.ts`.
-
-Once promoted and re-signed-in, the **`/courses`** area becomes accessible.
-
-## 2.7 Editing your profile (UC-01-03 Slices A – D)
+### Editing your profile
 
 Every logged-in user can update their **display name**, **biography**, and
 **profile picture** from the profile settings page.
 
 **How to reach it:** click the **avatar chip** in the top-right corner of the header
 and select **Profile settings** — or navigate directly to `/settings/profile`.
-
-On the page you will find:
 
 - **Display name** — the name shown on your courses and throughout the platform.
   Must be between 1 and 80 non-blank characters.
@@ -250,6 +212,9 @@ On the page you will find:
 
 Click **Save** to persist the changes. The header chip updates immediately to reflect
 your new display name.
+
+If you have completed any courses, the same page shows a **Completed courses**
+section — see [Course completion](#course-and-module-completion).
 
 ### Profile picture
 
@@ -268,7 +233,7 @@ From the same `/settings/profile` page you can manage your avatar:
   avatar also appears next to your courses on the public catalogue cards and on the
   course-detail instructor card (which renders alongside your biography).
 
-### Change email address
+### Changing your email address
 
 From the `/settings/profile` page, click **Change email** to start the flow:
 
@@ -286,21 +251,16 @@ From the `/settings/profile` page, click **Change email** to start the flow:
 If the new address is already registered to another account you will see an
 `EMAIL_ALREADY_IN_USE` error before any email is sent.
 
-### Change password
+### Changing your password
 
 From the `/settings/profile` page, expand the **Change password** section:
 
 1. Enter your **current password** (required to re-authenticate before any
    credential change).
-2. Enter a **new password** that meets the complexity requirements:
-   - At least **12 characters**
-   - At least one **uppercase letter**
-   - At least one **lowercase letter**
-   - At least one **digit**
-   - At least one **special character** (same policy as registration)
-3. Enter the new password again in the **Confirm new password** field. A live
-   complexity checklist shows which requirements are satisfied as you type.
-4. Click **Change password**.
+2. Enter a **new password** that meets the same complexity policy as registration
+   (12+ characters, uppercase, lowercase, digit, special character). A live
+   checklist shows which requirements are satisfied as you type.
+3. Confirm the new password and click **Change password**.
 
 On success the platform sends a **password-changed notification email** to your
 current address, revokes your refresh tokens (signing you out of **all devices**),
@@ -309,17 +269,226 @@ Sign in again with your new password to continue.
 
 > **Note:** the new password must differ from your current one.
 
-## 2.8 Creating and structuring a course
+## 2.2 Students: discovering and taking courses
 
-As an instructor, go to **http://localhost:4200/courses**:
+### Browsing and discovering courses
+
+Any visitor — logged in or not — can browse the catalogue at **`/catalog`** (signed-in
+users also reach it from the header). The catalogue shows all `PUBLISHED` courses as
+cards.
+
+- **Filter by category or difficulty** using the dropdowns in the filter bar. The
+  category list is live — administrators manage it (see
+  [Managing course categories](#managing-course-categories)).
+- **Sort** using the sort control: **Newest**, **Alphabetical**, or **Most Popular**
+  (ranked by total enrollment count, descending). Results update immediately on change.
+- **Search** with a keyword in the search bar. Submitting the form runs a relevance
+  search over course titles and descriptions (results render at `/search`). Clearing
+  the query returns to the full catalogue.
+- **Course detail page** (`/catalog/:id`) shows the full description, instructor name,
+  difficulty, and the complete module/lesson structure (titles only — video content
+  requires enrollment).
+
+While signed in, courses you have completed carry a **Completed** pill on their
+catalogue cards (browse grid only; search results are unaffected).
+
+### Enrolling in a course
+
+Enrollment is open to every logged-in user (including instructors enrolling in courses
+they do not own). To enroll:
+
+1. Open a published course's detail page.
+2. Click **Enroll**. The button is disabled briefly while the request is in flight
+   (preventing double-submissions). On success, the page switches to the **Enrolled**
+   state, showing an enrolled indicator and a **Leave Course** option.
+
+Enrolling grants access to the course's video streams and lesson materials. The
+**Most Popular** catalogue sort reflects the course's live enrollment count.
+
+**If you own the course** (you are its instructor), the detail page shows a quiet
+"You own this course" note instead of an Enroll button — instructors already have full
+access and self-enrollment would distort the popularity ranking.
+
+**Guest auto-enroll:** a visitor who is not logged in can still click **Enroll** on a
+course detail page. They are sent to `/login` and, after a successful login, returned
+to the course detail page where the enrollment completes automatically — no second
+click needed. The `?enroll=1` query param drives this round-trip; it is stripped from
+the URL once the enrollment fires so that a page refresh does not re-trigger it.
+
+### Leaving a course
+
+1. Open the course detail page — it shows the **Enrolled** state with a **Leave Course**
+   link.
+2. Click **Leave Course**. A confirmation dialog appears with the wording: *"Are you
+   sure you want to leave this course? You will lose access to videos and materials
+   immediately. Your progress will be saved for 90 days in case you re-enroll."*
+3. Click **Confirm** to unenroll — the page returns to the **Enroll** state and access to
+   videos and materials is revoked immediately. Click **Cancel** to dismiss the dialog
+   with no change.
+
+Re-enrolling restores the same enrollment record, including your progress. (The
+90-day hard-delete of long-withdrawn records is the one deferred piece — soft-delete
+and restore are live; the scheduled purge is not.)
+
+Access is also revoked when an instructor **unpublishes** a course — the lesson and
+manifest endpoints both require `course.status === 'PUBLISHED'` for non-owner callers,
+so a previously enrolled student starts seeing 403s on the next manifest refresh.
+
+### Watching a lesson
+
+Once you are enrolled in a `PUBLISHED` course, the course detail page shows a
+**Start Learning** button (or **Continue Learning** once you have watched something —
+see [Resuming](#resuming-and-navigating-the-course)). The course's instructor sees the
+same button on their own course — the playback guard allows owners through so they can
+preview as a student would.
+
+**Start Learning** navigates to `/learn/:cid/:lid` for the first lesson of the first
+module. The lesson page renders the lesson title, description, and the AES-128 HLS
+player (hls.js on Chrome/Firefox, native HLS on Safari/iOS).
+
+A logged-out visitor who opens `/learn/:cid/:lid` directly is redirected to
+`/login?redirect=/learn/:cid/:lid` and returned to the lesson page after sign-in.
+
+Edge cases:
+
+- **Lesson video still transcoding** — the page renders the title and a "This lesson's
+  video is still being processed. Please check back later." panel in place of the
+  player.
+- **Fatal playback error** (manifest 403 from a course unpublished mid-session, key
+  fetch failure) — the player swaps in its own error message with a Try again button.
+- **Authenticated but not enrolled** (stale direct URL) — a "You're not enrolled"
+  panel with a back-to-course link.
+- **Lesson missing or in the wrong course** — a "Lesson not available" panel.
+
+**Captions:** if the instructor has uploaded a caption track for the lesson's video, a
+sidecar subtitles track is served alongside the HLS stream. Captions are **off by
+default** — use the **CC** button in the player's native controls to enable them. One
+English track per lesson in this release.
+
+**Materials:** when the lesson has supplementary files attached, a **Lesson
+materials** section renders below the video with a per-file **Download** button. Each
+download fetches the file through a short-lived signed link. Materials are available
+to enrolled students and the course owner.
+
+### Marking a lesson complete
+
+While watching a lesson, you see a **Mark as Complete** button below the video.
+Clicking it:
+
+- Records `completedAt` on your per-lesson progress.
+- Swaps the button for a disabled **✓ Completed on \<date\>** pill.
+- The pill persists across reload and across leaving and re-enrolling in the course.
+
+Marking complete is idempotent: clicking again (or retrying after a flaky network) is
+safe — the API returns the original `completedAt` and writes nothing.
+
+Instructors previewing their own course see an **(Instructor preview — progress
+not tracked)** hint instead of the button. Progress is per-student; the owner has no
+enrollment to record against, and the API rejects owner attempts with
+`403 NOT_ENROLLED_LESSON`.
+
+If your enrollment is withdrawn in another tab between page load and click, the
+request returns 403 and the page surfaces an inline banner: "Your enrolment is no
+longer active" with a link back to `/catalog/:cid`.
+
+### Resuming and navigating the course
+
+When you re-open a course you are enrolled in, the course detail page shows a
+**Continue Learning** button (falling back to **Start Learning** for new enrollments).
+Clicking it takes you back to the last lesson you watched. The lesson player also
+auto-saves your playback position every ~15 seconds (and flushes on pause, tab-hide,
+and page exit) — when you return to that lesson, the video resumes from where you
+left off.
+
+The lesson player includes a collapsible **course outline** panel listing every
+module and lesson in the course, in the order the instructor set:
+
+- The **currently active lesson** is highlighted.
+- Lessons you have **completed** display a checkmark (✓); a **module** header shows
+  its own checkmark once every lesson inside it is complete.
+- Lessons whose **video is still processing** appear dimmed with a `(processing)`
+  suffix and cannot be opened; clicking one surfaces an inline notice.
+- A **Course outline** toggle at the top of the page shows or hides the panel. On
+  wider screens (≥ 1024 px) it is a left sidebar; on narrower screens it is a drawer
+  that closes on lesson select, backdrop click, or `Escape`.
+
+### Course and module completion
+
+Finishing every lesson in a course earns a persistent **Course Completed** badge.
+
+**Where it shows up:**
+
+- **Lesson player outline** — module checkmarks roll up as described above; the
+  outline banners **"Course completed"** once every lesson in the course is complete.
+- **Course detail page** — a **Course Completed** badge appears next to the enrolled
+  state.
+- **Catalogue cards** — while signed in, completed courses carry a **Completed** pill
+  in the browse grid.
+- **Profile page** — `/settings/profile` gains a **Completed courses** section listing
+  every course you have finished, with a link to its catalogue page and the completion
+  date. The section is hidden if you have not completed any course.
+
+**How the stamp is set:** completing a course's last remaining lesson stamps the
+course completion in the same transaction as that lesson's completion. If you finished
+every lesson before this feature shipped, the stamp is applied the first time you open
+any lesson of that course afterward (a one-time backfill, invisible to you).
+
+**Deliberate exclusions:** no un-stamping (if the instructor later adds a lesson,
+your badge stays — you completed the course as it existed), and no certificates.
+
+## 2.3 Instructors: authoring and teaching
+
+### Becoming an instructor
+
+Course authoring requires the **`INSTRUCTOR`** role. Students request it in-app, and
+an administrator approves or declines the request (see
+[Reviewing instructor applications](#reviewing-instructor-applications)). Operators
+can also promote users directly with a CLI tool.
+
+**Self-service request** — a logged-in student sees a **Become an Instructor** section
+on `/settings/profile`. Fill in:
+
+- **Statement of intent** — why you want to create courses (free text, ≤ 2000 characters).
+- **Areas of expertise** — the subjects you plan to cover (free text, ≤ 2000 characters).
+
+Click **Submit request**. The form swaps to an "under review" card that persists
+across reload. Re-submission is blocked while a `PENDING` application is on record;
+after a decline you may apply again.
+
+Once approved, **you must sign out and sign back in** for the `INSTRUCTOR` role to
+take effect (the role is baked into the session). The **`/courses`** area then becomes
+accessible.
+
+**CLI promotion (operator/developer tool):**
+
+```bash
+pnpm tools:promote-to-instructor <email>
+```
+
+- The target account **must already be email-verified** — the tool refuses otherwise.
+- It sets the Firebase Auth custom claim `role: INSTRUCTOR` and updates
+  `users/{uid}.role`. A `PENDING` application on record is resolved to `APPROVED`
+  (with `resolvedAt`) at the same time.
+- The user must sign out and back in for the new role to take effect.
+
+The tool targets the local emulators by default — `pnpm emulators` is the only
+prerequisite. To promote against the real project instead, set
+`LEARNWREN_FIREBASE_TARGET=production` together with
+`LEARNWREN_API_FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT_JSON_PATH`.
+See the header comment in `tools/promote-to-instructor.ts`.
+
+### Creating and structuring a course
+
+As an instructor, go to **`/courses`**:
 
 - The **course list** shows every course you own, with its status badge
   (`DRAFT` / `PUBLISHED` / `ARCHIVED`).
 - Click **New course** (`/courses/new`) to create one. A course has a **title** and
   **description**, plus optional **long description**, **category**, and
   **difficulty**:
-  - Category: `PROGRAMMING`, `DESIGN`, `BUSINESS`, `MARKETING`,
-    `PERSONAL_DEVELOPMENT`, `OTHER`.
+  - Category: picked from the live, admin-managed category list (six defaults seed
+    on a fresh deployment: Programming, Design, Business, Marketing, Personal
+    Development, Other — see [Managing course categories](#managing-course-categories)).
   - Difficulty: `BEGINNER`, `INTERMEDIATE`, `ADVANCED`.
 
 Open a course to reach the **course editor** (`/courses/:id/edit`). There you can:
@@ -333,25 +502,27 @@ Open a course to reach the **course editor** (`/courses/:id/edit`). There you ca
 - Delete courses, modules, and lessons (a confirmation dialog guards destructive
   actions).
 
+The editor header also links to the course's **Students** roster, **Analytics**, and
+the per-module **Notify students** action (all below).
+
 ### Cover image
 
 The course editor includes a **Cover Image** panel. A course starts with a
 placeholder cover (a deterministic tone derived from the course ID); you can
 attach a real cover at any time.
 
-- **Upload cover** — click **Upload cover** and pick a JPEG or PNG file at
-  least **1280×720 pixels** and no larger than **10 MB**. The platform
-  auto-resizes the upload to a canonical **1920×1080 JPEG** before storing it,
-  and the editor (and the public catalogue) reflect the new cover immediately.
-- **Replace cover** — once a cover is set, the same surface offers **Replace
-  cover** with the same constraints. The previous file is overwritten.
-- **Remove cover** — click **Remove cover** to clear the cover; the editor
-  reverts to the placeholder tone.
+- **Upload cover** — pick a JPEG or PNG file at least **1280×720 pixels** and no
+  larger than **10 MB**. The platform auto-resizes the upload to a canonical
+  **1920×1080 JPEG** before storing it, and the editor (and the public catalogue)
+  reflect the new cover immediately.
+- **Replace cover** — once a cover is set, the same surface offers **Replace cover**
+  with the same constraints. The previous file is overwritten.
+- **Remove cover** — clears the cover; the editor reverts to the placeholder tone.
 
 Uploads that fail validation (wrong file type, exceeds 10 MB, smaller than
 1280×720) are rejected inline with a message; no change is persisted.
 
-## 2.9 Adding video to a lesson
+### Adding video to a lesson
 
 Each lesson holds at most one video. In the lesson editor:
 
@@ -375,53 +546,39 @@ Each lesson holds at most one video. In the lesson editor:
    - `TRANSCODING` — the transcoder is producing AES-128-encrypted HLS renditions.
    - `READY` — a playable HLS manifest exists in the output bucket.
    - `FAILED` — transcoding could not complete; a failure reason is recorded.
-4. When the video reaches **`READY`**, the badge is replaced by an inline `<video>`
-   player. It streams the encrypted HLS via **hls.js** (or native HLS on Safari/iOS).
-   Because playback is owner-gated, you (the course owner) can preview your own video
-   right in the editor.
+4. When the video reaches **`READY`**, the badge is replaced by an inline player. It
+   streams the encrypted HLS via **hls.js** (or native HLS on Safari/iOS). Because
+   playback is owner-gated, you can preview your own video right in the editor.
 
-## 2.10 Adding captions to a lesson video
+### Adding captions
 
-Once a lesson's video has been uploaded, instructors can attach a WebVTT
-caption track to it from the lesson editor.
+Once a lesson's video has been uploaded, a **Captions** panel appears below the video
+widget (regardless of the video's processing state).
 
-**Where to find it:** in the lesson editor, the **Captions** panel appears below the
-video widget as soon as a video has been uploaded to the lesson (regardless of its
-processing state).
-
-- **Upload** — click **Add captions (.vtt)** and pick a **WebVTT (`.vtt`)** file no larger
-  than **256 KB**. The track is stored immediately and the panel updates to show the
+- **Upload** — click **Add captions (.vtt)** and pick a **WebVTT (`.vtt`)** file no
+  larger than **256 KB**. The track is stored immediately and the panel shows the
   track's language and label.
-- **Replace** — click **Replace** in the panel to overwrite the previous track.
-- **Remove** — click **Remove** to clear the track.
+- **Replace** — overwrites the previous track. **Remove** — clears it.
 
-Constraints for this release:
-- **File format:** WebVTT (`.vtt`) only. SRT is not accepted.
-- **File size:** maximum **256 KB**.
-- **Language:** English only. One track per video. Multi-language support is deferred.
+Constraints for this release: WebVTT only (no SRT), ≤ 256 KB, English only, one track
+per video. Students toggle captions with the player's native **CC** button (off by
+default).
 
-Students watching the lesson can turn captions on or off using the **CC button** built
-into their browser's native video controls (captions are off by default).
+### Lesson materials
 
-## 2.11 Lesson materials
+Below each lesson's video, attach supplementary files — PDF, DOCX, PPTX, XLSX, TXT,
+or ZIP, up to **50 MB** each. Click **Add material** and choose one or more files;
+unsupported or oversized files are skipped with an inline message while the rest
+upload. Each material gets its filename as a default display name, which you can
+rename inline. **Download** fetches the file through a short-lived signed link;
+**Remove** deletes it after a confirmation prompt.
 
-Below each lesson's video, instructors can attach supplementary files —
-PDF, DOCX, PPTX, XLSX, TXT, or ZIP, up to 50 MB each. Click **Add material**
-and choose one or more files; unsupported or oversized files are skipped with
-an inline message while the rest upload. Each material gets its filename as a
-default display name, which you can rename inline. **Download** fetches the
-file through a short-lived signed link; **Remove** deletes it after a
-confirmation prompt.
+Enrolled students see the same files with Download buttons on the lesson player
+(see [Watching a lesson](#watching-a-lesson)).
 
-At the API layer, `MaterialAccessGuard` already grants `GET
-/materials/:matId/download-url` to the course owner **or** any
-`ACTIVE`-enrolled student. The student-facing UI to browse and download
-materials from the lesson player ships with a later EP-06 slice — for now,
-only the instructor course editor surfaces these files.
+### Publishing a course
 
-## 2.12 Publishing a course
-
-A course starts as a **`DRAFT`**. Before students could ever see it, it must pass a
+A course starts as a **`DRAFT`**. Before students can see it, it must pass a
 **publish eligibility gate**. The course editor shows a **publish bar** and an
 **eligibility panel** that lists exactly what is blocking publication:
 
@@ -452,348 +609,135 @@ DRAFT  ──────────►  PUBLISHED  ─────────
 The first publish timestamp is kept on the course (`publishedAt`) and survives
 unpublish and archive.
 
-## 2.13 Browsing and discovering courses
-
-Any visitor — logged in or not — can browse the catalogue at **http://localhost:4200**
-(the root redirects there). The catalogue shows all `PUBLISHED` courses as cards.
-
-- **Filter by category or difficulty** using the dropdowns in the filter bar.
-- **Sort** using the sort control: **Newest**, **Alphabetical**, or **Most Popular**
-  (ranked by total enrollment count, descending). Results update immediately on change.
-- **Search** with a keyword in the search bar. Submitting the form runs a relevance
-  search over course titles and descriptions. Clearing the query returns to the full
-  catalogue.
-- **Course detail page** (`/catalog/:id`) shows the full description, instructor name,
-  difficulty, and the complete module/lesson structure (titles only — video content
-  requires enrollment).
-
-## 2.14 Enrolling in a course
-
-Enrollment is open to every logged-in user (including instructors enrolling in courses
-they do not own). To enroll:
-
-1. Open a published course's detail page.
-2. Click **Enroll**. The button is disabled briefly while the request is in flight
-   (preventing double-submissions). On success, the page switches to the **Enrolled**
-   state, showing an enrolled indicator and a **Leave Course** option.
-
-Enrolling grants access to the course's video streams and lesson materials. The
-**Most Popular** catalogue sort reflects the course's live enrollment count.
-
-**If you own the course** (you are its instructor), the detail page shows a quiet
-"You own this course" note instead of an Enroll button — instructors already have full
-access and self-enrollment would distort the popularity ranking.
-
-### Guest auto-enroll
-
-A visitor who is not logged in can still click **Enroll** on a course detail page. They
-are sent to `/login` and, after a successful login, returned to the course detail page
-where the enrollment completes automatically — no second click needed. The `?enroll=1`
-query param drives this round-trip; it is stripped from the URL once the enrollment
-fires so that a page refresh does not re-trigger it.
-
-## 2.15 Leaving a course
-
-An enrolled student can leave any course they are enrolled in:
-
-1. Open the course detail page — it shows the **Enrolled** state with a **Leave Course**
-   link.
-2. Click **Leave Course**. A confirmation dialog appears with the wording: *"Are you
-   sure you want to leave this course? You will lose access to videos and materials
-   immediately. Your progress will be saved for 90 days in case you re-enroll."*
-3. Click **Confirm** to unenroll — the page returns to the **Enroll** state and access to
-   videos and materials is revoked immediately. Click **Cancel** to dismiss the dialog
-   with no change.
-
-Re-enrolling within the 90-day window restores the same enrollment record (including
-any progress data written by EP-06).
-
-> **Note — what is deferred.** The **Start Learning** button, lesson player,
-> **Continue Learning** resume tracking, mark-complete, the course-outline panel,
-> and module / course completion rollups (including the "Course Completed" badge)
-> are all live now (see 2.16–2.18b below). The 90-day hard-delete of withdrawn
-> enrollment records remains deferred (soft-delete and restore on re-enroll are live;
-> the scheduled purge is not). Access IS revoked when an instructor unpublishes a
-> course — the lesson endpoint and the manifest endpoint both require
-> `course.status === 'PUBLISHED'` for non-owner callers, so a previously enrolled
-> student starts seeing 403s on the next manifest refresh after an unpublish.
-
-## 2.16 Watching a lesson as an enrolled student (EP-06 Slice A)
-
-Once a student has enrolled in a `PUBLISHED` course, the course detail page
-(`/catalog/:cid`) shows a **Start Learning** button. The course's instructor sees the
-same button on their own course — the playback guard allows owners through so they can
-preview as a student would.
-
-Clicking **Start Learning** navigates to `/learn/:cid/:lid` for the first lesson of the
-first module (lowest `module.order`, then lowest `lesson.order`). The lesson page
-renders the lesson title, description, and the same AES-128 HLS player used by the
-owner editor (hls.js on Chrome/Firefox, native HLS on Safari/iOS).
-
-A logged-out visitor who opens `/learn/:cid/:lid` directly is redirected to
-`/login?redirect=/learn/:cid/:lid` and returned to the lesson page after sign-in.
-
-Edge cases:
-
-- **Lesson video still transcoding** — the page renders the title and a "This lesson's
-  video is still being processed. Please check back later." panel in place of the
-  player.
-- **Fatal playback error** (manifest 403 from a course unpublished mid-session, key
-  fetch failure) — the player swaps in its own error message with a Try again button.
-- **Defensive: authenticated but not enrolled** — Start Learning only renders for
-  enrolled callers, but a stale direct URL renders a "You're not enrolled" panel with a
-  back-to-course link.
-- **Lesson missing or in the wrong course** — the page renders a "Lesson not available"
-  panel.
-
-**Captions:** if the instructor has uploaded a WebVTT caption track for the lesson's
-video, a sidecar `<track kind="subtitles">` is served alongside the HLS stream. Captions
-are **off by default** — use the **CC** button in the player's native controls to enable
-them. Only one English track is available per lesson in this release.
-
-**Shipped in later EP-06 slices:** progress / last-watched tracking (Slice C),
-the **Continue Learning** resume button (Slice C), the collapsible course-outline
-panel with completion checkmarks (Slice D), and module / course completion rollups
-(see [2.18b Course and module completion](#218b-course-and-module-completion-us-06-02)).
+### Viewing enrolled students
 
----
-
-## 2.17 Marking a lesson complete (EP-06 Slice B)
-
-While watching a lesson, the student sees a **Mark as Complete** button below the
-video. Clicking it:
+Open the course editor and click **Students** (or navigate to
+`/courses/:cid/students`). The page shows a table of every **currently-enrolled
+(ACTIVE)** student:
 
-- POSTs to `/api/learn/courses/:cid/lessons/:lid/complete`, which sets
-  `completedAt = <now>` on the matching `LessonProgress` entry of the student's
-  enrolment doc.
-- Swaps the button for a disabled **✓ Completed on \<date\>** pill.
-- The pill persists across reload — the GET endpoint exposes the caller's
-  `progress.completedAt` alongside the lesson payload.
+- **Display name**, **Email**, **Enrolled** (date), and **Progress** (completed
+  lessons out of total, plus a percentage, e.g. `5 / 10 · 50%`).
 
-Idempotent: clicking again (or retrying after a flaky network) is safe. The API
-returns the original `completedAt` and writes nothing.
+**Sorting:** click the **Enrolled** or **Progress** column header to sort
+client-side (click again to toggle direction). **Export:** click **Export CSV** to
+download the current table as an RFC-4180-compliant CSV generated entirely in the
+browser.
 
-If the student unenrols and later re-enrols, their prior completions are still
-visible — the `progress` array is preserved across the `WITHDRAWN → ACTIVE`
-round-trip by EP-05 Slice B.
+Only ACTIVE enrollees appear — students who left (`WITHDRAWN`) are not shown. The
+page is owner-only; a non-owner gets a `403`.
 
-Instructors previewing their own course see an **(Instructor preview — progress
-not tracked)** hint instead of the button. Progress is per-student; the owner
-has no enrolment row to record against, and the API rejects owner POSTs with
-`403 NOT_ENROLLED_LESSON`.
+### Course analytics
 
-If the student's enrolment is withdrawn in another tab between page load and
-click, the POST returns 403 and the page surfaces an inline banner: "Your
-enrolment is no longer active" with a link back to `/catalog/:cid`.
+Open the course editor and click **Analytics** (or navigate to
+`/courses/:cid/analytics`).
 
-**Module and course completion rollups** build on this per-lesson stamp — see
-[2.18b Course and module completion](#218b-course-and-module-completion-us-06-02).
+**Course summary** — three figures at the top:
 
----
+- **Enrolled** — the total number of currently ACTIVE enrollees.
+- **Avg. completion** — the average per-student completion percentage across all
+  ACTIVE enrollees (completed lessons ÷ total lessons, averaged).
+- **New enrollments** — counts over the last **7**, **30**, and **90** days.
 
-## 2.18 Resume Learning and navigating the course (EP-06 Slice C)
+**Per-lesson breakdown** — a table of every lesson with:
 
-When you re-open a course you are enrolled in, the course detail page shows a
-**Continue Learning** button (falling back to **Start Learning** for new
-enrolments). Clicking it takes you back to the last lesson you watched. The lesson
-player also auto-saves your playback position every ~15 seconds — when you return
-to that lesson, the video resumes from where you left off.
+- **Lesson title** (with its module name for context).
+- **Completion rate** — the percentage of ACTIVE enrollees who have marked the lesson
+  complete.
+- **Avg. progress** — the average furthest-watched position across ACTIVE enrollees,
+  as **m:ss** and as a **% of the video duration**. Shown as **—** when no student
+  has watched the lesson yet.
+- **Duration** — the video's total duration (**—** while uploading/transcoding).
 
-### Course outline
+> **Note on "average progress":** this reflects the furthest position each student
+> reached (`lastWatchedSeconds`), not cumulative watch time. A student who skipped to
+> the end appears at 100% even if they only watched a few seconds.
 
-The lesson player includes a collapsible **course outline** panel that lists every
-module and lesson in the course, in the order the instructor set in the course
-editor. Use it to navigate between lessons without returning to the course detail
-page.
+Owner-only (`403` otherwise). Analytics are **computed live** on each load — no
+caching or scheduled aggregation, so the figures always reflect the latest state.
 
-**Visual indicators:**
+### Notifying students of a new module
 
-- The **currently active lesson** is highlighted so you always know where you are.
-- Lessons you've **completed** display a checkmark (✓).
-- A **module** header shows its own checkmark once every lesson inside it is complete.
-- Lessons whose **video is still processing** (`UPLOADING` / `TRANSCODING`) appear
-  dimmed with a `(processing)` suffix and cannot be clicked. Attempting to click
-  one surfaces an inline notice.
+When you add a new module to a **published** course, enrolled students are not told
+automatically. Once the module has at least one lesson and is ready, click
+**Notify students** on that module in the course editor to email every active
+enrollee a short note with a link to the course. This can be done **once per
+module** — after notifying, the button is replaced with "Students notified ⟨date⟩".
+Minor edits (renaming, editing lessons, replacing a video, updating materials) never
+email students.
 
-**Navigation:**
+## 2.4 Administrators
 
-- A **Course outline** toggle button at the top of the lesson page shows or hides
-  the panel.
-- On **wider screens** (≥ 1024 px) the panel appears as a **left sidebar**.
-- On **narrower screens** it appears as a **drawer** that slides in from the left.
-  It closes automatically when you select a lesson, on backdrop click, or when you
-  press `Escape`.
+A user with the **`ADMIN`** role sees **Admin**, **Users**, **Categories**, and
+**Health** links in the top navigation. Non-admins do not see the links and are
+redirected if they open the URLs directly.
 
----
-
-## 2.18b Course and module completion (US-06-02)
-
-Finishing every lesson in a course earns a persistent **Course Completed** badge, and
-finishing a module rolls up into a checkmark on that module's header — closing out the
-last open Acceptance Criteria of EP-06.
-
-**Where it shows up:**
-
-- **Lesson player outline** — a module header shows its checkmark once every lesson
-  inside it is complete (see 2.18 above); the outline banners **"Course completed"**
-  once every lesson in the course is.
-- **Course detail page** — a **Course Completed** badge appears next to the enrolled
-  state.
-- **Catalog cards** — while signed in, your completed courses carry a **Completed**
-  pill on their catalog card. (Search results are unaffected — the pill is scoped to
-  the browse grid.)
-- **Profile page** — `/settings/profile` gains a **Completed courses** section listing
-  every course you've finished, with a link back to its catalog page and the date you
-  completed it. The section is hidden entirely if you haven't completed any course yet.
-
-**How the stamp is set:** completing a course's last remaining lesson stamps
-`completedAt` on your enrollment in the same transaction as that lesson's own
-completion. If you finished every lesson before this feature shipped, there's nothing
-left to mark complete — so the stamp is also applied the first time you open any
-lesson of that course afterward (a one-time backfill, invisible to you).
-
-**Deliberate exclusions:**
-
-- **No un-stamping.** If the instructor adds a new lesson to a course you've already
-  completed, your **Course Completed** badge stays — you completed the course as it
-  existed at the time. There's no mechanism to revoke it.
-- **No certificates.** Completion earns a badge, not a downloadable certificate or
-  other proof.
-
----
-
-## 2.19 Admin: reviewing instructor applications (US-08-03)
-
-Platform ADMINs can approve or decline instructor-role requests submitted by students.
-This is the first implemented administrator surface.
-
-### Reaching the queue
-
-A user with the **`ADMIN`** role sees an **Admin** link in the top navigation. Clicking
-it navigates to `/admin/instructor-applications`. Non-ADMIN users do not see the link
-and are redirected if they visit the URL directly.
-
-### The pending queue
-
-The page lists every `PENDING` instructor application. Each row shows:
-
-- Applicant **display name** and **email address**.
-- The applicant's **statement of intent** and **areas of expertise**.
-- The **date the request was submitted**.
-
-The queue shows only pending applications — there is no history view of approved or
-declined applications.
-
-### Approve
-
-Click **Approve** to grant the applicant the `INSTRUCTOR` role:
-
-- The `INSTRUCTOR` Firebase custom claim and the `users/{uid}.role` field are both updated (and any pending application is marked approved).
-- The application is marked `APPROVED` with a `resolvedAt` timestamp.
-- A best-effort approval email is sent to the applicant.
-- The applicant must **sign out and sign back in** for the role change to take effect.
-
-> **Requirement:** the applicant's email must be verified. If it is not, the action is
-> refused with an `APPLICANT_NOT_VERIFIED` error and the application remains pending.
-
-### Decline
-
-Click **Decline** to reject the request:
-
-- The application is marked `DECLINED`.
-- A best-effort decline email is sent to the applicant.
-- The applicant may submit a new request after being declined.
-
-No decline reason is captured (deliberate scope cut for this slice).
-
-### Provisioning ADMINs
-
-ADMINs are created via the CLI tool — there is no in-app promotion path:
+**Provisioning admins** happens via the CLI — there is no in-app path:
 
 ```bash
 pnpm tools:promote-to-admin <email>
 ```
 
-- The target account must be email-verified.
-- Sets the Firebase Auth custom claim `role: ADMIN` and updates `users/{uid}.role`.
-- **The user must sign out and sign back in** for the admin role to take effect.
+The target account must be email-verified; the tool sets the `ADMIN` claim and
+updates `users/{uid}.role`. The user must sign out and back in for the role to take
+effect.
 
-The rest of EP-08 has since shipped: course category management
-([2.19c](#219c-admin-managing-course-categories-us-08-02)) and the platform health
-dashboard ([2.19d](#219d-admin-monitoring-platform-health-us-08-04)).
+### Reviewing instructor applications
 
----
+**Admin** in the nav opens `/admin/instructor-applications` — the queue of every
+`PENDING` instructor application. Each row shows the applicant's **display name**,
+**email**, **statement of intent**, **areas of expertise**, and **submission date**.
+(Pending only — there is no history view of approved or declined applications.)
 
-## 2.19b Admin: user directory and account management (US-08-01)
+- **Approve** — grants the `INSTRUCTOR` role (custom claim + `users/{uid}.role`),
+  marks the application `APPROVED` with `resolvedAt`, and sends a best-effort
+  approval email. The applicant must sign out and back in for the role to apply.
+  Approval requires the applicant's email to be verified — otherwise the action is
+  refused with `APPLICANT_NOT_VERIFIED` and the application stays pending.
+- **Decline** — marks the application `DECLINED` and sends a best-effort decline
+  email. The applicant may submit a new request. No decline reason is captured
+  (deliberate scope cut).
 
-Platform ADMINs can browse, search, and manage every user account. The API surfaces the
-following operations (UI for these endpoints is deferred — they are accessible via the
-API directly or via a future admin dashboard):
+### User directory and account management
 
-### Browsing users
+**Users** in the nav opens `/admin/users` — a searchable, paginated directory of
+every registered account (case-insensitive substring match on name or email; the
+scan is capped at 5000 users, with a banner when the cap is exceeded). Deleted
+accounts are excluded.
 
-`GET /api/admin/users` returns a paginated, searchable list of all non-deleted accounts.
-Each row includes `id`, `displayName`, `email`, `role`, `status`, and `createdAt`.
-Deleted accounts are excluded from all list and detail responses.
+Clicking a row opens **`/admin/users/:uid`**, showing the user's profile, role,
+registration date, full enrollment history (ACTIVE and WITHDRAWN, with a
+`(course deleted)` fallback for orphaned enrollments) and, for instructors, the
+courses they authored. From this page an admin can:
 
-`GET /api/admin/users/:uid` returns the full detail for a single account, including
-enrollment history and authored courses. Returns `404 USER_NOT_FOUND` for accounts that
-do not exist or have been deleted.
+- **Promote** a Student to Instructor, or **Demote** an Instructor to Student
+  (behind an inline confirm). Demotion revokes the user's refresh tokens so
+  instructor access is cut on their next request; authored courses are left
+  untouched (reversible by re-promoting). Any invalid transition — including any
+  attempt against an ADMIN account — returns `INVALID_ROLE_TRANSITION` (409),
+  which also protects the acting admin and every other admin.
+- **Suspend** an account — sets `status = SUSPENDED`, disables the Firebase Auth
+  account (blocks new sign-ins immediately), and revokes all refresh tokens (any
+  existing session is rejected on its next request). **Unsuspend** reverses it.
+- **Permanently delete** an account — removes the Firebase Auth record and
+  anonymises the Firestore profile (`displayName = "Deleted user"`, email/biography
+  cleared, photo removed; the document is retained as a tombstone preserving `id`,
+  `role`, and `createdAt` for referential integrity). Enrollments and any
+  instructor application are deleted; the profile picture is removed from storage.
+  Deletion is **blocked if the user owns courses** (`USER_HAS_COURSES`, with the
+  course ids in the error details) — resolve those first. The operation is
+  idempotent.
 
-### Role changes
+**Guards on all destructive actions:** admins cannot act on their own account
+(`CANNOT_ACT_ON_SELF`), and an operation that would leave zero active
+administrators is rejected (`LAST_ADMIN`).
 
-`POST /api/admin/users/:uid/promote` — promote a STUDENT to INSTRUCTOR.
-`POST /api/admin/users/:uid/demote` — demote an INSTRUCTOR to STUDENT.
-
-See [2.19 Admin: reviewing instructor applications](#219-admin-reviewing-instructor-applications)
-for the self-service route students use to request the INSTRUCTOR role.
-
-### Suspending and unsuspending
-
-`POST /api/admin/users/:uid/suspend` — suspend an account:
-- Sets `status = SUSPENDED` on the user's Firestore document.
-- Disables the Firebase Auth account (blocks new sign-ins immediately).
-- Revokes all active refresh tokens (any existing session cookie is rejected by the
-  session guard on the next request, because `verifySessionCookie` runs with
-  `checkRevoked = true`).
-- Returns `200 { id, status: "SUSPENDED" }`.
-
-`POST /api/admin/users/:uid/unsuspend` — lift the suspension:
-- Sets `status = ACTIVE`.
-- Re-enables the Firebase Auth account.
-- Returns `200 { id, status: "ACTIVE" }`.
-
-**Guards:** administrators cannot suspend or unsuspend their own account
-(`409 CANNOT_ACT_ON_SELF`). An operation that would leave zero active administrators
-is rejected (`409 LAST_ADMIN`).
-
-### Permanently deleting
-
-`DELETE /api/admin/users/:uid` — permanently delete an account and anonymise its data:
-- **Blocked if the user is an instructor who owns courses** (`409 USER_HAS_COURSES` with
-  `{ courseCount, courseIds }` in details). The admin must resolve those courses first
-  (delete or transfer) using the course-management tools.
-- On success (`204 No Content`):
-  - Revokes refresh tokens and deletes the Firebase Auth account.
-  - Anonymises the Firestore profile: `displayName = "Deleted user"`, email/biography
-    cleared, photo removed. The document is retained as a tombstone (preserving `id`,
-    `role`, and `createdAt` for referential integrity).
-  - Deletes the profile picture from storage.
-  - Deletes all enrollment documents for the user.
-  - Deletes the instructor application document if present.
-- **Idempotent:** a second `DELETE` on an already-deleted account returns `204` and
-  re-runs all post-commit cleanup steps (each step tolerates already-done).
-- **Guards:** same self/last-admin rules as suspend.
-
----
-
-## 2.19c Admin: managing course categories (US-08-02)
+### Managing course categories
 
 Course categories are admin-managed. They seed themselves with six defaults
 (Programming, Design, Business, Marketing, Personal Development, Other) the first
 time anything reads them, so a fresh deployment works with no setup.
 
-As an ADMIN, open **Categories** in the header nav (`/admin/categories`):
+**Categories** in the nav opens `/admin/categories`:
 
 - **Create** — type a name (≤ 60 characters) and click **Add**. The stable id is
   derived from the name ("Data Science & AI" → `DATA_SCIENCE_AI`); a duplicate id
@@ -802,24 +746,22 @@ As an ADMIN, open **Categories** in the header nav (`/admin/categories`):
   name changes; courses referencing the category are untouched, and the new name
   appears immediately in the course form and catalogue filter.
 - **Delete** — click **Delete** on a row. The row asks which category the deleted
-  one's courses should move to (the AC's reassignment prompt); confirming moves
-  every referencing course — draft, published, or archived — in one transaction,
-  then removes the category. The last remaining category cannot be deleted.
+  one's courses should move to; confirming moves every referencing course — draft,
+  published, or archived — in one transaction, then removes the category. The last
+  remaining category cannot be deleted.
 
 Instructors pick from the live list in the course form, and the public catalogue
 filter shows the same list — both alphabetical by name.
 
----
+### Monitoring platform health
 
-## 2.19d Admin: monitoring platform health (US-08-04)
-
-As an ADMIN, open **Health** in the header nav (`/admin/health`) to see a live
-snapshot of the platform, recomputed on every load (and on demand via the
-**Refresh** button — nothing is cached or scheduled):
+**Health** in the nav opens `/admin/health` — a live snapshot of the platform,
+recomputed on every load (and on demand via **Refresh** — nothing is cached or
+scheduled):
 
 - **Service status rows** — four rows, each `UP` or `DOWN`:
-  - **Web server / API** — reports `UP` by construction: the response arriving
-    is itself the proof the API is serving.
+  - **Web server / API** — reports `UP` by construction: the response arriving is
+    itself the proof the API is serving.
   - **Database** — a Firestore `count()` probe against the `users` collection.
   - **Transcoding queue** — status reflects whether the pending-jobs count query
     itself succeeds, not a separate reachability ping against the transcoder. In
@@ -827,105 +769,15 @@ snapshot of the platform, recomputed on every load (and on demand via the
   - **Object storage** — a walk of the video source and output buckets; in fake
     playback-storage mode the row shows `UP` with detail `fake` and zero usage.
 - **Stat tiles** — **Storage used**, **Registered users**, **Published courses**.
-  When `LEARNWREN_STORAGE_QUOTA_GB` (see below) is configured, the storage tile
-  also renders a usage bar against the quota; unconfigured, it shows raw bytes
-  with no bar.
-- **Alerts banner** — up to two alerts appear above the rows when triggered:
-  **transcoding backlog** (more than 10 jobs pending) and **storage quota**
-  (usage over 80% of `LEARNWREN_STORAGE_QUOTA_GB`, only evaluated when that
-  variable is set). No alerts render when nothing is over threshold.
+  When `LEARNWREN_STORAGE_QUOTA_GB` is configured, the storage tile also renders a
+  usage bar against the quota; unconfigured, it shows raw bytes with no bar.
+- **Alerts banner** — up to two alerts appear when triggered: **transcoding
+  backlog** (more than 10 jobs pending) and **storage quota** (usage over 80% of
+  `LEARNWREN_STORAGE_QUOTA_GB`, only evaluated when that variable is set). A probe
+  failure never fires an alert.
 
-**Configuration:** `LEARNWREN_STORAGE_QUOTA_GB` is optional in every environment
-(unset by default). When set to a positive number, it enables the quota bar and
-the storage alert; a probe failure never fires an alert (a failed probe reports
-`null`, not zero). See [3.13 Video pipeline configuration](#313-video-pipeline-configuration)
-for where it's read alongside the other video/storage env vars.
-
-**US-08-04 (Monitor Platform Health) is now shipped — EP-08 (Platform
-Administration) and the entire written spec are implemented end to end.**
-
----
-
-## 2.20 Viewing enrolled students (EP-07 Slice A, US-07-01)
-
-Course owners can view a roster of their enrolled students from the course editor.
-
-**How to reach it:** open the course editor (`/courses/:cid/edit`) and click the
-**Students** link in the editor header — or navigate directly to
-`/courses/:cid/students`.
-
-The page shows a table of every **currently-enrolled (ACTIVE)** student in the course,
-with the following columns:
-
-- **Display name** — the student's display name.
-- **Email** — the student's email address.
-- **Enrolled** — the date the student enrolled.
-- **Progress** — the number of lessons the student has completed out of the total lesson
-  count, plus a percentage (e.g. `5 / 10 · 50%`).
-
-**Sorting:** click the **Enrolled** or **Progress** column header to sort the table
-client-side (click again to toggle direction). Other columns are not sortable.
-
-**Export:** click **Export CSV** to download the current table as an
-RFC-4180-compliant CSV file generated entirely in the browser (no extra API call).
-
-> **Note:** only ACTIVE enrollees appear. Students who have left the course
-> (status `WITHDRAWN`) are not shown. This page is visible to the course owner only —
-> visiting it as a non-owner returns a `403`.
-
-New-module notifications (US-07-03) shipped in EP-07 Slice C — see [2.22 Notifying students of a new module](#222-notifying-students-of-a-new-module-ep-07-slice-c-us-07-03).
-
----
-
-## 2.21 Course analytics (EP-07 Slice B, US-07-02)
-
-Course owners can view live engagement analytics for their course from the course editor.
-
-**How to reach it:** open the course editor (`/courses/:cid/edit`) and click the
-**Analytics** link in the editor header — or navigate directly to
-`/courses/:cid/analytics`.
-
-### Course summary
-
-The top of the page shows three summary figures:
-
-- **Enrolled** — the total number of currently ACTIVE enrollees.
-- **Avg. completion** — the average per-student completion percentage across all ACTIVE
-  enrollees (completed lessons ÷ total lessons, averaged).
-- **New enrollments** — a sparkline-style count of new enrollments over the last **7**,
-  **30**, and **90** days.
-
-### Per-lesson breakdown
-
-Below the summary, a table lists every lesson in the course with:
-
-- **Lesson title** (including its module name for context).
-- **Completion rate** — the percentage of ACTIVE enrollees who have marked the lesson
-  complete.
-- **Avg. progress** — the average furthest-watched position across all ACTIVE enrollees,
-  expressed both as **m:ss** and as a **% of the lesson's video duration**. Shown as
-  **—** when no student has watched the lesson yet.
-- **Duration** — the video's total duration, shown as **m:ss**. Shown as **—** when
-  the video is not yet ready (still uploading or transcoding).
-
-> **Note on "average progress":** this figure reflects the furthest position each
-> student reached in the video (`lastWatchedSeconds`), not the cumulative time they
-> spent watching. A student who skipped to the end will appear at 100% even if they
-> only watched a few seconds.
-
-### Access and freshness
-
-- **Owner-only** — this page is visible to the course owner only; visiting it as a
-  non-owner returns a `403`.
-- **Computed live** — analytics are calculated fresh on each page load from the current
-  enrollment and progress data. There is no caching or scheduled aggregation job, so the
-  figures always reflect the latest state.
-
----
-
-## 2.22 Notifying students of a new module (EP-07 Slice C, US-07-03)
-
-When you add a new module to a **published** course, enrolled students are not told automatically. Once the module has at least one lesson and is ready, click **Notify students** on that module in the course editor to email every active enrollee a short note with a link to the course. This can be done **once per module** — after notifying, the button is replaced with "Students notified ⟨date⟩". Minor edits (renaming, editing lessons, replacing a video, updating materials) never email students.
+`LEARNWREN_STORAGE_QUOTA_GB` is optional in every environment (unset by default);
+see [3.14 Video pipeline configuration](#314-video-pipeline-configuration).
 
 ---
 
@@ -938,8 +790,9 @@ Learn Wren is an **Nx monorepo** (pnpm). The frontend is an **Angular 21** SPA
 types from `libs/shared-data-models`. Data lives in **Firestore**; video files live in
 **Cloud Storage**; identity is **Firebase Authentication**. The web app never talks to
 Firebase directly — **auth is API-mediated** (no Firebase client SDK in the bundle).
-The planned production deployment is Firebase Hosting (web) + Cloud Functions (api).
-See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./epics/TECHNICAL_ARCHITECTURE.md).
+Production runs on Firebase Hosting (web) + Cloud Functions gen2 (api) — see
+[`docs/deployment.md`](./deployment.md) and
+[`docs/epics/TECHNICAL_ARCHITECTURE.md`](./epics/TECHNICAL_ARCHITECTURE.md).
 
 ### Projects
 
@@ -949,15 +802,21 @@ See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./epics/TECHNICAL_ARCHITECTURE.md).
 | `apps/api` | NestJS app | The HTTP API. Global prefix `/api`. |
 | `apps/web-e2e`, `apps/api-e2e` | Playwright | End-to-end suites. |
 | `libs/shared-data-models` | TS library | Entity types shared by web and api. |
-| `libs/api-firebase` | NestJS lib | Wraps `firebase-admin`; emulator/production switch. |
-| `libs/api-auth` | NestJS lib | `AuthModule`: controller, guards, lockout, email. |
-| `libs/api-courses` | NestJS lib | `CoursesModule` + `VideoModule`: authoring, video, publish, playback. |
+| `libs/api-firebase` | NestJS lib | Wraps `firebase-admin`; emulator/production switch; transaction-retry helper. |
+| `libs/api-auth` | NestJS lib | `AuthModule`: controller, guards, lockout, email transports. |
+| `libs/api-profile` | NestJS lib | Profile editing, picture, email/password change, instructor applications, admin user directory. |
+| `libs/api-courses` | NestJS lib | Courses, modules, lessons, video pipeline, publish gate, materials, catalog, enrollment, learn, roster, analytics, notifications, categories, health. |
+| `libs/api-http-errors` | NestJS lib | Shared `handleException()` error rendering. |
 | `libs/web-auth` | Angular lib | Auth pages, signal-based `AuthService`, guard, interceptor. |
-| `libs/web-courses` | Angular lib | Course list/create/editor, module tree, publish UI. |
-| `libs/web-video` | Angular lib | Upload component, state badge/polling, hls.js player. |
+| `libs/web-profile` | Angular lib | `/settings/profile` (text profile, picture, email/password change, instructor request, completed courses). |
+| `libs/web-courses` | Angular lib | Course list/create/editor, module tree, publish UI, roster, analytics. |
+| `libs/web-video` | Angular lib | Upload component, state badge/polling, hls.js player, captions panel. |
 | `libs/web-catalog` | Angular lib | Public catalogue, search, and course detail page. |
-| `libs/web-enrollment` | Angular lib | `EnrollmentService` + `CourseEnrollmentPanelComponent` (enroll/leave panel on the course detail page). |
-| `libs/web-learn` | Angular lib | `LearnService` + `LessonPlayerPageComponent`; the `/learn/:cid/:lid` student playback route (EP-06 Slice A). |
+| `libs/web-enrollment` | Angular lib | Enroll/leave panel on the course detail page. |
+| `libs/web-learn` | Angular lib | The `/learn/:cid/:lid` student lesson player (outline panel, progress, materials). |
+| `libs/web-admin` | Angular lib | Admin surfaces: applications queue, user directory, categories, health. |
+| `libs/web-landing` | Angular lib | The logged-out landing page at `/`. |
+| `libs/web-ui` | Angular lib | Shared UI primitives (cover tones, buttons, etc.). |
 
 ## 3.2 API conventions
 
@@ -971,6 +830,7 @@ See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./epics/TECHNICAL_ARCHITECTURE.md).
   (`apps/web/proxy.conf.json`), keeping cookies first-party with no CORS layer.
 - **Validation**: a global `ValidationPipe` runs with
   `whitelist + forbidNonWhitelisted + transform`, so unknown body fields are rejected.
+  Domain validation lives in services (typed error codes), not DTO decorators.
 
 ## 3.3 Auth endpoints — `/api/auth`
 
@@ -988,9 +848,26 @@ See [`docs/epics/TECHNICAL_ARCHITECTURE.md`](./epics/TECHNICAL_ARCHITECTURE.md).
 consecutive invalid-credential failures (15-minute lockout). The password policy
 (12+ chars, upper, lower, digit, special) is enforced server-side on `register`.
 
-## 3.4 Courses endpoints — `/api/courses`
+## 3.4 Profile endpoints — `/api/profile`
 
-All course endpoints require a valid session **and** the `INSTRUCTOR` role
+All require a valid session (`FirebaseSessionGuard`); they act on the caller's own
+account only.
+
+| Method | Path | Body | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/profile` | — | The caller's profile (display name, biography, picture, completed courses). |
+| `PATCH` | `/profile` | `{ displayName?, biography? }` | Update text profile fields. |
+| `PUT` | `/profile/picture` | multipart image | Upload/replace the avatar (JPEG/PNG ≤ 2 MB, ≥ 256×256; re-encoded to 512×512 JPEG). |
+| `DELETE` | `/profile/picture` | — | Remove the avatar. |
+| `POST` | `/profile/email` | `{ newEmail, currentPassword }` | Re-authenticate, then send a verification link to the NEW address. |
+| `POST` | `/profile/email/confirm` | `{ oobCode }` | Called from the email-changed landing page: syncs the Firestore mirror, revokes refresh tokens, clears the session. |
+| `POST` | `/profile/password` | `{ currentPassword, newPassword }` | Re-authenticate, validate policy, update the credential, send notification email, revoke refresh tokens. |
+| `GET` | `/profile/instructor-application` | — | The caller's application (or none). |
+| `POST` | `/profile/instructor-application` | `{ statement, expertise }` | Submit a `PENDING` instructor application (`INSTRUCTOR_APPLICATION_EXISTS` if one is pending). |
+
+## 3.5 Courses endpoints — `/api/courses`
+
+All course-authoring endpoints require a valid session **and** the `INSTRUCTOR` role
 (`FirebaseSessionGuard` + `InstructorRoleGuard`). Per-resource endpoints additionally
 enforce `CourseOwnerGuard` — you can only touch courses you own.
 
@@ -999,8 +876,8 @@ enforce `CourseOwnerGuard` — you can only touch courses you own.
 | `POST` | `/courses` | Create a course. |
 | `GET` | `/courses` | List the calling instructor's courses. |
 | `GET` | `/courses/:cid` | Get the full course tree (modules + lessons). |
-| `PATCH` | `/courses/:cid` | Update course metadata. |
-| `DELETE` | `/courses/:cid` | Delete the course (`204`). |
+| `PATCH` | `/courses/:cid` | Update course metadata (`CATEGORY_NOT_FOUND` for an unknown category id). |
+| `DELETE` | `/courses/:cid` | Delete the course (`204`; cascades modules, lessons, videos, materials, enrollments). |
 | `POST` | `/courses/:cid/modules` | Create a module. |
 | `PATCH` | `/courses/:cid/modules/:mid` | Update a module. |
 | `DELETE` | `/courses/:cid/modules/:mid` | Delete a module (`204`). |
@@ -1009,6 +886,11 @@ enforce `CourseOwnerGuard` — you can only touch courses you own.
 | `PATCH` | `/courses/:cid/modules/:mid/lessons/:lid` | Update a lesson. |
 | `DELETE` | `/courses/:cid/modules/:mid/lessons/:lid` | Delete a lesson (`204`). |
 | `PUT` | `/courses/:cid/modules/:mid/lessons/order` | Reorder lessons — body `{ ids: [...] }`. |
+| `PUT` | `/courses/:cid/cover` | Upload/replace the cover image (JPEG/PNG, ≥ 1280×720, ≤ 10 MB). |
+| `DELETE` | `/courses/:cid/cover` | Remove the cover image. |
+| `GET` | `/courses/:cid/students` | Enrolled-students roster (owner-only). |
+| `GET` | `/courses/:cid/analytics` | Live course analytics (owner-only). |
+| `POST` | `/courses/:cid/modules/:mid/notify` | One-shot "new module" email to active enrollees (owner-only; published course with ≥ 1 lesson; stamps `studentsNotifiedAt`). |
 
 ### Publish gate
 
@@ -1020,7 +902,7 @@ enforce `CourseOwnerGuard` — you can only touch courses you own.
 | `POST` | `/courses/:cid/archive` | `DRAFT`/`PUBLISHED → ARCHIVED` (`200`). |
 | `POST` | `/courses/:cid/restore` | `ARCHIVED → DRAFT` (`200`). |
 
-## 3.5 Catalogue endpoints — `/api/catalog`
+## 3.6 Catalogue endpoints — `/api/catalog`
 
 All catalogue endpoints are **public** — no session cookie required.
 
@@ -1030,7 +912,10 @@ All catalogue endpoints are **public** — no session cookie required.
 | `GET` | `/api/catalog/search` | Relevance-ranked search over course titles and descriptions. Query params: `q`, `page`. |
 | `GET` | `/api/catalog/:cid` | Public course detail (full structure + instructor name); `404` for missing or unpublished courses. |
 
-## 3.6 Enrollment endpoints — `/api/enrollments`
+`GET /api/categories` is also public — all categories, alphabetical by display name
+(lazily seeds the six defaults on first read).
+
+## 3.7 Enrollment endpoints — `/api/enrollments`
 
 All enrollment endpoints require a valid session cookie (`FirebaseSessionGuard`). Any
 authenticated user may enroll — there is no additional role gate. A caller can only ever
@@ -1040,8 +925,8 @@ the session, never from the request body or path.
 | Method | Path | Body | Success | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/api/enrollments` | `{ courseId }` | `201` `Enrollment` | Enroll, or restore a `WITHDRAWN` enrollment. Idempotent — re-enrolling when already `ACTIVE` returns the existing record unchanged. |
-| `DELETE` | `/api/enrollments/:courseId` | — | `204` | Unenroll — soft-delete the caller's enrollment; progress retained for 90 days. |
-| `GET` | `/api/enrollments` | — | `200` `EnrollmentListView` | The caller's `ACTIVE` enrollments joined to course title and `completedAt` (US-06-02). Enrollments whose course was deleted are omitted; empty array when the caller has none. Registered before the `:courseId` route below so it never binds as a course id. |
+| `DELETE` | `/api/enrollments/:courseId` | — | `204` | Unenroll — soft-delete the caller's enrollment; progress retained. |
+| `GET` | `/api/enrollments` | — | `200` `EnrollmentListView` | The caller's `ACTIVE` enrollments joined to course title and `completedAt`. Enrollments whose course was deleted are omitted. Registered before the `:courseId` route below so it never binds as a course id. |
 | `GET` | `/api/enrollments/:courseId` | — | `200` `EnrollmentStatusView` | The caller's enrollment for that course and whether they own it; drives the course-detail page button state. |
 
 Error codes specific to enrollment:
@@ -1052,58 +937,67 @@ Error codes specific to enrollment:
 | `CANNOT_ENROLL_OWN_COURSE` | `409` | The course owner clicked Enroll on their own course. |
 | `NOT_ENROLLED` | `404` | `DELETE` called when the caller has no `ACTIVE` enrollment for that course. |
 
-## 3.7 Admin endpoints — `/api/admin`
+## 3.8 Learn endpoints — `/api/learn`
+
+Guarded by `FirebaseSessionGuard`; the course must be `PUBLISHED` for non-owner
+callers, and the caller must own the course or hold an `ACTIVE` enrollment.
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/learn/courses/:cid/lessons/:lid` | The lesson view: title, description, video state, captions presence, materials list, the caller's progress, and the course outline. |
+| `POST` | `/learn/courses/:cid/lessons/:lid/complete` | Mark the lesson complete (idempotent; returns the original `completedAt` on repeat). Owners get `403 NOT_ENROLLED_LESSON`. Stamps course completion transactionally when it is the last remaining lesson. |
+| `POST` | `/learn/courses/:cid/lessons/:lid/position` | Save the playback position (idempotent and monotonic — out-of-order beacons cannot rewind progress; accepts `navigator.sendBeacon`). |
+
+## 3.9 Admin endpoints — `/api/admin`
 
 All admin endpoints require a valid session cookie **and** the `ADMIN` role
 (`FirebaseSessionGuard` + `AdminRoleGuard`).
 
 ### User directory (US-08-01)
 
-| Method | Path | Body | Response | Purpose |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/admin/users` | — | `200 AdminUserListResponse` | Paginated user list (`?search=`, `?page=`, `?pageSize=`). Excludes DELETED accounts. |
-| `GET` | `/api/admin/users/:uid` | — | `200 AdminUserDetail` | Full user detail including enrollments and authored courses. |
-| `POST` | `/api/admin/users/:uid/promote` | — | `201 AdminUserRoleResponse` | Promote a STUDENT to INSTRUCTOR. |
-| `POST` | `/api/admin/users/:uid/demote` | — | `201 AdminUserRoleResponse` | Demote an INSTRUCTOR to STUDENT. |
-| `POST` | `/api/admin/users/:uid/suspend` | — | `200 AdminUserStatusResponse` | Suspend the account (disables Auth + revokes sessions). |
-| `POST` | `/api/admin/users/:uid/unsuspend` | — | `200 AdminUserStatusResponse` | Lift the suspension. |
-| `DELETE` | `/api/admin/users/:uid` | — | `204` | Permanently delete and anonymise the account. Blocked if the user owns courses (`409 USER_HAS_COURSES`). Idempotent. |
+| Method | Path | Response | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/admin/users` | `200 AdminUserListResponse` | Paginated user list (`?search=`, `?page=`, `?pageSize=`). Excludes DELETED accounts. |
+| `GET` | `/api/admin/users/:uid` | `200 AdminUserDetail` | Full user detail including enrollments and authored courses. |
+| `POST` | `/api/admin/users/:uid/promote` | `201 AdminUserRoleResponse` | Promote a STUDENT to INSTRUCTOR. |
+| `POST` | `/api/admin/users/:uid/demote` | `201 AdminUserRoleResponse` | Demote an INSTRUCTOR to STUDENT (revokes refresh tokens). |
+| `POST` | `/api/admin/users/:uid/suspend` | `200 AdminUserStatusResponse` | Suspend the account (disables Auth + revokes sessions). |
+| `POST` | `/api/admin/users/:uid/unsuspend` | `200 AdminUserStatusResponse` | Lift the suspension. |
+| `DELETE` | `/api/admin/users/:uid` | `204` | Permanently delete and anonymise the account. Blocked if the user owns courses (`409 USER_HAS_COURSES`). Idempotent. |
 
-**Error codes** specific to the user-directory domain: `USER_NOT_FOUND` (404),
-`INVALID_ROLE_TRANSITION` (409), `CANNOT_ACT_ON_SELF` (409), `LAST_ADMIN` (409),
-`USER_HAS_COURSES` (409), `INVALID_STATUS_TRANSITION` (409).
+**Error codes**: `USER_NOT_FOUND` (404), `INVALID_ROLE_TRANSITION` (409),
+`CANNOT_ACT_ON_SELF` (409), `LAST_ADMIN` (409), `USER_HAS_COURSES` (409),
+`INVALID_STATUS_TRANSITION` (409).
 
 ### Instructor applications (US-08-03)
 
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
 | `GET` | `/api/admin/instructor-applications` | List all `PENDING` instructor applications. |
-| `POST` | `/api/admin/instructor-applications/:uid/approve` | Approve the application; grant `INSTRUCTOR` role. Requires applicant's email to be verified. |
-| `POST` | `/api/admin/instructor-applications/:uid/decline` | Decline the application; the applicant may re-apply. |
+| `POST` | `/api/admin/instructor-applications/:uid/approve` | Approve; grant `INSTRUCTOR` role. Requires the applicant's email to be verified (`APPLICANT_NOT_VERIFIED`). |
+| `POST` | `/api/admin/instructor-applications/:uid/decline` | Decline; the applicant may re-apply. |
 
 ### Course categories (US-08-02)
 
-The public list endpoint is unauthenticated; the mutations require `ADMIN`.
-
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
-| `GET` | `/api/categories` | **Public.** All categories, alphabetical by display name. Lazily seeds the six defaults on first read. |
 | `POST` | `/api/admin/categories` | Create `{ name }` (≤ 60 chars); id = slugified name. |
 | `PATCH` | `/api/admin/categories/:id` | Rename `{ name }` — display name only; course docs are never rewritten. |
 | `DELETE` | `/api/admin/categories/:id?reassignTo=` | Delete; `reassignTo` required when courses reference the category. Returns `{ reassignedCourses }`. |
 
-**Error codes** specific to the categories domain: `VALIDATION_FAILED` (400),
-`CATEGORY_NOT_FOUND` (404), `CATEGORY_EXISTS` (409), `CATEGORY_IN_USE` (409, with
-`courseCount` in details), `LAST_CATEGORY` (409). Course create/update returns
-`CATEGORY_NOT_FOUND` (404) for an unknown `category` id.
+**Error codes**: `VALIDATION_FAILED` (400), `CATEGORY_NOT_FOUND` (404),
+`CATEGORY_EXISTS` (409), `CATEGORY_IN_USE` (409, with `courseCount` in details),
+`LAST_CATEGORY` (409).
 
 ### Platform health (US-08-04)
 
 | Method | Path | Response | Purpose |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/admin/health` | `200 AdminHealthReport` | Live probes for the four service rows, the three stats, and any alerts. Never 500s on a probe failure — a failing probe degrades its own service row to `DOWN` instead. |
+| `GET` | `/api/admin/health` | `200 AdminHealthReport` | Live probes for the four service rows, the stats, and any alerts. Never 500s on a probe failure — a failing probe degrades its own service row to `DOWN` instead. |
 
-## 3.8 Materials endpoints
+## 3.10 Materials, video, and playback endpoints
+
+### Materials
 
 Create / list / mutate endpoints require session + `INSTRUCTOR` and are gated
 by `CourseOwnerGuard` or `MaterialOwnerGuard`. The download endpoint widens
@@ -1118,10 +1012,9 @@ access to ACTIVE-enrolled students via `MaterialAccessGuard`.
 | `DELETE` | `/api/materials/:matId` | Remove a material (storage object + metadata). |
 | `GET`  | `/api/materials/:matId/download-url` | Mint a 15-minute signed download URL (owner or enrolled student). |
 
-Supported content types: PDF, DOCX, PPTX, XLSX, TXT, ZIP. Per-file size cap:
-50 MB.
+Supported content types: PDF, DOCX, PPTX, XLSX, TXT, ZIP. Per-file size cap: 50 MB.
 
-## 3.9 Video endpoints
+### Video
 
 Upload/management endpoints require session + `INSTRUCTOR`; per-video endpoints add
 `VideoOwnerGuard`.
@@ -1133,8 +1026,11 @@ Upload/management endpoints require session + `INSTRUCTOR`; per-video endpoints 
 | `POST` | `/api/videos/:vid/upload-complete` | Signal the bytes have landed; advances state toward transcoding (`200`). |
 | `PATCH` | `/api/videos/:vid` | Mark a video `FAILED` with a `failureReason`. |
 | `DELETE` | `/api/videos/:vid` | Delete the video (`204`). |
+| `PUT` | `/api/videos/:vid/captions` | Upload/replace the WebVTT caption track (≤ 256 KB). |
+| `GET` | `/api/videos/:vid/captions` | The caption track's metadata (owner view). |
+| `DELETE` | `/api/videos/:vid/captions` | Remove the caption track. |
 
-### Playback endpoints — `/api/playback`
+### Playback — `/api/playback`
 
 Guarded by `FirebaseSessionGuard` + `EnrollmentOrOwnerGuard` (course owner **or**
 authenticated student with an `ACTIVE` enrollment). Manifests and keys are served
@@ -1145,6 +1041,7 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `GET` | `/playback/manifest/:vid` | Master HLS manifest (`application/vnd.apple.mpegurl`). |
 | `GET` | `/playback/manifest/:vid/rendition/:r` | A single rendition's media playlist. |
 | `GET` | `/playback/keys/:vid` | The AES-128 content key bytes (`application/octet-stream`). |
+| `GET` | `/playback/captions/:vid` | The WebVTT caption track (`404 CAPTIONS_NOT_FOUND` when none). |
 
 ### Internal / webhook endpoints
 
@@ -1158,39 +1055,45 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
-| `GET` | `/api/health` | `{ status:"ok", version, serverTime }`. |
+| `GET` | `/api/health` | `{ status:"ok", version, serverTime }`. Public liveness check (distinct from the admin dashboard's `/api/admin/health`). |
 | `GET` | `/api/firestore-smoke` | Writes a doc via the Admin SDK to prove Firestore wiring. |
 
-## 3.10 Web routes
+## 3.11 Web routes
 
 | Path | Guard | Page |
 | :--- | :--- | :--- |
-| `/` | — | Course catalogue (public). |
+| `/` | `landingGuard` | Public landing page for logged-out visitors; authenticated users are redirected to `/dashboard`. |
 | `/catalog` | — | Course catalogue — browse, filter, sort, and paginate PUBLISHED courses. |
 | `/search` | — | Search results page (the catalogue search bar navigates here). |
 | `/catalog/:id` | — | Public course detail page; shows the enrollment panel (state varies by auth/enrollment). |
-| `/login` | — | Sign-in page. Honours a `?redirect=` query param on success (used by guest auto-enroll). |
+| `/login` | — | Sign-in page. Honours a `?redirect=` query param on success (used by guest auto-enroll and deep links). |
 | `/register` | — | Registration page (mirrors the password policy client-side). |
 | `/register/confirm` | — | "Check your email" + Resend. |
 | `/forgot-password` | — | Request a password reset. |
 | `/auth/unlock` | — | Redeems an unlock token from the URL. |
-| `/dashboard` | `authGuard` | Display name + role; sign-out. |
+| `/dashboard` | `authGuard` | Display name + role; instructor course grid; sign-out. |
+| `/settings/profile` | `authGuard` | Profile settings: text profile, picture, email/password change, instructor request, completed courses. |
+| `/settings/profile/email-changed` | — | Unguarded landing page for the email-change confirmation link. |
+| `/learn/:courseId/:lessonId` | `authGuard` | Student lesson player: video, outline panel, materials, mark-complete. |
 | `/courses` | `instructorRoleGuard` | Instructor's course list. |
 | `/courses/new` | `instructorRoleGuard` | Create a course. |
-| `/courses/:id/edit` | `instructorRoleGuard` | Course editor: modules, lessons, video, publish bar. |
-| `/courses/:cid/students` | `instructorRoleGuard` + `CourseOwnerGuard` | Enrolled students roster for the course (US-07-01). |
-| `/courses/:cid/analytics` | `instructorRoleGuard` + `CourseOwnerGuard` | Live course analytics: enrolled total, avg. completion, new enrollments, per-lesson breakdown (US-07-02). |
-| `/admin/instructor-applications` | `adminRoleGuard` | Pending instructor-application review queue (US-08-03). |
-| `/admin/categories` | `adminRoleGuard` | Course-category management: create, rename, delete with course reassignment (US-08-02). |
-| `/admin/health` | `adminRoleGuard` | Platform health dashboard: service status, stats, alerts (US-08-04). |
+| `/courses/:id/edit` | `instructorRoleGuard` | Course editor: modules, lessons, video, captions, materials, cover, publish bar. |
+| `/courses/:cid/students` | `instructorRoleGuard` + owner check | Enrolled-students roster. |
+| `/courses/:cid/analytics` | `instructorRoleGuard` + owner check | Live course analytics. |
+| `/admin/instructor-applications` | `adminRoleGuard` | Pending instructor-application review queue. |
+| `/admin/users` | `adminRoleGuard` | User directory (search + pagination). |
+| `/admin/users/:uid` | `adminRoleGuard` | User detail: profile, role/status actions, enrollments, authored courses. |
+| `/admin/categories` | `adminRoleGuard` | Course-category management. |
+| `/admin/health` | `adminRoleGuard` | Platform health dashboard. |
+| `/admin` | `adminRoleGuard` | Redirects to `/admin/instructor-applications`. |
 
-## 3.11 Roles and guards
+## 3.12 Roles and guards
 
 | Role | Granted | Can do |
 | :--- | :--- | :--- |
-| `STUDENT` | Every new account | Register, sign in, view the dashboard, submit an instructor-role request. |
-| `INSTRUCTOR` | Via `pnpm tools:promote-to-instructor <email>` or ADMIN approval of a role request | Everything `STUDENT` can, plus full course authoring, video, and publishing. |
-| `ADMIN` | Via `pnpm tools:promote-to-admin <email>` | Everything `STUDENT` can, plus the admin instructor-application review queue at `/admin/instructor-applications`. |
+| `STUDENT` | Every new account | Browse, enroll, learn, edit their profile, request the instructor role. |
+| `INSTRUCTOR` | ADMIN approval of a role request, or `pnpm tools:promote-to-instructor <email>` | Everything `STUDENT` can, plus course authoring, video, captions, materials, publishing, roster, analytics, and student notification. |
+| `ADMIN` | `pnpm tools:promote-to-admin <email>` | Everything `STUDENT` can, plus all `/admin` surfaces: instructor applications, user directory and account management, categories, platform health. |
 
 The role lives in a Firebase Auth custom claim and is baked into the session — a user
 must **sign out and back in** after a role change.
@@ -1202,26 +1105,34 @@ must **sign out and back in** after a role change.
 | `AdminRoleGuard` | The caller's role is `ADMIN`. |
 | `CourseOwnerGuard` | The course belongs to the caller. |
 | `VideoOwnerGuard` | The video belongs to the caller. |
+| `MaterialOwnerGuard` / `MaterialAccessGuard` | The material's course belongs to the caller / caller is owner or ACTIVE-enrolled. |
 | `EnrollmentOrOwnerGuard` | The caller owns the course **or** has an `ACTIVE` enrollment in it. |
 | `PubSubPushGuard` | The transcoder webhook request carries a valid Pub/Sub push token. |
 
-## 3.12 Data models
+An architectural test (`apps/api/src/controller-guard-coverage.spec.ts`) fails the
+build if any controller route is neither guarded nor on the explicit public
+allowlist.
+
+## 3.13 Data models
 
 Defined in `libs/shared-data-models` and shared by both apps. IDs are **branded
 strings** (Firestore document IDs); timestamps are **ISO 8601 strings**; enum-like
 fields are **string-literal unions** (not TypeScript enums).
 
-- **`User`** — `id, email, displayName, role (STUDENT|INSTRUCTOR|ADMIN), createdAt, updatedAt`.
+- **`User`** — `id, email, displayName, role (STUDENT|INSTRUCTOR|ADMIN), createdAt, updatedAt`
+  (plus `status` and profile fields: biography, picture).
 - **`InstructorApplication`** — `uid` (=== the Firestore doc id in the `instructorApplications`
   collection), `statement`, `expertise`, `status (PENDING|APPROVED|DECLINED)`, `createdAt`,
-  `resolvedAt?`. Submitted by a student via `POST /api/profile/instructor-application` and
-  resolved by an ADMIN (approve/decline) or the `promote-to-instructor` CLI. The admin queue
-  read-model **`PendingInstructorApplicationView`** joins each pending application with its
-  user doc to add `displayName` and `email`.
+  `resolvedAt?`. The admin queue read-model **`PendingInstructorApplicationView`** joins
+  each pending application with its user doc to add `displayName` and `email`.
 - **`Course`** — `id, title, description, longDescription?, category?, difficulty?,
   instructorId, status (DRAFT|PUBLISHED|ARCHIVED), publishedAt?, archivedAt?,
-  createdAt, updatedAt`.
-- **`Module`** — `id, courseId, title, order, …`. A course is an ordered list of modules.
+  createdAt, updatedAt` (plus cover-image fields).
+- **`CourseCategoryDoc`** — `id` (stable slug referenced by `Course.category`), `name`,
+  timestamps. Lives in the admin-managed `courseCategories` collection; six historical
+  values seed lazily on first read.
+- **`Module`** — `id, courseId, title, order, …` (plus `studentsNotifiedAt?` once the
+  one-shot new-module email has been sent). A course is an ordered list of modules.
 - **`Lesson`** — `id, moduleId, title, description?, videoId?, order, …`. A module is an
   ordered list of lessons; a lesson has at most one video.
 - **`Video`** — `id, ownerInstructorId, courseId, lessonId, state, source, output?,
@@ -1229,47 +1140,48 @@ fields are **string-literal unions** (not TypeScript enums).
   - `state`: `PENDING_UPLOAD | UPLOADING | UPLOADED | TRANSCODING | READY | FAILED`.
   - Supported content types: `video/mp4`, `video/quicktime`, `video/x-matroska`.
 - **`VideoKey`** — `id, videoId, key` (base64 of a 16-byte AES-128 key).
+- **`VideoCaptions`** — `videoId` (=== the doc id in `videoCaptions`), `language`,
+  `label`, `format ("vtt")`, `content` (the raw VTT text), timestamps. One document
+  per video; absence means no captions (`404 CAPTIONS_NOT_FOUND` on the stream).
+- **`Material`** — lesson attachment metadata: display name, content type,
+  `sizeBytes`, state (`PENDING_UPLOAD → READY`), storage path.
 - **`PublishEligibility`** — `{ eligible: true, reasons: [] }` or
   `{ eligible: false, reasons: PublishBlockReason[] }`.
 - **`Enrollment`** — `id` (composite `${userId}__${courseId}`), `userId`, `courseId`,
   `status (ACTIVE|WITHDRAWN)`, `progress: LessonProgress[]`, `withdrawnAt?`,
   `lastAccessedLessonId?`, `lastAccessedAt?`, `completedAt?` (set when every lesson in
-  the course has a completed progress row; never cleared; `undefined` on pre-rollup
-  docs, treated as `null` by readers — US-06-02), `createdAt`, `updatedAt`. Stored in
-  the top-level `enrollments` Firestore collection; direct client access is denied by
+  the course has a completed progress row; never cleared), `createdAt`, `updatedAt`.
+  Stored in the top-level `enrollments` collection; direct client access is denied by
   security rules.
-- **`EnrollmentStatusView`** — `{ enrollment: Enrollment | null, isOwner: boolean }` —
-  the authenticated read-model returned by `GET /api/enrollments/:courseId`.
-- **`EnrollmentListView`** — `{ enrollments: EnrollmentListItem[] }`, where each item is
-  `{ courseId, courseTitle, completedAt }` — the authenticated read-model returned by
-  `GET /api/enrollments`.
 - **`LessonProgress`** — `lessonId`, `completedAt`, `lastWatchedSeconds`.
-- **`VideoCaptions`** — `videoId` (=== the Firestore doc id in the `videoCaptions`
-  collection), `language` (e.g. `"en"`), `label` (e.g. `"English"`), `format`
-  (`"vtt"`), `content` (the raw VTT text), `createdAt`, `updatedAt`. One document per
-  video; presence of the document means a caption track exists. Absent document means no
-  captions are available (the streaming endpoint returns `404 CAPTIONS_NOT_FOUND`).
+- **`EnrollmentStatusView`** — `{ enrollment: Enrollment | null, isOwner: boolean }`
+  (returned by `GET /api/enrollments/:courseId`).
+- **`EnrollmentListView`** — `{ enrollments: [{ courseId, courseTitle, completedAt }] }`
+  (returned by `GET /api/enrollments`).
+- **`AdminHealthReport`** — `services: [{ key, status (UP|DOWN), detail? }]`,
+  `stats { storageUsedBytes, storageQuotaBytes?, registeredUsers, publishedCourses,
+  pendingTranscodeJobs }`, `alerts: [{ code, message }]`, `generatedAt`.
 
-## 3.13 Video pipeline configuration
+## 3.14 Video pipeline configuration
 
 The `VideoModule` reads its configuration from environment variables
 (`libs/api-courses/src/lib/video/video.config.ts`):
 
 | Variable | Default | Purpose |
 | :--- | :--- | :--- |
-| `LEARNWREN_VIDEO_SOURCE_BUCKET` | *(required)* | Bucket that receives raw uploads. |
-| `LEARNWREN_VIDEO_OUTPUT_BUCKET` | *(required)* | Bucket that holds transcoded HLS output. |
-| `LEARNWREN_VIDEO_TRANSCODER` | `gcp` | `gcp` (GCP Transcoder API) or `fake` (dev). |
-| `LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE` | `false` | Use a fake playback storage adapter (dev). |
+| `LEARNWREN_VIDEO_SOURCE_BUCKET` | *(required in prod)* | Bucket that receives raw uploads. |
+| `LEARNWREN_VIDEO_OUTPUT_BUCKET` | *(required in prod)* | Bucket that holds transcoded HLS output. |
+| `LEARNWREN_VIDEO_TRANSCODER` | `gcp` in prod, `fake` otherwise | `gcp` (GCP Transcoder API) or `fake` (dev). |
+| `LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE` | `false` in prod, `true` otherwise | Use a fake playback storage adapter (dev). |
 | `LEARNWREN_VIDEO_STUCK_THRESHOLD_MINUTES` | `30` | When a transcoding job is considered stuck. |
 | `LEARNWREN_WEB_VIDEO_POLL_INTERVAL_MS` | `5000` | How often the editor polls video state. |
-| `LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC` | `14400` | Playback signed-URL lifetime. |
+| `LEARNWREN_VIDEO_PLAYBACK_SIGNED_URL_TTL_SEC` | `14400` | Playback signed-URL lifetime (long by design — VOD playlists are signed once). |
 | `LEARNWREN_GCP_PROJECT_ID` | *(required if `gcp`)* | GCP project for the Transcoder API. |
 | `LEARNWREN_TRANSCODER_LOCATION` | *(required if `gcp`)* | Transcoder API region. |
-| `LEARNWREN_TRANSCODER_TOPIC` | *(required if `gcp`)* | Pub/Sub topic for job events. |
+| `LEARNWREN_TRANSCODER_TOPIC` | *(required if `gcp`)* | Pub/Sub topic for job events (full resource path). |
 | `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` | *(required if `gcp`)* | Expected audience on the webhook token. |
 | `LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL` | *(required if `gcp`)* | Service account allowed to push events. |
-| `LEARNWREN_STORAGE_QUOTA_GB` | *(unset)* | Optional, read by the platform health dashboard (US-08-04). When set to a positive number, enables the storage quota bar and the `STORAGE_QUOTA` alert at 80% usage. |
+| `LEARNWREN_STORAGE_QUOTA_GB` | *(unset)* | Optional, read by the platform health dashboard. When set to a positive number, enables the storage quota bar and the `STORAGE_QUOTA` alert at 80% usage. |
 
 `LEARNWREN_VIDEO_TRANSCODER=fake` and `LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true` are
 **rejected when `NODE_ENV=production`** — they exist only for local development.
@@ -1291,7 +1203,7 @@ curl -X POST http://localhost:3333/api/internal/fake-transcoder/fail/<videoId> \
 The fake transcoder wraps the payload in the same Pub/Sub push envelope the real
 webhook expects, so it exercises the identical `TranscoderEventsController` code path.
 
-## 3.14 Developer commands
+## 3.15 Developer commands
 
 | Command | Description |
 | :--- | :--- |
@@ -1302,7 +1214,9 @@ webhook expects, so it exercises the identical `TranscoderEventsController` code
 | `pnpm lint` / `pnpm typecheck` | Lint / type-check all projects. |
 | `pnpm e2e` | Run the Playwright E2E suites. |
 | `pnpm affected` | Lint + test + build + typecheck only what the branch changed. |
+| `pnpm mutate` | Stryker mutation-testing rounds (see `docs/quality/mutation-report.md`). |
 | `pnpm secrets:render` | Render `.env` from `.env.tpl` via 1Password. |
+| `pnpm deploy:prod` | Deploy to Firebase production (see `docs/deployment.md`). |
 | `pnpm tools:promote-to-instructor <email>` | Promote a user to `INSTRUCTOR`. |
 | `pnpm tools:promote-to-admin <email>` | Promote a user to `ADMIN`. |
 
@@ -1310,27 +1224,28 @@ Target a single project by invoking Nx directly, e.g. `pnpm nx test api-courses`
 
 ---
 
-# What is not built yet
+# What is not built
 
-These are specified in `docs/epics/` and `docs/use-cases/` but **not yet implemented**:
+Every story in the written spec (`docs/epics/`, `docs/use-cases/`) is implemented.
+The remaining gaps are deliberate scope cuts inside shipped features:
 
-- **Student-facing materials browser** — `MaterialAccessGuard` already grants enrolled
-  students download access, but the lesson player does not yet surface a materials panel.
-- **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll are
-  live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than 90 days is
-  not implemented.
-- **EP-07 Instructor Dashboard** — fully shipped across three slices: enrolled-students roster (US-07-01, Slice A), course analytics (US-07-02, Slice B), and new-module notifications (US-07-03, Slice C).
-- **Account management sub-flows** — account deletion, social auth, and App Check are out of scope for MVP. UC-01-03 (manage profile) is now fully implemented across Slices A–D (text profile, picture, email change, password change).
-
-EP-08 (Platform Administration) is now complete: the admin instructor-application
-review queue (US-08-03), user directory and account management (US-08-01), course
-category management (US-08-02), and the platform health dashboard (US-08-04) are
-all shipped. With this, every story in the written spec is implemented end to end.
+- **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll
+  are live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than
+  90 days is not implemented.
+- **Completion badge un-stamping and certificates** — a Course Completed badge is
+  never revoked (even if the instructor adds lessons later), and there is no
+  certificate export.
+- **Multi-language captions** — one English WebVTT track per video.
+- **Instructor-application history and decline reasons** — the admin queue shows
+  pending applications only, and no decline reason is captured.
+- **Account self-deletion, social auth, App Check** — explicitly out of MVP scope
+  (admins can delete accounts; users cannot delete their own).
 
 ## Further reading
 
 - [`README.md`](../README.md) — project overview and slice history.
 - [`docs/development.md`](./development.md) — local development reference.
+- [`docs/deployment.md`](./deployment.md) — production deploy runbook.
 - [`docs/secrets.md`](./secrets.md) — 1Password vault contract.
 - [`docs/epics/`](./epics/) — product specs (epics & user stories).
 - [`docs/use-cases/`](./use-cases/) — Cockburn-style use cases for the MVP scope.

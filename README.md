@@ -39,7 +39,7 @@ This is an [Nx](https://nx.dev) workspace using pnpm. It contains an Angular SPA
 ```
 learnwren/
 ├── apps/
-│   ├── web/            # Angular SPA — root `/` redirects to `/catalog`
+│   ├── web/            # Angular SPA — root `/` is the public landing page (signed-in users → `/dashboard`)
 │   ├── web-e2e/        # Playwright E2E tests for web
 │   ├── api/            # NestJS API — exposes GET /api/health
 │   └── api-e2e/        # Playwright E2E tests for api
