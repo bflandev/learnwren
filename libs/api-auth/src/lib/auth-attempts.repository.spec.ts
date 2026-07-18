@@ -172,6 +172,36 @@ describe('AuthAttemptsRepository.read', () => {
     // …but the newer lock state must survive.
     expect(del).not.toHaveBeenCalled();
   });
+
+  it('does NOT delete when the doc vanished between the read and the lazy delete', async () => {
+    // Concurrency race: another cleanup (or an unlock) already deleted the doc
+    // after our read — the in-transaction re-read sees it gone and must not
+    // issue a delete against a missing doc.
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const del = vi.fn(async () => undefined);
+    const get = vi
+      .fn()
+      // 1st read (outside the txn): expired lock.
+      .mockResolvedValueOnce({ exists: true, data: () => ({ failedCount: 3, lockedUntil: past, unlockTokenHash: 'h' }) })
+      // 2nd read (inside the txn): the doc is already gone.
+      .mockResolvedValue({ exists: false, data: () => undefined });
+    const ref = { get, delete: del };
+    const fakeFirestore = {
+      collection: vi.fn(() => ({ doc: vi.fn(() => ref) })),
+      runTransaction: vi.fn(async (cb: (t: unknown) => unknown) =>
+        cb({
+          get: async (r: typeof ref) => r.get(),
+          delete: (r: typeof ref) => r.delete(),
+        }),
+      ),
+      _docs: new Map(),
+      _queryHits: new Map(),
+    } as unknown as FakeFirestore;
+    const repo = await buildRepo(fakeFirestore);
+
+    expect(await repo.read('hash-1')).toBeNull();
+    expect(del).not.toHaveBeenCalled();
+  });
 });
 
 describe('AuthAttemptsRepository.recordFailure', () => {
