@@ -1,0 +1,34 @@
+/* Tailwind v4 entry (CSS-first; replaces tailwind.config.js). */
+@import 'tailwindcss';
+
+/* Utility names map onto the lw custom properties so template classes
+ * (bg-bg-2, text-ink-3, border-line, …) keep working unchanged. */
+@theme inline {
+  --color-bg: var(--lw-bg);
+  --color-bg-2: var(--lw-bg-2);
+  --color-bg-3: var(--lw-bg-3);
+  --color-line: var(--lw-line);
+  --color-line-2: var(--lw-line-2);
+  --color-ink: var(--lw-ink);
+  --color-ink-2: var(--lw-ink-2);
+  --color-ink-3: var(--lw-ink-3);
+  --color-ink-4: var(--lw-ink-4);
+  --color-ochre: var(--lw-ochre);
+  --color-ochre-2: var(--lw-ochre-2);
+  --color-ochre-ink: var(--lw-ochre-ink);
+  --color-moss: var(--lw-moss);
+  --color-clay: var(--lw-clay);
+  --color-rust: var(--lw-rust);
+  --color-good: var(--lw-good);
+  --color-warn: var(--lw-warn);
+  --color-bad: var(--lw-bad);
+  --font-sans: var(--lw-font-sans);
+  --font-serif: var(--lw-font-serif);
+  --font-mono: var(--lw-font-mono);
+  --radius-sm: var(--lw-r-sm);
+  --radius: var(--lw-r);
+  --radius-lg: var(--lw-r-lg);
+  --radius-xl: var(--lw-r-xl);
+  --shadow-1: var(--lw-shadow-1);
+  --shadow-2: var(--lw-shadow-2);
+}

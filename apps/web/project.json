@@ -21,6 +21,7 @@
           }
         ],
         "styles": [
+          "apps/web/src/tailwind.css",
           "libs/web-design-system/src/generated/tokens.css",
           "libs/web-ui/src/styles/recipes.css",
           "apps/web/src/styles.scss"
