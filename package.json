@@ -8,6 +8,8 @@
   },
   "private": true,
   "scripts": {
+    "build:tokens": "node libs/web-design-system/tokens/build.mjs",
+    "lint:tokens": "bash scripts/lint-tokens.sh",
     "start:web": "nx serve web",
     "start:api": "nx serve api",
     "start": "nx run-many -t serve -p web,api --parallel",
