@@ -20,7 +20,11 @@
             "input": "apps/web/public"
           }
         ],
-        "styles": ["libs/web-ui/src/styles/tokens.css", "apps/web/src/styles.scss"]
+        "styles": [
+          "libs/web-design-system/src/generated/tokens.css",
+          "libs/web-ui/src/styles/recipes.css",
+          "apps/web/src/styles.scss"
+        ]
       },
       "configurations": {
         "production": {

@@ -23,8 +23,10 @@ function parseCustomProps(css: string): Map<string, Map<string, string>> {
 }
 
 describe('generated tokens.css equivalence with the legacy hand-written file', () => {
+  // Frozen copy of the pre-port hand-written file — the permanent record of
+  // the values the pipeline must reproduce.
   const legacy = parseCustomProps(
-    readFileSync(join(HERE, '../../web-ui/src/styles/tokens.css'), 'utf8'),
+    readFileSync(join(HERE, 'legacy-tokens.fixture.css'), 'utf8'),
   );
   const generated = parseCustomProps(
     readFileSync(join(HERE, 'generated/tokens.css'), 'utf8'),
