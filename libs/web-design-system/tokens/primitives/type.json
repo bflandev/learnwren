@@ -1,0 +1,7 @@
+{
+  "lw": {
+    "font-sans": { "value": "\"Inter Tight\", \"Helvetica Neue\", Helvetica, Arial, sans-serif" },
+    "font-serif": { "value": "\"Source Serif 4\", \"Source Serif Pro\", \"Iowan Old Style\", Georgia, serif" },
+    "font-mono": { "value": "\"JetBrains Mono\", ui-monospace, \"SF Mono\", Menlo, monospace" }
+  }
+}

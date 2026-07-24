@@ -1,0 +1,32 @@
+{
+  "name": "web-design-system",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/web-design-system/src",
+  "prefix": "lw",
+  "projectType": "library",
+  "tags": ["scope:web"],
+  "targets": {
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "options": {
+        "cwd": "libs/web-design-system",
+        "command": "tsc --build tsconfig.lib.json --emitDeclarationOnly"
+      },
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default",
+        {
+          "externalDependencies": ["typescript"]
+        }
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/out-tsc/libs/web-design-system/**/*.{d.ts,d.cts,d.mts}",
+        "{workspaceRoot}/libs/web-design-system/tsconfig.lib.tsbuildinfo"
+      ]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

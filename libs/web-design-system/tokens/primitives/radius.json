@@ -1,0 +1,8 @@
+{
+  "lw": {
+    "r-sm": { "value": "6px" },
+    "r": { "value": "10px" },
+    "r-lg": { "value": "16px" },
+    "r-xl": { "value": "22px" }
+  }
+}
