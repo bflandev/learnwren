@@ -2,6 +2,7 @@ import {
   ApplicationRef,
   ChangeDetectionStrategy,
   Component,
+  ErrorHandler,
   signal,
 } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -683,6 +684,27 @@ describe('HlmComboboxChips focus restoration', () => {
       'button[aria-label="Remove Alpha"]',
     ) as HTMLButtonElement;
     expect(document.activeElement).toBe(remaining);
+  });
+
+  it('tolerates the chip list emptying before the focus-restore frame (no ErrorHandler report)', async () => {
+    // The restore runs in afterNextRender, where a thrown TypeError is routed
+    // to ErrorHandler rather than propagating — a bare not.toThrow() cannot
+    // see it. Removing the SOLE chip leaves buttons empty: index -1 must fall
+    // through the `?.` instead of calling focus() on undefined.
+    const handleError = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [{ provide: ErrorHandler, useValue: { handleError } }],
+    });
+    const fixture = TestBed.createComponent(StandaloneChipsHost);
+    fixture.componentInstance.picked.set([{ id: 1, name: 'Alpha' }]);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    (
+      root.querySelector('button[aria-label="Remove Alpha"]') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(handleError).not.toHaveBeenCalled();
   });
 
   it('moves focus to the next chip after removing the first one', async () => {

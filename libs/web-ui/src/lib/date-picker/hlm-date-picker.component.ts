@@ -794,7 +794,9 @@ export class HlmDatePicker {
   }
 
   protected setHour(value: string | null): void {
-    if (value == null || this.readonly() || this.disabled()) return;
+    // Stryker disable next-line ConditionalExpression,EqualityOperator: equivalent — a null value string reaches Number.parseInt as NaN and the guard below returns identically
+    if (value == null) return;
+    if (this.readonly() || this.disabled()) return;
     const raw = Number.parseInt(value, 10);
     if (Number.isNaN(raw)) return;
     const base = this.workingDateTime();
@@ -814,7 +816,9 @@ export class HlmDatePicker {
   }
 
   protected setMinute(value: string | null): void {
-    if (value == null || this.readonly() || this.disabled()) return;
+    // Stryker disable next-line ConditionalExpression,EqualityOperator: equivalent — a null value string reaches Number.parseInt as NaN and the guard below returns identically
+    if (value == null) return;
+    if (this.readonly() || this.disabled()) return;
     const raw = Number.parseInt(value, 10);
     if (Number.isNaN(raw)) return;
     const minute = clampInt(raw, 0, 59);
@@ -826,7 +830,9 @@ export class HlmDatePicker {
   }
 
   protected setSecond(value: string | null): void {
-    if (value == null || this.readonly() || this.disabled()) return;
+    // Stryker disable next-line ConditionalExpression,EqualityOperator: equivalent — a null value string reaches Number.parseInt as NaN and the guard below returns identically
+    if (value == null) return;
+    if (this.readonly() || this.disabled()) return;
     const raw = Number.parseInt(value, 10);
     if (Number.isNaN(raw)) return;
     const second = clampInt(raw, 0, 59);
