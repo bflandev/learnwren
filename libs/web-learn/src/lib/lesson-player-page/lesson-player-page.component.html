@@ -4,7 +4,7 @@
     <div class="aspect-video w-full bg-gray-200 rounded"></div>
   </div>
 } @else if (state() === 'NOT_ENROLLED') {
-  <div class="rounded border p-6">
+  <div class="rounded border border-line p-6">
     <h1 class="text-xl font-semibold">You're not enrolled in this course</h1>
     <p class="mt-2 text-sm text-gray-600">
       You don't have access to this course's lessons. Visit the course page to enrol.
@@ -18,14 +18,14 @@
     </div>
   </div>
 } @else if (state() === 'NOT_FOUND') {
-  <div class="rounded border p-6">
+  <div class="rounded border border-line p-6">
     <h1 class="text-xl font-semibold">Lesson not available</h1>
     <p class="mt-2 text-sm text-gray-600">This lesson could not be found.</p>
     <a data-testid="back-to-course" class="mt-4 inline-block underline"
        [routerLink]="['/catalog', courseId]">← Back to course</a>
   </div>
 } @else if (state() === 'LOAD_ERROR') {
-  <div class="rounded border p-6">
+  <div class="rounded border border-line p-6">
     <h1 class="text-xl font-semibold">Something went wrong</h1>
     <button class="mt-4 underline" type="button" (click)="retry()">Retry</button>
   </div>
@@ -72,7 +72,7 @@
               (paused)="onPaused()"
               (videoEnded)="onEnded()" />
           } @else {
-            <div class="rounded border p-6 bg-amber-50" data-testid="video-processing">
+            <div class="rounded border border-line p-6 bg-amber-50" data-testid="video-processing">
               This lesson's video is still being processed. Please check back later.
             </div>
           }
@@ -112,13 +112,13 @@
           </section>
 
           @if (v.materials.length > 0) {
-            <section data-testid="lesson-materials" class="mt-6 rounded border p-4">
+            <section data-testid="lesson-materials" class="mt-6 rounded border border-line p-4">
               <h2 class="text-lg font-semibold mb-3">Lesson materials</h2>
               <ul class="space-y-2">
                 @for (m of v.materials; track m.id) {
                   <li
                     [attr.data-testid]="'material-row-' + m.id"
-                    class="flex items-center justify-between gap-4 rounded border p-3"
+                    class="flex items-center justify-between gap-4 rounded border border-line p-3"
                   >
                     <div class="min-w-0 flex items-center gap-3">
                       <span
