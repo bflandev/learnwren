@@ -8,37 +8,49 @@
       </p>
     } @else {
       @if (bannerError(); as banner) {
-        <p class="text-sm text-bad" data-testid="application-error">{{ banner }}</p>
+        <hlm-alert severity="error" data-testid="application-error">{{ banner }}</hlm-alert>
       }
 
       @if (!formOpen()) {
         <p class="text-sm text-ink-2">
           Apply to create and publish your own courses.
         </p>
-        <button lwButton type="button" class="self-start" (click)="open()">
+        <button hlmBtn type="button" class="self-start" (click)="open()">
           Become an Instructor
         </button>
       } @else {
         <form [formGroup]="form" (ngSubmit)="submit()"
               class="flex flex-col gap-3 border border-line rounded p-4">
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink-2">Statement of intent</span>
-            <textarea lwInput rows="3" formControlName="statement"></textarea>
+          <hlm-form-field>
+            <label hlmLabel for="instructor-application-statement">Statement of intent</label>
+            <textarea
+              hlmInput
+              hlmFormFieldControl
+              id="instructor-application-statement"
+              rows="3"
+              formControlName="statement"
+            ></textarea>
             @if (form.controls.statement.touched && form.controls.statement.invalid) {
-              <span class="text-sm text-bad">A statement of intent is required.</span>
+              <span hlmFormFieldError>A statement of intent is required.</span>
             }
-          </label>
+          </hlm-form-field>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink-2">Areas of expertise</span>
-            <textarea lwInput rows="2" formControlName="expertise"></textarea>
+          <hlm-form-field>
+            <label hlmLabel for="instructor-application-expertise">Areas of expertise</label>
+            <textarea
+              hlmInput
+              hlmFormFieldControl
+              id="instructor-application-expertise"
+              rows="2"
+              formControlName="expertise"
+            ></textarea>
             @if (form.controls.expertise.touched && form.controls.expertise.invalid) {
-              <span class="text-sm text-bad">Areas of expertise are required.</span>
+              <span hlmFormFieldError>Areas of expertise are required.</span>
             }
-          </label>
+          </hlm-form-field>
 
           <div class="flex items-center gap-3">
-            <button lwButton type="submit" [disabled]="status() === 'submitting'">
+            <button hlmBtn type="submit" [disabled]="status() === 'submitting'">
               Submit application
             </button>
           </div>

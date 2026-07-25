@@ -65,17 +65,15 @@ test(
     await page.getByTestId('toggle-password-change').click();
 
     // Scope all field lookups to the password <form> to avoid collisions with
-    // the email-change form's "Current password" field, and to disambiguate
-    // "New password" from "Confirm new password" (Playwright's accessible-name
-    // resolution can include aria-describedby hint text, making exact: true
-    // unreliable when hints are present).
+    // the email-change form's "Current password" field; the new/confirm fields
+    // are targeted by their stable ids (hlm-form-field wires label[for]/id).
     const pwForm = page.locator('form').filter({
       has: page.getByTestId('submit-password-change'),
     });
 
     await pwForm.getByLabel('Current password').fill('Aa1!aaaaaaaa');
-    await pwForm.locator('[aria-describedby="new-pw-err"]').fill('Bb2@bbbbbbbb');
-    await pwForm.locator('[aria-describedby="confirm-pw-err"]').fill('different');
+    await pwForm.locator('#password-change-new').fill('Bb2@bbbbbbbb');
+    await pwForm.locator('#password-change-confirm').fill('different');
 
     await page.getByTestId('submit-password-change').click();
 
@@ -123,8 +121,8 @@ test(
     // Fill with matching passwords that satisfy the policy (12+ chars, upper,
     // lower, digit, special).
     await pwForm.getByLabel('Current password').fill('Aa1!aaaaaaaa');
-    await pwForm.locator('[aria-describedby="new-pw-err"]').fill('Bb2@bbbbbbbb');
-    await pwForm.locator('[aria-describedby="confirm-pw-err"]').fill('Bb2@bbbbbbbb');
+    await pwForm.locator('#password-change-new').fill('Bb2@bbbbbbbb');
+    await pwForm.locator('#password-change-confirm').fill('Bb2@bbbbbbbb');
 
     await page.getByTestId('submit-password-change').click();
 

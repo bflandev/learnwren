@@ -1,11 +1,16 @@
 @if (currentUser(); as me) {
   <div class="flex items-center gap-4">
-    <lw-avatar
-      [photoUrl]="me.photoUrl"
-      [displayName]="me.displayName"
-      [userId]="me.uid"
+    <hlm-avatar
       size="lg"
-    />
+      data-testid="uploader-avatar"
+      [src]="me.photoUrl"
+      [alt]="me.displayName"
+      [attr.data-tone]="avatarTone()"
+    >
+      <span data-testid="uploader-avatar-initials" class="text-sm font-medium">{{
+        avatarInitials()
+      }}</span>
+    </hlm-avatar>
 
     <div class="flex flex-col gap-2">
       @switch (state()) {
@@ -28,7 +33,7 @@
           <p>Uploading…</p>
         }
         @case ('failed') {
-          <p class="text-error">{{ errorReason() }}</p>
+          <p class="text-bad">{{ errorReason() }}</p>
           <button type="button" class="underline text-left" (click)="dismissError()">Dismiss</button>
         }
       }

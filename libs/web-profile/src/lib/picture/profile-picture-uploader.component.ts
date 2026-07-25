@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import { AuthService } from '@learnwren/web-auth';
-import { LwAvatarComponent } from '@learnwren/web-ui';
+import { HlmAvatar, avatarToneFor, deriveInitials } from '@learnwren/web-ui';
 
 import { ProfilePictureError, ProfilePictureService } from './profile-picture.service';
 
@@ -10,7 +10,7 @@ export type UploaderState = 'idle' | 'uploading' | 'failed';
 @Component({
   selector: 'lib-profile-picture-uploader',
   standalone: true,
-  imports: [LwAvatarComponent],
+  imports: [HlmAvatar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile-picture-uploader.component.html',
 })
@@ -19,6 +19,8 @@ export class ProfilePictureUploaderComponent {
   private readonly auth = inject(AuthService);
 
   readonly currentUser = this.auth.currentUser;
+  readonly avatarTone = computed(() => avatarToneFor(this.currentUser()?.uid ?? ''));
+  readonly avatarInitials = computed(() => deriveInitials(this.currentUser()?.displayName ?? ''));
   readonly state = signal<UploaderState>('idle');
   readonly errorReason = signal<string | null>(null);
 
