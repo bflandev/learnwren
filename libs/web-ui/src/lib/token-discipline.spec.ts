@@ -20,7 +20,57 @@
  * `data-[state=checked]:*`. Those never match the patterns below.
  */
 
+import {
+  AUTOCOMPLETE_CONTENT_BASE,
+  AUTOCOMPLETE_EMPTY_BASE,
+  AUTOCOMPLETE_INPUT_BASE,
+  AUTOCOMPLETE_ITEM_BASE,
+  AUTOCOMPLETE_ITEM_INDICATOR_BASE,
+  AUTOCOMPLETE_LIST_BASE,
+} from './autocomplete/hlm-autocomplete.directive';
 import { AVATAR_BASE, AVATAR_SIZE_MAP } from './avatar/hlm-avatar.component';
+import {
+  BUTTON_SIZE_MAP,
+  BUTTON_VARIANT_MAP,
+} from './button/hlm-button.variants';
+import {
+  DIALOG_CLOSE_BASE,
+  DIALOG_CONTENT_BASE,
+  DIALOG_DESCRIPTION_BASE,
+  DIALOG_FOOTER_BASE,
+  DIALOG_HEADER_BASE,
+  DIALOG_OVERLAY_BASE,
+  DIALOG_TITLE_BASE,
+} from './dialog/hlm-dialog.component';
+import { LABEL_BASE } from './label/hlm-label.directive';
+import {
+  MENU_ITEM_BASE,
+  MENU_ITEM_SELECTED_TINT,
+} from './menu/hlm-menu-item.directive';
+import { MENU_BASE } from './menu/hlm-menu.component';
+import { POPOVER_CONTENT_BASE } from './popover/hlm-popover.directive';
+import { SEPARATOR_BASE } from './separator/hlm-separator.component';
+import { THUMB, TRACK_BASE } from './switch/hlm-switch.component';
+import {
+  TABS_BASE,
+  TABS_CONTENT_BASE,
+  TABS_LIST_BASE,
+  TABS_TRIGGER_BASE,
+} from './tabs/hlm-tabs.directive';
+import {
+  TABS_LIST_VARIANT_MAP,
+  TABS_SIZE_MAP,
+  TABS_TRIGGER_VARIANT_MAP,
+} from './tabs/hlm-tabs.variants';
+import { TOGGLE_BASE } from './toggle/hlm-toggle.directive';
+import {
+  TOGGLE_GROUP_BASE,
+  TOGGLE_GROUP_ITEM_BASE,
+  TOGGLE_GROUP_OUTLINE_CONNECT,
+  TOGGLE_GROUP_PILL_GAP,
+} from './toggle-group/hlm-toggle-group.directive';
+import { TOGGLE_GROUP_ITEM_APPEARANCE_MAP } from './toggle-group/hlm-toggle-group.variants';
+import { TOOLTIP_CONTENT_BASE } from './tooltip/hlm-tooltip.directive';
 import {
   BADGE_DENSITY_MAP,
   BADGE_VARIANT_MAP,
@@ -150,6 +200,37 @@ const CLASS_STRINGS: readonly string[] = [
   RESIZABLE_VERTICAL,
   RESIZABLE_PANEL_BASE,
   RESIZABLE_HANDLE_BASE,
+  LABEL_BASE,
+  SEPARATOR_BASE,
+  TRACK_BASE,
+  THUMB,
+  TOGGLE_BASE,
+  TOGGLE_GROUP_BASE,
+  TOGGLE_GROUP_ITEM_BASE,
+  TOGGLE_GROUP_OUTLINE_CONNECT,
+  TOGGLE_GROUP_PILL_GAP,
+  TABS_BASE,
+  TABS_LIST_BASE,
+  TABS_TRIGGER_BASE,
+  TABS_CONTENT_BASE,
+  TOOLTIP_CONTENT_BASE,
+  POPOVER_CONTENT_BASE,
+  DIALOG_OVERLAY_BASE,
+  DIALOG_CONTENT_BASE,
+  DIALOG_HEADER_BASE,
+  DIALOG_FOOTER_BASE,
+  DIALOG_TITLE_BASE,
+  DIALOG_DESCRIPTION_BASE,
+  DIALOG_CLOSE_BASE,
+  MENU_BASE,
+  MENU_ITEM_BASE,
+  MENU_ITEM_SELECTED_TINT,
+  AUTOCOMPLETE_INPUT_BASE,
+  AUTOCOMPLETE_CONTENT_BASE,
+  AUTOCOMPLETE_LIST_BASE,
+  AUTOCOMPLETE_ITEM_BASE,
+  AUTOCOMPLETE_ITEM_INDICATOR_BASE,
+  AUTOCOMPLETE_EMPTY_BASE,
   ...Object.values(AVATAR_SIZE_MAP),
   ...Object.values(BADGE_VARIANT_MAP),
   ...Object.values(BADGE_DENSITY_MAP),
@@ -158,6 +239,12 @@ const CLASS_STRINGS: readonly string[] = [
   ...Object.values(SPINNER_SIZE_MAP),
   ...Object.values(SIDEBAR_WIDTH_MAP),
   ...Object.values(SIDEBAR_BORDER_MAP),
+  ...Object.values(BUTTON_VARIANT_MAP),
+  ...Object.values(BUTTON_SIZE_MAP),
+  ...Object.values(TOGGLE_GROUP_ITEM_APPEARANCE_MAP),
+  ...Object.values(TABS_LIST_VARIANT_MAP),
+  ...Object.values(TABS_TRIGGER_VARIANT_MAP),
+  ...Object.values(TABS_SIZE_MAP),
 ];
 
 const allClasses = CLASS_STRINGS.join(' ');
@@ -169,8 +256,11 @@ describe('lib-wide .ts class strings (token discipline)', () => {
     // lower it only if a wrapper is intentionally removed (the >= means adding
     // never breaks it). 0 → 78 in Tier 1 (Task 4): 45 base consts + 33 variant
     // map entries (avatar 3, badge 10+3, button-group 2, heading 3, spinner 4,
-    // sidebar 6+2).
-    expect(CLASS_STRINGS.length).toBeGreaterThanOrEqual(78);
+    // sidebar 6+2). 78 → 130 in Tier 2 (Task 5): 31 base consts (label 1,
+    // separator 1, switch 2, toggle 1, toggle-group 4, tabs 4, tooltip 1,
+    // popover 1, dialog 7, menu 3, autocomplete 6) + 21 variant map entries
+    // (button 6+4, toggle-group item 2, tabs 3+3+3).
+    expect(CLASS_STRINGS.length).toBeGreaterThanOrEqual(130);
   });
 
   it('contains no raw hex colour', () => {

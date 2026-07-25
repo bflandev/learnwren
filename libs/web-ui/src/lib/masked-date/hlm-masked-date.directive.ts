@@ -4,7 +4,7 @@
 // preset's width. With the format hint on (default) an empty field shows the
 // expected format as its placeholder and reveals a slot skeleton (____-__-__) on
 // focus, then overwrites those slots in place as you type; off, it falls back to
-// insert-and-heal. Matches the date-picker's date half + SLEM's p-inputMask. The
+// insert-and-heal. Matches the date-picker's date half and the classic overwrite-style input mask. The
 // pure mask core lives in masked-date-core so it unit-tests without a DOM.
 import {
   Directive,

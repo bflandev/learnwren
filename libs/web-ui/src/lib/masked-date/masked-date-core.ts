@@ -106,7 +106,7 @@ export function hasMaskPayload(raw: string): boolean {
 /**
  * Fill a mask template with the payload of `raw` left-to-right, keeping the
  * remaining slots as `slotChar` so the field reads as a slot skeleton mid-entry
- * (`12/3_/____`) — the overwrite-in-place model SLEM's p-inputMask uses, unlike
+ * (`12/3_/____`) — the overwrite-in-place model classic input-mask widgets use, unlike
  * the insert-and-heal `applyMask`. Returns the rendered `text` (always the full
  * template width) and the `caret` index just past the last filled slot, advanced
  * over any trailing separators so the next keystroke lands in the next slot.
