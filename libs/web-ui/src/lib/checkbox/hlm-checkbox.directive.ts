@@ -25,11 +25,15 @@ export const CHECKBOX_BASE =
   },
 })
 export class HlmCheckbox {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
   // Tri-state for "select all" controls. Native checkboxes expose this only as a
   // DOM property (there is no `indeterminate` attribute), so it is host-bound.
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly indeterminate = input(false, { transform: booleanAttribute });
 
   protected readonly computedClass = computed(() =>

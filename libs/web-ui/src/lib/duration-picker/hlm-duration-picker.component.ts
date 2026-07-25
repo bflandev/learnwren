@@ -205,6 +205,8 @@ export const DURATION_PICKER_TRIGGER_BASE =
   `,
 })
 export class HlmDurationPicker {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
@@ -224,21 +226,33 @@ export class HlmDurationPicker {
   public readonly inputType = input<'field' | 'segmented'>('field');
   // Days lead the duration by default; flip off to make hours the largest unit
   // (the days segment / box is then hidden and days fold into hours).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showDays = input(true, { transform: booleanAttribute });
   // Precision below minutes. Milliseconds imply seconds (a `.SSS` tail needs a
   // `:ss` segment), normalized in `precision`.
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showSeconds = input(false, { transform: booleanAttribute });
   public readonly showMilliseconds = input(false, {
     transform: booleanAttribute,
   });
   public readonly min = input<Duration | undefined>(undefined);
   public readonly max = input<Duration | undefined>(undefined);
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly disabled = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly readonly = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly required = input(false, { transform: booleanAttribute });
   // Opt-in clear ("×") affordance. Off by default — turn it on to let an
   // optional, editable field be nulled in one click (it only renders when
   // there's a value).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly clearable = input(false, { transform: booleanAttribute });
   // '' → derive a hint from the active mask (e.g. `hh:mm:ss`); a non-empty value
   // overrides it.
@@ -248,6 +262,8 @@ export class HlmDurationPicker {
   // Format hint: show the expected mask as the empty-field placeholder and reveal
   // the slot skeleton (e.g. ___ __:__) on focus for overwrite-in-place entry. On
   // by default, tracking the days + precision levers. (field mode only.)
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly formatHint = input(true, { transform: booleanAttribute });
 
   // Live field text, re-synced from the value whenever it (or a lever) changes —

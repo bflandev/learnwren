@@ -127,6 +127,8 @@ export class HlmAutocomplete {}
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAutocompleteInput {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -159,6 +161,8 @@ export class HlmAutocompletePortal {}
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAutocompleteContent {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -176,6 +180,8 @@ export class HlmAutocompleteContent {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAutocompleteList {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -200,6 +206,8 @@ export class HlmAutocompleteList {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAutocompleteItem {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -217,6 +225,8 @@ export class HlmAutocompleteItem {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAutocompleteEmpty {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>

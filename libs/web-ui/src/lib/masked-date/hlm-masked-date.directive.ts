@@ -59,6 +59,8 @@ export class HlmMaskedDate {
   // and reveals the slot skeleton on focus (overwrite-in-place typing). Off →
   // insert-and-heal typing with no skeleton (an explicit `placeholder` still wins
   // for the empty-field hint).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly formatHint = input(true, { transform: booleanAttribute });
 
   // '' → the placeholder is derived from the format hint; a non-empty value is an

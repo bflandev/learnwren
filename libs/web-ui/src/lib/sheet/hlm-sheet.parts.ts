@@ -24,6 +24,8 @@ import {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmSheetTitle {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -38,6 +40,8 @@ export class HlmSheetTitle {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmSheetDescription {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -55,6 +59,8 @@ export class HlmSheetDescription {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmSheetClose {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>

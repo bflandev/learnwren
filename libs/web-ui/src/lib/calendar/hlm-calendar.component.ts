@@ -109,12 +109,16 @@ export const CALENDAR_CELL_BUTTON_BASE =
   `,
 })
 export class HlmCalendar {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
   public readonly date = model<DateTime | undefined>(undefined);
   public readonly min = input<DateTime | undefined>(undefined);
   public readonly max = input<DateTime | undefined>(undefined);
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly disabled = input(false, { transform: booleanAttribute });
   public readonly dateDisabled = input<(date: DateTime) => boolean>(
     () => false,

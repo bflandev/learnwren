@@ -81,6 +81,8 @@ export class HlmTags {
   // tokens land (paste also stops at the cap).
   public readonly max = input<number>(0);
   public readonly placeholder = input<string>('');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly disabled = input(false, { transform: booleanAttribute });
 
   // Keys that commit the current field as a chip; each defaults on, set false to
@@ -90,8 +92,14 @@ export class HlmTags {
   // commits when the field has content (and keeps focus for the next chip) but
   // falls through to native focus movement when the field is empty or on
   // Shift+Tab.
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly commitOnEnter = input(true, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly commitOnSpace = input(true, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly commitOnTab = input(true, { transform: booleanAttribute });
 
   // Optional id for the internal text field so an external `<label for>` can
@@ -104,6 +112,8 @@ export class HlmTags {
   // Emitted with the removed chip when a × (not Clear all) is clicked.
   public readonly removed = output<string>();
 
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 

@@ -31,6 +31,9 @@ export class ViewPickerComponent {
   readonly activeViewId = input<string | null>(null);
   // Alias to `title` so the sidebar can override the computed "<Space> Views"
   // heading (e.g. "My Views"); falls back to `computedTitle` when unset.
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal — any instrumented mutant on this
+  // line makes ngtsc's tryParseSignalInputMapping throw a fatal diagnostic.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly titleOverride = input<string | null>(null, { alias: 'title' });
   readonly viewKind = input<'system' | 'mine'>('system');

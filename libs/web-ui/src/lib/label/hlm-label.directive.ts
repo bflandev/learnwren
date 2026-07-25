@@ -43,12 +43,16 @@ export const LABEL_BASE =
   },
 })
 export class HlmLabel {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
   // Set by the consumer to mirror an associated nested control's disabled
   // state onto the label (BrnLabel does not propagate it). Drives the
   // `data-[disabled=true]:*` dimming via the host `data-disabled` attribute.
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly disabled = input(false, { transform: booleanAttribute });
 
   // Opt-in pointer affordance for a label that toggles an associated control
@@ -57,6 +61,8 @@ export class HlmLabel {
   // label reads as clickable. Off by default — a plain field label is not itself
   // an action. The disabled `cursor-not-allowed` still wins (its data-attr /
   // peer-disabled variant is more specific than the bare `cursor-pointer`).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly interactive = input(false, { transform: booleanAttribute });
 
   protected readonly computedClass = computed(() =>

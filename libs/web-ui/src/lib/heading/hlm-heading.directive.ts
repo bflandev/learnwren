@@ -19,6 +19,8 @@ import {
 export class HlmHeading {
   public readonly variant = input<HeadingVariant>('section-title');
 
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 

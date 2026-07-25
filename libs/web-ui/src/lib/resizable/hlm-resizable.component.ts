@@ -42,6 +42,8 @@ export class HlmResizable {
   readonly min = input<number>(0.1);
   readonly step = input<number>(0.02);
   readonly orientation = input<ResizableOrientation>('horizontal');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<string>('', { alias: 'class' });
 

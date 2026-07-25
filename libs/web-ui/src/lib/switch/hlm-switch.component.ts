@@ -107,10 +107,14 @@ export class HlmSwitch implements ControlValueAccessor {
   // re-exposed change event. brain's `checkedChange` feeds back into it below.
   public readonly checked = model<boolean>(false);
 
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly disabled = input(false, { transform: booleanAttribute });
 
   // Forwarded onto the inner brain button so a consumer's label/description
   // reaches assistive tech (the display:contents host can't carry them).
+  // Stryker disable all: Angular signal-input options must stay statically
+  // analyzable object literals; instrumented mutants fatal ngtsc.
   public readonly ariaLabel = input<string | null>(null, {
     alias: 'aria-label',
   });
@@ -120,7 +124,10 @@ export class HlmSwitch implements ControlValueAccessor {
   public readonly ariaDescribedby = input<string | null>(null, {
     alias: 'aria-describedby',
   });
+  // Stryker restore all
 
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 

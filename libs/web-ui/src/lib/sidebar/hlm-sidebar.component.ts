@@ -90,7 +90,11 @@ export class HlmSidebar {
   // 'offcanvas' (default) collapses to zero width + inert; 'icon' collapses to a
   // navigable narrow rail that keeps its border and can host its own trigger.
   public readonly collapsible = input<'offcanvas' | 'icon'>('offcanvas');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly ariaLabel = input<string>('', { alias: 'aria-label' });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
@@ -138,6 +142,8 @@ export class HlmSidebar {
 })
 export class HlmSidebarTrigger {
   protected readonly sidebar = inject(HlmSidebar);
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>

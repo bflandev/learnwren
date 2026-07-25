@@ -40,6 +40,8 @@ export const BREADCRUMB_ELLIPSIS_BASE =
   },
 })
 export class HlmBreadcrumb {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() => cn(this.userClass()));
@@ -52,6 +54,8 @@ export class HlmBreadcrumb {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmBreadcrumbList {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -66,6 +70,8 @@ export class HlmBreadcrumbList {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmBreadcrumbItem {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -80,6 +86,8 @@ export class HlmBreadcrumbItem {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmBreadcrumbLink {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -101,6 +109,8 @@ export class HlmBreadcrumbLink {
   },
 })
 export class HlmBreadcrumbPage {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -122,6 +132,8 @@ export class HlmBreadcrumbPage {
   },
 })
 export class HlmBreadcrumbSeparator {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -143,6 +155,8 @@ export class HlmBreadcrumbSeparator {
   },
 })
 export class HlmBreadcrumbEllipsis {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>

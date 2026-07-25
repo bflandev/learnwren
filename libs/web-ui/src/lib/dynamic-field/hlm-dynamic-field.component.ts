@@ -312,6 +312,8 @@ let nextId = 0;
   `,
 })
 export class HlmDynamicField {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
@@ -326,10 +328,14 @@ export class HlmDynamicField {
   public readonly controlName = input<string>('');
   public readonly label = input<string | undefined>(undefined);
   public readonly placeholder = input<string>('');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly readonly = input(false, { transform: booleanAttribute });
   public readonly options = input<readonly DynamicFieldOption[]>([]);
   public readonly errorMessages = input<FieldErrorMessages>({});
   // Force the error to show regardless of touched/dirty (e.g. on submit).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showErrors = input(false, { transform: booleanAttribute });
 
   // Type-specific discrete inputs (each also expressible via `config`).

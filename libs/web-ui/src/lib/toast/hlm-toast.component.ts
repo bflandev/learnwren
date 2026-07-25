@@ -71,8 +71,12 @@ export class HlmToast {
   public readonly severity = input<ToastSeverity>('info');
   public readonly summary = input<string>('');
   public readonly detail = input<string>('');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly dismissible = input(true, { transform: booleanAttribute });
 
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 

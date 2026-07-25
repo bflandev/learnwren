@@ -82,7 +82,11 @@ export class HlmAvatar {
   // prefers-reduced-motion:no-preference (scale, not translateY, so the hover
   // hit-box never retreats from the cursor). Off by default so decorative avatars
   // and dense lists stay still unless a surface explicitly wants the lift.
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly hoverLift = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 

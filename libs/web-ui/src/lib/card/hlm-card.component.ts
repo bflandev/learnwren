@@ -34,6 +34,8 @@ export const ACTION_BASE =
   host: { '[class]': 'computedClass()' },
 })
 export class HlmCard {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -49,6 +51,8 @@ export class HlmCard {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmCardHeader {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -64,6 +68,8 @@ export class HlmCardHeader {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmCardTitle {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -79,6 +85,8 @@ export class HlmCardTitle {
   host: { 'data-slot': 'card-description', '[class]': 'computedClass()' },
 })
 export class HlmCardDescription {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -94,6 +102,8 @@ export class HlmCardDescription {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmCardContent {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -109,6 +119,8 @@ export class HlmCardContent {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmCardFooter {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -127,6 +139,8 @@ export class HlmCardFooter {
   host: { 'data-slot': 'card-action', '[class]': 'computedClass()' },
 })
 export class HlmCardAction {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>

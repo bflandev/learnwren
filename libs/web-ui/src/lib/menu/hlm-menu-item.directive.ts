@@ -61,8 +61,12 @@ export class HlmMenuItem {
   );
 
   public readonly variant = input<'default' | 'destructive'>('default');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly inset = input(false, { transform: booleanAttribute });
 
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 

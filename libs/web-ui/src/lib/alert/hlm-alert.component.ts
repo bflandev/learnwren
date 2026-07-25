@@ -63,8 +63,12 @@ export const ALERT_CLOSE_BASE =
 export class HlmAlert {
   public readonly severity = input<AlertSeverity>('info');
   public readonly appearance = input<AlertAppearance>('inline');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly dismissible = input(false, { transform: booleanAttribute });
 
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
@@ -109,6 +113,8 @@ export class HlmAlert {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAlertTitle {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -124,6 +130,8 @@ export class HlmAlertTitle {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAlertDescription {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>

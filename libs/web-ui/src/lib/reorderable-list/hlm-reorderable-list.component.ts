@@ -190,6 +190,8 @@ export class HlmReorderableList<T> {
   private readonly announcer = inject(LiveAnnouncer);
 
   readonly items = input.required<readonly T[]>();
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   readonly disabled = input(false, { transform: booleanAttribute });
   /**
    * Where the grip sits. `left` (default) / `right` place a handle button at the
@@ -203,6 +205,8 @@ export class HlmReorderableList<T> {
   readonly trackBy = input<(item: T) => unknown>();
   /** Label fragment for the handle's aria-label, e.g. the row's name. */
   readonly itemLabel = input<(item: T) => string>();
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<string>('', { alias: 'class' });
 

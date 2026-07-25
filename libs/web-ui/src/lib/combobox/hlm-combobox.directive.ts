@@ -224,6 +224,8 @@ export class HlmComboboxMultiple {
   host: { type: 'button', '[class]': 'computedClass()' },
 })
 export class HlmComboboxTrigger {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -241,6 +243,8 @@ export class HlmComboboxTrigger {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmComboboxValue {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -263,6 +267,8 @@ export class HlmComboboxValue {
   },
 })
 export class HlmComboboxContent {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -327,6 +333,8 @@ export class HlmComboboxPortal {}
   host: { '[class]': 'computedClass()' },
 })
 export class HlmComboboxInput {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -344,6 +352,8 @@ export class HlmComboboxInput {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmComboboxList {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -375,6 +385,8 @@ export class HlmComboboxList {
   },
 })
 export class HlmComboboxItem {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
@@ -447,6 +459,8 @@ export class HlmComboboxItem {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmComboboxEmpty {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>

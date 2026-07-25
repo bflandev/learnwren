@@ -127,6 +127,8 @@ export class HlmComboboxChips<T> {
 
   // When true, render a trailing "Clear all" ghost button that drops every
   // selected value at once. Off by default — opt-in chrome.
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly clearable = input(false, { transform: booleanAttribute });
 
   // Emitted after a single chip is removed (the value) or all are cleared, so a

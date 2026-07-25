@@ -79,6 +79,8 @@ export const TOGGLE_GROUP_ITEM_BASE =
 })
 export class HlmToggleGroup {
   public readonly appearance = input<ToggleGroupAppearance>('outline');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   // `outline` → collapse inner borders + radius (connected segmented look).
@@ -126,6 +128,8 @@ export class HlmToggleGroupItem {
   protected readonly effectiveAppearance = computed<ToggleGroupAppearance>(
     () => this.appearance() ?? this.root?.appearance() ?? 'outline',
   );
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>

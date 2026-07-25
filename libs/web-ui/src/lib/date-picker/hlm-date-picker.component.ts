@@ -357,6 +357,8 @@ export const DATE_PICKER_TRIGGER_BASE =
   `,
 })
 export class HlmDatePicker {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
@@ -369,16 +371,26 @@ export class HlmDatePicker {
   // straight into a donor-style form control: `(serializedChange)="ctrl.setValue($event)"`.
   public readonly serializedChange = output<Date | string | DateTime | null>();
   public readonly mode = input<DatePickerMode>('date');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly hour12 = input(true, { transform: booleanAttribute });
   public readonly timezone = input<TimezoneOption>('browser');
   public readonly min = input<DateTime | undefined>(undefined);
   public readonly max = input<DateTime | undefined>(undefined);
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly disabled = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly readonly = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly required = input(false, { transform: booleanAttribute });
   // Opt-in clear ("×") affordance. Off by default — turn it on to let an
   // optional, editable field be nulled in one click (it only renders when
   // there's a value).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly clearable = input(false, { transform: booleanAttribute });
   // '' → the placeholder is derived (see formatHint / resolvedPlaceholder); a
   // non-empty value is an explicit override shown verbatim when there's no value.
@@ -388,6 +400,8 @@ export class HlmDatePicker {
   // skeleton (__/__/____ …) on focus to guide direct entry — matching the donor app's
   // p-inputMask. Both track mode + clock + precision. Off → a static placeholder
   // and no skeleton (an explicit `placeholder` still wins either way).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly formatHint = input(true, { transform: booleanAttribute });
   // The date-half order + separator for the masked field, format hint, and
   // display/parse: `iso` (YYYY-MM-DD, default, donor parity), `us` (MM/DD/YYYY),
@@ -406,6 +420,8 @@ export class HlmDatePicker {
   // Time precision (datetime/time modes). Defaults match the donor app's datepicker,
   // which always carries seconds + milliseconds once a time half is shown.
   // Milliseconds imply seconds (a `.SSS` tail needs a `:ss` segment).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showSeconds = input(true, { transform: booleanAttribute });
   public readonly showMilliseconds = input(true, {
     transform: booleanAttribute,

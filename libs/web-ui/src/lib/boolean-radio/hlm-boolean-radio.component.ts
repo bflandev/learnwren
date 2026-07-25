@@ -69,12 +69,16 @@ export class HlmBooleanRadio {
 
   public readonly trueLabel = input<string>('Yes');
   public readonly falseLabel = input<string>('No');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly disabled = input(false, { transform: booleanAttribute });
 
   // Two-way value: null = unselected (neither radio checked), true / false the
   // two states. The auto-generated valueChange output re-exposes the change.
   public readonly value = model<boolean | null>(null);
 
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 

@@ -34,6 +34,8 @@ export const PANEL_BODY_BASE = 'block min-h-0 flex-1 overflow-y-auto';
   host: { '[class]': 'computedClass()' },
 })
 export class HlmPanel {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -49,6 +51,8 @@ export class HlmPanel {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmPanelHeader {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
@@ -64,6 +68,8 @@ export class HlmPanelHeader {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmPanelBody {
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
