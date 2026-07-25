@@ -146,6 +146,74 @@ import {
 import { SKELETON_BASE } from './skeleton/hlm-skeleton.component';
 import { SPINNER_SIZE_MAP } from './spinner/hlm-spinner.variants';
 import { TEXTAREA_BASE } from './textarea/hlm-textarea.directive';
+// Tier 3 (Task 6)
+import {
+  ALERT_CLOSE_BASE,
+  ALERT_DESCRIPTION_BASE,
+  ALERT_TITLE_BASE,
+} from './alert/hlm-alert.component';
+import {
+  ALERT_APPEARANCE_MAP,
+  ALERT_SEVERITY_MAP,
+} from './alert/hlm-alert.variants';
+import { BOOLEAN_RADIO_BASE } from './boolean-radio/hlm-boolean-radio.component';
+import {
+  CALENDAR_BASE,
+  CALENDAR_CELL_BASE,
+  CALENDAR_CELL_BUTTON_BASE,
+  CALENDAR_HEADER_BASE,
+  CALENDAR_TITLE_BASE,
+  CALENDAR_WEEKDAY_BASE,
+} from './calendar/hlm-calendar.component';
+import {
+  COMBOBOX_CONTENT_BASE,
+  COMBOBOX_EMPTY_BASE,
+  COMBOBOX_INPUT_BASE,
+  COMBOBOX_ITEM_BASE,
+  COMBOBOX_ITEM_INDICATOR_BASE,
+  COMBOBOX_ITEM_SELECTED_TINT,
+  COMBOBOX_LIST_BASE,
+  COMBOBOX_TRIGGER_BASE,
+  COMBOBOX_VALUE_BASE,
+} from './combobox/hlm-combobox.directive';
+import { COMBOBOX_PILL_REMOVE_BASE } from './combobox/hlm-combobox-chips.component';
+import {
+  GRID_STATE_BASE,
+  GRID_STATE_MESSAGE_BASE,
+} from './grid-state/hlm-grid-state.component';
+import {
+  PAGINATION_BASE,
+  PAGINATION_ELLIPSIS_BASE,
+  PAGINATION_LIST_BASE,
+} from './pagination/hlm-pagination.component';
+import {
+  REORDERABLE_HANDLE_BASE,
+  REORDERABLE_ITEM_BASE,
+  REORDERABLE_ITEM_DRAGGABLE,
+  REORDERABLE_LIST_BASE,
+  REORDERABLE_PLACEHOLDER_BASE,
+} from './reorderable-list/hlm-reorderable-list.component';
+import {
+  SELECT_CONTENT_BASE,
+  SELECT_ITEM_BASE,
+  SELECT_ITEM_INDICATOR_BASE,
+  SELECT_ITEM_SELECTED_TINT,
+  SELECT_LIST_BASE,
+  SELECT_TRIGGER_BASE,
+} from './select/hlm-select.directive';
+import { SELECT_PILL_REMOVE_BASE } from './select/hlm-select-pills.component';
+import {
+  SHEET_CONTENT_BASE,
+  SHEET_SIDE_MAP,
+} from './sheet/hlm-sheet.component';
+import { TAGS_BASE } from './tags/hlm-tags.component';
+import {
+  TOAST_CLOSE_BASE,
+  TOAST_DESCRIPTION_BASE,
+  TOAST_TITLE_BASE,
+} from './toast/hlm-toast.component';
+import { TOAST_CONTAINER_BASE } from './toast/hlm-toast-container.component';
+import { TOAST_SEVERITY_MAP } from './toast/hlm-toast.variants';
 
 // Every exported class-string source in the lib: each wrapper's base const(s)
 // plus the cva variant/size maps (their values are the class strings).
@@ -231,6 +299,50 @@ const CLASS_STRINGS: readonly string[] = [
   AUTOCOMPLETE_ITEM_BASE,
   AUTOCOMPLETE_ITEM_INDICATOR_BASE,
   AUTOCOMPLETE_EMPTY_BASE,
+  // Tier 3 (Task 6)
+  ALERT_TITLE_BASE,
+  ALERT_DESCRIPTION_BASE,
+  ALERT_CLOSE_BASE,
+  BOOLEAN_RADIO_BASE,
+  CALENDAR_BASE,
+  CALENDAR_HEADER_BASE,
+  CALENDAR_TITLE_BASE,
+  CALENDAR_WEEKDAY_BASE,
+  CALENDAR_CELL_BASE,
+  CALENDAR_CELL_BUTTON_BASE,
+  COMBOBOX_TRIGGER_BASE,
+  COMBOBOX_VALUE_BASE,
+  COMBOBOX_INPUT_BASE,
+  COMBOBOX_CONTENT_BASE,
+  COMBOBOX_LIST_BASE,
+  COMBOBOX_ITEM_BASE,
+  COMBOBOX_ITEM_INDICATOR_BASE,
+  COMBOBOX_ITEM_SELECTED_TINT,
+  COMBOBOX_EMPTY_BASE,
+  COMBOBOX_PILL_REMOVE_BASE,
+  GRID_STATE_BASE,
+  GRID_STATE_MESSAGE_BASE,
+  PAGINATION_BASE,
+  PAGINATION_LIST_BASE,
+  PAGINATION_ELLIPSIS_BASE,
+  REORDERABLE_LIST_BASE,
+  REORDERABLE_ITEM_BASE,
+  REORDERABLE_ITEM_DRAGGABLE,
+  REORDERABLE_HANDLE_BASE,
+  REORDERABLE_PLACEHOLDER_BASE,
+  SELECT_TRIGGER_BASE,
+  SELECT_CONTENT_BASE,
+  SELECT_LIST_BASE,
+  SELECT_ITEM_BASE,
+  SELECT_ITEM_INDICATOR_BASE,
+  SELECT_ITEM_SELECTED_TINT,
+  SELECT_PILL_REMOVE_BASE,
+  SHEET_CONTENT_BASE,
+  TAGS_BASE,
+  TOAST_TITLE_BASE,
+  TOAST_DESCRIPTION_BASE,
+  TOAST_CLOSE_BASE,
+  TOAST_CONTAINER_BASE,
   ...Object.values(AVATAR_SIZE_MAP),
   ...Object.values(BADGE_VARIANT_MAP),
   ...Object.values(BADGE_DENSITY_MAP),
@@ -245,6 +357,10 @@ const CLASS_STRINGS: readonly string[] = [
   ...Object.values(TABS_LIST_VARIANT_MAP),
   ...Object.values(TABS_TRIGGER_VARIANT_MAP),
   ...Object.values(TABS_SIZE_MAP),
+  ...Object.values(ALERT_SEVERITY_MAP),
+  ...Object.values(ALERT_APPEARANCE_MAP),
+  ...Object.values(SHEET_SIDE_MAP),
+  ...Object.values(TOAST_SEVERITY_MAP),
 ];
 
 const allClasses = CLASS_STRINGS.join(' ');
@@ -259,8 +375,12 @@ describe('lib-wide .ts class strings (token discipline)', () => {
     // sidebar 6+2). 78 → 130 in Tier 2 (Task 5): 31 base consts (label 1,
     // separator 1, switch 2, toggle 1, toggle-group 4, tabs 4, tooltip 1,
     // popover 1, dialog 7, menu 3, autocomplete 6) + 21 variant map entries
-    // (button 6+4, toggle-group item 2, tabs 3+3+3).
-    expect(CLASS_STRINGS.length).toBeGreaterThanOrEqual(130);
+    // (button 6+4, toggle-group item 2, tabs 3+3+3). 130 → 187 in Tier 3
+    // (Task 6): 43 base consts (alert 3, boolean-radio 1, calendar 6,
+    // combobox 10, grid-state 2, pagination 3, reorderable-list 5, select 7,
+    // sheet 1, tags 1, toast 4) + 14 variant map entries (alert 4+2, sheet 4,
+    // toast 4).
+    expect(CLASS_STRINGS.length).toBeGreaterThanOrEqual(187);
   });
 
   it('contains no raw hex colour', () => {
