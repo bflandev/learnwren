@@ -1,0 +1,24 @@
+{
+  "lw": {
+    "bg": { "value": "oklch(18% 0.012 60)" },
+    "bg-2": { "value": "oklch(22% 0.014 62)" },
+    "bg-3": { "value": "oklch(26% 0.016 64)" },
+    "line": { "value": "oklch(32% 0.014 68)" },
+    "line-2": { "value": "oklch(40% 0.014 68)" },
+    "ink": { "value": "oklch(96% 0.012 80)" },
+    "ink-2": { "value": "oklch(82% 0.014 78)" },
+    "ink-3": { "value": "oklch(62% 0.014 76)" },
+    "ink-4": { "value": "oklch(48% 0.012 72)" },
+    "ochre": { "value": "oklch(78% 0.13 75)" },
+    "ochre-2": { "value": "oklch(68% 0.13 70)" },
+    "ochre-ink": { "value": "oklch(20% 0.04 70)" },
+    "moss": { "value": "oklch(70% 0.10 145)" },
+    "clay": { "value": "oklch(64% 0.13 35)" },
+    "rust": { "value": "oklch(58% 0.15 40)" },
+    "good": { "value": "oklch(74% 0.12 145)" },
+    "warn": { "value": "oklch(78% 0.13 75)" },
+    "bad": { "value": "oklch(64% 0.18 25)" },
+    "shadow-1": { "value": "0 1px 0 oklch(100% 0 0 / 0.04) inset, 0 1px 2px oklch(0% 0 0 / 0.4)" },
+    "shadow-2": { "value": "0 1px 0 oklch(100% 0 0 / 0.05) inset, 0 12px 32px oklch(0% 0 0 / 0.5)" }
+  }
+}

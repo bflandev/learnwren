@@ -1,0 +1,73 @@
+/* GENERATED — do not edit. Source: libs/web-design-system/tokens/ */
+
+:root,
+.lw-theme-dark {
+  --lw-bg: oklch(18% 0.012 60);
+  --lw-bg-2: oklch(22% 0.014 62);
+  --lw-bg-3: oklch(26% 0.016 64);
+  --lw-line: oklch(32% 0.014 68);
+  --lw-line-2: oklch(40% 0.014 68);
+  --lw-ink: oklch(96% 0.012 80);
+  --lw-ink-2: oklch(82% 0.014 78);
+  --lw-ink-3: oklch(62% 0.014 76);
+  --lw-ink-4: oklch(48% 0.012 72);
+  --lw-ochre: oklch(78% 0.13 75);
+  --lw-ochre-2: oklch(68% 0.13 70);
+  --lw-ochre-ink: oklch(20% 0.04 70);
+  --lw-moss: oklch(70% 0.10 145);
+  --lw-clay: oklch(64% 0.13 35);
+  --lw-rust: oklch(58% 0.15 40);
+  --lw-good: oklch(74% 0.12 145);
+  --lw-warn: oklch(78% 0.13 75);
+  --lw-bad: oklch(64% 0.18 25);
+  --lw-shadow-1: 0 1px 0 oklch(100% 0 0 / 0.04) inset, 0 1px 2px oklch(0% 0 0 / 0.4);
+  --lw-shadow-2: 0 1px 0 oklch(100% 0 0 / 0.05) inset, 0 12px 32px oklch(0% 0 0 / 0.5);
+  --lw-font-sans: "Inter Tight", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --lw-font-serif: "Source Serif 4", "Source Serif Pro", "Iowan Old Style", Georgia, serif;
+  --lw-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --lw-r-sm: 6px;
+  --lw-r: 10px;
+  --lw-r-lg: 16px;
+  --lw-r-xl: 22px;
+}
+
+.lw-theme-light {
+  --lw-bg: oklch(96% 0.008 80);
+  --lw-bg-2: oklch(99% 0.006 84);
+  --lw-bg-3: oklch(93% 0.012 80);
+  --lw-line: oklch(86% 0.014 75);
+  --lw-line-2: oklch(76% 0.018 72);
+  --lw-ink: oklch(22% 0.012 60);
+  --lw-ink-2: oklch(38% 0.014 64);
+  --lw-ink-3: oklch(52% 0.014 70);
+  --lw-ink-4: oklch(64% 0.012 72);
+  --lw-ochre: oklch(64% 0.14 70);
+  --lw-ochre-2: oklch(58% 0.14 65);
+  --lw-ochre-ink: oklch(98% 0.01 80);
+  --lw-moss: oklch(50% 0.12 145);
+  --lw-clay: oklch(52% 0.14 35);
+  --lw-rust: oklch(48% 0.15 38);
+  --lw-shadow-1: 0 1px 0 oklch(100% 0 0 / 0.6) inset, 0 1px 2px oklch(0% 0 0 / 0.06);
+  --lw-shadow-2: 0 1px 0 oklch(100% 0 0 / 0.6) inset, 0 12px 32px oklch(0% 0 0 / 0.08);
+}
+
+.lw-density-compact {
+  --lw-pad: 12px;
+  --lw-gap: 10px;
+  --lw-card-pad: 12px;
+  --lw-card-gap: 8px;
+}
+
+.lw-density-cozy {
+  --lw-pad: 18px;
+  --lw-gap: 14px;
+  --lw-card-pad: 16px;
+  --lw-card-gap: 10px;
+}
+
+.lw-density-comfortable {
+  --lw-pad: 24px;
+  --lw-gap: 20px;
+  --lw-card-pad: 20px;
+  --lw-card-gap: 14px;
+}

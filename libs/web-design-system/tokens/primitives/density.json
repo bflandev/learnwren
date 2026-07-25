@@ -1,0 +1,22 @@
+{
+  "lw": {
+    "compact": {
+      "pad": { "value": "12px" },
+      "gap": { "value": "10px" },
+      "card-pad": { "value": "12px" },
+      "card-gap": { "value": "8px" }
+    },
+    "cozy": {
+      "pad": { "value": "18px" },
+      "gap": { "value": "14px" },
+      "card-pad": { "value": "16px" },
+      "card-gap": { "value": "10px" }
+    },
+    "comfortable": {
+      "pad": { "value": "24px" },
+      "gap": { "value": "20px" },
+      "card-pad": { "value": "20px" },
+      "card-gap": { "value": "14px" }
+    }
+  }
+}
