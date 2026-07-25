@@ -1,0 +1,635 @@
+<div class="mx-auto flex max-w-4xl flex-col gap-10 p-6">
+  <header class="flex flex-col gap-2">
+    <h1 hlmHeading variant="page-title">hlm component showcase</h1>
+    <p class="text-sm text-ink-3">
+      Dev-only page rendering one instance of every ported hlm component,
+      grouped by port tier. The page inherits the app theme — use the existing
+      lw theme toggle in the shell to check both themes.
+    </p>
+  </header>
+
+  <!-- ============================== Tier 1 — leaves ===================== -->
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Heading</h2>
+    <div class="flex flex-col gap-2">
+      <span hlmHeading variant="page-title">Page title</span>
+      <span hlmHeading variant="section-title">Section title</span>
+      <span hlmHeading variant="field-label">Field label</span>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Accent</h2>
+    <div class="flex flex-wrap items-center gap-2">
+      @for (choice of accentService.accentChoices; track choice) {
+        <button
+          hlmBtn
+          size="sm"
+          [variant]="accentService.accent() === choice ? 'default' : 'outline'"
+          (click)="accentService.set(choice)">
+          {{ choice }}
+        </button>
+      }
+      <span class="font-mono text-xs text-ink-3">active: {{ accentService.accent() }}</span>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Icon</h2>
+    <div class="flex items-end gap-4 text-ink">
+      <hlm-icon name="lucideCheck" />
+      <hlm-icon name="lucideCheck" class="size-6" />
+      <hlm-icon name="lucideUser" class="size-8 text-ochre" />
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Buttons</h2>
+    <div class="flex flex-wrap items-center gap-3">
+      <button hlmBtn>Default</button>
+      <button hlmBtn variant="destructive">Destructive</button>
+      <button hlmBtn variant="outline">Outline</button>
+      <button hlmBtn variant="secondary">Secondary</button>
+      <button hlmBtn variant="ghost">Ghost</button>
+      <button hlmBtn variant="link">Link</button>
+    </div>
+    <div class="mt-4 flex flex-wrap items-center gap-3">
+      <button hlmBtn size="sm">Small</button>
+      <button hlmBtn size="default">Default</button>
+      <button hlmBtn size="lg">Large</button>
+      <button hlmBtn size="icon" aria-label="User">
+        <hlm-icon name="lucideUser" />
+      </button>
+      <button hlmBtn disabled>Disabled</button>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Button group</h2>
+    <div hlmButtonGroup aria-label="Date range">
+      <button hlmBtn variant="secondary">Day</button>
+      <button hlmBtn variant="secondary">Week</button>
+      <button hlmBtn variant="secondary">Month</button>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Badges</h2>
+    <div class="flex flex-wrap items-center gap-3">
+      @for (variant of badgeVariants; track variant) {
+        <span hlmBadge [variant]="variant">{{ variant }}</span>
+      }
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Avatar</h2>
+    <div class="flex items-end gap-4 rounded-md border border-line bg-bg-2 p-4">
+      <hlm-avatar size="sm"><hlm-icon name="lucideUser" /></hlm-avatar>
+      <hlm-avatar size="base"><hlm-icon name="lucideUser" /></hlm-avatar>
+      <hlm-avatar size="lg" [hoverLift]="true"><hlm-icon name="lucideUser" /></hlm-avatar>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Card</h2>
+    <hlm-card class="max-w-sm">
+      <hlm-card-header>
+        <hlm-card-title>Course draft</hlm-card-title>
+        <hlm-card-description>Awaiting review before publish.</hlm-card-description>
+      </hlm-card-header>
+      <hlm-card-content>
+        <p class="text-sm">Three lessons uploaded, two transcoded.</p>
+      </hlm-card-content>
+      <hlm-card-footer>
+        <span hlmBadge variant="secondary">In review</span>
+      </hlm-card-footer>
+    </hlm-card>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Panel</h2>
+    <hlm-panel class="h-64 max-w-sm">
+      <hlm-panel-header>
+        <h3 class="text-sm font-semibold">Modules</h3>
+        <span hlmBadge variant="secondary" density="compact">3</span>
+      </hlm-panel-header>
+      <hlm-panel-body>
+        <ul class="flex flex-col gap-0.5 p-2">
+          <li><button hlmBtn variant="ghost" class="w-full justify-start">Getting started</button></li>
+          <li><button hlmBtn variant="ghost" class="w-full justify-start">Deep dive</button></li>
+          <li><button hlmBtn variant="ghost" class="w-full justify-start">Wrap up</button></li>
+        </ul>
+      </hlm-panel-body>
+    </hlm-panel>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Breadcrumb</h2>
+    <nav hlmBreadcrumb>
+      <ol hlmBreadcrumbList>
+        <li hlmBreadcrumbItem><a hlmBreadcrumbLink href="#">Home</a></li>
+        <li hlmBreadcrumbSeparator><hlm-icon name="lucideChevronRight" /></li>
+        <li hlmBreadcrumbItem><a hlmBreadcrumbLink href="#">Courses</a></li>
+        <li hlmBreadcrumbSeparator><hlm-icon name="lucideChevronRight" /></li>
+        <li hlmBreadcrumbItem><span hlmBreadcrumbPage>Showcase</span></li>
+      </ol>
+    </nav>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">List</h2>
+    <ul hlmList [divided]="true" class="max-w-sm">
+      <li hlmListItem>Politics of naming</li>
+      <li hlmListItem>Signals in practice</li>
+      <li hlmListItem>Shipping the slice</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Separator</h2>
+    <div class="flex max-w-md flex-col gap-2">
+      <p class="text-sm">Above the rule.</p>
+      <hlm-separator [decorative]="false" />
+      <p class="text-sm">Below the rule.</p>
+    </div>
+    <div class="mt-4 flex h-5 items-center gap-3 text-sm text-ink-3">
+      <span>Draft</span>
+      <hlm-separator orientation="vertical" [decorative]="false" />
+      <span>Published</span>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Progress</h2>
+    <div class="flex max-w-md flex-col gap-4">
+      <hlm-progress [value]="62" label="Uploading video" />
+      <hlm-progress label="Loading" />
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Skeleton</h2>
+    <div class="flex max-w-md flex-col gap-3">
+      <div class="flex items-center gap-3">
+        <hlm-skeleton class="size-10 rounded-full" />
+        <hlm-skeleton class="h-3 w-2/5" />
+      </div>
+      <hlm-skeleton-line width="80%" />
+      <hlm-skeleton-line width="60%" />
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Spinner</h2>
+    <div class="flex items-end gap-4 text-ink">
+      <hlm-spinner size="inline" />
+      <hlm-spinner size="sm" />
+      <hlm-spinner size="md" />
+      <hlm-spinner size="lg" class="text-ochre" />
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Dots</h2>
+    <div class="flex items-center gap-4 text-ink">
+      <hlm-dots />
+      <span class="flex items-center gap-2 text-sm text-ink-3"><hlm-dots /> Saving draft</span>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">State pills</h2>
+    <div class="flex flex-wrap items-center gap-4">
+      <hlm-state-pill [state]="{ kind: 'dirty' }" />
+      <hlm-state-pill [state]="{ kind: 'committing', startedAt: 0 }" />
+      <hlm-state-pill [state]="{ kind: 'fresh', committedAt: 0, until: 0 }" />
+      <hlm-state-pill [state]="{ kind: 'error', message: 'Save failed', recoverable: true }" />
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Grid state</h2>
+    <div class="flex flex-col items-start gap-3">
+      <button hlmBtn variant="outline" size="sm" (click)="cycleGridState()">
+        Cycle state ({{ gridState() }})
+      </button>
+      <div class="w-full max-w-md rounded-md border border-line bg-bg-2">
+        <hlm-grid-state [state]="gridState()" />
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Sidebar</h2>
+    <hlm-sidebar
+      #sb="hlmSidebar"
+      [(open)]="sidebarOpen"
+      side="left"
+      width="md"
+      collapsible="icon"
+      aria-label="Showcase sidebar"
+      class="rounded-lg border border-line">
+      <hlm-sidebar-header>
+        @if (sb.open()) {
+          <span class="font-medium">Filters</span>
+        }
+        <button hlmSidebarTrigger [attr.aria-label]="sb.open() ? 'Collapse' : 'Expand'">
+          {{ sb.open() ? '‹' : '›' }}
+        </button>
+      </hlm-sidebar-header>
+      <hlm-sidebar-content>
+        <ul class="flex w-full flex-col gap-1 text-sm">
+          <li class="rounded px-2 py-1 hover:bg-bg-3">Drafts</li>
+          <li class="rounded px-2 py-1 hover:bg-bg-3">Published</li>
+        </ul>
+      </hlm-sidebar-content>
+      @if (sb.open()) {
+        <hlm-sidebar-footer class="text-xs text-ink-3">2 saved views</hlm-sidebar-footer>
+      }
+    </hlm-sidebar>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Resizable</h2>
+    <hlm-resizable class="h-32 max-w-xl rounded-md border border-line">
+      <div hlmResizablePanel class="flex h-full items-center justify-center bg-bg-2 p-4 text-sm">Left</div>
+      <div hlmResizableHandle aria-label="Resize panels"></div>
+      <div hlmResizablePanel class="flex h-full items-center justify-center bg-bg-2 p-4 text-sm text-ink-3">Right</div>
+    </hlm-resizable>
+  </section>
+
+  <!-- ===================== Form controls (tiers 1–2) ===================== -->
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Input + label</h2>
+    <div class="flex max-w-sm flex-col gap-2">
+      <label hlmLabel for="sc-input">Course title</label>
+      <input hlmInput id="sc-input" type="text" placeholder="Learn Wren 101" />
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Form field</h2>
+    <div class="max-w-sm">
+      <hlm-form-field>
+        <label hlmLabel for="sc-ff-slug">Slug</label>
+        <input hlmInput hlmFormFieldControl id="sc-ff-slug" placeholder="learn-wren-101" />
+        <span hlmFormFieldHint>Lowercase with hyphens.</span>
+      </hlm-form-field>
+      <hlm-form-field class="mt-4">
+        <label hlmLabel for="sc-ff-title">Title</label>
+        <input hlmInput hlmFormFieldControl id="sc-ff-title" [attr.aria-invalid]="true" />
+        <span hlmFormFieldError>Title is required.</span>
+      </hlm-form-field>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Checkbox</h2>
+    <div class="flex items-center gap-2">
+      <input hlmCheckbox type="checkbox" id="sc-check" />
+      <label hlmLabel for="sc-check" [interactive]="true">Publish immediately</label>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Radio</h2>
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center gap-2">
+        <input hlmRadio type="radio" name="sc-tier" id="sc-radio-free" value="free" />
+        <label hlmLabel for="sc-radio-free" [interactive]="true">Free</label>
+      </div>
+      <div class="flex items-center gap-2">
+        <input hlmRadio type="radio" name="sc-tier" id="sc-radio-paid" value="paid" />
+        <label hlmLabel for="sc-radio-paid" [interactive]="true">Paid</label>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Boolean radio</h2>
+    <div class="flex max-w-sm flex-col gap-2">
+      <span hlmLabel>Downloadable?</span>
+      <hlm-boolean-radio
+        [value]="booleanValue()"
+        trueLabel="Yes"
+        falseLabel="No"
+        (valueChange)="booleanValue.set($event)" />
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Switch</h2>
+    <div class="flex items-center gap-3">
+      <hlm-switch id="sc-switch" />
+      <label hlmLabel for="sc-switch">Email notifications</label>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Textarea</h2>
+    <div class="flex max-w-sm flex-col gap-2">
+      <label hlmLabel for="sc-textarea">Description</label>
+      <textarea hlmTextarea id="sc-textarea" rows="3" placeholder="What this course covers…"></textarea>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Masked date input</h2>
+    <div class="flex max-w-sm flex-col gap-2">
+      <label hlmLabel for="sc-masked">Release date</label>
+      <input hlmMaskedDate id="sc-masked" [(value)]="maskedDate" />
+      <span class="font-mono text-xs text-ink-3">value: {{ maskedDate() || '—' }}</span>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Tags</h2>
+    <div class="flex max-w-sm flex-col gap-2">
+      <span hlmLabel id="sc-tags-label">Topics</span>
+      <hlm-tags
+        [value]="tags()"
+        placeholder="Add a topic…"
+        ariaLabelledby="sc-tags-label"
+        (valueChange)="tags.set($event)" />
+    </div>
+  </section>
+
+  <!-- ===================== Pickers (tiers 3–5) =========================== -->
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Select (single)</h2>
+    <div class="max-w-sm"
+      [hlmSelectSingle]="selectValue()"
+      (hlmSelectSingleChange)="selectValue.set($event)">
+      <button hlmSelectTrigger>
+        @if (selectValue(); as value) {
+          <span>{{ value }}</span>
+        } @else {
+          <span class="text-input-placeholder">Pick a level…</span>
+        }
+      </button>
+      <ng-template hlmSelectPortal>
+        <div hlmSelectContent>
+          <div hlmSelectList>
+            @for (level of courseLevels; track level) {
+              <div [hlmSelectItem]="level">{{ level }}</div>
+            }
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Combobox</h2>
+    <div class="w-64"
+      [hlmCombobox]="comboboxValue()"
+      (hlmComboboxChange)="comboboxValue.set($event)">
+      <button hlmComboboxTrigger>
+        <span hlmComboboxValue placeholder="Pick a level…"></span>
+        <hlm-icon name="lucideChevronDown" class="size-4 opacity-60" />
+      </button>
+      <ng-template hlmComboboxPortal>
+        <div hlmComboboxContent>
+          <input hlmComboboxInput placeholder="Search…" />
+          <div hlmComboboxList>
+            <div hlmComboboxEmpty>No matches.</div>
+            @for (level of courseLevels; track level) {
+              <div [hlmComboboxItem]="level">{{ level }}</div>
+            }
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Autocomplete</h2>
+    <div class="w-64"
+      [hlmAutocomplete]="autocompleteValue()"
+      [itemToString]="itemToString"
+      (hlmAutocompleteChange)="autocompleteValue.set($event)">
+      <input hlmAutocompleteInput placeholder="Type a level…" aria-label="Level" />
+      <ng-template hlmAutocompletePortal>
+        <div hlmAutocompleteContent>
+          <div hlmAutocompleteList>
+            <div hlmAutocompleteEmpty>No matches.</div>
+            @for (level of courseLevels; track level) {
+              <div [hlmAutocompleteItem]="level">{{ level }}</div>
+            }
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Lookup</h2>
+    <div class="flex max-w-sm flex-col gap-2">
+      <label hlmLabel for="sc-lookup">Search topics (OptionLookup)</label>
+      <input hlmInput id="sc-lookup" type="text" placeholder="e.g. physics" (input)="onLookupInput($event)" />
+      @if (lookup.loading()) {
+        <hlm-spinner size="sm" />
+      } @else {
+        <ul hlmList [divided]="true">
+          @for (topic of lookup.options(); track topic) {
+            <li hlmListItem>{{ topic }}</li>
+          } @empty {
+            <li hlmListItem class="text-ink-3">No results yet — type to search.</li>
+          }
+        </ul>
+      }
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Calendar</h2>
+    <hlm-calendar [(date)]="calendarDate" class="max-w-fit" />
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Date picker</h2>
+    <div class="max-w-sm">
+      <hlm-date-picker [(value)]="dateValue" placeholder="Pick a date" ariaLabel="Pick a date" />
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Duration picker</h2>
+    <div class="max-w-sm">
+      <hlm-duration-picker [(value)]="durationValue" ariaLabel="Lesson duration" />
+    </div>
+  </section>
+
+  <!-- ===================== Interaction & navigation ====================== -->
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Tabs</h2>
+    <div class="max-w-xl" [hlmTabs]="activeTab()" (hlmTabsChange)="onTabChange($event)">
+      <div hlmTabsList>
+        <button hlmTabsTrigger="overview">Overview</button>
+        <button hlmTabsTrigger="lessons">Lessons</button>
+        <button hlmTabsTrigger="reviews">Reviews</button>
+      </div>
+      <div hlmTabsContent="overview" class="pt-4 text-sm text-ink-3">Course overview panel.</div>
+      <div hlmTabsContent="lessons" class="pt-4 text-sm text-ink-3">Lessons panel.</div>
+      <div hlmTabsContent="reviews" class="pt-4 text-sm text-ink-3">Reviews panel.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Toggle + toggle group</h2>
+    <div class="flex flex-col items-start gap-4">
+      <div class="flex items-center gap-3">
+        <button [(hlmToggle)]="toggleBold">Bold</button>
+        <span class="font-mono text-xs text-ink-3">{{ toggleBold() }}</span>
+      </div>
+      <div
+        [hlmToggleGroup]="view()"
+        [nullable]="false"
+        aria-label="View"
+        (hlmToggleGroupChange)="onViewChange($event)">
+        @for (option of viewOptions; track option) {
+          <button [hlmToggleGroupItem]="option">{{ option }}</button>
+        }
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Pagination</h2>
+    <div class="max-w-xl">
+      <hlm-pagination [total]="87" [pageSize]="10" [(page)]="page" />
+      <p class="mt-2 font-mono text-xs text-ink-3">page: {{ page() }}</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Reorderable list</h2>
+    <hlm-reorderable-list
+      class="w-full max-w-sm"
+      [items]="reorderColumns()"
+      [trackBy]="columnId"
+      [itemLabel]="columnLabel"
+      (reordered)="onReordered($event)">
+      <ng-template hlmReorderableItem let-column>
+        <span class="text-sm">{{ column.label }}</span>
+      </ng-template>
+    </hlm-reorderable-list>
+  </section>
+
+  <!-- ===================== Overlays & messaging ========================== -->
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Tooltip</h2>
+    <button hlmBtn variant="outline" hlmTooltipTrigger="Saved to drafts">
+      Hover me
+    </button>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Popover</h2>
+    <hlm-popover>
+      <button hlmBtn hlmPopoverTrigger variant="outline">Open popover</button>
+      <hlm-popover-content *brnPopoverContent class="flex flex-col gap-2">
+        <h3 class="text-sm font-semibold text-ink">Filters</h3>
+        <p class="text-sm text-ink-3">Anchored overlay content.</p>
+      </hlm-popover-content>
+    </hlm-popover>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Menu</h2>
+    <button hlmBtn variant="outline" [hlmMenuTriggerFor]="accountMenu">Account</button>
+    <ng-template #accountMenu>
+      <hlm-menu>
+        <button hlmMenuItem>Profile</button>
+        <button hlmMenuItem>Settings</button>
+        <button hlmMenuItem>Sign out</button>
+      </hlm-menu>
+    </ng-template>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Dialog</h2>
+    <hlm-dialog>
+      <button hlmBtn hlmDialogTrigger>Open dialog</button>
+      <hlm-dialog-content *brnDialogContent>
+        <hlm-dialog-header>
+          <h2 hlmDialogTitle>Confirm publish</h2>
+          <p hlmDialogDescription>The course will be visible to all students.</p>
+        </hlm-dialog-header>
+        <hlm-dialog-footer>
+          <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
+          <button hlmBtn brnDialogClose>Publish</button>
+        </hlm-dialog-footer>
+      </hlm-dialog-content>
+    </hlm-dialog>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Alert dialog</h2>
+    <hlm-alert-dialog>
+      <button hlmBtn variant="destructive" hlmAlertDialogTrigger>Delete course</button>
+      <hlm-alert-dialog-content *brnAlertDialogContent>
+        <hlm-dialog-header>
+          <h2 hlmDialogTitle>Delete this course?</h2>
+          <p hlmDialogDescription>This permanently removes the draft.</p>
+        </hlm-dialog-header>
+        <hlm-dialog-footer>
+          <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
+          <button hlmBtn variant="destructive" brnDialogClose>Delete</button>
+        </hlm-dialog-footer>
+      </hlm-alert-dialog-content>
+    </hlm-alert-dialog>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Sheet</h2>
+    <hlm-sheet side="right">
+      <button hlmBtn variant="outline" hlmSheetTrigger>Open settings</button>
+      <hlm-sheet-overlay />
+      <hlm-sheet-content *brnSheetContent>
+        <h2 hlmSheetTitle>Settings</h2>
+        <p hlmSheetDescription>Adjust your workspace preferences.</p>
+        <button hlmBtn hlmSheetClose variant="ghost" class="mt-4">Done</button>
+      </hlm-sheet-content>
+    </hlm-sheet>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Alerts</h2>
+    <div class="flex max-w-xl flex-col gap-3">
+      <hlm-alert severity="info">
+        <hlm-alert-title>Heads up</hlm-alert-title>
+        <hlm-alert-description>Three drafts are awaiting review.</hlm-alert-description>
+      </hlm-alert>
+      <hlm-alert severity="success">
+        <hlm-alert-title>Course published</hlm-alert-title>
+        <hlm-alert-description>It is now live in the catalog.</hlm-alert-description>
+      </hlm-alert>
+      <hlm-alert severity="warning">
+        <hlm-alert-title>Transcode pending</hlm-alert-title>
+        <hlm-alert-description>One video is still processing.</hlm-alert-description>
+      </hlm-alert>
+      <hlm-alert severity="error">
+        <hlm-alert-title>Upload failed</hlm-alert-title>
+        <hlm-alert-description>The server rejected the file.</hlm-alert-description>
+      </hlm-alert>
+      <hlm-alert severity="error" appearance="banner">Connection lost — changes are not being saved.</hlm-alert>
+    </div>
+  </section>
+
+  <section>
+    <h2 hlmHeading variant="section-title" class="mb-4">Toast</h2>
+    <div class="flex flex-wrap items-center gap-3">
+      <button hlmBtn variant="outline" (click)="fireToast('info')">Info</button>
+      <button hlmBtn variant="outline" (click)="fireToast('success')">Success</button>
+      <button hlmBtn variant="outline" (click)="fireToast('warning')">Warning</button>
+      <button hlmBtn variant="outline" (click)="fireToast('error')">Error</button>
+    </div>
+  </section>
+</div>
