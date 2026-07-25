@@ -1,0 +1,101 @@
+:host {
+  // Fill the flex `th` so the trigger spans the whole heading cell and the
+  // `margin-left: auto` icon can sit flush against the cell's right edge.
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+}
+
+.column-menu__trigger {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  // Tailwind preflight resets `button { text-transform: none }`, which would
+  // otherwise mask the header's uppercase treatment on the inner label. Adopt
+  // the th's transform to match the `font: inherit` intent above.
+  text-transform: inherit;
+}
+
+.column-menu__label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.column-menu__icon {
+  margin-left: auto;
+  color: var(--lw-muted-foreground);
+  line-height: 1;
+  // Hidden until the heading cell is hovered or the trigger takes focus;
+  // `visibility` (not `display`) keeps the trigger's layout width stable.
+  visibility: hidden;
+}
+
+// `th` is the column-menu host's parent (see data-table-list header markup);
+// reveal the icon when the whole heading cell is hovered or focus lands inside.
+:host-context(.qa-table__th:hover) .column-menu__icon,
+:host-context(.qa-table__th:focus-within) .column-menu__icon {
+  visibility: visible;
+}
+
+.column-menu__badge {
+  font-size: 0.7em;
+  padding: 0 4px;
+  border-radius: var(--lw-radius-pill);
+  background: var(--lw-primary-soft);
+  color: var(--lw-primary-strong);
+}
+
+// Non-clickable section title shown above the applied-filter row to give the
+// summary context. Horizontal padding matches the hlmMenuItem rows (px-2).
+.column-menu__filter-title {
+  padding: 6px 8px 2px;
+  color: var(--lw-muted-foreground);
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+// Applied-filter row: a value summary flanked by remove (left) / edit (right)
+// icon buttons. Padding matches the hlmMenuItem rows (px-2 py-1.5) so it lines
+// up with the sort/hide items and the Add Filter row above it.
+.column-menu__filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+
+  button {
+    display: inline-flex;
+    width: auto;
+    flex: 0 0 auto;
+    align-items: center;
+    padding: 2px;
+    color: var(--lw-muted-foreground);
+  }
+}
+
+.column-menu__filter-label {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.column-menu__filter-value {
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

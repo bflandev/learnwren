@@ -1,0 +1,350 @@
+:host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+
+  // Temp override, will address with token updates after demo
+  --lw-list-cell-border: var(--lw-border-subtle);
+  --lw-list-header-border: var(--lw-border-subtle);
+}
+
+.qa-table__scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--lw-border-subtle);
+  background: var(--lw-surface);
+  contain: strict;
+}
+
+.qa-table {
+  font-size: 13px;
+}
+
+.qa-table__head {
+  position: sticky;
+  top: 0;
+  z-index: var(--lw-z-sticky);
+  background: var(--lw-list-header-bg);
+  display: block;
+}
+
+.qa-table__head tr {
+  display: flex;
+  width: 100%;
+  height: var(--lw-data-table-header-row-height);
+}
+
+.qa-table__th {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
+  text-align: left;
+  border-bottom: 1px solid var(--lw-list-header-border);
+  border-right: 0.1rem solid var(--lw-border-subtle);
+  padding: var(--lw-cell-padding-y) 0 var(--lw-cell-padding-y) var(--lw-cell-padding-x);
+  font-size: var(--lw-list-header-font-size);
+  font-weight: var(--lw-font-weight-bold);
+  letter-spacing: var(--lw-list-header-letter-spacing);
+  text-transform: uppercase;
+  color: var(--lw-muted-foreground);
+}
+
+.qa-table__resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 5px;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  background: transparent;
+
+  &:hover,
+  &--active {
+    background: var(--lw-primary);
+  }
+}
+
+.qa-table__body {
+  position: relative;
+  display: block;
+}
+
+.qa-table__row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+}
+
+.qa-table__td {
+  flex: 0 0 auto;
+  min-width: 0;
+  // Left padding matches the header label's effective inset: the th uses
+  // --lw-cell-padding-x, and its column-menu trigger adds a further 6px, so
+  // body cells add the same 6px to line up under the header text.
+  padding: var(--lw-cell-padding-y) var(--lw-cell-padding-x) var(--lw-cell-padding-y)
+    calc(var(--lw-cell-padding-x) + 6px);
+  border-bottom: 1px solid var(--lw-list-cell-border);
+  border-right: 0.1rem solid var(--lw-border-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Pinned column cells (body): stick to the scroll container's edge.
+// Opaque background keeps unpinned cells from showing through while scrolling.
+// One step above --lw-z-base so pinned cells overlap their unpinned siblings
+// (which sit at z=auto) but remain below the sticky thead at --lw-z-sticky.
+.qa-table__td--pinned-left,
+.qa-table__td--pinned-right {
+  position: sticky;
+  z-index: calc(var(--lw-z-base) + 1);
+  background: var(--lw-surface);
+}
+
+// Pinned column headers: sticky horizontally; the parent <thead> is already
+// sticky vertically (top: 0, z-index: --lw-z-sticky). Stack pinned headers
+// above both via --lw-z-sticky-elevated.
+.qa-table__th--pinned-left,
+.qa-table__th--pinned-right {
+  position: sticky;
+  z-index: var(--lw-z-sticky-elevated);
+  background: var(--lw-list-header-bg);
+}
+
+// Subtle shadow on the boundary between pinned and scrolling regions.
+// Body cells carry the shadow directly and clip it to a single edge.
+.qa-table__td--pinned-left-edge {
+  box-shadow: 2px 0 4px -2px
+    color-mix(in srgb, var(--lw-foreground) 20%, transparent);
+  clip-path: inset(0 -8px 0 0);
+}
+
+.qa-table__td--pinned-right-edge {
+  box-shadow: -2px 0 4px -2px
+    color-mix(in srgb, var(--lw-foreground) 20%, transparent);
+  clip-path: inset(0 0 0 -8px);
+}
+
+// Header cells draw the same boundary shadow via a pseudo-element. Clipping the
+// shadow onto `::after` keeps `clip-path` off the <th> itself — clipping the th
+// would also clip the absolutely-positioned column menu, which opens downward
+// past the header edge into the body region (covered by data rows otherwise).
+.qa-table__th--pinned-left-edge::after,
+.qa-table__th--pinned-right-edge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.qa-table__th--pinned-left-edge::after {
+  box-shadow: 2px 0 4px -2px
+    color-mix(in srgb, var(--lw-foreground) 20%, transparent);
+  clip-path: inset(0 -8px 0 0);
+}
+
+.qa-table__th--pinned-right-edge::after {
+  box-shadow: -2px 0 4px -2px
+    color-mix(in srgb, var(--lw-foreground) 20%, transparent);
+  clip-path: inset(0 0 0 -8px);
+}
+
+// Synthetic selection column: compact, centred checkbox, no text padding.
+// Flexbox is required (not `vertical-align`) because the row uses display:flex.
+.qa-table__th--select,
+.qa-table__td--select {
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qa-table__select-checkbox {
+  margin: 0;
+  cursor: pointer;
+}
+
+// The selection cell hosts up to three controls (edit toggle, checkbox, row
+// menu); the padding: 0 on --select lets this inner flexer own their layout.
+.qa-table__select-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+}
+
+.qa-table__edit-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--lw-radius-sm);
+  cursor: pointer;
+  color: var(--lw-muted-foreground);
+  opacity: 0;
+}
+
+// The row menu, like the edit toggle, stays hidden until the row is hovered or
+// holds keyboard focus.
+.qa-table__row-menu {
+  opacity: 0;
+}
+
+// Reveal the edit toggle and row menu only on row hover / keyboard focus within
+// the row.
+.qa-table__row:hover .qa-table__edit-toggle,
+.qa-table__row:hover .qa-table__row-menu,
+.qa-table__row:focus-within .qa-table__edit-toggle,
+.qa-table__row:focus-within .qa-table__row-menu,
+.qa-table__edit-toggle:focus-visible {
+  opacity: 1;
+}
+
+.qa-table__edit-toggle:hover {
+  color: var(--lw-foreground);
+  background: var(--lw-surface-hover);
+}
+
+// Row state treatment (PVED-10548). Hover and selection read through the DS
+// list tokens. Pinned cells carry an opaque background to mask the scrolling
+// region (see .qa-table__td--pinned-*), so they must re-state the same tone on
+// hovered/selected rows or the highlight would gap at the pinned columns.
+.qa-table__row:hover {
+  background: var(--lw-list-row-bg-hover);
+}
+
+.qa-table__row--selected {
+  background: var(--lw-list-row-bg-selected);
+}
+
+.qa-table__row--selected:hover {
+  background: var(--lw-list-row-bg-selected-hover);
+}
+
+.qa-table__row:hover .qa-table__td--pinned-left,
+.qa-table__row:hover .qa-table__td--pinned-right {
+  background: var(--lw-list-row-bg-hover);
+}
+
+.qa-table__row--selected .qa-table__td--pinned-left,
+.qa-table__row--selected .qa-table__td--pinned-right {
+  background: var(--lw-list-row-bg-selected);
+}
+
+.qa-table__row--selected:hover .qa-table__td--pinned-left,
+.qa-table__row--selected:hover .qa-table__td--pinned-right {
+  background: var(--lw-list-row-bg-selected-hover);
+}
+
+// Grid-line modes, set via the host [data-grid]. Base style is 'rows'
+// (horizontal cell dividers only). 'full' adds vertical column dividers; 'none'
+// is borderless (rows read via hover/selection). Zebra striping for 'none' is
+// deferred - stable virtualized zebra needs an index-parity class, not
+// :nth-child, which drifts as rows recycle.
+:host([data-grid='full']) .qa-table__td,
+:host([data-grid='full']) .qa-table__th {
+  border-right: 1px solid var(--lw-list-cell-border);
+}
+
+:host([data-grid='none']) .qa-table__td {
+  border-bottom-color: transparent;
+}
+
+.qa-table__footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: var(--lw-cell-padding-y) var(--lw-cell-padding-x);
+  font-size: 13px;
+  color: var(--lw-muted-foreground);
+}
+
+.qa-table__footer--error {
+  color: var(--lw-destructive);
+}
+
+.qa-table__retry {
+  padding: 2px 10px;
+  font: inherit;
+  font-size: 13px;
+  background: var(--lw-surface);
+  border: 1px solid var(--lw-border-strong);
+  border-radius: var(--lw-radius-sm);
+  cursor: pointer;
+
+  &:hover { background: var(--lw-background); }
+}
+
+.qa-table__spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--lw-border-strong);
+  border-top-color: var(--lw-primary);
+  border-radius: 50%;
+  // `qa-table__spin` is defined globally in lw-client `tailwind.css`, not
+  // here, because emulated encapsulation scopes a local `@keyframes` name but
+  // can leave the minified `animation:` reference bare (stranding the spinner).
+  animation: qa-table__spin 0.6s linear infinite;
+}
+
+.qa-table__row--active {
+  background: var(--lw-list-row-bg-selected);
+}
+
+.qa-table__drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--lw-muted-foreground);
+  cursor: grab;
+  opacity: 0.5;
+}
+
+.qa-table__drag-handle:active {
+  cursor: grabbing;
+}
+
+.qa-table__th:hover .qa-table__drag-handle,
+.qa-table__drag-handle:focus-visible {
+  opacity: 1;
+}
+
+.qa-table__drop-target {
+  height: 100%;
+  border-left: 2px solid var(--lw-primary);
+  background: color-mix(in srgb, var(--lw-primary) 8%, transparent);
+}
+
+.cdk-drag-preview.qa-table__th {
+  background: var(--lw-list-header-bg);
+  box-shadow: 0 2px 8px -2px
+    color-mix(in srgb, var(--lw-foreground) 30%, transparent);
+}
+
+// CDK toggles these while dragging; the sibling make-room shift and drop-settle
+// can only be expressed at runtime. Duration tokens zero out under
+// prefers-reduced-motion (tokens.css), so this honours reduced motion.
+.cdk-drop-list-dragging .cdk-drag:not(.cdk-drag-placeholder),
+.cdk-drag-animating {
+  transition: transform var(--lw-motion-duration-medium)
+    var(--lw-motion-ease-standard);
+}

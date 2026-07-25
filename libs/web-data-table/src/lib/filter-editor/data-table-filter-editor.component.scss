@@ -1,0 +1,70 @@
+.filter-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 0.4rem 0.8rem 0.8rem;
+  font-size: 1.3rem;
+  // The editor now renders in a self-sized flyout (no longer filling the
+  // toolbar panel), so it needs an explicit comfortable width.
+  min-width: 24rem;
+}
+
+.filter-editor__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.filter-editor__title {
+  font-weight: 600;
+}
+
+.filter-editor__close {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--lw-muted-foreground);
+
+  &:hover {
+    color: var(--lw-foreground);
+  }
+}
+
+.filter-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 0.1rem solid var(--lw-border);
+  margin-top: 0.4rem;
+
+  button {
+    padding: 0.4rem 1rem;
+    font: inherit;
+    background: var(--lw-surface);
+    border: 0.1rem solid var(--lw-border-strong);
+    border-radius: var(--lw-radius-sm);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--lw-background);
+    }
+    &:disabled {
+      opacity: var(--lw-opacity-disabled);
+      cursor: not-allowed;
+    }
+  }
+
+  button[data-test='filter-confirm'] {
+    background: var(--lw-primary);
+    color: var(--lw-primary-foreground);
+    border-color: var(--lw-primary);
+
+    &:hover:not(:disabled) {
+      background: var(--lw-primary-strong);
+    }
+  }
+}

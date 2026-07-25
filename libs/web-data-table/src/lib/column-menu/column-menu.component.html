@@ -1,0 +1,159 @@
+<button
+  #trigger
+  type="button"
+  data-test="trigger"
+  class="column-menu__trigger"
+  [cdkMenuTriggerFor]="menu"
+  [cdkMenuPosition]="menuPositions"
+>
+  <span class="column-menu__label">{{ header() }}</span>
+  @if (multiSortBadge(); as badge) {
+    <span data-test="multi-sort-badge" class="column-menu__badge">{{
+      badge
+    }}</span>
+  }
+  @if (sortDir() === 'asc') {
+    <span aria-label="sorted ascending">▲</span>
+  }
+  @if (sortDir() === 'desc') {
+    <span aria-label="sorted descending">▼</span>
+  }
+  <hlm-icon
+    name="lucideEllipsisVertical"
+    class="column-menu__icon"
+    aria-hidden="true"
+  />
+</button>
+
+<ng-template #menu>
+  <hlm-menu data-test="menu" class="column-menu__panel">
+    <button
+      hlmMenuItem
+      type="button"
+      data-test="sort-asc"
+      (triggered)="sort.emit('asc')"
+    >
+      Sort ascending
+    </button>
+    <button
+      hlmMenuItem
+      type="button"
+      data-test="sort-desc"
+      (triggered)="sort.emit('desc')"
+    >
+      Sort descending
+    </button>
+    @if (allowMultiSort()) {
+      <button
+        hlmMenuItem
+        type="button"
+        data-test="add-sub-asc"
+        (triggered)="addMultiSort.emit('asc')"
+      >
+        Add ascending sub-sort
+      </button>
+      <button
+        hlmMenuItem
+        type="button"
+        data-test="add-sub-desc"
+        (triggered)="addMultiSort.emit('desc')"
+      >
+        Add descending sub-sort
+      </button>
+    }
+    @if (sortActive()) {
+      <button
+        hlmMenuItem
+        type="button"
+        data-test="clear-sort"
+        (triggered)="clearSort.emit()"
+      >
+        Clear sort
+      </button>
+    }
+    @if (canHide()) {
+      <button
+        hlmMenuItem
+        type="button"
+        data-test="hide"
+        (triggered)="hide.emit()"
+      >
+        Hide column
+      </button>
+    }
+    @if (columnId()) {
+      @if (appliedFilter(); as f) {
+        <div
+          class="column-menu__filter-title"
+          role="presentation"
+          data-test="filter-title"
+        >
+          Filter
+        </div>
+        <!-- Presentational summary row: the trash/pen are plain buttons (not
+             hlmMenuItem) so a click stays inside the menu panel and doesn't
+             trigger CdkMenu's close. Remove mutates the store and leaves the
+             menu open; Edit closes the menu and opens the editor popover. -->
+        <div
+          class="column-menu__filter-row"
+          role="presentation"
+          data-test="filter-applied"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            data-test="filter-remove"
+            aria-label="Remove filter"
+            class="column-menu__filter-icon"
+            (click)="removeFilter()"
+          >
+            <hlm-icon name="lucideTrash2" aria-hidden="true" />
+          </button>
+          <span class="column-menu__filter-label">
+            <span>{{ comparatorLabel(f.comparator) }}</span>
+            <span class="column-menu__filter-value">{{ f.value }}</span>
+          </span>
+          <button
+            type="button"
+            role="menuitem"
+            data-test="filter-edit"
+            aria-label="Edit filter"
+            class="column-menu__filter-icon"
+            (click)="openFilterEditor()"
+          >
+            <hlm-icon name="lucidePencil" aria-hidden="true" />
+          </button>
+        </div>
+      } @else {
+        <button
+          hlmMenuItem
+          type="button"
+          data-test="add-filter"
+          (triggered)="openFilterEditor()"
+        >
+          Add Filter
+        </button>
+      }
+    }
+  </hlm-menu>
+</ng-template>
+
+<!-- The filter editor lives in its OWN popover (not inside the CDK menu): the
+     editor's Field/Condition dropdowns open sibling overlays that would force a
+     CdkMenu to close on interaction. The popover is anchored to the column
+     trigger via [attachTo] and opened programmatically once the menu row is
+     chosen (the CDK menu having closed first). -->
+<hlm-popover #editorPopover align="end" [sideOffset]="6" [attachTo]="trigger">
+  <hlm-popover-content
+    *brnPopoverContent
+    class="column-menu__editor-panel w-auto p-1"
+    aria-label="Edit column filter"
+  >
+    <lw-data-table-filter-editor
+      [lockedField]="columnId()"
+      [editing]="appliedFilter()"
+      (committed)="onFilterCommitted()"
+      (cancelled)="closeFilterEditor()"
+    />
+  </hlm-popover-content>
+</hlm-popover>

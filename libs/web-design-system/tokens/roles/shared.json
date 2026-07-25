@@ -238,6 +238,18 @@
     "opacity": {
       "opacity-disabled": { "value": "0.5" },
       "opacity-muted": { "value": "0.7" }
+    },
+    "data-table": {
+      "cell-padding-x": { "value": "14px" },
+      "cell-padding-y": { "value": "12px" },
+      "row-height": { "value": "44px" },
+      "data-table-title-bar-height": { "value": "52px" },
+      "data-table-header-row-height": { "value": "46px" },
+      "data-table-title-bg": { "value": "var(--lw-surface-raised)" },
+      "data-table-sidebar-bg": { "value": "var(--lw-surface-sunken)" },
+      "list-header-font-size": { "value": "11px" },
+      "list-header-letter-spacing": { "value": "0.04em" },
+      "radius-pill": { "value": "9999px" }
     }
   }
 }

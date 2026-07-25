@@ -1,0 +1,93 @@
+<div
+  #layer
+  class="inline-editor__layer"
+  data-test="edit-layer"
+  [style.width.px]="layerWidth()"
+  [style.height.px]="layerHeight()"
+  (scroll)="onLayerScroll($event)"
+>
+  <div
+    class="inline-editor__form"
+    data-test="edit-form"
+    [style.top.px]="top()"
+    [style.height.px]="rowHeight()"
+  >
+    <div
+      class="inline-editor__actions"
+      data-test="edit-actions"
+      [style.width.px]="selectCellWidth()"
+    >
+      <button
+        type="button"
+        class="inline-editor__action"
+        data-test="edit-cancel"
+        aria-label="Cancel edit"
+        (click)="closed.emit()"
+      >
+        <hlm-icon name="lucideX" class="size-4" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="inline-editor__action"
+        data-test="edit-save"
+        aria-label="Save edit"
+        [disabled]="formPristine()"
+        (click)="save.emit(collectDirtyValues())"
+      >
+        <hlm-icon name="lucideCheck" class="size-4" aria-hidden="true" />
+      </button>
+    </div>
+    @for (field of fields(); track field.id) {
+      <div
+        class="inline-editor__field"
+        data-test="edit-field"
+        [attr.data-field]="field.id"
+        [style.width.px]="widthFor(field)"
+      >
+        @if (field.readonly) {
+          @if (field.readOnlyNote; as note) {
+            @let value = displayValue(field);
+            <span
+              class="inline-editor__readonly-note"
+              data-test="edit-readonly-note"
+              [attr.data-icon]="note.icon"
+              [title]="note.label"
+              role="img"
+              [attr.aria-label]="note.label"
+            >
+              <hlm-icon [name]="note.icon" class="size-3" aria-hidden="true" />
+              <span>{{ value || note.label }}</span>
+            </span>
+          } @else {
+            <span
+              class="inline-editor__readonly"
+              data-test="edit-readonly-value"
+              [title]="displayValue(field)"
+              >{{ displayValue(field) }}</span
+            >
+          }
+        } @else {
+          <hlm-dynamic-field
+            class="inline-editor__control"
+            [group]="form()"
+            [controlName]="controlNameFor(field.id)"
+            [type]="field.type"
+            [mode]="'datetime'"
+            [readonly]="false"
+            [options]="field.options ?? []"
+          />
+        }
+        @if (field.resizable) {
+          <div
+            data-test="edit-resize-handle"
+            class="inline-editor__resize-handle"
+            [class.inline-editor__resize-handle--active]="
+              resizingId() === field.id
+            "
+            (pointerdown)="onResizeStart(field, $event)"
+          ></div>
+        }
+      </div>
+    }
+  </div>
+</div>

@@ -1,0 +1,42 @@
+<div class="title-box" [class.title-box--no-toggle]="!showToggle()">
+  @if (showToggle()) {
+    <button
+      type="button"
+      data-test="sidebar-toggle"
+      class="title-box__toggle"
+      aria-label="Toggle view sidebar"
+      (click)="toggleLeftSidebar()"
+    >
+      <hlm-icon [name]="chevronIcon()" aria-hidden="true" />
+    </button>
+  }
+  @if (title(); as t) {
+    <h2 data-test="controls-title" class="title-box__title">{{ t }}</h2>
+  }
+  @if (showMenu()) {
+    <span
+      class="title-box__menu-wrap"
+      [class.title-box__menu-wrap--dirty]="isDirty()"
+    >
+      <lw-view-menu
+        [viewKind]="viewKind()"
+        [isDirty]="isDirty()"
+        (rename)="rename.emit()"
+        (duplicate)="duplicate.emit()"
+        (share)="share.emit()"
+        (promote)="promote.emit()"
+        (delete)="delete.emit()"
+        (reset)="reset.emit()"
+        (saveChanges)="saveChanges.emit()"
+        (saveChangesAs)="saveChangesAs.emit()"
+      />
+      @if (isDirty()) {
+        <span
+          data-test="dirty-dot"
+          class="title-box__dirty-dot"
+          aria-label="Unsaved changes"
+        ></span>
+      }
+    </span>
+  }
+</div>

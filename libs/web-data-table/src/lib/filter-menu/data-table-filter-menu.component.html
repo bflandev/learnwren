@@ -1,0 +1,85 @@
+<!-- tabindex/-1 + keydown stopPropagation keep the CDK menu open on interaction (and satisfy interactive-supports-focus); do not remove. -->
+<div
+  class="filter-menu"
+  data-test="filter-menu"
+  tabindex="-1"
+  (keydown)="$event.stopPropagation()"
+>
+  <div class="filter-menu__header">
+    <span class="filter-menu__title">Filters</span>
+    @if (store.filterCount() > 0) {
+      <span data-test="filter-count" class="filter-menu__badge">{{
+        store.filterCount()
+      }}</span>
+    }
+    <button
+      type="button"
+      data-test="filter-clear-all"
+      [disabled]="store.filterCount() === 0"
+      (click)="clearAll(); $event.stopPropagation()"
+    >
+      Clear all
+    </button>
+  </div>
+
+  <div class="filter-menu__section-label">Fields ({{ store.filterCount() }})</div>
+  @for (f of store.filters(); track f.field) {
+    <div class="filter-menu__row" data-test="filter-row">
+      <button
+        type="button"
+        data-test="filter-remove"
+        aria-label="Remove filter"
+        (click)="remove(f.field); $event.stopPropagation()"
+      >
+        <hlm-icon name="lucideTrash2" aria-hidden="true" />
+      </button>
+      <span class="filter-menu__row-label">
+        @if (!$first) {
+          <span class="filter-menu__row-conj">AND</span>
+        }
+        <span class="filter-menu__row-field">{{ headerFor(f.field) }}</span>
+        <span class="filter-menu__row-comparator">{{
+          comparatorLabel(f.comparator)
+        }}</span>
+        <span class="filter-menu__row-value">{{ f.value }}</span>
+      </span>
+      <button
+        type="button"
+        data-test="filter-edit"
+        aria-label="Edit filter"
+        (click)="edit(f); $event.stopPropagation()"
+      >
+        <hlm-icon name="lucidePencil" aria-hidden="true" />
+      </button>
+    </div>
+  }
+  <button
+    type="button"
+    data-test="filter-add"
+    class="filter-menu__add"
+    (click)="add(); $event.stopPropagation()"
+  >
+    <hlm-icon name="lucideCirclePlus" aria-hidden="true" /> Add Filter
+  </button>
+
+  <!-- The editor renders inline inside the panel (not a nested CDK menu): its own
+       select/date overlays would otherwise close a nested menu on interaction.
+       Add vs edit are separate branches so switching remounts and reseeds. -->
+  @if (editorOpen()) {
+    @if (editing(); as f) {
+      <lw-data-table-filter-editor
+        class="filter-menu__editor"
+        [editing]="f"
+        [lockedField]="f.field"
+        (committed)="onEditorDone()"
+        (cancelled)="onEditorDone()"
+      />
+    } @else {
+      <lw-data-table-filter-editor
+        class="filter-menu__editor"
+        (committed)="onEditorDone()"
+        (cancelled)="onEditorDone()"
+      />
+    }
+  }
+</div>

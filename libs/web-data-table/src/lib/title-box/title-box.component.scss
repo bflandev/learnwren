@@ -1,0 +1,79 @@
+:host {
+  display: block;
+}
+
+.title-box {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+// Without the sidebar-toggle chevron (instances that register no left sidebar,
+// e.g. admin/activities) the title would sit flush against the toolbar's tight
+// 0.5rem edge padding. Add a left inset so the bare title reads as padded,
+// roughly matching the space the toggle otherwise reserves before the title.
+.title-box--no-toggle {
+  padding-left: 0.8rem;
+}
+
+.title-box__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--lw-radius-sm);
+  color: var(--lw-foreground);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--lw-background);
+  }
+}
+
+.title-box__title {
+  margin: 0;
+  font-size: 1.9rem;
+  font-weight: 600;
+  color: var(--lw-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Wrap around the shared `lw-view-menu` and the unsaved-changes dot; keeps
+// the dot visible while the trigger is opacity:0 by default.
+.title-box__menu-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  // Pull tight to the title, countering the flex `gap` on `.title-box`.
+  margin-left: -0.6rem;
+}
+
+// Hidden by default; revealed on title-box hover, when focus is anywhere inside
+// the title box, while the menu is open (CDK sets `aria-expanded="true"` on the
+// trigger button), and whenever the active view is dirty. Mirrors the
+// view-picker row-affordance pattern.
+.title-box__menu-wrap lw-view-menu {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.title-box:hover .title-box__menu-wrap lw-view-menu,
+.title-box:focus-within .title-box__menu-wrap lw-view-menu,
+.title-box__menu-wrap lw-view-menu:has([aria-expanded='true']),
+.title-box__menu-wrap--dirty lw-view-menu {
+  opacity: 1;
+}
+
+// Small filled circle flagging the active view has unsaved changes.
+.title-box__dirty-dot {
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--lw-destructive);
+}
