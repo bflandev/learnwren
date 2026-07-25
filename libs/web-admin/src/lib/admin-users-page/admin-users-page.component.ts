@@ -1,8 +1,19 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { provideIcons } from '@ng-icons/core';
+import { lucideSearch } from '@ng-icons/lucide';
 
 import type { AdminUserListRow } from '@learnwren/shared-data-models';
+import {
+  HlmAlert,
+  HlmBadge,
+  HlmButton,
+  HlmIcon,
+  HlmInput,
+  HlmPagination,
+  HlmSkeleton,
+} from '@learnwren/web-ui';
 
 import { AdminUsersService } from '../admin-users.service';
 
@@ -12,7 +23,18 @@ const SEARCH_DEBOUNCE_MS = 300;
 @Component({
   selector: 'lib-admin-users-page',
   standalone: true,
-  imports: [DatePipe, RouterLink],
+  imports: [
+    DatePipe,
+    RouterLink,
+    HlmAlert,
+    HlmBadge,
+    HlmButton,
+    HlmIcon,
+    HlmInput,
+    HlmPagination,
+    HlmSkeleton,
+  ],
+  providers: [provideIcons({ lucideSearch })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin-users-page.component.html',
 })
