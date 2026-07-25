@@ -139,6 +139,8 @@ test('the catalogue filter lists the fetched category names', async ({ page }) =
   });
 
   await page.goto('/catalog');
-  const categorySelect = page.locator('select').first();
-  await expect(categorySelect.locator('option')).toHaveText(['All', 'Design', 'Wren Care']);
+  // hlmSelectSingle renders a button trigger + role="option" rows in a
+  // portal (not a native <select>) — open it and assert the rows.
+  await page.getByTestId('filter-category').click();
+  await expect(page.getByRole('option')).toHaveText(['All', 'Design', 'Wren Care']);
 });
