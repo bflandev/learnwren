@@ -81,7 +81,7 @@ describe('ProfilePictureService', () => {
       'image/jpeg',
       { email: 'a@b.com', emailVerified: true },
     );
-    expect(me.photoUrl).toMatch(/^https:\/\/example\.com\/profile-pictures\/u1\/avatar\.jpg\?v=/);
+    expect(me.photoUrl).toMatch(/^https:\/\/example\.com\/profile-pictures%2Fu1%2Favatar\.jpg\?alt=media&v=/);
     expect(storage.has('profile-pictures/u1/avatar.jpg')).toBe(true);
     const blob = storage.get('profile-pictures/u1/avatar.jpg')!;
     expect(blob.contentType).toBe('image/jpeg');

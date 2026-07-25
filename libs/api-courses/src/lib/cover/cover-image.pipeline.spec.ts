@@ -134,7 +134,7 @@ describe('CoverImageService — sharp pipeline options (mocked)', () => {
   it('accepts the inclusive 1280x720 boundary (neither operand trips)', async () => {
     mockPipeline({ width: 1280, height: 720 });
     const out = await makeService(repo).uploadCover(CID, Buffer.from('src'), 'image/jpeg');
-    expect(out.coverImageUrl).toContain('course-covers/c1/cover.jpg');
+    expect(out.coverImageUrl).toContain('course-covers%2Fc1%2Fcover.jpg');
   });
 
   it('removeCover returns an object carrying updatedAt (kills the {updatedAt} ObjectLiteral)', async () => {

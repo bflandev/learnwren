@@ -78,7 +78,12 @@ export class ProfilePictureService {
     });
 
     const updatedAt = nowIso();
-    const photoUrl = `${this.cfg.publicBaseUrl}/${path}?v=${encodeURIComponent(updatedAt)}`;
+    // Object path is %2F-encoded and carries alt=media: required by the
+    // Firebase Storage REST endpoint (the emulator in e2e), harmless on the
+    // GCS XML endpoint used in production (which decodes %2F and ignores
+    // alt=media). The unencoded ?v= form 404'd on the emulator forever — the
+    // legacy avatar component just never surfaced the broken image.
+    const photoUrl = `${this.cfg.publicBaseUrl}/${encodeURIComponent(path)}?alt=media&v=${encodeURIComponent(updatedAt)}`;
     await this.firestore.collection('users').doc(uid).update({
       photoUrl,
       updatedAt,
