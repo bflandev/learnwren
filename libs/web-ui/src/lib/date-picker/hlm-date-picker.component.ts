@@ -359,7 +359,6 @@ export const DATE_PICKER_TRIGGER_BASE =
 export class HlmDatePicker {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
   public readonly value = model<DateTime | null>(null);
@@ -423,6 +422,8 @@ export class HlmDatePicker {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showSeconds = input(true, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showMilliseconds = input(true, {
     transform: booleanAttribute,
   });

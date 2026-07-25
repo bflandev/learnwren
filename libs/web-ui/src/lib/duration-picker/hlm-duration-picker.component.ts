@@ -207,7 +207,6 @@ export const DURATION_PICKER_TRIGGER_BASE =
 export class HlmDurationPicker {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
   public readonly value = model<Duration | null>(null);
@@ -234,6 +233,8 @@ export class HlmDurationPicker {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showSeconds = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showMilliseconds = input(false, {
     transform: booleanAttribute,
   });

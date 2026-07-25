@@ -72,7 +72,6 @@ export class HlmTabs {
   public readonly size = input<TabsSize>('default');
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(TABS_BASE, this.userClass()),
@@ -103,7 +102,6 @@ export class HlmTabsList {
   );
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(
@@ -145,7 +143,6 @@ export class HlmTabsTrigger {
   );
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(
@@ -175,7 +172,6 @@ export class HlmTabsTrigger {
 export class HlmTabsContent {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(TABS_CONTENT_BASE, this.userClass()),

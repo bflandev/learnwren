@@ -22,7 +22,6 @@ export const RESIZABLE_PANEL_BASE = 'min-h-0 min-w-0 overflow-auto';
 export class HlmResizablePanel {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(RESIZABLE_PANEL_BASE, this.userClass()),
@@ -58,7 +57,6 @@ export class HlmResizableHandle {
   protected readonly Math = Math;
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(RESIZABLE_HANDLE_BASE, this.userClass()),

@@ -207,7 +207,6 @@ export class HlmReorderableList<T> {
   readonly itemLabel = input<(item: T) => string>();
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<string>('', { alias: 'class' });
 
   readonly reordered = output<ReorderEvent<T>>();

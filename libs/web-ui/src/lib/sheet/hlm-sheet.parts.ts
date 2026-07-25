@@ -26,7 +26,6 @@ import {
 export class HlmSheetTitle {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_TITLE_BASE, this.userClass()),
@@ -42,7 +41,6 @@ export class HlmSheetTitle {
 export class HlmSheetDescription {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_DESCRIPTION_BASE, this.userClass()),
@@ -61,7 +59,6 @@ export class HlmSheetDescription {
 export class HlmSheetClose {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_CLOSE_BASE, this.userClass()),

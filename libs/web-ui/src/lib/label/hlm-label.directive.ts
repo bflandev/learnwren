@@ -45,7 +45,6 @@ export const LABEL_BASE =
 export class HlmLabel {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
   // Set by the consumer to mirror an associated nested control's disabled

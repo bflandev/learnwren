@@ -33,7 +33,6 @@ import {
 export class HlmDialogHeader {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_HEADER_BASE, this.userClass()),
@@ -50,7 +49,6 @@ export class HlmDialogHeader {
 export class HlmDialogFooter {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_FOOTER_BASE, this.userClass()),
@@ -70,7 +68,6 @@ export class HlmDialogFooter {
 export class HlmDialogTitle {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_TITLE_BASE, this.userClass()),
@@ -88,7 +85,6 @@ export class HlmDialogTitle {
 export class HlmDialogDescription {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_DESCRIPTION_BASE, this.userClass()),
@@ -108,7 +104,6 @@ export class HlmDialogDescription {
 export class HlmDialogClose {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_CLOSE_BASE, this.userClass()),

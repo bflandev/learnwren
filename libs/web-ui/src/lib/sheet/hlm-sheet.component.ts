@@ -103,7 +103,6 @@ export class HlmSheetTrigger {}
 export class HlmSheetOverlay {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_OVERLAY_BASE, this.userClass()),
@@ -125,7 +124,6 @@ export class HlmSheetContent {
   private readonly _brnContent = inject(BrnSheetContent, { optional: true });
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() => {
     const side = this._brnContent?.side() ?? 'top';

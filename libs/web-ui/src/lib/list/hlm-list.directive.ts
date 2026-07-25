@@ -43,7 +43,6 @@ export class HlmList {
   readonly divided = input(false, { transform: booleanAttribute });
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(LIST_BASE, this.divided() && LIST_DIVIDED, this.userClass()),
@@ -60,7 +59,6 @@ export class HlmList {
 export class HlmListItem {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(LIST_ITEM_BASE, this.userClass()),

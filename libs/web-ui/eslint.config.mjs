@@ -27,6 +27,11 @@ export default [
           style: 'kebab-case',
         },
       ],
+      // `input('', { alias: 'class' })` is the lib-wide hlm idiom (every
+      // primitive exposes `class` passthrough). Disabled at the lib level
+      // instead of per-line: the per-line eslint comment cannot coexist with
+      // the per-line Stryker disable both tools need directly above the call.
+      '@angular-eslint/no-input-rename': 'off',
     },
   },
   {

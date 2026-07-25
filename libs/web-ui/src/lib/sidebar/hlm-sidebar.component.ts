@@ -95,7 +95,6 @@ export class HlmSidebar {
   public readonly ariaLabel = input<string>('', { alias: 'aria-label' });
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
   // Resolved visual state, exposed (data-state + parts read it) so content can
@@ -144,7 +143,6 @@ export class HlmSidebarTrigger {
   protected readonly sidebar = inject(HlmSidebar);
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(SIDEBAR_TRIGGER_BASE, this.userClass()),

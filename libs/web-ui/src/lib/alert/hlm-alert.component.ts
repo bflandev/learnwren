@@ -69,7 +69,6 @@ export class HlmAlert {
 
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
   public readonly dismissed = output<void>();
@@ -115,7 +114,6 @@ export class HlmAlert {
 export class HlmAlertTitle {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(ALERT_TITLE_BASE, this.userClass()),
@@ -132,7 +130,6 @@ export class HlmAlertTitle {
 export class HlmAlertDescription {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(ALERT_DESCRIPTION_BASE, this.userClass()),

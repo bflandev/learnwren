@@ -34,7 +34,6 @@ export class HlmSidebarHeader {
   private readonly sidebar = inject(HlmSidebar, { optional: true });
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(
@@ -56,7 +55,6 @@ export class HlmSidebarContent {
   private readonly sidebar = inject(HlmSidebar, { optional: true });
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(
@@ -77,7 +75,6 @@ export class HlmSidebarContent {
 export class HlmSidebarFooter {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(SIDEBAR_FOOTER_BASE, this.userClass()),

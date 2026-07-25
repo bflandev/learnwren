@@ -45,7 +45,6 @@ let nextErrorId = 0;
 export class HlmFormField {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(FORM_FIELD_BASE, this.userClass()),
@@ -101,7 +100,6 @@ export class HlmFormFieldHint implements OnInit, OnDestroy {
 
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(FORM_FIELD_HINT_BASE, this.userClass()),
@@ -137,7 +135,6 @@ export class HlmFormFieldError implements OnInit, OnDestroy {
 
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(FORM_FIELD_ERROR_BASE, this.userClass()),
@@ -176,7 +173,6 @@ export class HlmFormFieldControl {
   // Stryker disable all: Angular signal-input options must stay statically
   // analyzable object literals; instrumented mutants fatal ngtsc.
   public readonly ariaDescribedBy = input<string | null>(null, {
-    // eslint-disable-next-line @angular-eslint/no-input-rename
     alias: 'aria-describedby',
   });
   // Stryker restore all

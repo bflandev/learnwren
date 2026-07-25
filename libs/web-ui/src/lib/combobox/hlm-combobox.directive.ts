@@ -226,7 +226,6 @@ export class HlmComboboxMultiple {
 export class HlmComboboxTrigger {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(COMBOBOX_TRIGGER_BASE, this.userClass()),
@@ -245,7 +244,6 @@ export class HlmComboboxTrigger {
 export class HlmComboboxValue {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(COMBOBOX_VALUE_BASE, this.userClass()),
@@ -269,7 +267,6 @@ export class HlmComboboxValue {
 export class HlmComboboxContent {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(COMBOBOX_CONTENT_BASE, this.userClass()),
@@ -302,6 +299,8 @@ export class HlmComboboxContent {
   // tabindex=-1 so the input remains first-tabbable and type-to-filter keeps
   // focus. (Replaces an earlier post-open `setTimeout` focus-pull that lost the
   // race against brain's synchronous focusout-close.)
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   private readonly _input = contentChild(BrnComboboxInput, {
     descendants: true,
   });
@@ -335,7 +334,6 @@ export class HlmComboboxPortal {}
 export class HlmComboboxInput {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(COMBOBOX_INPUT_BASE, this.userClass()),
@@ -354,7 +352,6 @@ export class HlmComboboxInput {
 export class HlmComboboxList {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(COMBOBOX_LIST_BASE, this.userClass()),
@@ -387,7 +384,6 @@ export class HlmComboboxList {
 export class HlmComboboxItem {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
 
   // The root governs the affordance for the whole list (mirrors HlmSelect).
@@ -461,7 +457,6 @@ export class HlmComboboxItem {
 export class HlmComboboxEmpty {
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(COMBOBOX_EMPTY_BASE, this.userClass()),
