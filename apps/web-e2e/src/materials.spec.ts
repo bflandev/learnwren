@@ -1,13 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import * as admin from 'firebase-admin';
 
+import { ensureEmulatorAdmin } from './_helpers/emulator-admin';
+
 // Mirrors the auth + course setup helpers in publish-gate.spec.ts. Intentionally
 // duplicated (see the note in publish-gate.spec.ts) to avoid touching that file.
-if (admin.apps.length === 0) {
-  process.env['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099';
-  process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
-  admin.initializeApp({ projectId: 'demo-learnwren' });
-}
+ensureEmulatorAdmin();
 
 const API_BASE = 'http://localhost:3333/api';
 

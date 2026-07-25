@@ -3,11 +3,9 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import * as admin from 'firebase-admin';
 
-if (admin.apps.length === 0) {
-  process.env['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099';
-  process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
-  admin.initializeApp({ projectId: 'demo-learnwren' });
-}
+import { ensureEmulatorAdmin } from './_helpers/emulator-admin';
+
+ensureEmulatorAdmin();
 
 const API_BASE = 'http://localhost:3333/api';
 
