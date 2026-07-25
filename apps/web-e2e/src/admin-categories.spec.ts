@@ -104,9 +104,12 @@ test('deleting a category prompts for reassignment and sends the chosen target',
   await row.getByTestId('delete-button').click();
 
   // The AC's reassignment prompt: a select of the OTHER categories.
+  // hlmSelectSingle renders a button trigger + role="option" rows (not a
+  // native <select>), so pick via click instead of selectOption.
   const select = page.getByTestId('reassign-select');
   await expect(select).toBeVisible();
-  await select.selectOption('OTHER');
+  await select.click();
+  await page.getByRole('option', { name: 'Other' }).click();
 
   const deleteRequest = page.waitForRequest(
     (r) => r.method() === 'DELETE' && r.url().includes('/api/admin/categories/BUSINESS'),

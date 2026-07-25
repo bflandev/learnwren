@@ -98,7 +98,7 @@ describe('AdminCategoriesPageComponent', () => {
   it('startDelete preselects another category as the reassignment target', async () => {
     const fixture = await setup();
     fixture.componentInstance.startDelete(cat('BUSINESS', 'Business'));
-    expect(fixture.componentInstance.reassignTo).toBe('DESIGN');
+    expect(fixture.componentInstance.reassignTo()).toBe('DESIGN');
     expect(fixture.componentInstance.reassignOptions().map((c) => c.id)).toEqual(['DESIGN']);
   });
 
@@ -138,7 +138,7 @@ describe('AdminCategoriesPageComponent', () => {
     expect(cmp.categories()).toEqual([]);
     expect(cmp.newName).toBe('');
     expect(cmp.renameName).toBe('');
-    expect(cmp.reassignTo).toBe('');
+    expect(cmp.reassignTo()).toBe('');
     expect(cmp.busy()).toBe(false);
   });
 
@@ -203,7 +203,7 @@ describe('AdminCategoriesPageComponent', () => {
     svc.list.mockResolvedValue([cat('OTHER', 'Other')]);
     const fixture = await setup();
     fixture.componentInstance.startDelete(cat('OTHER', 'Other'));
-    expect(fixture.componentInstance.reassignTo).toBe('');
+    expect(fixture.componentInstance.reassignTo()).toBe('');
 
     await fixture.componentInstance.confirmDelete('OTHER' as CategoryId);
     expect(svc.delete).not.toHaveBeenCalled();

@@ -2,6 +2,16 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { FormsModule } from '@angular/forms';
 
 import type { CategoryId, CourseCategoryDoc } from '@learnwren/shared-data-models';
+import {
+  HlmAlert,
+  HlmButton,
+  HlmFormField,
+  HlmFormFieldControl,
+  HlmFormFieldError,
+  HlmInput,
+  HlmSelectSingleImports,
+  HlmSkeleton,
+} from '@learnwren/web-ui';
 
 import { AdminCategoriesService } from '../admin-categories.service';
 
@@ -13,7 +23,17 @@ import { AdminCategoriesService } from '../admin-categories.service';
 @Component({
   selector: 'lib-admin-categories-page',
   standalone: true,
-  imports: [FormsModule],
+  imports: [
+    FormsModule,
+    HlmAlert,
+    HlmButton,
+    HlmFormField,
+    HlmFormFieldControl,
+    HlmFormFieldError,
+    HlmInput,
+    ...HlmSelectSingleImports,
+    HlmSkeleton,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin-categories-page.component.html',
 })
@@ -33,13 +53,23 @@ export class AdminCategoriesPageComponent implements OnInit {
   readonly renamingId = signal<CategoryId | null>(null);
   renameName = '';
   readonly deletingId = signal<CategoryId | null>(null);
-  reassignTo = '';
+  readonly reassignTo = signal('');
   readonly rowError = signal<string | null>(null);
 
   /** Reassignment options: every category except the one being deleted. */
   readonly reassignOptions = computed(() =>
     this.categories().filter((c) => c.id !== this.deletingId()),
   );
+
+  /** Display name of the currently chosen reassignment target (trigger label). */
+  readonly reassignToName = computed(
+    () => this.categories().find((c) => c.id === this.reassignTo())?.name ?? null,
+  );
+
+  /** hlmSelectSingle emits `T | null`; normalise to '' so the guard stays a falsy check. */
+  onReassignChange(value: unknown): void {
+    this.reassignTo.set(typeof value === 'string' ? value : '');
+  }
 
   async ngOnInit(): Promise<void> {
     await this.reload();
@@ -102,17 +132,17 @@ export class AdminCategoriesPageComponent implements OnInit {
 
   startDelete(cat: CourseCategoryDoc): void {
     this.deletingId.set(cat.id);
-    this.reassignTo = this.categories().find((c) => c.id !== cat.id)?.id ?? '';
+    this.reassignTo.set(this.categories().find((c) => c.id !== cat.id)?.id ?? '');
     this.renamingId.set(null);
     this.rowError.set(null);
   }
 
   async confirmDelete(id: CategoryId): Promise<void> {
-    if (!this.reassignTo || this.busy()) return;
+    if (!this.reassignTo() || this.busy()) return;
     this.busy.set(true);
     this.rowError.set(null);
     try {
-      await this.svc.delete(id, this.reassignTo as CategoryId);
+      await this.svc.delete(id, this.reassignTo() as CategoryId);
       this.deletingId.set(null);
       await this.reload();
     } catch (err) {

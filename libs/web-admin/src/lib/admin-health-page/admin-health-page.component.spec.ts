@@ -103,8 +103,8 @@ describe('AdminHealthPageComponent', () => {
     const bar = (fixture.nativeElement as HTMLElement).querySelector(
       '[data-testid="quota-bar"] > div:last-child > div',
     );
-    expect(bar?.classList.contains('bg-red-500')).toBe(true);
-    expect(bar?.classList.contains('bg-green-500')).toBe(false);
+    expect(bar?.classList.contains('bg-bad')).toBe(true);
+    expect(bar?.classList.contains('bg-good')).toBe(false);
   });
 
   it('keeps the quota bar green at exactly 80% (unrounded)', async () => {
@@ -115,8 +115,8 @@ describe('AdminHealthPageComponent', () => {
     const bar = (fixture.nativeElement as HTMLElement).querySelector(
       '[data-testid="quota-bar"] > div:last-child > div',
     );
-    expect(bar?.classList.contains('bg-green-500')).toBe(true);
-    expect(bar?.classList.contains('bg-red-500')).toBe(false);
+    expect(bar?.classList.contains('bg-good')).toBe(true);
+    expect(bar?.classList.contains('bg-bad')).toBe(false);
   });
 
   it('shows the load-error state and Retry re-fetches', async () => {
