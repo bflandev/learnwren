@@ -104,48 +104,48 @@ describe('VideoStateBadgeComponent — slice B copy', () => {
     expect(emissions).toEqual([]);
   });
 
-  it('maps READY to the good pill tone', () => {
+  it('maps READY to the good badge variant', () => {
     fixture.componentRef.setInput('video', video('READY'));
     fixture.detectChanges();
-    expect(fixture.componentInstance.tone()).toBe('good');
+    expect(fixture.componentInstance.variant()).toBe('success');
   });
 
-  it('maps FAILED to the bad pill tone', () => {
+  it('maps FAILED to the bad badge variant', () => {
     fixture.componentRef.setInput('video', video('FAILED'));
     fixture.detectChanges();
-    expect(fixture.componentInstance.tone()).toBe('bad');
+    expect(fixture.componentInstance.variant()).toBe('destructive');
   });
 
-  it('maps TRANSCODING to the warn pill tone', () => {
+  it('maps TRANSCODING to the warn badge variant', () => {
     fixture.componentRef.setInput('video', video('TRANSCODING'));
     fixture.detectChanges();
-    expect(fixture.componentInstance.tone()).toBe('warn');
+    expect(fixture.componentInstance.variant()).toBe('warning');
   });
 
-  it('maps a stalled TRANSCODING video to the bad pill tone', () => {
+  it('maps a stalled TRANSCODING video to the bad badge variant', () => {
     const stale: Video = {
       ...video('TRANSCODING'),
       updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
     };
     fixture.componentRef.setInput('video', stale);
     fixture.detectChanges();
-    expect(fixture.componentInstance.tone()).toBe('bad');
+    expect(fixture.componentInstance.variant()).toBe('destructive');
   });
 
-  it('maps PENDING_UPLOAD to the warn pill tone', () => {
+  it('maps PENDING_UPLOAD to the warn badge variant', () => {
     fixture.componentRef.setInput('video', video('PENDING_UPLOAD'));
     fixture.detectChanges();
-    expect(fixture.componentInstance.tone()).toBe('warn');
+    expect(fixture.componentInstance.variant()).toBe('warning');
   });
 
-  it('maps a stalled PENDING_UPLOAD video to the bad pill tone', () => {
+  it('maps a stalled PENDING_UPLOAD video to the bad badge variant', () => {
     const stale: Video = {
       ...video('PENDING_UPLOAD'),
       updatedAt: new Date(Date.now() - 31 * 60 * 1000).toISOString() as Video['updatedAt'],
     };
     fixture.componentRef.setInput('video', stale);
     fixture.detectChanges();
-    expect(fixture.componentInstance.tone()).toBe('bad');
+    expect(fixture.componentInstance.variant()).toBe('destructive');
   });
 
   it('shows "Uploaded — preparing…" for PENDING_UPLOAD (case label)', () => {
@@ -160,10 +160,10 @@ describe('VideoStateBadgeComponent — slice B copy', () => {
     expect(fixture.componentInstance.label()).toBe('Uploaded — preparing…');
   });
 
-  it('maps UPLOADED to the warn pill tone', () => {
+  it('maps UPLOADED to the warn badge variant', () => {
     fixture.componentRef.setInput('video', video('UPLOADED'));
     fixture.detectChanges();
-    expect(fixture.componentInstance.tone()).toBe('warn');
+    expect(fixture.componentInstance.variant()).toBe('warning');
   });
 
   it('shows the spinner for non-terminal UPLOADED state', () => {

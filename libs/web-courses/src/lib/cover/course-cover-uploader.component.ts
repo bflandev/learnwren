@@ -12,10 +12,11 @@ import {
 import { nowIso } from '@learnwren/shared-data-models';
 import type { CourseId, ISODateString } from '@learnwren/shared-data-models';
 import {
-  LwButtonDirective,
-  LwCardComponent,
+  HlmAlert,
+  HlmButton,
+  HlmCard,
+  HlmProgress,
   LwCoverComponent,
-  LwProgressComponent,
 } from '@learnwren/web-ui';
 
 import { CourseCoverService } from './course-cover.service';
@@ -29,7 +30,7 @@ export type UploaderState =
   selector: 'lib-course-cover-uploader',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LwButtonDirective, LwCardComponent, LwCoverComponent, LwProgressComponent],
+  imports: [HlmAlert, HlmButton, HlmCard, HlmProgress, LwCoverComponent],
   templateUrl: './course-cover-uploader.component.html',
 })
 export class CourseCoverUploaderComponent {

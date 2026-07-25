@@ -86,7 +86,7 @@ test('instructor uploads a video and sees the badge', async ({ page }) => {
   await expect(uploadLabel).toBeVisible({ timeout: 5_000 });
 
   // Hold the chunk PUT to the storage emulator open just long enough that
-  // the `uploading` state (which renders `lw-progress`) is observable.
+  // the `uploading` state (which renders `hlm-progress`) is observable.
   // Without this the 2 KB fixture finishes the PUT in ~10 ms and the test
   // races Playwright's 100 ms toBeVisible poll.
   let releaseUpload: (() => void) | undefined;
@@ -103,7 +103,7 @@ test('instructor uploads a video and sees the badge', async ({ page }) => {
   await fileInput.setInputFiles(FIXTURE_MP4);
 
   // Progress bar should appear while uploading
-  const progressBar = page.locator('lib-video-upload lw-progress');
+  const progressBar = page.locator('lib-video-upload [data-testid="upload-progress"]');
   await expect(progressBar).toBeVisible({ timeout: 15_000 });
 
   releaseUpload?.();

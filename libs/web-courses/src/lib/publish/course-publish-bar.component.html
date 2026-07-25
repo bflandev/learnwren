@@ -1,22 +1,21 @@
-<div
-  class="publish-bar flex flex-wrap items-center gap-3 rounded-lg border border-line bg-bg-2 p-4"
+<hlm-card
+  class="publish-bar flex flex-wrap items-center gap-3 p-4"
   data-testid="publish-bar"
 >
   <span class="title text-lg text-ink">{{ course().title }}</span>
-  <lw-pill
+  <span
+    hlmBadge
     data-testid="publish-bar-pill"
-    [tone]="status() === 'PUBLISHED' ? 'good' : status() === 'ARCHIVED' ? 'default' : 'ochre'"
-    >{{ status() }}</lw-pill
+    [variant]="status() === 'PUBLISHED' ? 'success' : status() === 'ARCHIVED' ? 'default' : 'warning'"
+    >{{ status() }}</span
   >
 
   <span class="flex-1"></span>
 
   <button
-    lwButton
-    variant="primary"
+    hlmBtn
     type="button"
     data-testid="publish-bar-primary"
-    class="disabled:opacity-50"
     [disabled]="primaryDisabled()"
     (click)="onPrimary()"
     [attr.title]="
@@ -32,10 +31,10 @@
 
   @if (canArchive()) {
     <button
-      lwButton
+      hlmBtn
+      variant="secondary"
       type="button"
       data-testid="publish-bar-archive"
-      class="disabled:opacity-50"
       [disabled]="inFlight()"
       (click)="onArchive()"
     >
@@ -46,4 +45,4 @@
   @if (genericError(); as msg) {
     <div class="banner w-full text-sm text-bad" role="alert">{{ msg }}</div>
   }
-</div>
+</hlm-card>

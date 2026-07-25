@@ -4,7 +4,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import type { CourseAnalyticsView } from '@learnwren/shared-data-models';
-import { LwCardComponent } from '@learnwren/web-ui';
+import { HlmButton, HlmCard } from '@learnwren/web-ui';
 
 import { AnalyticsService } from './analytics.service';
 import { secondsToClock } from './seconds-to-clock.util';
@@ -14,7 +14,7 @@ type State = 'loading' | 'loaded' | 'error';
 @Component({
   selector: 'lib-course-analytics-page',
   standalone: true,
-  imports: [RouterLink, DatePipe, LwCardComponent],
+  imports: [RouterLink, DatePipe, HlmButton, HlmCard],
   templateUrl: './course-analytics-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

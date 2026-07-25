@@ -7,7 +7,7 @@ import type {
   VideoState,
 } from '@learnwren/shared-data-models';
 
-import { LwButtonDirective } from '@learnwren/web-ui';
+import { HlmButton, HlmCard } from '@learnwren/web-ui';
 
 import { PublishEligibilityService } from './publish-eligibility.service';
 
@@ -26,7 +26,7 @@ const NOT_READY_TEXT: Record<Exclude<VideoState, 'READY'>, string> = {
 @Component({
   selector: 'lib-publish-eligibility-panel',
   standalone: true,
-  imports: [LwButtonDirective],
+  imports: [HlmButton, HlmCard],
   templateUrl: './publish-eligibility-panel.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

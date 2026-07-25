@@ -10,7 +10,7 @@
       <button
         type="button"
         data-testid="export-csv"
-        class="lw-btn lw-btn-secondary"
+        hlmBtn variant="secondary"
         (click)="exportCsv()"
       >
         Export CSV
@@ -23,18 +23,18 @@
       <p class="text-ink-3">Loading…</p>
     }
     @case ('error') {
-      <lw-card>
+      <hlm-card>
         <p class="text-bad">We could not load the student list.</p>
-        <button type="button" class="lw-btn lw-btn-secondary mt-3" (click)="load()">Try again</button>
-      </lw-card>
+        <button type="button" hlmBtn variant="secondary" class="mt-3" (click)="load()">Try again</button>
+      </hlm-card>
     }
     @case ('loaded') {
       @if (rows().length === 0) {
-        <lw-card>
+        <hlm-card>
           <p class="text-ink-2">No students enrolled yet.</p>
-        </lw-card>
+        </hlm-card>
       } @else {
-        <lw-card>
+        <hlm-card>
           <table class="w-full text-left text-sm">
             <thead class="text-ink-3">
               <tr>
@@ -60,7 +60,7 @@
             </thead>
             <tbody>
               @for (row of rows(); track row.userId) {
-                <tr class="border-t border-bg-2">
+                <tr class="border-t border-line">
                   <td class="py-2 text-ink" data-testid="student-name">{{ row.displayName }}</td>
                   <td class="py-2 text-ink-2">{{ row.email }}</td>
                   <td class="py-2 text-ink-2">{{ row.enrolledAt | date: 'mediumDate' }}</td>
@@ -71,7 +71,7 @@
               }
             </tbody>
           </table>
-        </lw-card>
+        </hlm-card>
       }
     }
   }

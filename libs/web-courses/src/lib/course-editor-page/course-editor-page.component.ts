@@ -4,7 +4,6 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
 import type { Course, CourseId, ISODateString, Lesson, LessonId, Module, ModuleId, VideoState } from '@learnwren/shared-data-models';
 
-import { ConfirmDialogComponent } from '../components/confirm-dialog/confirm-dialog.component';
 import { CourseMetaPanelComponent } from '../components/course-meta-panel/course-meta-panel.component';
 import { ModuleTreeComponent, type ModuleNode } from '../components/module-tree/module-tree.component';
 import { CourseCoverUploaderComponent } from '../cover/course-cover-uploader.component';
@@ -13,7 +12,14 @@ import { CoursePublishBarComponent } from '../publish/course-publish-bar.compone
 import { PublishEligibilityPanelComponent } from '../publish/publish-eligibility-panel.component';
 import { PublishEligibilityService } from '../publish/publish-eligibility.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { LwButtonDirective } from '@learnwren/web-ui';
+import {
+  ConfirmDialogService,
+  HlmAlert,
+  HlmButton,
+  HlmInput,
+  HlmSkeleton,
+  type ConfirmDialogConfig,
+} from '@learnwren/web-ui';
 
 type PendingConfirm =
   | { kind: 'deleteCourse' }
@@ -22,10 +28,47 @@ type PendingConfirm =
   | { kind: 'unpublish' }
   | { kind: 'archive' };
 
+// Dialog copy per confirmable action. Deletes are irreversible → destructive
+// accept button; unpublish/archive are reversible transitions → default.
+const CONFIRM_COPY: Record<PendingConfirm['kind'], ConfirmDialogConfig> = {
+  deleteCourse: {
+    header: 'Delete course',
+    message:
+      'Permanently delete this course and all its modules and lessons. This action cannot be undone.',
+    acceptLabel: 'Delete',
+    variant: 'destructive',
+  },
+  deleteModule: {
+    header: 'Delete module',
+    message:
+      'This will permanently remove this module and all its lessons. This action cannot be undone.',
+    acceptLabel: 'Delete',
+    variant: 'destructive',
+  },
+  deleteLesson: {
+    header: 'Delete lesson',
+    message: 'Delete this lesson? This action cannot be undone.',
+    acceptLabel: 'Delete',
+    variant: 'destructive',
+  },
+  unpublish: {
+    header: 'Unpublish course',
+    message:
+      'The course will return to draft. Once a student catalogue exists, the course will no longer be discoverable. Existing enrolled students would retain access.',
+    acceptLabel: 'Unpublish',
+  },
+  archive: {
+    header: 'Archive course',
+    message:
+      'Archived courses are hidden from the catalogue. You can restore the course to draft at any time.',
+    acceptLabel: 'Archive',
+  },
+};
+
 @Component({
   selector: 'lib-course-editor-page',
   standalone: true,
-  imports: [RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, ConfirmDialogComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent, CourseCoverUploaderComponent, LwButtonDirective],
+  imports: [RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent, CourseCoverUploaderComponent, HlmAlert, HlmButton, HlmInput, HlmSkeleton],
   templateUrl: './course-editor-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -35,6 +78,7 @@ export class CourseEditorPageComponent {
   private readonly router = inject(Router);
   private readonly publishSvc = inject(PublishEligibilityService);
   private readonly notifications = inject(NotificationsService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
 
   private readonly paramMap = toSignal(this.route.paramMap);
   readonly cid = computed(() => (this.paramMap()?.get('id') ?? '') as CourseId);
@@ -102,15 +146,27 @@ export class CourseEditorPageComponent {
   }
 
   requestDeleteCourse(): void {
-    this.pendingConfirm.set({ kind: 'deleteCourse' });
+    this.openConfirm({ kind: 'deleteCourse' });
   }
 
   requestDeleteModule(moduleId: string): void {
-    this.pendingConfirm.set({ kind: 'deleteModule', moduleId });
+    this.openConfirm({ kind: 'deleteModule', moduleId });
   }
 
   requestDeleteLesson(args: { moduleId: string; lessonId: string }): void {
-    this.pendingConfirm.set({ kind: 'deleteLesson', ...args });
+    this.openConfirm({ kind: 'deleteLesson', ...args });
+  }
+
+  /**
+   * Record which action awaits confirmation, then route the shared confirm
+   * dialog's outcome into onConfirmClosed. pendingConfirm is consumed exactly
+   * once there, so a stale resolution (route change already cleared it) no-ops.
+   */
+  private openConfirm(pending: PendingConfirm): void {
+    this.pendingConfirm.set(pending);
+    void this.confirmDialog
+      .confirm(CONFIRM_COPY[pending.kind])
+      .then((confirmed) => this.onConfirmClosed(confirmed));
   }
 
   protected onCourseUpdated(updated: Course): void {
@@ -129,7 +185,7 @@ export class CourseEditorPageComponent {
   }
 
   protected requestPublishConfirm(kind: 'unpublish' | 'archive'): void {
-    this.pendingConfirm.set({ kind });
+    this.openConfirm({ kind });
   }
 
   protected onVideoStateChanged(_state: VideoState): void {
@@ -309,17 +365,4 @@ export class CourseEditorPageComponent {
     }
   }
 
-  confirmMessage(): string {
-    const p = this.pendingConfirm();
-    if (!p) return '';
-    if (p.kind === 'deleteCourse')
-      return 'Permanently delete this course and all its modules and lessons. This action cannot be undone.';
-    if (p.kind === 'deleteModule')
-      return 'This will permanently remove this module and all its lessons. This action cannot be undone.';
-    if (p.kind === 'unpublish')
-      return 'The course will return to draft. Once a student catalogue exists, the course will no longer be discoverable. Existing enrolled students would retain access.';
-    if (p.kind === 'archive')
-      return 'Archived courses are hidden from the catalogue. You can restore the course to draft at any time.';
-    return 'Delete this lesson? This action cannot be undone.';
-  }
 }

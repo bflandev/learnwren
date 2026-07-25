@@ -1,15 +1,15 @@
 <div class="mx-auto w-full max-w-2xl p-6">
   <header class="mb-6 flex items-center justify-between gap-4">
     <h1 class="text-2xl">Create course</h1>
-    <a routerLink="/courses" class="lw-btn lw-btn-ghost">Cancel</a>
+    <a hlmBtn variant="ghost" routerLink="/courses">Cancel</a>
   </header>
 
-  <lw-card class="p-6">
+  <hlm-card class="p-6">
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
       <label class="block">
-        <span class="text-sm font-medium text-ink-2">Title</span>
+        <span hlmLabel>Title</span>
         <input
-          lwInput
+          hlmInput
           data-testid="title"
           formControlName="title"
           maxlength="100"
@@ -21,9 +21,9 @@
       }
 
       <label class="block">
-        <span class="text-sm font-medium text-ink-2">Short description</span>
+        <span hlmLabel>Short description</span>
         <textarea
-          lwInput
+          hlmTextarea
           data-testid="description"
           formControlName="description"
           maxlength="500"
@@ -36,9 +36,9 @@
       }
 
       <label class="block">
-        <span class="text-sm font-medium text-ink-2">Long description (optional)</span>
+        <span hlmLabel>Long description (optional)</span>
         <textarea
-          lwInput
+          hlmTextarea
           formControlName="longDescription"
           maxlength="5000"
           rows="5"
@@ -47,8 +47,8 @@
       </label>
 
       <label class="block">
-        <span class="text-sm font-medium text-ink-2">Category (optional)</span>
-        <select lwInput formControlName="category" class="mt-1">
+        <span hlmLabel>Category (optional)</span>
+        <select hlmInput formControlName="category" class="mt-1">
           <option value="">—</option>
           @for (c of categories(); track c.id) {
             <option [value]="c.id">{{ c.name }}</option>
@@ -57,8 +57,8 @@
       </label>
 
       <label class="block">
-        <span class="text-sm font-medium text-ink-2">Difficulty (optional)</span>
-        <select lwInput formControlName="difficulty" class="mt-1">
+        <span hlmLabel>Difficulty (optional)</span>
+        <select hlmInput formControlName="difficulty" class="mt-1">
           <option value="">—</option>
           @for (d of difficulties; track d) {
             <option [value]="d">{{ d }}</option>
@@ -71,15 +71,14 @@
       }
 
       <button
-        lwButton
-        variant="primary"
+        hlmBtn
         data-testid="submit"
         type="submit"
-        class="w-full justify-center disabled:opacity-50"
+        class="w-full justify-center"
         [disabled]="form.invalid || busy()"
       >
         {{ busy() ? 'Creating…' : 'Create' }}
       </button>
     </form>
-  </lw-card>
+  </hlm-card>
 </div>

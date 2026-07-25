@@ -4,7 +4,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import type { CourseRosterRow, CourseRosterView } from '@learnwren/shared-data-models';
-import { LwCardComponent } from '@learnwren/web-ui';
+import { HlmButton, HlmCard } from '@learnwren/web-ui';
 
 import { rosterRowsToCsv } from '../roster/roster-csv.util';
 import { RosterService } from '../roster/roster.service';
@@ -16,7 +16,7 @@ type State = 'loading' | 'loaded' | 'error';
 @Component({
   selector: 'lib-course-students-page',
   standalone: true,
-  imports: [RouterLink, DatePipe, LwCardComponent],
+  imports: [RouterLink, DatePipe, HlmButton, HlmCard],
   templateUrl: './course-students-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

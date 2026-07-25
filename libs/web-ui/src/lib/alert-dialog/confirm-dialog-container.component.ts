@@ -31,7 +31,10 @@ export const CONFIRM_DIALOG_PANEL_BASE =
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [HlmButton, HlmIcon, HlmSpinner],
-  host: { class: CONFIRM_DIALOG_PANEL_BASE },
+  // Stable e2e hooks: the platform-wide confirm testids (`confirm-dialog`,
+  // `confirm-cancel`, `confirm-go`) moved here from the deleted hand-rolled
+  // web-courses ConfirmDialogComponent (ds sweep E1).
+  host: { class: CONFIRM_DIALOG_PANEL_BASE, 'data-testid': 'confirm-dialog' },
   template: `
     <div [class]="headerClass">
       @if (data.icon) {
@@ -47,6 +50,7 @@ export const CONFIRM_DIALOG_PANEL_BASE =
         hlmBtn
         variant="outline"
         data-confirm-reject
+        data-testid="confirm-cancel"
         [disabled]="loading()"
         (click)="onReject()">
         {{ data.rejectLabel ?? 'Cancel' }}
@@ -55,6 +59,7 @@ export const CONFIRM_DIALOG_PANEL_BASE =
         hlmBtn
         [variant]="data.variant === 'destructive' ? 'destructive' : 'default'"
         data-confirm-accept
+        data-testid="confirm-go"
         [disabled]="loading()"
         (click)="onAccept()">
         @if (loading()) {

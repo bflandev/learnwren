@@ -2,7 +2,7 @@
   <div class="flex flex-wrap items-center gap-2">
     @if (editing()) {
       <input
-        lwInput
+        hlmInput
         data-testid="lesson-rename-input"
         type="text"
         class="flex-1"
@@ -23,11 +23,11 @@
       </button>
     }
     <button
-      lwButton
-      variant="ghost"
+      hlmBtn
+      variant="destructive"
+      size="sm"
       data-testid="lesson-delete"
       type="button"
-      class="text-bad"
       (click)="delete.emit()"
     >
       Delete
@@ -66,11 +66,4 @@
     />
   </div>
 
-  @if (confirmingVideoRemoval()) {
-    <lib-confirm-dialog
-      message="Remove this video so a new one can be uploaded? This action cannot be undone."
-      confirmLabel="Remove video"
-      (closed)="onVideoRemovalClosed($event)"
-    />
-  }
 </div>

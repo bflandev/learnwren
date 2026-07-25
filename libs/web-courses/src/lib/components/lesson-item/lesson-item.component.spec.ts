@@ -13,6 +13,8 @@ import {
   VideoStateBadgeComponent,
 } from '@learnwren/web-video';
 
+import { ConfirmDialogService } from '@learnwren/web-ui';
+
 import { MaterialsService } from '../../materials/materials.service';
 import { LessonItemComponent } from './lesson-item.component';
 
@@ -512,10 +514,17 @@ describe('LessonItemComponent FAILED-video removal (dead-end escape hatch)', () 
   };
   const LESSON_WITH_VIDEO: Lesson = { ...LESSON, videoId: 'v1' as VideoId };
 
+  // Shared confirm dialog stub: resolves false so the queued resolution routed
+  // into onVideoRemovalClosed is a guaranteed no-op; tests drive
+  // onVideoRemovalClosed directly to simulate the user's choice.
+  const confirmDialog = { confirm: vi.fn() };
+
   function bootstrap(api: {
     getVideo: ReturnType<typeof vi.fn>;
     delete?: ReturnType<typeof vi.fn>;
   }): ComponentFixture<LessonItemComponent> {
+    confirmDialog.confirm.mockReset();
+    confirmDialog.confirm.mockResolvedValue(false);
     const materialsStub = { listMaterials: vi.fn().mockReturnValue(of([])) };
     TestBed.configureTestingModule({
       imports: [LessonItemComponent],
@@ -524,6 +533,7 @@ describe('LessonItemComponent FAILED-video removal (dead-end escape hatch)', () 
         provideHttpClientTesting(),
         { provide: VideoService, useValue: api },
         { provide: MaterialsService, useValue: materialsStub },
+        { provide: ConfirmDialogService, useValue: confirmDialog },
       ],
     });
     const fixture = TestBed.createComponent(LessonItemComponent);
@@ -533,15 +543,22 @@ describe('LessonItemComponent FAILED-video removal (dead-end escape hatch)', () 
     return fixture;
   }
 
-  it('the badge remove request opens a confirm dialog', () => {
+  it('the badge remove request opens the shared confirm dialog', () => {
     const fixture = bootstrap({ getVideo: vi.fn().mockReturnValue(of(FAILED_VIDEO)) });
     const el = fixture.nativeElement as HTMLElement;
 
     el.querySelector<HTMLButtonElement>('[data-testid="video-remove"]')!.click();
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.confirmingVideoRemoval()).toBe(true);
-    expect(el.querySelector('lib-confirm-dialog')).not.toBeNull();
+    expect(confirmDialog.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        header: 'Remove video',
+        message:
+          'Remove this video so a new one can be uploaded? This action cannot be undone.',
+        acceptLabel: 'Remove video',
+        variant: 'destructive',
+      }),
+    );
   });
 
   it('confirming removal deletes the video and emits videoChanged (uploader can return)', async () => {
@@ -555,7 +572,6 @@ describe('LessonItemComponent FAILED-video removal (dead-end escape hatch)', () 
     expect(del).toHaveBeenCalledWith('v1');
     expect(changed).toHaveBeenCalled();
     expect(fixture.componentInstance.video()).toBeUndefined();
-    expect(fixture.componentInstance.confirmingVideoRemoval()).toBe(false);
   });
 
   it('cancelling the confirm dialog leaves the video untouched', async () => {
