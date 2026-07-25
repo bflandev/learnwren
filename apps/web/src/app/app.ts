@@ -5,7 +5,14 @@ import { filter, map, startWith } from 'rxjs';
 
 import { AuthService } from '@learnwren/web-auth';
 import { CourseSearchBarComponent } from '@learnwren/web-catalog';
-import { LwAvatarComponent, LwWordmarkComponent, ThemeToggleComponent } from '@learnwren/web-ui';
+import {
+  HlmAvatar,
+  HlmButton,
+  LwWordmarkComponent,
+  ThemeToggleComponent,
+  avatarToneFor,
+  deriveInitials,
+} from '@learnwren/web-ui';
 
 import { isAuthRoute } from './shell/is-auth-route';
 
@@ -16,7 +23,8 @@ import { isAuthRoute } from './shell/is-auth-route';
   imports: [
     RouterOutlet,
     RouterLink,
-    LwAvatarComponent,
+    HlmAvatar,
+    HlmButton,
     LwWordmarkComponent,
     ThemeToggleComponent,
     CourseSearchBarComponent,
@@ -38,4 +46,11 @@ export class App {
   );
 
   protected readonly showHeader = computed(() => !isAuthRoute(this.url()));
+
+  protected readonly avatarInitials = computed(() =>
+    deriveInitials(this.auth.currentUser()?.displayName ?? ''),
+  );
+  protected readonly avatarTone = computed(() =>
+    avatarToneFor(this.auth.currentUser()?.uid ?? ''),
+  );
 }

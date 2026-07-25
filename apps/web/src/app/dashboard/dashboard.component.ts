@@ -4,12 +4,19 @@ import { RouterLink } from '@angular/router';
 import type { Course } from '@learnwren/shared-data-models';
 import { AuthService } from '@learnwren/web-auth';
 import { CoursesService } from '@learnwren/web-courses';
-import { LwButtonDirective, LwCardComponent, LwCoverComponent, LwPillComponent, coverToneForId } from '@learnwren/web-ui';
+import {
+  HlmBadge,
+  HlmButton,
+  HlmCard,
+  HlmSkeleton,
+  LwCoverComponent,
+  coverToneForId,
+} from '@learnwren/web-ui';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [RouterLink, LwButtonDirective, LwCardComponent, LwCoverComponent, LwPillComponent],
+  imports: [RouterLink, HlmBadge, HlmButton, HlmCard, HlmSkeleton, LwCoverComponent],
   templateUrl: './dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
