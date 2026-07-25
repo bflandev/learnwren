@@ -536,6 +536,28 @@ describe('HlmDurationPicker', () => {
     expect(field().getAttribute('aria-invalid')).toBeNull();
   });
 
+  it('keeps aria-invalid clear when an empty commit never had a value', () => {
+    // value stays null throughout, so the reseat effect (which also clears the
+    // flag on a value change) never re-fires — commit's own invalid.set(false)
+    // on the no-payload path is the only thing keeping the field valid.
+    const { fixture, field } = setup();
+    typeEntry(field(), '');
+    fixture.detectChanges();
+    expect(field().getAttribute('aria-invalid')).toBeNull();
+  });
+
+  it('keeps aria-invalid clear when an untouched skeleton collapses on blur', () => {
+    // Same value-stays-null setup as above: onBlur's own invalid.set(false) is
+    // the only guard — no value change ever re-fires the reseat effect.
+    const { fixture, field } = setup();
+    field().dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    field().dispatchEvent(new FocusEvent('blur'));
+    fixture.detectChanges();
+    expect(field().getAttribute('aria-invalid')).toBeNull();
+    expect(field().value).toBe('');
+  });
+
   it('leaves aria-invalid clear when an empty entry commits a clear', () => {
     const { fixture, host, field } = setup();
     host.picked.set(Duration.fromObject({ hours: 1 }));
@@ -738,5 +760,31 @@ describe('HlmDurationPicker serializedChange', () => {
     host.picked.set(dur);
     fixture.detectChanges();
     expect(host.emitted).toEqual([dur.toISO()]);
+  });
+});
+
+// No [placeholder] binding at all: the input's own '' default must fall through
+// to the derived mask hint (the fully-bound TestHost pins the default by
+// binding ph(''), which hides a mutated default).
+@Component({
+  standalone: true,
+  imports: [HlmDurationPicker],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-duration-picker [(value)]="picked" />`,
+})
+class UnboundPlaceholderHost {
+  readonly picked = signal<Duration | null>(null);
+}
+
+describe('HlmDurationPicker unbound placeholder default', () => {
+  it('derives the mask hint when no placeholder input is bound', () => {
+    const fixture = TestBed.createComponent(UnboundPlaceholderHost);
+    fixture.detectChanges();
+    const field = fixture.nativeElement.querySelector(
+      'input[hlmInput]',
+    ) as HTMLInputElement;
+    // Component defaults keep the days lever on, so the derived hint leads
+    // with the days segment — any explicit-default drift breaks this.
+    expect(field.placeholder).toMatch(/^ddd hh:mm/);
   });
 });

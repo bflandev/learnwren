@@ -1799,3 +1799,135 @@ describe('HlmDatePicker popover lifecycle safety', () => {
     expect(document.body.querySelector('hlm-popover-content')).not.toBeNull();
   });
 });
+
+// Readonly gating + clamp-bound + meridiem-day invariants. The readonly cases
+// call the handlers directly with readonly (but NOT disabled) set, proving each
+// `readonly() || disabled()` guard blocks on readonly alone. The meridiem/hour
+// cases assert the DAY as well as the hour: Luxon wraps an out-of-range hour
+// across midnight, so an hour-only assertion is blind to a ±12 sign flip.
+@Component({
+  standalone: true,
+  imports: [HlmDatePicker],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-date-picker
+    #picker="hlmDatePicker"
+    [(value)]="picked"
+    [mode]="mode()"
+    timezone="UTC"
+    [readonly]="ro()"
+    [min]="min()"
+    [max]="max()"
+  />`,
+})
+class ResidualHost {
+  readonly picked = signal<DateTime | null>(null);
+  readonly mode = signal<DatePickerMode>('date');
+  readonly ro = signal(false);
+  readonly min = signal<DateTime | undefined>(undefined);
+  readonly max = signal<DateTime | undefined>(undefined);
+  readonly pickerRef = viewChild<HlmDatePicker>('picker');
+}
+
+describe('HlmDatePicker readonly guards + clamp bounds', () => {
+  function setupResidual() {
+    TestBed.configureTestingModule({
+      providers: [provideDateAdapter(BrnLuxonDateAdapter)],
+    });
+    const fixture = TestBed.createComponent(ResidualHost);
+    const host = fixture.componentInstance;
+    fixture.detectChanges();
+    const picker = () => host.pickerRef() as any;
+    return { fixture, host, picker };
+  }
+
+  beforeEach(purgeOverlays);
+  afterEach(purgeOverlays);
+
+  const utcTime = (hour: number, minute = 30) =>
+    DateTime.fromObject(
+      { year: 2025, month: 6, day: 15, hour, minute, second: 0 },
+      { zone: 'utc' },
+    );
+
+  it('readonly (not disabled) blocks commit of a valid draft', () => {
+    const { fixture, host, picker } = setupResidual();
+    host.ro.set(true);
+    fixture.detectChanges();
+    picker().draft.set('2025-06-15');
+    picker().commit();
+    expect(host.picked()).toBeNull();
+  });
+
+  it('readonly (not disabled) blocks clear', () => {
+    const { fixture, host, picker } = setupResidual();
+    const value = utcNoon(6, 15);
+    host.picked.set(value);
+    host.ro.set(true);
+    fixture.detectChanges();
+    picker().clear();
+    expect(host.picked()?.toMillis()).toBe(value.toMillis());
+  });
+
+  it('readonly (not disabled) blocks every time sub-control setter', () => {
+    const { fixture, host, picker } = setupResidual();
+    host.mode.set('time');
+    const value = utcTime(8);
+    host.picked.set(value);
+    host.ro.set(true);
+    fixture.detectChanges();
+    picker().setHour('11');
+    picker().setMinute('45');
+    picker().setSecond('15');
+    picker().onMeridiem('PM');
+    expect(host.picked()?.toMillis()).toBe(value.toMillis());
+  });
+
+  it('meridiem toggle moves exactly 12 hours without crossing the day', () => {
+    const { fixture, host, picker } = setupResidual();
+    host.mode.set('time');
+    host.picked.set(utcTime(8));
+    fixture.detectChanges();
+    picker().onMeridiem('PM');
+    fixture.detectChanges();
+    expect(host.picked()?.day).toBe(15);
+    expect(host.picked()?.hour).toBe(20);
+    picker().onMeridiem('AM');
+    fixture.detectChanges();
+    expect(host.picked()?.day).toBe(15);
+    expect(host.picked()?.hour).toBe(8);
+    expect(host.picked()?.minute).toBe(30);
+  });
+
+  it('12-hour setHour keeps the PM half in the afternoon of the same day', () => {
+    const { fixture, host, picker } = setupResidual();
+    host.mode.set('time');
+    host.picked.set(utcTime(20));
+    fixture.detectChanges();
+    picker().setHour('3');
+    fixture.detectChanges();
+    expect(host.picked()?.day).toBe(15);
+    expect(host.picked()?.hour).toBe(15);
+  });
+
+  it('clamps a calendar pick above max to max (not min)', () => {
+    const { fixture, host, picker } = setupResidual();
+    host.min.set(utcNoon(6, 10));
+    host.max.set(utcNoon(6, 20));
+    fixture.detectChanges();
+    picker().onSelect(utcNoon(6, 25));
+    fixture.detectChanges();
+    expect(host.picked()?.toMillis()).toBe(utcNoon(6, 20).toMillis());
+  });
+
+  it('clamps a time edit below min to min (not max)', () => {
+    const { fixture, host, picker } = setupResidual();
+    host.mode.set('time');
+    host.picked.set(utcTime(10, 30));
+    host.min.set(utcTime(10, 15));
+    host.max.set(utcTime(11, 0));
+    fixture.detectChanges();
+    picker().setMinute('0');
+    fixture.detectChanges();
+    expect(host.picked()?.toMillis()).toBe(utcTime(10, 15).toMillis());
+  });
+});

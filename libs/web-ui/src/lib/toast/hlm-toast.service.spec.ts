@@ -267,6 +267,28 @@ describe('HlmToastService — container attachment (provideHlmToast)', () => {
     }
   });
 
+  it('neither throws nor warns when ngDevMode is not declared at all', () => {
+    // The typeof guard exists exactly for an undeclared global: with the
+    // binding deleted, a bare `ngDevMode` read would be a ReferenceError, so
+    // the short-circuit must both stay silent and never evaluate it.
+    TestBed.configureTestingModule({});
+    const svc = TestBed.inject(HlmToastService);
+    const g = globalThis as { ngDevMode?: unknown };
+    const prev = g.ngDevMode;
+    delete g.ngDevMode;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => void 0);
+    try {
+      expect(() =>
+        svc.show({ severity: 'info', summary: 'undeclared orphan' }),
+      ).not.toThrow();
+      expect(svc.toasts().length).toBe(1);
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+      g.ngDevMode = prev;
+    }
+  });
+
   it('points the dev warning at the provideHlmToast() fix', () => {
     TestBed.configureTestingModule({});
     const svc = TestBed.inject(HlmToastService);

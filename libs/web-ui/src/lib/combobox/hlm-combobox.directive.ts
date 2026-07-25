@@ -406,9 +406,14 @@ export class HlmComboboxItem {
 
   protected readonly computedClass = computed(() => {
     const mode = this._indicator();
-    const tint =
-      mode === 'tint' || mode === 'both' ? COMBOBOX_ITEM_SELECTED_TINT : '';
-    return cn(COMBOBOX_ITEM_BASE, tint, this.userClass());
+    // Boolean gate (clsx drops `false`) instead of a `: ''` else-arm, so there
+    // is no unkillable empty-string literal for Stryker to mutate.
+    const tinted = mode === 'tint' || mode === 'both';
+    return cn(
+      COMBOBOX_ITEM_BASE,
+      tinted && COMBOBOX_ITEM_SELECTED_TINT,
+      this.userClass(),
+    );
   });
 
   // Present (empty string) for `check`/`both` so styles.scss paints the masked

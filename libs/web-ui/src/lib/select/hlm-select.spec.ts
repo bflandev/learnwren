@@ -394,6 +394,67 @@ describe('HlmSelectPills (standalone, object model)', () => {
     ) as HTMLButtonElement;
     expect(document.activeElement).toBe(remaining);
   });
+
+  it('skips focus restoration cleanly when the sole pill is removed', () => {
+    // Removing the only pill leaves the button query empty; the restore
+    // callback must land on the `?.` no-op instead of calling focus() on
+    // undefined. The microtask is captured and run by hand against the
+    // re-rendered (empty) DOM so a throw is observed deterministically.
+    const fixture = TestBed.createComponent(StandalonePillsHost);
+    fixture.componentInstance.picked.set([{ id: 1, name: 'Alpha' }]);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const remove = root.querySelector(
+      'button[aria-label="Remove Alpha"]',
+    ) as HTMLButtonElement;
+    const callbacks: Array<() => void> = [];
+    const spy = vi
+      .spyOn(globalThis, 'queueMicrotask')
+      .mockImplementation((cb) => {
+        callbacks.push(cb as () => void);
+      });
+    try {
+      remove.click();
+      fixture.detectChanges();
+    } finally {
+      spy.mockRestore();
+    }
+    expect(fixture.componentInstance.picked()).toEqual([]);
+    // The zoneless scheduler may also queue microtasks; replay everything that
+    // was captured (the restore callback among them) against the empty DOM.
+    expect(callbacks.length).toBeGreaterThan(0);
+    for (const cb of callbacks) {
+      expect(() => cb()).not.toThrow();
+    }
+    expect(document.activeElement).toBe(document.body);
+  });
+});
+
+// Default trackBy (identity) for primitive models: removal equality must key on
+// the value itself, so removing 'a' keeps 'b' — a degenerate key function would
+// filter everything (or nothing) out.
+@Component({
+  standalone: true,
+  imports: [HlmSelectPills],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-select-pills [(values)]="picked" />`,
+})
+class DefaultTrackByPillsHost {
+  readonly picked = signal<readonly string[]>(['a', 'b']);
+}
+
+describe('HlmSelectPills (standalone, default trackBy)', () => {
+  it('removes only the targeted string pill with the identity trackBy', () => {
+    const fixture = TestBed.createComponent(DefaultTrackByPillsHost);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const remove = root.querySelector(
+      'button[aria-label="Remove a"]',
+    ) as HTMLButtonElement;
+    remove.click();
+    fixture.detectChanges();
+    expect([...fixture.componentInstance.picked()]).toEqual(['b']);
+  });
 });
 
 describe('HlmSelect painted bases and bare-item fallback', () => {

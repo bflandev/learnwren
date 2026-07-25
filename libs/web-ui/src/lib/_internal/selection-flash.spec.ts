@@ -120,6 +120,19 @@ describe('createSelectionFlash', () => {
     }
   });
 
+  it('removes the capture listener on destroy even with no flash armed', () => {
+    // The armed-flash destroy case below cannot see a leaked listener (the
+    // stale `flashing` guard swallows the re-click); from a clean state a
+    // post-destroy click on a leaked listener would arm a fresh flash.
+    stubMotion(false);
+    build();
+    fixture.destroy();
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(flash.flashing()).toBe(false);
+    vi.advanceTimersByTime(SELECTION_FLASH_MS * 2);
+    expect(probe.commits).toBe(0);
+  });
+
   it('removes the capture listener and cancels the timer on destroy', () => {
     stubMotion(false);
     build();

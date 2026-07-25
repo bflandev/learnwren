@@ -406,4 +406,49 @@ describe('HlmMenuItem defaults and guards', () => {
     fixture.detectChanges();
     expect(row.classList.contains('ds-menu-item-flash')).toBe(false);
   });
+
+  it('does not flash a disabled non-button item (clicks reach the handler)', async () => {
+    // A disabled <button> never dispatches click, so the button case above
+    // cannot observe the canFlash guard — a "disabled" <div> row does dispatch,
+    // making this the one path where `!disabled && !hasMenu` actually decides.
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) =>
+        ({
+          matches: false,
+          media: query,
+          onchange: null,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+          addListener: () => undefined,
+          removeListener: () => undefined,
+          dispatchEvent: () => false,
+        }) as unknown as MediaQueryList,
+    );
+    try {
+      @Component({
+        standalone: true,
+        imports: [CdkMenuTrigger, HlmMenu, HlmMenuItem],
+        changeDetection: ChangeDetectionStrategy.OnPush,
+        template: `
+          <button [cdkMenuTriggerFor]="menu" data-testid="trigger">Open</button>
+          <ng-template #menu>
+            <hlm-menu>
+              <div hlmMenuItem disabled data-testid="row">Delete</div>
+            </hlm-menu>
+          </ng-template>
+        `,
+      })
+      class DisabledDivFlashHost {}
+      const { fixture, containerEl } = openMenu(DisabledDivFlashHost);
+      const row = containerEl.querySelector(
+        '[data-testid="row"]',
+      ) as HTMLElement;
+      row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+      expect(row.classList.contains('ds-menu-item-flash')).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

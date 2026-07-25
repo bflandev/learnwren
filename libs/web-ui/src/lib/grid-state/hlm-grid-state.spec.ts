@@ -101,4 +101,23 @@ describe('HlmGridState', () => {
   it('keeps GRID_STATES exhaustive (the canonical state set)', () => {
     expect([...GRID_STATES]).toEqual(['loading', 'error', 'empty']);
   });
+
+  it('defaults to the loading state when no state input is bound at all', () => {
+    // Every other host binds [state], which hides a drifted input default —
+    // an unbound host must still render the spinner.
+    @Component({
+      standalone: true,
+      imports: [HlmGridState],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hlm-grid-state />`,
+    })
+    class UnboundStateHost {}
+    const fixture = TestBed.createComponent(UnboundStateHost);
+    fixture.detectChanges();
+    const host = fixture.nativeElement.querySelector(
+      'hlm-grid-state',
+    ) as HTMLElement;
+    expect(host.querySelector('hlm-spinner')).not.toBeNull();
+    expect(host.textContent).toContain('Loading…');
+  });
 });

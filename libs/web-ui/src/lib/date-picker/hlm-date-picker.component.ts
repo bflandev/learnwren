@@ -781,6 +781,7 @@ export class HlmDatePicker {
       );
     } else {
       this.value.set(clampDate(next, this.min(), this.max()));
+      // Stryker disable next-line OptionalChaining: equivalent — signal viewChild queries resolve at component creation (verified empirically: defined even before the first detectChanges) and <hlm-popover> is the template root, so the guard is type-level only
       this._popover()?.close();
     }
   }
@@ -857,6 +858,7 @@ export class HlmDatePicker {
   protected onNow(): void {
     if (this.readonly() || this.disabled()) return;
     this.setWorking(nowInZone(this.timezone()));
+    // Stryker disable next-line OptionalChaining: equivalent — signal viewChild queries resolve at component creation (verified empirically: defined even before the first detectChanges) and <hlm-popover> is the template root, so the guard is type-level only
     if (this.mode() === 'date') this._popover()?.close();
   }
 

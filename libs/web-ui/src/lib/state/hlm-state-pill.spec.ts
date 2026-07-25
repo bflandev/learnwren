@@ -153,6 +153,10 @@ describe('HlmStatePill', () => {
     fixture.componentRef.setInput('state', {
       kind: 'unknown-state',
     } as unknown as CommitState);
-    expect(() => fixture.detectChanges()).toThrow();
+    // Pin the assertNever message: a silently-falling-through default branch
+    // would throw a generic "reading 'show' of undefined" TypeError instead.
+    expect(() => fixture.detectChanges()).toThrow(
+      /Unhandled discriminated-union value/,
+    );
   });
 });

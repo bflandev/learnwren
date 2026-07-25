@@ -470,6 +470,9 @@ export class HlmDurationPicker {
     const parsed = parseDuration(raw, this.showDays(), this.precision());
     if (parsed) {
       this.value.set(clampDuration(parsed, this.min(), this.max()));
+      // Stryker disable next-line BooleanLiteral: equivalent — value.set above
+      // always receives a fresh Duration instance, which re-fires the reseat
+      // effect whose first action clears the flag before anything renders.
       this.invalid.set(false);
     } else {
       this.invalid.set(true);

@@ -340,6 +340,7 @@ export class HlmReorderableList<T> {
     const next = [...items];
     const [moved] = next.splice(previousIndex, 1);
     // Unreachable after the bounds guard above; satisfies noUncheckedIndexedAccess.
+    // Stryker disable next-line ConditionalExpression: equivalent — the bounds guard above ensures previousIndex is a valid index, so splice() always yields an element and this branch never runs; it exists only for noUncheckedIndexedAccess
     if (moved === undefined) return;
     next.splice(currentIndex, 0, moved);
     this.reordered.emit({ previousIndex, currentIndex, items: next });

@@ -1,4 +1,9 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import {
+  ApplicationRef,
+  ChangeDetectionStrategy,
+  Component,
+  signal,
+} from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import {
@@ -403,6 +408,29 @@ describe('HlmComboboxChips (standalone, object model)', () => {
     remove.click();
     fixture.detectChanges();
     expect(fixture.componentInstance.picked().map((v) => v.id)).toEqual([2]);
+  });
+
+  it('skips focus restoration cleanly when the last chip is removed', async () => {
+    // Removing the sole chip leaves the button query empty; the afterNextRender
+    // hook must land on the `?.` no-op instead of calling focus() on undefined
+    // (which would surface as a rethrown application error here).
+    const fixture = TestBed.createComponent(StandaloneChipsHost);
+    fixture.componentInstance.picked.set([{ id: 1, name: 'Alpha' }]);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const remove = root.querySelector(
+      'button[aria-label="Remove Alpha"]',
+    ) as HTMLButtonElement;
+    remove.focus();
+    remove.click();
+    fixture.detectChanges();
+    const appRef = TestBed.inject(ApplicationRef);
+    expect(() => appRef.tick()).not.toThrow();
+    await fixture.whenStable();
+    expect(
+      root.querySelectorAll('[data-testid="hlm-combobox-chip"]').length,
+    ).toBe(0);
+    expect(document.activeElement).toBe(document.body);
   });
 });
 

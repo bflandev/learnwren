@@ -66,6 +66,16 @@ describe('applyMaskWithSkeleton caret', () => {
   it('parks an empty entry at the first slot of a separator-led template', () => {
     expect(applyMaskWithSkeleton('', '--99').caret).toBe(2);
   });
+
+  it('stops the separator-skip walk at an alpha slot, not only a digit slot', () => {
+    // The post-fill walk must treat 'a' as a landing slot: with a digit-only
+    // template the `!== 'a'` clause never decides, so this is the one case
+    // that observes it.
+    expect(applyMaskWithSkeleton('12', '99-a9')).toEqual({
+      text: '12-__',
+      caret: 3,
+    });
+  });
 });
 
 describe('hasMaskPayload', () => {
@@ -344,5 +354,29 @@ describe('HlmMaskedDate', () => {
     input.dispatchEvent(new FocusEvent('blur'));
     fixture.detectChanges();
     expect(host.emissions).toEqual([]);
+  });
+});
+
+// No [placeholder] binding at all: the input's own '' default must fall through
+// to the format-hint placeholder (the fully-bound TestHost pins the default by
+// binding ph(''), which hides a mutated default).
+@Component({
+  standalone: true,
+  imports: [HlmMaskedDate],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<input hlmMaskedDate [(value)]="val" />`,
+})
+class UnboundPlaceholderHost {
+  val = '';
+}
+
+describe('HlmMaskedDate unbound placeholder default', () => {
+  it('derives the iso hint when no placeholder input is bound', () => {
+    const fixture = TestBed.createComponent(UnboundPlaceholderHost);
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector(
+      'input',
+    ) as HTMLInputElement;
+    expect(input.getAttribute('placeholder')).toBe('YYYY-MM-DD');
   });
 });

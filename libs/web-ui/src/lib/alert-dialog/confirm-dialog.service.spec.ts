@@ -40,6 +40,8 @@ describe('ConfirmDialogService', () => {
     expect(el).toBeTruthy();
     const container = el?.closest('[role="alertdialog"]') as HTMLElement | null;
     expect(container).toBeTruthy();
+    // Modal contract: assistive tech must treat the alertdialog as modal.
+    expect(container?.getAttribute('aria-modal')).toBe('true');
     const title = el?.querySelector('h2') as HTMLElement;
     const desc = el?.querySelector('p') as HTMLElement;
     expect(container?.getAttribute('aria-labelledby')).toBe(title.id);
