@@ -2,14 +2,14 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { RouterLink } from '@angular/router';
 
 import type { Course } from '@learnwren/shared-data-models';
-import { LwCardComponent, LwCoverComponent, LwPillComponent, coverToneForId } from '@learnwren/web-ui';
+import { HlmBadge, HlmButton, HlmCard, LwCoverComponent, coverToneForId } from '@learnwren/web-ui';
 
 import { CoursesService } from '../courses.service';
 
 @Component({
   selector: 'lib-courses-list-page',
   standalone: true,
-  imports: [RouterLink, LwCardComponent, LwCoverComponent, LwPillComponent],
+  imports: [RouterLink, HlmBadge, HlmButton, HlmCard, LwCoverComponent],
   templateUrl: './courses-list-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

@@ -11,7 +11,7 @@ import {
 } from '@learnwren/shared-data-models';
 
 import { CategoriesService } from '@learnwren/web-catalog';
-import { LwButtonDirective, LwCardComponent, LwInputDirective } from '@learnwren/web-ui';
+import { HlmButton, HlmCard, HlmInput, HlmLabel, HlmTextarea } from '@learnwren/web-ui';
 
 import type { CoursesApiErrorBody } from '@learnwren/shared-data-models';
 
@@ -20,7 +20,7 @@ import { CoursesService } from '../courses.service';
 @Component({
   selector: 'lib-course-create-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, LwButtonDirective, LwCardComponent, LwInputDirective],
+  imports: [ReactiveFormsModule, RouterLink, HlmButton, HlmCard, HlmInput, HlmLabel, HlmTextarea],
   templateUrl: './course-create-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

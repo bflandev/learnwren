@@ -1,27 +1,22 @@
 <div class="mx-auto w-full max-w-5xl p-6">
   <header class="mb-6 flex items-center justify-between gap-4">
     <h1 class="text-2xl">My Courses</h1>
-    <a
-      data-testid="create-course"
-      routerLink="/courses/new"
-      class="lw-btn lw-btn-primary"
-      >Create course</a
-    >
+    <a data-testid="create-course" hlmBtn routerLink="/courses/new">Create course</a>
   </header>
 
   @if (error()) {
-    <lw-card class="p-8 text-center" data-testid="courses-error">
+    <hlm-card class="p-8 text-center" data-testid="courses-error">
       <p class="text-bad">We could not load your courses.</p>
-      <button type="button" class="lw-btn lw-btn-secondary mt-3" (click)="refresh()">
+      <button hlmBtn variant="secondary" type="button" class="mt-3" (click)="refresh()">
         Try again
       </button>
-    </lw-card>
+    </hlm-card>
   } @else if (courses() === null) {
     <p class="text-sm text-ink-3">Loading…</p>
   } @else if (courses()!.length === 0) {
-    <lw-card class="p-8 text-center">
+    <hlm-card class="p-8 text-center">
       <p class="text-ink-2">No courses yet. Create your first course to begin.</p>
-    </lw-card>
+    </hlm-card>
   } @else {
     <ul class="grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
       @for (course of courses(); track course.id) {
@@ -30,15 +25,15 @@
             [routerLink]="['/courses', course.id, 'edit']"
             class="block no-underline"
           >
-            <lw-card class="overflow-hidden">
+            <hlm-card class="overflow-hidden">
               <lw-cover [glyph]="course.title.charAt(0)" [tone]="coverToneForId(course.id)" [height]="96" />
               <div class="flex flex-col items-start gap-2 p-4">
                 <h3 class="text-base text-ink">{{ course.title }}</h3>
-                <lw-pill [tone]="course.status === 'PUBLISHED' ? 'good' : 'default'">{{
+                <span hlmBadge [variant]="course.status === 'PUBLISHED' ? 'success' : 'default'">{{
                   course.status
-                }}</lw-pill>
+                }}</span>
               </div>
-            </lw-card>
+            </hlm-card>
           </a>
         </li>
       }

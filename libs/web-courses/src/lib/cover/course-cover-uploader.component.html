@@ -1,4 +1,4 @@
-<lw-card>
+<hlm-card>
   <div class="space-y-3">
     <h2 class="text-lg">Cover image</h2>
 
@@ -15,17 +15,17 @@
       <div class="flex-1 space-y-2">
         @switch (state().kind) {
           @case ('uploading') {
-            <lw-progress></lw-progress>
+            <hlm-progress label="Uploading cover image" />
             <p class="text-sm text-ink-3">Uploading…</p>
           }
           @case ('failed') {
             @if (failedState(); as f) {
-              <p class="text-sm text-red-600" data-testid="cover-error">{{ f.reason }}</p>
-              <button lwButton type="button" (click)="onRetry()">Try again</button>
+              <hlm-alert severity="error" data-testid="cover-error">{{ f.reason }}</hlm-alert>
+              <button hlmBtn variant="secondary" type="button" (click)="onRetry()">Try again</button>
             }
           }
           @default {
-            <label class="inline-block">
+            <label class="inline-block cursor-pointer">
               <input
                 type="file"
                 accept="image/jpeg,image/png"
@@ -33,10 +33,10 @@
                 (change)="onFileInput($event)"
                 data-testid="cover-file-input"
               />
-              <span class="lw-btn">{{ currentCoverUrl() ? 'Replace cover' : 'Upload cover' }}</span>
+              <span hlmBtn variant="secondary">{{ currentCoverUrl() ? 'Replace cover' : 'Upload cover' }}</span>
             </label>
             @if (currentCoverUrl()) {
-              <button lwButton type="button" (click)="onRemove()" data-testid="cover-remove">
+              <button hlmBtn variant="secondary" type="button" (click)="onRemove()" data-testid="cover-remove">
                 Remove cover
               </button>
             }
@@ -46,4 +46,4 @@
       </div>
     </div>
   </div>
-</lw-card>
+</hlm-card>
