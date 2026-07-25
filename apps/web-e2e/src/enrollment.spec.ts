@@ -104,10 +104,10 @@ test('a logged-in student can enroll and then leave a course', async ({ page }) 
   await page.getByRole('button', { name: 'Enroll' }).click();
   await expect(page.getByText('Enrolled', { exact: false })).toBeVisible({ timeout: 10_000 });
 
-  // Leave the course via the confirmation dialog.
+  // Leave the course via the shared confirm dialog (CDK alertdialog).
   await page.getByRole('button', { name: 'Leave course' }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.getByRole('dialog').getByRole('button', { name: 'Leave course' }).click();
+  await expect(page.getByTestId('confirm-dialog')).toBeVisible();
+  await page.getByTestId('confirm-go').click();
   await expect(page.getByRole('button', { name: 'Enroll' })).toBeVisible({ timeout: 10_000 });
 });
 

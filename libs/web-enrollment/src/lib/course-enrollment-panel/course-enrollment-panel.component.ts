@@ -11,7 +11,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { AuthService } from '@learnwren/web-auth';
-import { LwButtonDirective } from '@learnwren/web-ui';
+import { ConfirmDialogService, HlmButton } from '@learnwren/web-ui';
 
 import { EnrollmentService } from '../enrollment.service';
 
@@ -21,7 +21,7 @@ type PanelState = 'LOADING' | 'GUEST' | 'OWNER' | 'ENROLLABLE' | 'ENROLLED' | 'L
   selector: 'lib-course-enrollment-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LwButtonDirective],
+  imports: [HlmButton],
   templateUrl: './course-enrollment-panel.component.html',
 })
 export class CourseEnrollmentPanelComponent implements OnInit {
@@ -29,6 +29,7 @@ export class CourseEnrollmentPanelComponent implements OnInit {
   private readonly enrollments = inject(EnrollmentService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly confirmDialog = inject(ConfirmDialogService);
 
   readonly courseId = input.required<string>();
 
@@ -43,7 +44,6 @@ export class CourseEnrollmentPanelComponent implements OnInit {
   readonly completed = signal(false);
   readonly busy = signal(false);
   readonly actionError = signal<string | null>(null);
-  readonly showConfirm = signal(false);
 
   // Guards against firing the auto-enroll POST twice when resolveStatus() runs
   // a second time before the `?enroll=1` param has been stripped (e.g. user
@@ -120,13 +120,18 @@ export class CourseEnrollmentPanelComponent implements OnInit {
     }
   }
 
-  openConfirm(): void {
+  /** "Leave course" click — route through the shared confirm dialog (E1 pattern). */
+  async openConfirm(): Promise<void> {
     this.actionError.set(null);
-    this.showConfirm.set(true);
-  }
-
-  cancelConfirm(): void {
-    this.showConfirm.set(false);
+    const confirmed = await this.confirmDialog.confirm({
+      header: 'Leave this course?',
+      message:
+        'You will lose access to videos and materials immediately. Your progress will be ' +
+        'saved for 90 days in case you re-enroll.',
+      acceptLabel: 'Leave course',
+      variant: 'destructive',
+    });
+    if (confirmed) await this.confirmLeave();
   }
 
   async confirmLeave(): Promise<void> {
@@ -134,7 +139,6 @@ export class CourseEnrollmentPanelComponent implements OnInit {
     this.actionError.set(null);
     try {
       await this.enrollments.unenroll(this.courseId());
-      this.showConfirm.set(false);
       this.state.set('ENROLLABLE');
       this.completed.set(false);
       this.statusChanged.emit();

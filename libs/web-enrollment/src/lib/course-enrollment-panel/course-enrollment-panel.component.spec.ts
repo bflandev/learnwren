@@ -6,19 +6,27 @@ import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@learnwren/web-auth';
+import { ConfirmDialogService } from '@learnwren/web-ui';
 
 import { CourseEnrollmentPanelComponent } from './course-enrollment-panel.component';
 
 type User = { uid: string } | null | undefined;
 
+// Shared confirm dialog stub (E1 pattern): resolves false by default so a
+// queued resolution never leaks a leave-course DELETE into a later test.
+const confirmDialog = { confirm: vi.fn() };
+
 function configure(opts: { user: User; enroll?: string | null }) {
   const navigate = vi.fn().mockResolvedValue(true);
+  confirmDialog.confirm.mockReset();
+  confirmDialog.confirm.mockResolvedValue(false);
   TestBed.configureTestingModule({
     imports: [CourseEnrollmentPanelComponent],
     providers: [
       provideHttpClient(),
       provideHttpClientTesting(),
       { provide: AuthService, useValue: { currentUser: () => opts.user } },
+      { provide: ConfirmDialogService, useValue: confirmDialog },
       { provide: Router, useValue: { navigate } },
       {
         provide: ActivatedRoute,
@@ -190,16 +198,22 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    fixture.componentInstance.openConfirm();
-    fixture.detectChanges();
-    expect(text(fixture)).toContain('Leave this course?');
+    confirmDialog.confirm.mockResolvedValue(true);
+    const opened = fixture.componentInstance.openConfirm();
+    expect(confirmDialog.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        header: 'Leave this course?',
+        acceptLabel: 'Leave course',
+        variant: 'destructive',
+      }),
+    );
 
-    void fixture.componentInstance.confirmLeave();
+    // Let the confirm resolution reach confirmLeave, then settle the DELETE.
+    await Promise.resolve();
     http.expectOne('/api/enrollments/c-1').flush(null);
-    await fixture.whenStable();
+    await opened;
     fixture.detectChanges();
     expect(text(fixture)).toContain('Enroll');
-    expect(text(fixture)).not.toContain('Leave this course?');
     expect(fixture.componentInstance.completed()).toBe(false);
   });
 
@@ -297,7 +311,7 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     expect(fixture.componentInstance.busy()).toBe(false);
   });
 
-  it('cancelConfirm closes the leave-confirmation dialog', async () => {
+  it('a cancelled confirm dialog leaves the enrollment untouched', async () => {
     configure({ user: { uid: 'u1' } });
     const { fixture, http } = create();
     http
@@ -305,10 +319,11 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
       .flush({ enrollment: { status: 'ACTIVE' }, isOwner: false });
     await fixture.whenStable();
 
-    fixture.componentInstance.openConfirm();
-    expect(fixture.componentInstance.showConfirm()).toBe(true);
-    fixture.componentInstance.cancelConfirm();
-    expect(fixture.componentInstance.showConfirm()).toBe(false);
+    // Stub resolves false (reject) by default.
+    await fixture.componentInstance.openConfirm();
+    expect(confirmDialog.confirm).toHaveBeenCalled();
+    http.expectNone('/api/enrollments/c-1');
+    expect(fixture.componentInstance.state()).toBe('ENROLLED');
   });
 
   it('sets busy during confirmLeave and shows an error message when it fails', async () => {
