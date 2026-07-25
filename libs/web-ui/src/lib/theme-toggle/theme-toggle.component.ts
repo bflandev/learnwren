@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { provideIcons } from '@ng-icons/core';
 import { lucideMoon, lucideSun } from '@ng-icons/lucide';
 
-import { LwButtonDirective } from '../button/lw-button.directive';
+import { HlmButton } from '../button/hlm-button.directive';
 import { HlmIcon } from '../icon/hlm-icon.component';
 import { ThemeService } from '../theme/theme.service';
 
@@ -10,11 +10,12 @@ import { ThemeService } from '../theme/theme.service';
   selector: 'lw-theme-toggle',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LwButtonDirective, HlmIcon],
+  imports: [HlmButton, HlmIcon],
   providers: [provideIcons({ lucideMoon, lucideSun })],
   template: `<button
-    lwButton
+    hlmBtn
     variant="ghost"
+    size="icon"
     type="button"
     [attr.aria-label]="
       'Switch to ' + (theme.theme() === 'dark' ? 'light' : 'dark') + ' theme'
