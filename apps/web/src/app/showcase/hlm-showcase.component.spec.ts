@@ -3,9 +3,11 @@
 // page composes every section without blowing up.
 import { TestBed } from '@angular/core/testing';
 
-import { provideHlmToast } from '../toast';
 import { HlmShowcaseComponent } from './hlm-showcase.component';
 
+import {
+  provideHlmToast,
+} from '@learnwren/web-ui';
 const EXPECTED_SECTIONS = [
   'Heading',
   'Accent',

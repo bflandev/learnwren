@@ -13,7 +13,6 @@ import { adminRoutes } from '@learnwren/web-admin';
 import { catalogRoutes } from '@learnwren/web-catalog';
 import { coursesRoutes } from '@learnwren/web-courses';
 import { landingRoutes } from '@learnwren/web-landing';
-import { HlmShowcaseComponent } from '@learnwren/web-ui';
 import { learnRoutes } from '@learnwren/web-learn';
 import { profileRoutes } from '@learnwren/web-profile';
 
@@ -44,12 +43,21 @@ export const appRoutes: Route[] = [
     loadComponent: () =>
       import('./dashboard/dashboard.component').then((m) => m.DashboardComponent),
   },
-  // Dev-only design-system showcase — guard-free and unlinked from any nav;
-  // the route is not registered in production builds (isDevMode() is
-  // compile-time false there). Static import rather than loadComponent: the
-  // shell already imports web-ui statically, so lazy-loading it is a no-op and
-  // @nx/enforce-module-boundaries forbids mixing the two styles.
-  ...(isDevMode() ? [{ path: 'showcase', component: HlmShowcaseComponent }] : []),
+  // Dev-only design-system showcase — guard-free and unlinked from any nav.
+  // App-local component, lazily loaded: it imports every hlm component, and a
+  // lazy chunk keeps that entire surface out of the initial bundle (the shell
+  // itself only pays for the components it actually uses).
+  ...(isDevMode()
+    ? [
+        {
+          path: 'showcase',
+          loadComponent: () =>
+            import('./showcase/hlm-showcase.component').then(
+              (m) => m.HlmShowcaseComponent,
+            ),
+        },
+      ]
+    : []),
   ...catalogRoutes,
   ...coursesRoutes,
   ...adminRoutes,

@@ -23,33 +23,32 @@ import { BrnDialogClose, BrnDialogContent } from '@spartan-ng/brain/dialog';
 import { BrnPopoverContent } from '@spartan-ng/brain/popover';
 import { BrnSheetContent } from '@spartan-ng/brain/sheet';
 
-import { AccentService } from '../accent';
-import { HlmAlert, HlmAlertDescription, HlmAlertTitle } from '../alert';
+
 import {
+  AccentService,
+  HlmAlert,
+  HlmAlertDescription,
+  HlmAlertTitle,
   HlmAlertDialog,
   HlmAlertDialogContent,
   HlmAlertDialogTrigger,
-} from '../alert-dialog';
-import { HlmAutocompleteImports } from '../autocomplete';
-import { HlmAvatar } from '../avatar';
-import { HlmBadge } from '../badge';
-import { HlmBooleanRadio } from '../boolean-radio';
-import { HlmBreadcrumbImports } from '../breadcrumb';
-import { HlmButton } from '../button';
-import { HlmButtonGroupImports } from '../button-group';
-import { HlmCalendar } from '../calendar';
-import {
+  HlmAutocompleteImports,
+  HlmAvatar,
+  HlmBadge,
+  HlmBooleanRadio,
+  HlmBreadcrumbImports,
+  HlmButton,
+  HlmButtonGroupImports,
+  HlmCalendar,
   HlmCard,
   HlmCardContent,
   HlmCardDescription,
   HlmCardFooter,
   HlmCardHeader,
   HlmCardTitle,
-} from '../card';
-import { HlmCheckbox } from '../checkbox';
-import { HlmComboboxImports } from '../combobox';
-import { HlmDatePicker } from '../date-picker';
-import {
+  HlmCheckbox,
+  HlmComboboxImports,
+  HlmDatePicker,
   HlmDialog,
   HlmDialogContent,
   HlmDialogDescription,
@@ -57,37 +56,38 @@ import {
   HlmDialogHeader,
   HlmDialogTitle,
   HlmDialogTrigger,
-} from '../dialog';
-import { HlmDots } from '../dots';
-import { HlmDurationPicker } from '../duration-picker';
-import {
+  HlmDots,
+  HlmDurationPicker,
   HlmFormField,
   HlmFormFieldControl,
   HlmFormFieldError,
   HlmFormFieldHint,
-} from '../form-field';
-import { HlmGridState, type GridState } from '../grid-state';
-import { HlmHeading } from '../heading';
-import { HlmIcon } from '../icon';
-import { HlmInput } from '../input';
-import { HlmLabel } from '../label';
-import { HlmListImports } from '../list';
-import { OptionLookup } from '../lookup';
-import { HlmMaskedDate } from '../masked-date';
-import { HlmMenu, HlmMenuItem, HlmMenuTrigger } from '../menu';
-import { HlmPagination } from '../pagination';
-import { HlmPanel, HlmPanelBody, HlmPanelHeader } from '../panel';
-import { HlmPopover, HlmPopoverContent, HlmPopoverTrigger } from '../popover';
-import { HlmProgress } from '../progress';
-import { HlmRadio } from '../radio';
-import {
+  HlmGridState,
+  type GridState,
+  HlmHeading,
+  HlmIcon,
+  HlmInput,
+  HlmLabel,
+  HlmListImports,
+  OptionLookup,
+  HlmMaskedDate,
+  HlmMenu,
+  HlmMenuItem,
+  HlmMenuTrigger,
+  HlmPagination,
+  HlmPanel,
+  HlmPanelBody,
+  HlmPanelHeader,
+  HlmPopover,
+  HlmPopoverContent,
+  HlmPopoverTrigger,
+  HlmProgress,
+  HlmRadio,
   HlmReorderableListImports,
   type ReorderEvent,
-} from '../reorderable-list';
-import { HlmResizableImports } from '../resizable';
-import { HlmSelectSingleImports } from '../select';
-import { HlmSeparator } from '../separator';
-import {
+  HlmResizableImports,
+  HlmSelectSingleImports,
+  HlmSeparator,
   HlmSheet,
   HlmSheetClose,
   HlmSheetContent,
@@ -95,20 +95,21 @@ import {
   HlmSheetOverlay,
   HlmSheetTitle,
   HlmSheetTrigger,
-} from '../sheet';
-import { HlmSidebarImports } from '../sidebar';
-import { HlmSkeleton } from '../skeleton';
-import { HlmSpinner } from '../spinner';
-import { HlmSkeletonLine, HlmStatePill } from '../state';
-import { HlmSwitch } from '../switch';
-import { HlmTabsImports } from '../tabs';
-import { HlmTags } from '../tags';
-import { HlmTextarea } from '../textarea';
-import { HlmToastService, type ToastSeverity } from '../toast';
-import { HlmToggle } from '../toggle';
-import { HlmToggleGroupImports } from '../toggle-group';
-import { HlmTooltipTrigger } from '../tooltip';
-
+  HlmSidebarImports,
+  HlmSkeleton,
+  HlmSpinner,
+  HlmSkeletonLine,
+  HlmStatePill,
+  HlmSwitch,
+  HlmTabsImports,
+  HlmTags,
+  HlmTextarea,
+  HlmToastService,
+  type ToastSeverity,
+  HlmToggle,
+  HlmToggleGroupImports,
+  HlmTooltipTrigger,
+} from '@learnwren/web-ui';
 interface ReorderColumn {
   readonly id: string;
   readonly label: string;
@@ -130,7 +131,7 @@ const LOOKUP_TOPICS = [
 const GRID_STATE_CYCLE: readonly GridState[] = ['loading', 'error', 'empty'];
 
 @Component({
-  selector: 'lw-hlm-showcase',
+  selector: 'app-hlm-showcase',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [

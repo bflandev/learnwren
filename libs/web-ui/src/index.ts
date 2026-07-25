@@ -67,5 +67,3 @@ export * from './lib/toggle';
 export * from './lib/toggle-group';
 export * from './lib/tooltip';
 
-// Dev-only showcase page (lazy-routed at /showcase in apps/web dev builds).
-export * from './lib/showcase/hlm-showcase.component';
