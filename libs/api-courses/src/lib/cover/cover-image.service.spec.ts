@@ -100,7 +100,7 @@ describe('CoverImageService — validation', () => {
   it('accepts a 1280x720 image (boundary, inclusive)', async () => {
     const buf = await makeJpegBuffer(1280, 720);
     const out = await svc.uploadCover(CID, buf, 'image/jpeg');
-    expect(out.coverImageUrl).toMatch(/^https:\/\/cdn\.example\/course-covers\/c1\/cover\.jpg\?v=/);
+    expect(out.coverImageUrl).toMatch(/^https:\/\/cdn\.example\/course-covers%2Fc1%2Fcover\.jpg\?alt=media&v=/);
   });
 });
 

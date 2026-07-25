@@ -50,7 +50,7 @@ test('instructor uploads a cover and sees it persist across reload', async ({ pa
   const img = page.locator('lib-course-cover-uploader lw-cover img.lw-cover-image');
   await expect(img).toBeVisible({ timeout: 10_000 });
   const src = await img.getAttribute('src');
-  expect(src).toMatch(/course-covers\/.+\/cover\.jpg\?v=/);
+  expect(src).toMatch(/course-covers%2F.+%2Fcover\.jpg\?alt=media&v=/);
 
   await page.reload();
   await expect(page.locator('lib-course-cover-uploader lw-cover img.lw-cover-image')).toHaveAttribute(

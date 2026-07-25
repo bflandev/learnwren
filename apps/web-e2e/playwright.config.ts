@@ -68,6 +68,12 @@ export default defineConfig({
         // public base URL are still required at boot.
         LEARNWREN_PICTURE_BUCKET: 'learnwren-e2e-pictures',
         LEARNWREN_PICTURE_PUBLIC_BASE_URL: `http://${storageHost}/v0/b/learnwren-e2e-pictures/o`,
+        // Real adapter so uploads land in the Storage emulator and the public
+        // URL actually serves. The old fake default left photoUrl pointing at
+        // nothing — the legacy lw-avatar kept a broken <img> in the DOM so the
+        // spec passed anyway; hlm-avatar removes the img on load error, which
+        // exposed the dead URL. (Same pattern covers already use.)
+        LEARNWREN_PICTURE_STORAGE: 'firebase',
         LEARNWREN_EMAIL_TRANSPORT: 'console',
         LEARNWREN_TEST_OUTBOX_ENABLED: '1',
         // All parallel workers share 127.0.0.1, so the production per-IP burst

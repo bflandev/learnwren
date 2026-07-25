@@ -2,7 +2,7 @@ import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
-import { LwButtonDirective } from '@learnwren/web-ui';
+import { HlmAlert, HlmButton, HlmSpinner } from '@learnwren/web-ui';
 import { AuthService } from '../auth.service';
 
 const RESEND_COOLDOWN_MS = 60_000;
@@ -10,7 +10,7 @@ const RESEND_COOLDOWN_MS = 60_000;
 @Component({
   selector: 'app-register-confirm-page',
   standalone: true,
-  imports: [RouterLink, LwButtonDirective],
+  imports: [RouterLink, HlmAlert, HlmButton, HlmSpinner],
   templateUrl: './register-confirm-page.component.html',
 })
 export class RegisterConfirmPageComponent {

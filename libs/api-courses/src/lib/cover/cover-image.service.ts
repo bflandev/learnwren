@@ -76,7 +76,10 @@ export class CoverImageService {
     // overwrites updatedAt internally; we mirror its clock by formatting now()
     // the same way (UTC ISO string).
     const updatedAt = nowIso();
-    const coverImageUrl = `${this.cfg.publicBaseUrl}/${path}?v=${encodeURIComponent(updatedAt)}`;
+    // %2F-encoded path + alt=media: required by the Firebase Storage REST
+    // endpoint (e2e emulator), harmless on the production GCS XML endpoint.
+    // Mirrors profile-picture.service.ts — see comment there.
+    const coverImageUrl = `${this.cfg.publicBaseUrl}/${encodeURIComponent(path)}?alt=media&v=${encodeURIComponent(updatedAt)}`;
     await this.courses.updateCourse(courseId, { coverImageUrl } as Partial<Course>);
     return { coverImageUrl, updatedAt };
   }

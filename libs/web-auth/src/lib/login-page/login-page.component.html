@@ -1,84 +1,92 @@
 <section class="w-full max-w-md rounded-lg border border-line bg-bg-2 p-6">
   <h1 class="mb-4 text-xl">Sign in</h1>
   <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-3">
-    <label class="block">
-      <span class="text-sm font-medium text-ink-2">Email</span>
+    <hlm-form-field>
+      <label hlmLabel for="login-email">Email</label>
       <input
-        lwInput
+        hlmInput
+        hlmFormFieldControl
+        id="login-email"
         type="email"
         formControlName="email"
         autocomplete="email"
-        class="mt-1"
         required
       />
-    </label>
+    </hlm-form-field>
 
-    <label class="block">
-      <span class="text-sm font-medium text-ink-2">Password</span>
+    <hlm-form-field>
+      <label hlmLabel for="login-password">Password</label>
       <input
-        lwInput
+        hlmInput
+        hlmFormFieldControl
+        id="login-password"
         type="password"
         formControlName="password"
         autocomplete="current-password"
-        class="mt-1"
         required
       />
-    </label>
+    </hlm-form-field>
 
-    @switch (errorState().kind) {
-      @case ('invalid') {
-        <p class="text-sm text-bad" role="alert">Invalid email or password.</p>
-      }
-      @case ('unverified') {
-        <div role="alert" class="space-y-1">
-          <p class="text-sm text-bad">
-            Please verify your email address before logging in.
-          </p>
-          @if (unverifiedState()?.resendSent) {
-            <p class="text-sm text-good">Verification email sent. Check your inbox.</p>
-          } @else {
-            <button
-              lwButton
-              variant="ghost"
-              type="button"
-              class="disabled:opacity-50"
-              [disabled]="busy()"
-              (click)="resendVerification()"
-            >
-              Resend verification email
-            </button>
+    @if (errorState().kind !== 'none') {
+      <hlm-alert severity="error">
+        @switch (errorState().kind) {
+          @case ('invalid') {
+            Invalid email or password.
           }
-        </div>
-      }
-      @case ('locked') {
-        <div role="alert" class="space-y-1">
-          <p class="text-sm text-bad">
-            Your account is temporarily locked. Try again at
-            {{ unlockAvailableAtLocal(lockedState()?.unlockAvailableAt ?? '') }},
-            or check your email to unlock now.
-          </p>
-          @if (justResetPassword()) {
-            <p class="text-sm text-warn">
-              If you've just reset your password, use the unlock link in your
-              "account locked" email or wait until
-              {{ unlockAvailableAtLocal(lockedState()?.unlockAvailableAt ?? '') }}.
-            </p>
+          @case ('unverified') {
+            <div class="space-y-1">
+              <p>Please verify your email address before logging in.</p>
+              @if (unverifiedState()?.resendSent) {
+                <p class="text-good">Verification email sent. Check your inbox.</p>
+              } @else {
+                <button
+                  hlmBtn
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  [disabled]="busy()"
+                  (click)="resendVerification()"
+                >
+                  Resend verification email
+                </button>
+              }
+            </div>
           }
-        </div>
-      }
-      @case ('generic') {
-        <p class="text-sm text-bad" role="alert">{{ genericState()?.message }}</p>
-      }
+          @case ('locked') {
+            <div class="space-y-1">
+              <p>
+                Your account is temporarily locked. Try again at
+                {{ unlockAvailableAtLocal(lockedState()?.unlockAvailableAt ?? '') }},
+                or check your email to unlock now.
+              </p>
+              @if (justResetPassword()) {
+                <p class="text-warn">
+                  If you've just reset your password, use the unlock link in your
+                  "account locked" email or wait until
+                  {{ unlockAvailableAtLocal(lockedState()?.unlockAvailableAt ?? '') }}.
+                </p>
+              }
+            </div>
+          }
+          @case ('generic') {
+            {{ genericState()?.message }}
+          }
+        }
+      </hlm-alert>
     }
 
     <button
-      lwButton
-      variant="primary"
+      hlmBtn
       type="submit"
-      class="w-full justify-center disabled:opacity-50"
+      class="w-full"
       [disabled]="form.invalid || busy()"
     >
-      @if (busy()) { Signing in… } @else { Sign in }
+      @if (busy()) {
+        <hlm-spinner size="sm" />
+        Signing in…
+      } @else {
+        Sign in
+      }
     </button>
   </form>
 

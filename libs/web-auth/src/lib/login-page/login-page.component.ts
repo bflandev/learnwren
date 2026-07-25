@@ -7,7 +7,15 @@ import {
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
-import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
+import {
+  HlmAlert,
+  HlmButton,
+  HlmFormField,
+  HlmFormFieldControl,
+  HlmInput,
+  HlmLabel,
+  HlmSpinner,
+} from '@learnwren/web-ui';
 
 import { AuthService } from '../auth.service';
 
@@ -38,7 +46,17 @@ function isSafeRedirect(r: string): boolean {
 @Component({
   selector: 'app-login-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, LwButtonDirective, LwInputDirective],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    HlmAlert,
+    HlmButton,
+    HlmFormField,
+    HlmFormFieldControl,
+    HlmInput,
+    HlmLabel,
+    HlmSpinner,
+  ],
   templateUrl: './login-page.component.html',
 })
 export class LoginPageComponent {
