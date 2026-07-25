@@ -1,4 +1,4 @@
-import { avatarToneFor } from './avatar-tone';
+import { avatarToneFor, deriveInitials } from './avatar-tone';
 
 describe('avatarToneFor', () => {
   it('returns the same tone for the same id', () => {
@@ -33,5 +33,28 @@ describe('avatarToneFor', () => {
 
   it('hashes a non-empty id differently from the empty string (loop entered)', () => {
     expect(avatarToneFor('a')).not.toBe(avatarToneFor(''));
+  });
+});
+
+describe('deriveInitials', () => {
+  it('takes the first letter of the first and last word, uppercased', () => {
+    expect(deriveInitials('Ada Lovelace')).toBe('AL');
+    expect(deriveInitials('grace brewster murray hopper')).toBe('GH');
+  });
+
+  it('takes the first two letters for a single-word name, uppercased', () => {
+    expect(deriveInitials('Madonna')).toBe('MA');
+    expect(deriveInitials('x')).toBe('X');
+  });
+
+  it('trims surrounding whitespace before deriving', () => {
+    // Kills the `name.trim()` → `name` mutant: without trimming, the leading
+    // space makes words[0] the empty string and the initials collapse to ''.
+    expect(deriveInitials('  Ada Lovelace  ')).toBe('AL');
+  });
+
+  it('returns an empty string for blank or whitespace-only input', () => {
+    expect(deriveInitials('')).toBe('');
+    expect(deriveInitials('   ')).toBe('');
   });
 });
