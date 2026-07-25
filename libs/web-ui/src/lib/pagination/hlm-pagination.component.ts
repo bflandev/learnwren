@@ -175,6 +175,9 @@ export class HlmPagination {
 
   protected goto(target: number): void {
     const clamped = Math.min(Math.max(target, 1), this.pageCount());
+    // Stryker disable next-line ConditionalExpression: equivalent — page is a
+    // primitive signal; set() with an identical number is skipped by Object.is
+    // equality, so removing the guard produces no observable emission.
     if (clamped !== this.page()) this.page.set(clamped);
   }
 

@@ -363,6 +363,9 @@ export class HlmDynamicField {
     // so subscriptions don't accumulate on control swap.
     effect((onCleanup) => {
       const c = this.control();
+      // Stryker disable next-line ArithmeticOperator: equivalent — tick is a
+      // pure invalidation counter; consumers only need its value to change,
+      // so decrementing invalidates exactly as incrementing does.
       const sub = c?.events.subscribe(() => this.tick.update((t) => t + 1));
       onCleanup(() => sub?.unsubscribe());
     });

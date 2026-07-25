@@ -61,6 +61,7 @@ export class HlmResizableHandle {
   protected readonly computedClass = computed(() =>
     cn(RESIZABLE_HANDLE_BASE, this.userClass()),
   );
+  // Stryker disable next-line BooleanLiteral: equivalent — a pointermove before any pointerdown still bails on the `e.pointerId !== this.pointerId` clause (pointerId starts null and no event carries a null pointerId)
   private dragging = false;
   private pointerId: number | null = null;
 
@@ -103,16 +104,19 @@ export class HlmResizableHandle {
       this.r.nudge(this.r.min() - this.r.clampedRatio());
       e.preventDefault();
     } else if (e.key === 'End') {
+      // Stryker disable next-line ArithmeticOperator: equivalent — the End delta targets exactly 1 - min; any operator mutant only overshoots further and clamp() lands on the same 1 - min
       this.r.nudge(1 - this.r.min() - this.r.clampedRatio());
       e.preventDefault();
     }
   }
 
   private endDrag(e: PointerEvent): void {
+    // Stryker disable next-line BooleanLiteral: equivalent — pointerId is nulled on the next line and onMove bails on the pointerId mismatch, so a stale dragging flag is unobservable
     this.dragging = false;
     this.pointerId = null;
     const el = e.target as HTMLElement;
     try {
+      // Stryker disable next-line OptionalChaining: equivalent — without `?.` a missing hasPointerCapture throws inside this try and the catch swallows it, leaving identical no-release behavior
       if (el.hasPointerCapture?.(e.pointerId)) {
         el.releasePointerCapture(e.pointerId);
       }

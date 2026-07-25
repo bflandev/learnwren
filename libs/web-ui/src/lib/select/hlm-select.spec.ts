@@ -8,6 +8,7 @@ import {
   BrnSelectTrigger,
 } from '@spartan-ng/brain/select';
 import { By } from '@angular/platform-browser';
+import { BrnSelectBaseToken } from '@spartan-ng/brain/select';
 import {
   HlmSelect,
   HlmSelectContent,
@@ -15,9 +16,16 @@ import {
   HlmSelectItem,
   HlmSelectList,
   HlmSelectTrigger,
+  SELECT_CONTENT_BASE,
+  SELECT_ITEM_BASE,
+  SELECT_ITEM_INDICATOR_BASE,
+  SELECT_LIST_BASE,
   SELECT_TRIGGER_BASE,
 } from './hlm-select.directive';
-import { HlmSelectPills } from './hlm-select-pills.component';
+import {
+  HlmSelectPills,
+  SELECT_PILL_REMOVE_BASE,
+} from './hlm-select-pills.component';
 
 // Spec scope: brain owns the listbox a11y + the overlay popover, both of
 // which are exercised by brain's own test suite. The helm layer's contract
@@ -368,5 +376,141 @@ describe('HlmSelectPills (standalone, object model)', () => {
     remove.click();
     fixture.detectChanges();
     expect(fixture.componentInstance.picked().map((v) => v.id)).toEqual([2]);
+  });
+
+  it('moves focus to the new last pill after removing the last one', async () => {
+    const fixture = TestBed.createComponent(StandalonePillsHost);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const removeLast = root.querySelector(
+      'button[aria-label="Remove Bravo"]',
+    ) as HTMLButtonElement;
+    removeLast.focus();
+    removeLast.click();
+    fixture.detectChanges();
+    await Promise.resolve();
+    const remaining = root.querySelector(
+      'button[aria-label="Remove Alpha"]',
+    ) as HTMLButtonElement;
+    expect(document.activeElement).toBe(remaining);
+  });
+});
+
+describe('HlmSelect painted bases and bare-item fallback', () => {
+  it('paints the content/list/item DS roles from the exported bases', () => {
+    const { fixture } = setup();
+    const content = fixture.debugElement.query(By.directive(HlmSelectContent))
+      .nativeElement as HTMLElement;
+    const list = fixture.debugElement.query(By.directive(HlmSelectList))
+      .nativeElement as HTMLElement;
+    const item = fixture.debugElement.query(By.directive(HlmSelectItem))
+      .nativeElement as HTMLElement;
+    for (const cls of SELECT_CONTENT_BASE.split(/\s+/)) {
+      expect(content.classList.contains(cls), `content missing ${cls}`).toBe(
+        true,
+      );
+    }
+    for (const cls of SELECT_LIST_BASE.split(/\s+/)) {
+      expect(list.classList.contains(cls), `list missing ${cls}`).toBe(true);
+    }
+    for (const cls of SELECT_ITEM_BASE.split(/\s+/)) {
+      expect(item.classList.contains(cls), `item missing ${cls}`).toBe(true);
+    }
+  });
+
+  it('pins the exported class-string contracts', () => {
+    expect(SELECT_CONTENT_BASE).toBe(
+      'z-popover min-w-[8rem] overflow-hidden rounded-md border border-line bg-overlay-select-bg text-overlay-select-fg shadow-overlay',
+    );
+    expect(SELECT_LIST_BASE).toBe(
+      'flex max-h-60 flex-col gap-0.5 overflow-y-auto overscroll-contain p-1',
+    );
+    expect(SELECT_ITEM_INDICATOR_BASE).toBe(
+      'inline-flex h-3.5 w-3.5 items-center justify-center text-ochre',
+    );
+    expect(SELECT_PILL_REMOVE_BASE).toBe(
+      'ml-1 inline-flex h-4 w-4 items-center justify-center rounded-sm text-secondary-foreground/70 transition-transform hover:text-secondary-foreground motion-safe:hover:scale-125 focus-ring',
+    );
+  });
+
+  it('leaves no stray classes in check mode', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmSelectImports],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `
+        <div [hlmSelect]="[]" selectedIndicator="check">
+          <button hlmSelectTrigger>x</button>
+          <div hlmSelectContent>
+            <div hlmSelectList>
+              <div [hlmSelectItem]="'a'">A</div>
+            </div>
+          </div>
+        </div>
+      `,
+    })
+    class CheckHost {}
+    const fixture = TestBed.createComponent(CheckHost);
+    fixture.detectChanges();
+    const item = fixture.debugElement.query(By.directive(HlmSelectItem))
+      .nativeElement as HTMLElement;
+    expect(item.className).not.toContain('Stryker');
+  });
+
+  it('renders a bare [hlmSelectItem] with the default both affordance (no root)', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmSelectImports],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      // BrnSelectItem needs the brain base token; a stub keeps the HLM root
+      // (HlmSelect) genuinely absent so its optional injection is null.
+      providers: [
+        {
+          provide: BrnSelectBaseToken,
+          useValue: {
+            value: () => [],
+            isSelected: () => false,
+            select: () => void 0,
+            keyManager: { activeItem: null },
+            disabledState: () => false,
+          },
+        },
+      ],
+      template: `<div [hlmSelectItem]="'a'">A</div>`,
+    })
+    class BareItemHost {}
+    const fixture = TestBed.createComponent(BareItemHost);
+    expect(() => fixture.detectChanges()).not.toThrow();
+    const item = fixture.debugElement.query(By.directive(HlmSelectItem))
+      .nativeElement as HTMLElement;
+    expect(item.getAttribute('data-select-check')).toBe('');
+    expect(item.classList.contains('aria-selected:bg-selection-bg')).toBe(true);
+  });
+});
+
+describe('HlmSelectPills (brain present, null value model)', () => {
+  it('renders no pills when brain reports a null value', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmSelectPills],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      providers: [
+        {
+          provide: BrnSelectBaseToken,
+          useValue: { value: () => null, select: () => void 0 },
+        },
+      ],
+      template: `<hlm-select-pills />`,
+    })
+    class NullBrainHost {}
+    const fixture = TestBed.createComponent(NullBrainHost);
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelectorAll('[data-testid="hlm-select-pill"]')
+        .length,
+    ).toBe(0);
   });
 });

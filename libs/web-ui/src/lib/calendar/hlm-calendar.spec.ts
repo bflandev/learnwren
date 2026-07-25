@@ -80,6 +80,108 @@ describe('HlmCalendar', () => {
     }
   });
 
+  it('paints header, title, weekday, and cell chrome on the exported bases', () => {
+    const { root } = setup();
+    // CALENDAR_HEADER_BASE
+    const header = root.querySelector('[brnCalendar] > div') as HTMLElement;
+    for (const cls of ['flex', 'items-center', 'justify-between', 'pb-2']) {
+      expect(header.classList.contains(cls), `header missing \`${cls}\``).toBe(
+        true,
+      );
+    }
+    // CALENDAR_TITLE_BASE
+    const title = root.querySelector('[brnCalendarHeader]') as HTMLElement;
+    expect(title.classList.contains('text-body')).toBe(true);
+    expect(title.classList.contains('font-medium')).toBe(true);
+    // CALENDAR_WEEKDAY_BASE
+    const weekday = root.querySelector('th[scope="col"]') as HTMLElement;
+    for (const cls of ['w-9', 'pb-1', 'text-helper', 'text-ink-3']) {
+      expect(
+        weekday.classList.contains(cls),
+        `weekday missing \`${cls}\``,
+      ).toBe(true);
+    }
+    // CALENDAR_CELL_BASE
+    const cell = root.querySelector('td[brnCalendarCell]') as HTMLElement;
+    expect(cell.classList.contains('p-0')).toBe(true);
+    expect(cell.classList.contains('text-center')).toBe(true);
+  });
+
+  it('labels every weekday header with non-empty text', () => {
+    const { root } = setup();
+    const headers = Array.from(
+      root.querySelectorAll('th[scope="col"]'),
+    ) as HTMLElement[];
+    for (const th of headers) {
+      expect((th.textContent ?? '').trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it('renders an empty heading while the brain viewChild is unresolved', () => {
+    // Arrange — stub the brain query to the unresolved (undefined) state the
+    // guard exists for; the heading must fall back to '' rather than
+    // dereference undefined.
+    TestBed.configureTestingModule({
+      providers: [provideDateAdapter(BrnLuxonDateAdapter)],
+    });
+    const fixture = TestBed.createComponent(HlmCalendar);
+    const component = fixture.componentInstance as unknown as {
+      heading(): string;
+      _brn: () => unknown;
+    };
+    component._brn = () => undefined;
+    // Act / Assert — no calendar yet → ''.
+    expect(component.heading()).toBe('');
+  });
+
+  it('renders an empty heading when brain has no focused date yet', () => {
+    // Arrange — stub the brain query to a calendar without a focused date.
+    TestBed.configureTestingModule({
+      providers: [provideDateAdapter(BrnLuxonDateAdapter)],
+    });
+    const fixture = TestBed.createComponent(HlmCalendar);
+    const component = fixture.componentInstance as unknown as {
+      heading(): string;
+      _brn: () => unknown;
+    };
+    component._brn = () => ({ focusedDate: () => undefined });
+    // Act / Assert
+    expect(component.heading()).toBe('');
+  });
+
+  it('bridges the typed dateDisabled predicate through to brain unchanged', () => {
+    // Arrange — a direct fixture so the signal input can be driven.
+    TestBed.configureTestingModule({
+      providers: [provideDateAdapter(BrnLuxonDateAdapter)],
+    });
+    const fixture = TestBed.createComponent(HlmCalendar);
+    const tenth = DateTime.fromObject({ year: 2025, month: 1, day: 10 });
+    const calendar = fixture.componentInstance as unknown as {
+      _dateDisabled: (date: unknown) => boolean;
+    };
+    // Assert — default predicate: every date enabled (strictly false)…
+    expect(calendar._dateDisabled(tenth)).toBe(false);
+    // …and a consumer predicate is consulted with the same date.
+    fixture.componentRef.setInput(
+      'dateDisabled',
+      (date: DateTime) => date.day === 10,
+    );
+    expect(calendar._dateDisabled(tenth)).toBe(true);
+    expect(
+      calendar._dateDisabled(
+        DateTime.fromObject({ year: 2025, month: 1, day: 11 }),
+      ),
+    ).toBe(false);
+  });
+
+  it('tracks day cells by their epoch millis', () => {
+    const { fixture } = setup();
+    const calendar = fixture.debugElement.query(By.directive(HlmCalendar))
+      .componentInstance as unknown as { trackDay(date: unknown): number };
+    const day = DateTime.fromObject({ year: 2025, month: 1, day: 10 });
+    expect(calendar.trackDay(day)).toBe(day.toMillis());
+  });
+
   it('writes the selected date back through the two-way model on cell click', () => {
     const { fixture, root, host } = setup();
     const buttons = Array.from(

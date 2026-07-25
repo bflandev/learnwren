@@ -84,6 +84,24 @@ describe('HlmButton', () => {
     expect(fixture.debugElement.query(By.directive(HlmButton))).not.toBeNull();
   });
 
+  it('exposes default/default as the public input defaults when unbound', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmButton],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<button hlmBtn>Go</button>`,
+    })
+    class BareHost {}
+    const fixture = TestBed.createComponent(BareHost);
+    fixture.detectChanges();
+    const btn = fixture.debugElement
+      .query(By.directive(HlmButton))
+      .injector.get(HlmButton);
+    expect(btn.variant()).toBe('default');
+    expect(btn.size()).toBe('default');
+  });
+
   it('carries the BASE + default variant/size classes with no inputs', () => {
     const { host } = setup();
     // BASE

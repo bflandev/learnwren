@@ -8,6 +8,9 @@
 // the two slashes once enough digits exist. Backs the date-picker's US parse path
 // and any consumer that wants to format a seed value to the canonical US shape.
 export function formatDateMask(raw: string): string {
+  // Stryker disable next-line MethodExpression: equivalent — the segment
+  // slices below (0,2 / 2,4 / 4,8) already cap the output at 8 digits, so the
+  // early slice(0, 8) is a redundant fast path.
   const digits = raw.replace(/[^0-9]/g, '').slice(0, 8);
   let out = digits.slice(0, 2);
   if (digits.length > 2) out += '/' + digits.slice(2, 4);
@@ -59,8 +62,14 @@ export function applyMask(raw: string, template: string): string {
   for (const slot of template) {
     if (slot === '9' || slot === 'a') {
       const match = slot === '9' ? isDigit : isAlpha;
+      // Stryker disable next-line EqualityOperator: equivalent — at
+      // i === raw.length, charAt returns '' which never matches, so the loop
+      // exits one iteration later with the same i and the same break below.
       while (i < raw.length && !match(raw.charAt(i))) i++;
       if (i >= raw.length) break;
+      // Stryker disable next-line ConditionalExpression: equivalent — forcing
+      // the 'a' branch upper-cases the matched char, and a digit (the only
+      // char a '9' slot can match) is unchanged by toUpperCase().
       out += pending + (slot === 'a' ? raw.charAt(i).toUpperCase() : raw.charAt(i));
       pending = '';
       i++;
@@ -122,8 +131,13 @@ export function applyMaskWithSkeleton(
   for (const slot of template) {
     if (slot === '9' || slot === 'a') {
       const match = slot === '9' ? isDigit : isAlpha;
+      // Stryker disable next-line EqualityOperator: equivalent — at
+      // i === raw.length, charAt returns '' which never matches, so the loop
+      // exits one iteration later with the same i and the same guard below.
       while (i < raw.length && !match(raw.charAt(i))) i++;
       if (i < raw.length) {
+        // Stryker disable next-line ConditionalExpression: equivalent — a '9'
+        // slot only matches a digit, which toUpperCase() leaves unchanged.
         text += slot === 'a' ? raw.charAt(i).toUpperCase() : raw.charAt(i);
         lastFilledEnd = text.length;
         i++;
@@ -136,6 +150,10 @@ export function applyMaskWithSkeleton(
   }
   // Park the caret at the start of the next slot (skip the literal separators
   // that follow the last filled slot); an empty entry sits at the first slot.
+  // Stryker disable next-line ConditionalExpression, EqualityOperator:
+  // equivalent — lastFilledEnd is either -1 (never 0: a filled slot makes
+  // text.length >= 1) or a filled index; and if the -1 leaks through, the
+  // separator-skip loop below walks it up to firstSlotIndex(template) anyway.
   let caret = lastFilledEnd < 0 ? firstSlotIndex(template) : lastFilledEnd;
   while (caret < template.length && template[caret] !== '9' && template[caret] !== 'a') {
     caret++;

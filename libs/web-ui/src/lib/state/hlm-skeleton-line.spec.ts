@@ -17,6 +17,15 @@ describe('HlmSkeletonLine', () => {
     expect(el.style.width).toBe('100%');
   });
 
+  it('defaults the height to a caption-sized 0.75rem line', () => {
+    const fixture = TestBed.createComponent(HlmSkeletonLine);
+    fixture.detectChanges();
+    const el = fixture.nativeElement.querySelector(
+      '[data-component="skeleton-line"]',
+    ) as HTMLElement;
+    expect(el.style.height).toBe('0.75rem');
+  });
+
   it('honors width and height inputs', () => {
     const fixture = TestBed.createComponent(HlmSkeletonLine);
     fixture.componentRef.setInput('width', '120px');

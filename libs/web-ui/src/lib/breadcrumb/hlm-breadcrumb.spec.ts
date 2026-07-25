@@ -119,6 +119,21 @@ describe('HlmBreadcrumb', () => {
     }
   });
 
+  it('merges a consumer class onto the root nav', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmBreadcrumbImports],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<nav hlmBreadcrumb class="custom-nav"></nav>`,
+    })
+    class NavHost {}
+    const fixture = TestBed.createComponent(NavHost);
+    fixture.detectChanges();
+    const nav = fixture.nativeElement.querySelector('nav') as HTMLElement;
+    expect(nav.classList.contains('custom-nav')).toBe(true);
+  });
+
   it('merges a consumer class onto the link (cn last-wins)', () => {
     const { link } = setup('text-ochre mx-2');
     expect(link.classList.contains('text-ochre')).toBe(true);

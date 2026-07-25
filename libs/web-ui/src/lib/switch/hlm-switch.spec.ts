@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { By } from '@angular/platform-browser';
 import { HlmSwitch } from './hlm-switch.component';
 
 // Mirrors the lib's other component specs (Vitest globals + jsdom). A small
@@ -188,6 +189,67 @@ describe('HlmSwitch', () => {
     const { button } = setupBare();
     expect(button.id).toBeTruthy();
     expect(button.id.length).toBeGreaterThan(0);
+  });
+
+  it('mints unique, well-formed auto-ids across bare instances', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmSwitch],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hlm-switch></hlm-switch><hlm-switch></hlm-switch>`,
+    })
+    class TwoBareHost {}
+    const fixture = TestBed.createComponent(TwoBareHost);
+    fixture.detectChanges();
+    const buttons = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll(
+        'button[role="switch"]',
+      ),
+    ) as HTMLButtonElement[];
+    for (const b of buttons) {
+      expect(b.id).toMatch(/^hlm-switch-\d+$/);
+    }
+    expect(buttons[0].id).not.toBe(buttons[1].id);
+  });
+
+  it('starts unchecked by default with no checked binding at all', () => {
+    const { button } = setupBare();
+    expect(button.getAttribute('data-state')).toBe('unchecked');
+    expect(button.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('handles a change with no registered CVA callback (non-forms usage)', () => {
+    const { fixture } = setupBare();
+    const sw = fixture.debugElement.query(By.directive(HlmSwitch))
+      .componentInstance as HlmSwitch;
+    const handle = (
+      sw as unknown as { handleChange(v: boolean): void }
+    ).handleChange.bind(sw);
+    expect(() => handle(true)).not.toThrow();
+    expect(sw.checked()).toBe(true);
+  });
+
+  it('marks the control touched on blur of the inner button', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmSwitch, ReactiveFormsModule],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hlm-switch [formControl]="ctrl"></hlm-switch>`,
+    })
+    class TouchHost {
+      readonly ctrl = new FormControl(false);
+    }
+    const fixture = TestBed.createComponent(TouchHost);
+    fixture.detectChanges();
+    const host = fixture.componentInstance;
+    expect(host.ctrl.touched).toBe(false);
+    const sw = fixture.debugElement.query(By.directive(HlmSwitch))
+      .componentInstance as HlmSwitch;
+    // Drive the touched path directly (brain relays its blur through this).
+    (sw as unknown as { onTouched?: () => void }).onTouched?.();
+    expect(host.ctrl.touched).toBe(true);
   });
 
   it('forwards aria-label to the inner button and nulls it on the host', () => {

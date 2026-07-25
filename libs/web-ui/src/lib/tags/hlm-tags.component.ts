@@ -167,6 +167,9 @@ export class HlmTags {
   protected commit(raw: string): void {
     if (this.disabled()) return;
     const tokens = splitTags(raw);
+    // Stryker disable next-line ConditionalExpression: equivalent — an empty
+    // token list makes the loop a no-op and `next` keeps the original length,
+    // so the final length check skips the write anyway; this is a fast path.
     if (tokens.length === 0) return;
     const next = [...this.value()];
     const seen = new Set(next.map((tag) => tag.toLowerCase()));

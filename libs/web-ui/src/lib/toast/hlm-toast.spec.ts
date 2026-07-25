@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { HlmToast } from './hlm-toast.component';
+import {
+  HlmToast,
+  TOAST_DESCRIPTION_BASE,
+  TOAST_TITLE_BASE,
+} from './hlm-toast.component';
+import { TOAST_CONTAINER_BASE } from './hlm-toast-container.component';
 import { TOAST_SEVERITIES, TOAST_SEVERITY_MAP } from './hlm-toast.variants';
 
 // Mirrors the lib's other component specs (Vitest globals + jsdom). `severity`
@@ -139,6 +144,32 @@ describe('HlmToast', () => {
       'button[data-test="hlm-toast-close"]',
     ) as HTMLButtonElement;
     expect(closeBtn.getAttribute('aria-label')).toBe('Dismiss notification');
+  });
+
+  it('defaults to info severity with empty summary/detail (unbound inputs)', () => {
+    const fixture = TestBed.createComponent(HlmToast);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.severity()).toBe('info');
+    expect(fixture.componentInstance.summary()).toBe('');
+    expect(fixture.componentInstance.detail()).toBe('');
+  });
+
+  it('treats a whitespace-only summary as empty for the close label', () => {
+    const fixture = TestBed.createComponent(TestHost);
+    fixture.componentInstance.summary = '   ';
+    fixture.detectChanges();
+    const closeBtn = fixture.nativeElement.querySelector(
+      'button[data-test="hlm-toast-close"]',
+    ) as HTMLButtonElement;
+    expect(closeBtn.getAttribute('aria-label')).toBe('Dismiss notification');
+  });
+
+  it('pins the exported title/description/container class strings', () => {
+    expect(TOAST_TITLE_BASE).toBe('font-medium leading-none tracking-tight');
+    expect(TOAST_DESCRIPTION_BASE).toBe('text-body text-ink-3');
+    expect(TOAST_CONTAINER_BASE).toBe(
+      'pointer-events-none z-toast flex flex-col gap-control-gap',
+    );
   });
 
   it('TOAST_SEVERITIES is exhaustive over TOAST_SEVERITY_MAP keys', () => {

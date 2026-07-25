@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { AccentService } from './accent.service';
+import { ACCENT_CHOICES, AccentService } from './accent.service';
 
 // jsdom under `@angular/build:unit-test` ships no usable localStorage.
 function makeStorageMock(): Storage {
@@ -147,6 +147,34 @@ describe('AccentService', () => {
     expect(document.documentElement.dataset['dsAccent']).toBe('blue');
   });
 
+  it('pins the accent choice list (token ramps exist per entry)', () => {
+    expect([...ACCENT_CHOICES]).toEqual([
+      'rose',
+      'blue',
+      'green',
+      'violet',
+      'orange',
+      'cyan',
+      'gold',
+      'magenta',
+    ]);
+  });
+
+  it('names the accent feature in the persistence warning', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => void 0);
+    vi.stubGlobal('localStorage', {
+      ...makeStorageMock(),
+      setItem: () => {
+        throw new DOMException('quota', 'QuotaExceededError');
+      },
+    });
+    TestBed.configureTestingModule({ providers: [AccentService] });
+    const svc = TestBed.inject(AccentService);
+    svc.set('orange');
+    expect(String(warn.mock.calls[0][0])).toContain('lw-accent');
+    warn.mockRestore();
+  });
+
   it('does NOT touch localStorage / document on a non-browser platform', async () => {
     vi.unstubAllGlobals();
     const { PLATFORM_ID } = await import('@angular/core');
@@ -162,6 +190,18 @@ describe('AccentService', () => {
     expect(svc.accent()).toBe('blue');
     expect(getItem).not.toHaveBeenCalled();
     expect(setItem).not.toHaveBeenCalled();
+    expect(document.documentElement.dataset['dsAccent']).toBeUndefined();
+
+    // set() must also skip persistence off-browser (the signal still moves).
+    svc.set('rose');
+    expect(svc.accent()).toBe('rose');
+    expect(setItem).not.toHaveBeenCalled();
+    expect(document.documentElement.dataset['dsAccent']).toBeUndefined();
+
+    // preview()/endPreview() are DOM-only affordances — inert off-browser.
+    svc.preview('green');
+    expect(document.documentElement.dataset['dsAccent']).toBeUndefined();
+    svc.endPreview();
     expect(document.documentElement.dataset['dsAccent']).toBeUndefined();
   });
 });

@@ -71,6 +71,29 @@ describe('HlmProgress', () => {
     expect(el.getAttribute('aria-valuenow')).toBeNull();
   });
 
+  it('renders no aria-label at all when the input is left unbound', () => {
+    @Component({
+      standalone: true,
+      imports: [HlmProgress],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hlm-progress [value]="40" />`,
+    })
+    class UnboundHost {}
+    const fixture = TestBed.createComponent(UnboundHost);
+    fixture.detectChanges();
+    const el = fixture.nativeElement.querySelector(
+      'hlm-progress',
+    ) as HTMLElement;
+    expect(el.hasAttribute('aria-label')).toBe(false);
+  });
+
+  it('reports 0% instead of dividing by a non-positive max', () => {
+    const { el } = setup({ value: 50, max: 0 });
+    expect(el.getAttribute('aria-valuenow')).toBe('0');
+    const bar = el.querySelector('span') as HTMLElement;
+    expect(bar.style.width).toBe('0%');
+  });
+
   it('reflects a label on aria-label and merges a consumer class', () => {
     const { el } = setup({ value: 10, label: 'Uploading', cls: 'mt-2' });
     expect(el.getAttribute('aria-label')).toBe('Uploading');

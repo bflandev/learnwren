@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { FormControl, NgControl, ReactiveFormsModule } from '@angular/forms';
 import { HlmAutosize } from './hlm-autosize.directive';
 
 // jsdom reports scrollHeight as 0, so this asserts the directive's contract
@@ -53,13 +53,52 @@ describe('HlmAutosize', () => {
   });
 
   it('recomputes the height on a programmatic FormControl value change', () => {
+    // Arrange
     const fixture = TestBed.createComponent(ControlHost);
     fixture.detectChanges();
     const host = fixture.nativeElement.querySelector(
       'textarea',
     ) as HTMLTextAreaElement;
+    // Poison the height so only a real re-resize can restore the derived value
+    // (the initial render already left a px height behind).
+    host.style.height = '999px';
+    // Act
     fixture.componentInstance.control.setValue('a\nb\nc');
     fixture.detectChanges();
-    expect(host.style.height).toMatch(/px$/);
+    // Assert — jsdom reports scrollHeight 0, so a re-run lands exactly at 0px.
+    expect(host.style.height).toBe('0px');
+  });
+
+  it('resets the height to auto before measuring so the element can shrink', () => {
+    // Arrange
+    const { host } = setup();
+    const writes: string[] = [];
+    Object.defineProperty(host.style, 'height', {
+      configurable: true,
+      get: () => writes.at(-1) ?? '',
+      set: (value: string) => {
+        writes.push(String(value));
+      },
+    });
+    // Act
+    host.dispatchEvent(new Event('input'));
+    // Assert — the auto reset must precede the measured px write; without it a
+    // previously-set inline height would floor scrollHeight in real browsers.
+    expect(writes).toEqual(['auto', '0px']);
+  });
+
+  it('tolerates an attached NgControl whose valueChanges stream is unavailable', () => {
+    // Arrange — a stub NgControl with a null valueChanges (the shape the
+    // AbstractControlDirective typings allow before a control attaches).
+    @Component({
+      standalone: true,
+      imports: [HlmAutosize],
+      providers: [{ provide: NgControl, useValue: { valueChanges: null } }],
+      template: `<textarea hlmAutosize></textarea>`,
+    })
+    class NullControlHost {}
+    const fixture = TestBed.createComponent(NullControlHost);
+    // Act / Assert — ngAfterViewInit must skip the subscription, not crash.
+    expect(() => fixture.detectChanges()).not.toThrow();
   });
 });

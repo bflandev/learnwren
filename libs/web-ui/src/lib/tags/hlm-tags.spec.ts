@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { vi } from 'vitest';
 import { HlmTags, splitTags } from './hlm-tags.component';
 
 describe('splitTags', () => {
@@ -236,5 +238,123 @@ describe('HlmTags', () => {
     const { input } = setup();
     expect(input.getAttribute('id')).toBeNull();
     expect(input.getAttribute('aria-labelledby')).toBeNull();
+  });
+
+  it('starts empty with a blank field on a completely unbound host', () => {
+    // Arrange — nothing bound, so the model/placeholder/id defaults render.
+    @Component({
+      standalone: true,
+      imports: [HlmTags],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hlm-tags />`,
+    })
+    class BareHost {}
+    // Act
+    const fixture = TestBed.createComponent(BareHost);
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector(
+      '[data-testid="hlm-tags-input"]',
+    ) as HTMLInputElement;
+    // Assert — no chips, empty placeholder, no labelling attrs, field enabled.
+    expect(
+      fixture.nativeElement.querySelectorAll('[data-testid="hlm-tag"]').length,
+    ).toBe(0);
+    expect(input.placeholder).toBe('');
+    expect(input.getAttribute('id')).toBeNull();
+    expect(input.getAttribute('aria-labelledby')).toBeNull();
+    expect(input.disabled).toBe(false);
+  });
+
+  it('disables the field exactly at the max and re-enables below it', () => {
+    // At the cap (length === max) the field must lock…
+    const atMax = setup({ tags: ['a', 'b'], max: 2 });
+    expect(atMax.input.disabled).toBe(true);
+    // …one below the cap it stays open.
+    const below = setup({ tags: ['a'], max: 2 });
+    expect(below.input.disabled).toBe(false);
+  });
+
+  it('lets Tab move focus when the field holds only whitespace', () => {
+    const { fixture, host, input } = setup();
+    expect(press(input, fixture, 'Tab', '   ')).toBe(false);
+    expect(host.tags).toEqual([]);
+  });
+
+  it('requests the plain-text clipboard flavor on paste', () => {
+    const { fixture, input } = setup();
+    const getData = vi.fn().mockReturnValue('alpha');
+    const event = new Event('paste') as Event & { clipboardData: unknown };
+    event.clipboardData = { getData };
+    input.dispatchEvent(event);
+    fixture.detectChanges();
+    expect(getData).toHaveBeenCalledWith('text');
+  });
+
+  it('ignores a paste without clipboard data instead of crashing', () => {
+    const { fixture, host, input } = setup({ tags: ['alpha'] });
+    // A bare paste event: clipboardData is undefined in jsdom.
+    expect(() => {
+      input.dispatchEvent(new Event('paste'));
+      fixture.detectChanges();
+    }).not.toThrow();
+    expect(host.tags).toEqual(['alpha']);
+  });
+
+  it('leaves an empty-text paste to the browser (default not prevented)', () => {
+    const { fixture, input } = setup();
+    const event = new Event('paste', { cancelable: true }) as Event & {
+      clipboardData: unknown;
+    };
+    event.clipboardData = { getData: () => '' };
+    input.dispatchEvent(event);
+    fixture.detectChanges();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('empties the field after a consumed paste', () => {
+    const { fixture, input } = setup();
+    input.value = 'bravo, charlie';
+    paste(input, fixture, 'bravo, charlie');
+    expect(input.value).toBe('');
+  });
+
+  it('does not rewrite the model when a commit adds nothing (duplicate)', () => {
+    const { fixture, host, input } = setup({ tags: ['alpha'] });
+    const before = host.tags;
+    enter(input, fixture, 'ALPHA');
+    // Same reference — the documented "write only on change" contract.
+    expect(host.tags).toBe(before);
+  });
+
+  it('blocks a programmatic remove while disabled', () => {
+    const { fixture, host } = setup({ tags: ['alpha'], disabled: true });
+    const removeBtn = fixture.nativeElement.querySelector(
+      '[aria-label="Remove alpha"]',
+    ) as HTMLButtonElement;
+    // dispatchEvent bypasses the native disabled-click suppression, so the
+    // component guard is what must hold the line.
+    removeBtn.dispatchEvent(new Event('click'));
+    fixture.detectChanges();
+    expect(host.tags).toEqual(['alpha']);
+    expect(host.removedTag).toBeNull();
+  });
+
+  it('blocks clearAll while disabled and skips the write when already empty', () => {
+    // Disabled with chips: the guard must refuse the clear.
+    const disabled = setup({ tags: ['alpha'], disabled: true });
+    const disabledTags = disabled.fixture.debugElement.query(
+      By.directive(HlmTags),
+    ).componentInstance as unknown as { clearAll(): void };
+    disabledTags.clearAll();
+    disabled.fixture.detectChanges();
+    expect(disabled.host.tags).toEqual(['alpha']);
+    // Enabled but empty: no model rewrite (same reference preserved).
+    const empty = setup();
+    const before = empty.host.tags;
+    const emptyTags = empty.fixture.debugElement.query(By.directive(HlmTags))
+      .componentInstance as unknown as { clearAll(): void };
+    emptyTags.clearAll();
+    empty.fixture.detectChanges();
+    expect(empty.host.tags).toBe(before);
   });
 });

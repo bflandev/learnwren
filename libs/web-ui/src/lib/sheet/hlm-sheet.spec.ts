@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import {
   BrnSheetContent,
   HlmSheet,
@@ -156,5 +157,61 @@ describe('HlmSheet', () => {
     const { panel } = openSheet('right', 'w-1/2');
     expect(panel?.classList.contains('w-1/2')).toBe(true);
     expect(panel?.classList.contains('bg-dialog')).toBe(true);
+  });
+
+  it('paints the scrim on the dialog overlay base merged with the consumer class', () => {
+    // Arrange / Act — the overlay wrapper computes its class regardless of
+    // open state; assert the computed merge directly (the brn child renders
+    // into the CDK layer only in a real browser).
+    const { fixture } = setup();
+    const overlay = fixture.debugElement.query(By.directive(HlmSheetOverlay))
+      .componentInstance as unknown as { computedClass(): string };
+    const classes = overlay.computedClass().split(/\s+/);
+    // Assert — DIALOG_OVERLAY_BASE tokens + the consumer class survive cn().
+    expect(classes).toContain('fixed');
+    expect(classes).toContain('inset-0');
+    expect(classes).toContain('test-overlay-class');
+  });
+
+  it('styles title, description, and close on the shared dialog part bases', () => {
+    const { panel } = openSheet();
+    const titleEl = panel?.querySelector('[hlmsheettitle]') as HTMLElement;
+    const descEl = panel?.querySelector('[hlmsheetdescription]') as HTMLElement;
+    const closeEl = panel?.querySelector(
+      'button[data-test="close"]',
+    ) as HTMLElement;
+    // DIALOG_TITLE_BASE
+    expect(titleEl.classList.contains('text-section-title')).toBe(true);
+    expect(titleEl.classList.contains('tracking-tight')).toBe(true);
+    // DIALOG_DESCRIPTION_BASE
+    expect(descEl.classList.contains('text-body')).toBe(true);
+    expect(descEl.classList.contains('text-ink-3')).toBe(true);
+    // DIALOG_CLOSE_BASE
+    expect(closeEl.classList.contains('rounded-control')).toBe(true);
+    expect(closeEl.classList.contains('opacity-70')).toBe(true);
+    expect(closeEl.classList.contains('focus-ring')).toBe(true);
+  });
+
+  it('falls back to the top-edge anchoring when rendered outside a sheet', () => {
+    // Arrange — a bare panel with no BrnSheetContent context: the optional
+    // inject must yield null and the side fall back to brain's 'top' default.
+    @Component({
+      standalone: true,
+      imports: [HlmSheetContent],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hlm-sheet-content>Bare</hlm-sheet-content>`,
+    })
+    class BareContentHost {}
+    // Act
+    const fixture = TestBed.createComponent(BareContentHost);
+    fixture.detectChanges();
+    const panel = fixture.nativeElement.querySelector(
+      'hlm-sheet-content',
+    ) as HTMLElement;
+    // Assert — base tokens + the 'top' side map applied.
+    expect(panel.classList.contains('bg-dialog')).toBe(true);
+    expect(panel.classList.contains('inset-x-0')).toBe(true);
+    expect(panel.classList.contains('top-0')).toBe(true);
+    expect(panel.classList.contains('border-b')).toBe(true);
   });
 });

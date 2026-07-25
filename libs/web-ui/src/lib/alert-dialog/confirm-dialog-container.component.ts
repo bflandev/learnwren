@@ -113,6 +113,9 @@ export class HlmConfirmDialog {
       this.loading.set(false);
       return;
     }
+    // Stryker disable next-line BooleanLiteral: equivalent — close(true)
+    // detaches and destroys the container in the same turn, so the reset of
+    // `loading` immediately before it can never render.
     this.loading.set(false);
     this._ref.close(true);
   }

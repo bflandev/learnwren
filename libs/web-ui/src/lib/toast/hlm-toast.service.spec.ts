@@ -4,7 +4,11 @@ import {
   DEFAULT_TOAST_SEVERITY_ICONS,
   resolveToastIconName,
 } from './hlm-toast-container.component';
-import { HlmToastService } from './hlm-toast.service';
+import {
+  HLM_TOAST_CONFIG,
+  HLM_TOAST_CONTAINER_COMPONENT,
+  HlmToastService,
+} from './hlm-toast.service';
 import { provideHlmToast } from './hlm-toast.providers';
 
 // Verifies the signal-backed state machine. Auto-dismiss uses `setTimeout` +
@@ -25,6 +29,11 @@ describe('HlmToastService', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    // The config-override case attaches a real container; leave no overlay
+    // DOM behind for later suites.
+    document.body
+      .querySelectorAll('.cdk-overlay-container, hlm-toast-container')
+      .forEach((n) => n.remove());
   });
 
   it('show() returns an id and pushes the toast onto the stack', () => {
@@ -68,6 +77,26 @@ describe('HlmToastService', () => {
     svc.show({ severity: 'info', summary: 'sticky', duration: 0 });
     vi.advanceTimersByTime(60_000);
     expect(svc.toasts().length).toBe(1);
+  });
+
+  it('hands out ascending positive ids starting at 1', () => {
+    const svc = makeService();
+    const a = svc.show({ severity: 'info', summary: 'A', duration: 0 });
+    const b = svc.show({ severity: 'info', summary: 'B', duration: 0 });
+    expect(a).toBe(1);
+    expect(b).toBe(2);
+  });
+
+  it('honors the injected HLM_TOAST_CONFIG duration override', () => {
+    TestBed.configureTestingModule({
+      providers: [provideHlmToast({ duration: 1000 })],
+    });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'configured' });
+    vi.advanceTimersByTime(999);
+    expect(svc.toasts().length).toBe(1);
+    vi.advanceTimersByTime(1);
+    expect(svc.toasts().length).toBe(0);
   });
 
   it('falls back to the default duration when none is provided', () => {
@@ -197,6 +226,74 @@ describe('HlmToastService — container attachment (provideHlmToast)', () => {
     // going to 2.
     const containers = document.body.querySelectorAll('hlm-toast-container');
     expect(containers.length).toBe(1);
+  });
+
+  it('names the DI tokens so injector errors stay diagnosable', () => {
+    expect(HLM_TOAST_CONFIG.toString()).toContain('HLM_TOAST_CONFIG');
+    expect(HLM_TOAST_CONTAINER_COMPONENT.toString()).toContain(
+      'HLM_TOAST_CONTAINER_COMPONENT',
+    );
+  });
+
+  it('tags the toast overlay pane, positions it top-right, and adds no backdrop', async () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'placed', duration: 0 });
+    // The global position strategy applies once the app settles.
+    await TestBed.inject(ApplicationRef).whenStable();
+    const pane = document.body.querySelector(
+      '.lw-toast-overlay',
+    ) as HTMLElement | null;
+    expect(pane).not.toBeNull();
+    // GlobalPositionStrategy top('1rem')/right('1rem') land as pane margins.
+    expect(pane?.style.marginTop).toBe('1rem');
+    expect(pane?.style.marginRight).toBe('1rem');
+    expect(document.body.querySelector('.cdk-overlay-backdrop')).toBeNull();
+  });
+
+  it('stays silent when ngDevMode is falsy and no container is provided', () => {
+    TestBed.configureTestingModule({});
+    const svc = TestBed.inject(HlmToastService);
+    const prev = (globalThis as unknown as { ngDevMode?: boolean }).ngDevMode;
+    (globalThis as unknown as { ngDevMode?: boolean }).ngDevMode = false;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => void 0);
+    try {
+      svc.show({ severity: 'info', summary: 'prod orphan' });
+      expect(svc.toasts().length).toBe(1);
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+      (globalThis as unknown as { ngDevMode?: boolean }).ngDevMode = prev;
+    }
+  });
+
+  it('points the dev warning at the provideHlmToast() fix', () => {
+    TestBed.configureTestingModule({});
+    const svc = TestBed.inject(HlmToastService);
+    const prev = (globalThis as unknown as { ngDevMode?: boolean }).ngDevMode;
+    (globalThis as unknown as { ngDevMode?: boolean }).ngDevMode = true;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => void 0);
+    try {
+      svc.show({ severity: 'info', summary: 'orphan' });
+      expect(warnSpy.mock.calls[0][0]).toContain('provideHlmToast');
+    } finally {
+      warnSpy.mockRestore();
+      (globalThis as unknown as { ngDevMode?: boolean }).ngDevMode = prev;
+    }
+  });
+
+  it('does not crash show() when MutationObserver is unavailable (SSR-ish env)', () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    vi.stubGlobal('MutationObserver', undefined);
+    try {
+      expect(() =>
+        svc.show({ severity: 'info', summary: 'no MO', duration: 0 }),
+      ).not.toThrow();
+      expect(svc.toasts().length).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('warns in dev mode and renders nothing when no container is provided', () => {
@@ -339,5 +436,202 @@ describe('HlmToastService — overlay re-assertion (top layer)', () => {
 
     expect(hidePopover).not.toHaveBeenCalled();
     expect(showPopover).not.toHaveBeenCalled();
+  });
+
+  // Popover stub that DEFERS rAF into a manual queue, so the window between
+  // the mutation callback and the rAF-time re-check is testable.
+  function armDeferredPopoverStub(svc: HlmToastService) {
+    const host = (
+      svc as unknown as { _overlayRef: { hostElement: HTMLElement } }
+    )._overlayRef.hostElement as HTMLElement & {
+      showPopover: () => void;
+      hidePopover: () => void;
+    };
+    const showPopover = vi.fn();
+    const hidePopover = vi.fn();
+    host.showPopover = showPopover;
+    host.hidePopover = hidePopover;
+    const origHasAttribute = host.hasAttribute.bind(host);
+    host.hasAttribute = (name: string) =>
+      name === 'popover' ? true : origHasAttribute(name);
+    host.matches = (sel: string) => sel === ':popover-open';
+    const rafQueue: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      rafQueue.push(cb);
+      return rafQueue.length;
+    });
+    const runRaf = () => {
+      const cbs = rafQueue.splice(0);
+      for (const cb of cbs) cb(0);
+    };
+    return { host, showPopover, hidePopover, rafQueue, runRaf };
+  }
+
+  it('re-asserts when only one node in a mixed mutation batch is an overlay', async () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'lingering', duration: 0 });
+    const { showPopover, hidePopover } = armPopoverStub(svc);
+
+    const container = document.querySelector(
+      '.cdk-overlay-container',
+    ) as HTMLElement;
+    // Record 1: a plain node, no overlay in it.
+    container.appendChild(document.createElement('div'));
+    // Record 2: two added nodes, only ONE of which is an overlay pane.
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(document.createElement('div'));
+    const backdrop = document.createElement('div');
+    backdrop.className = 'cdk-overlay-backdrop';
+    fragment.appendChild(backdrop);
+    container.appendChild(fragment);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(hidePopover).toHaveBeenCalledTimes(1);
+    expect(showPopover).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-asserts for a pane added DEEP inside an existing wrapper (subtree watch)', async () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'lingering', duration: 0 });
+    const { showPopover, hidePopover } = armPopoverStub(svc);
+
+    const container = document.querySelector(
+      '.cdk-overlay-container',
+    ) as HTMLElement;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'cdk-global-overlay-wrapper';
+    container.appendChild(wrapper);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(hidePopover).not.toHaveBeenCalled();
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'cdk-overlay-backdrop';
+    wrapper.appendChild(backdrop);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(hidePopover).toHaveBeenCalledTimes(1);
+    expect(showPopover).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-asserts for a wrapper that already CONTAINS an overlay pane', async () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'lingering', duration: 0 });
+    const { showPopover, hidePopover } = armPopoverStub(svc);
+
+    const container = document.querySelector(
+      '.cdk-overlay-container',
+    ) as HTMLElement;
+    const wrapper = document.createElement('div');
+    const pane = document.createElement('div');
+    pane.className = 'cdk-overlay-pane';
+    wrapper.appendChild(pane);
+    container.appendChild(wrapper);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(hidePopover).toHaveBeenCalledTimes(1);
+    expect(showPopover).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT re-assert for a wrapper containing only the toast pane itself', async () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'lingering', duration: 0 });
+    const { showPopover, hidePopover } = armPopoverStub(svc);
+
+    const container = document.querySelector(
+      '.cdk-overlay-container',
+    ) as HTMLElement;
+    const wrapper = document.createElement('div');
+    const pane = document.createElement('div');
+    pane.className = 'cdk-overlay-pane lw-toast-overlay';
+    wrapper.appendChild(pane);
+    container.appendChild(wrapper);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(hidePopover).not.toHaveBeenCalled();
+    expect(showPopover).not.toHaveBeenCalled();
+  });
+
+  it('never calls hidePopover when showPopover is not a function (feature detect)', async () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'lingering', duration: 0 });
+    const { host, hidePopover } = armDeferredPopoverStub(svc);
+    (host as unknown as { showPopover: unknown }).showPopover = undefined;
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+
+    await addOverlay('backdrop');
+
+    expect(hidePopover).not.toHaveBeenCalled();
+  });
+
+  it('does not re-assert a host that is not in popover mode', async () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'lingering', duration: 0 });
+    const { host, showPopover, hidePopover } = armDeferredPopoverStub(svc);
+    // Leave hasAttribute('popover') falsy but keep :popover-open matching, so
+    // only the attribute check can bail.
+    (host as unknown as { hasAttribute: (n: string) => boolean }).hasAttribute =
+      () => false;
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+
+    await addOverlay('backdrop');
+
+    expect(hidePopover).not.toHaveBeenCalled();
+    expect(showPopover).not.toHaveBeenCalled();
+  });
+
+  it('abandons a queued re-assert when the toasts clear before the frame', async () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'lingering', duration: 0 });
+    const { hidePopover, rafQueue, runRaf } = armDeferredPopoverStub(svc);
+
+    await addOverlay('backdrop');
+    expect(rafQueue.length).toBe(1);
+    svc.clear();
+    runRaf();
+
+    expect(hidePopover).not.toHaveBeenCalled();
+  });
+
+  it('abandons a queued re-assert when the popover closed before the frame', async () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'lingering', duration: 0 });
+    const { host, hidePopover, runRaf } = armDeferredPopoverStub(svc);
+
+    await addOverlay('backdrop');
+    host.matches = () => false;
+    runRaf();
+
+    expect(hidePopover).not.toHaveBeenCalled();
+  });
+
+  it('queues nothing at all when no toast is visible at mutation time', async () => {
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'gone', duration: 0 });
+    svc.clear();
+    const { hidePopover, rafQueue, runRaf } = armDeferredPopoverStub(svc);
+
+    await addOverlay('backdrop');
+    // The bail must happen at mutation time — a later toast must not resurrect
+    // a stale frame callback.
+    expect(rafQueue.length).toBe(0);
+    svc.show({ severity: 'info', summary: 'late', duration: 0 });
+    runRaf();
+
+    expect(hidePopover).not.toHaveBeenCalled();
   });
 });

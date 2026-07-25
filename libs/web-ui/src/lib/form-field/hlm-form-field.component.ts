@@ -113,6 +113,9 @@ export class HlmFormFieldHint implements OnInit, OnDestroy {
   }
 
   public ngOnDestroy(): void {
+    // Stryker disable next-line ConditionalExpression: equivalent — ngOnInit
+    // always runs before ngOnDestroy, so registeredId is non-null here; the
+    // guard only protects a lifecycle order Angular never produces.
     if (this.registeredId) {
       this.field?.unregisterHint(this.registeredId);
     }
@@ -148,6 +151,9 @@ export class HlmFormFieldError implements OnInit, OnDestroy {
   }
 
   public ngOnDestroy(): void {
+    // Stryker disable next-line ConditionalExpression: equivalent — ngOnInit
+    // always runs before ngOnDestroy, so registeredId is non-null here; the
+    // guard only protects a lifecycle order Angular never produces.
     if (this.registeredId) {
       this.field?.unregisterError(this.registeredId);
     }

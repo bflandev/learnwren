@@ -147,7 +147,9 @@ export class HlmComboboxChips<T> {
   protected readonly visible = computed<readonly T[]>(() => {
     const all = this.chips();
     const max = this.maxVisible();
-    return max > 0 && all.length > max ? all.slice(0, max) : all;
+    // slice(0, max) equals the full list whenever length <= max, so no
+    // length comparison is needed.
+    return max > 0 ? all.slice(0, max) : all;
   });
   protected readonly hiddenCount = computed(() => {
     const max = this.maxVisible();
@@ -195,9 +197,8 @@ export class HlmComboboxChips<T> {
             '[data-testid="hlm-combobox-chip"] button',
           ),
         );
-        if (buttons.length === 0) return;
-        const next = buttons[Math.min(removedIndex, buttons.length - 1)];
-        next?.focus();
+        // Empty list → index -1 → undefined → no focus, via the same `?.`.
+        buttons[Math.min(removedIndex, buttons.length - 1)]?.focus();
       },
       { injector: this.injector },
     );

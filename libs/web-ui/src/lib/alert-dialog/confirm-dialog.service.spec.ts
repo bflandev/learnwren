@@ -183,6 +183,107 @@ describe('ConfirmDialogService', () => {
     expect(panel()).toBeNull();
   });
 
+  it('paints the surface-only panel base on the container host', async () => {
+    const p = service.confirm({ header: 'H', message: 'M' });
+    await flush();
+    const el = panel() as HTMLElement;
+    for (const cls of [
+      'grid',
+      'w-full',
+      'max-w-lg',
+      'gap-4',
+      'rounded-lg',
+      'border-dialog',
+      'bg-dialog',
+      'shadow-dialog',
+    ]) {
+      expect(el.classList.contains(cls), `panel ${cls}`).toBe(true);
+    }
+    btn('[data-confirm-reject]').click();
+    await p;
+  });
+
+  it('mints sequential, well-formed aria ids per confirm() call', async () => {
+    const p = service.confirm({ header: 'H', message: 'M' });
+    await flush();
+    const el = panel() as HTMLElement;
+    const title = el.querySelector('h2') as HTMLElement;
+    const desc = el.querySelector('p') as HTMLElement;
+    expect(title.id).toMatch(/^lw-confirm-title-\d+$/);
+    expect(desc.id).toMatch(/^lw-confirm-desc-\d+$/);
+    btn('[data-confirm-reject]').click();
+    await p;
+  });
+
+  it('tags the backdrop with the app scrim class', async () => {
+    const p = service.confirm({ header: 'H', message: 'M' });
+    await flush();
+    const backdrop = document.body.querySelector(
+      '.cdk-overlay-backdrop',
+    ) as HTMLElement | null;
+    expect(backdrop).toBeTruthy();
+    expect(backdrop?.classList.contains('lw-dialog-backdrop')).toBe(true);
+    btn('[data-confirm-reject]').click();
+    await p;
+  });
+
+  it('ignores Escape while non-dismissible (modal by default)', async () => {
+    const p = service.confirm({ header: 'H', message: 'M' });
+    await flush();
+    const pane = document.body.querySelector(
+      '.cdk-overlay-pane',
+    ) as HTMLElement | null;
+    expect(pane).toBeTruthy();
+    pane?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+    await flush();
+    expect(panel()).toBeTruthy(); // still open — Esc is inert
+    btn('[data-confirm-reject]').click();
+    await expect(p).resolves.toBe(false);
+  });
+
+  it('resolves true even when no accept callback is configured', async () => {
+    const p = service.confirm({ header: 'H', message: 'M' });
+    await flush();
+    btn('[data-confirm-accept]').click();
+    await expect(p).resolves.toBe(true);
+  });
+
+  it('closes synchronously for a synchronous accept (no loading detour)', async () => {
+    const accept = vi.fn();
+    const p = service.confirm({ header: 'H', message: 'M', accept });
+    await flush();
+    const container = panel();
+    btn('[data-confirm-accept]').click();
+    // No thenable returned → the handler must reach close(true) inside the
+    // click turn, without parking on an await first.
+    expect(
+      container?.closest('.cdk-overlay-pane')?.isConnected ?? false,
+    ).toBe(false);
+    await expect(p).resolves.toBe(true);
+  });
+
+  it('focuses the safe (cancel) action initially and restores focus on close', async () => {
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+    outside.focus();
+    const p = service.confirm({ header: 'H', message: 'M' });
+    await flush();
+    await flush();
+    expect(
+      (document.activeElement as HTMLElement | null)?.getAttribute(
+        'data-confirm-reject',
+      ),
+    ).not.toBeNull();
+    btn('[data-confirm-reject]').click();
+    await p;
+    await flush();
+    await flush();
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
   it('renders an icon when provided in the data', async () => {
     const p = service.confirm({
       header: 'Delete',

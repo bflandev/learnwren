@@ -77,4 +77,10 @@ describe('provideHlmTooltipConfig', () => {
     expect(opts.arrowClasses('top')).toBe('');
     expect(opts.svgClasses).toBe('');
   });
+
+  it('pins the exported content class string (token contract)', () => {
+    expect(TOOLTIP_CONTENT_BASE).toBe(
+      'z-popover overflow-hidden rounded-tooltip bg-tooltip-bg px-tooltip-x py-tooltip-y text-helper text-tooltip-fg shadow-overlay',
+    );
+  });
 });

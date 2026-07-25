@@ -85,6 +85,36 @@ class WiredHost {
 })
 class StaticIdHost {}
 
+// Two hints and two errors with author ids, the second of each removable — pins
+// that unregistering one message only drops that one id from the association.
+@Component({
+  standalone: true,
+  imports: [
+    HlmFormField,
+    HlmFormFieldControl,
+    HlmFormFieldHint,
+    HlmFormFieldError,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <hlm-form-field>
+      <input hlmFormFieldControl />
+      <span hlmFormFieldHint id="hint-a">Hint A</span>
+      @if (showHintB()) {
+        <span hlmFormFieldHint id="hint-b">Hint B</span>
+      }
+      <span hlmFormFieldError id="err-a">Error A</span>
+      @if (showErrorB()) {
+        <span hlmFormFieldError id="err-b">Error B</span>
+      }
+    </hlm-form-field>
+  `,
+})
+class MultiMessageHost {
+  readonly showHintB = signal(true);
+  readonly showErrorB = signal(true);
+}
+
 function setupWired() {
   const fixture = TestBed.createComponent(WiredHost);
   fixture.detectChanges();
@@ -188,5 +218,91 @@ describe('HlmFormFieldControl (automated aria-describedby)', () => {
     expect(control.getAttribute('aria-describedby')).toBe(
       `external-note ${hintId()}`,
     );
+  });
+
+  it('drops only the removed hint, keeping the surviving hint registered', () => {
+    // Arrange
+    const fixture = TestBed.createComponent(MultiMessageHost);
+    fixture.detectChanges();
+    const control = fixture.nativeElement.querySelector(
+      '[hlmFormFieldControl]',
+    ) as HTMLElement;
+    expect(control.getAttribute('aria-describedby')).toBe(
+      'hint-a hint-b err-a err-b',
+    );
+    // Act — remove the second hint only.
+    fixture.componentInstance.showHintB.set(false);
+    fixture.detectChanges();
+    // Assert — hint-a survives; a filter that matched everything would strip it.
+    expect(control.getAttribute('aria-describedby')).toBe(
+      'hint-a err-a err-b',
+    );
+  });
+
+  it('drops only the removed error, keeping the surviving error registered', () => {
+    // Arrange
+    const fixture = TestBed.createComponent(MultiMessageHost);
+    fixture.detectChanges();
+    const control = fixture.nativeElement.querySelector(
+      '[hlmFormFieldControl]',
+    ) as HTMLElement;
+    // Act — remove the second error only.
+    fixture.componentInstance.showErrorB.set(false);
+    fixture.detectChanges();
+    // Assert
+    expect(control.getAttribute('aria-describedby')).toBe(
+      'hint-a hint-b err-a',
+    );
+  });
+
+  it('mints monotonically increasing error ids across instances', () => {
+    // Arrange — two bare errors; the module counter must produce two distinct
+    // non-negative ids (a decrementing counter goes negative from the second
+    // instance created in the process onward).
+    @Component({
+      standalone: true,
+      imports: [HlmFormFieldError],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `
+        <p hlmFormFieldError>One</p>
+        <p hlmFormFieldError>Two</p>
+      `,
+    })
+    class TwoErrorsHost {}
+    // Act
+    const fixture = TestBed.createComponent(TwoErrorsHost);
+    fixture.detectChanges();
+    const errors = Array.from(
+      fixture.nativeElement.querySelectorAll('[hlmFormFieldError]'),
+    ) as HTMLElement[];
+    // Assert
+    expect(errors[0].id).toMatch(/^hlm-form-field-error-\d+$/);
+    expect(errors[1].id).toMatch(/^hlm-form-field-error-\d+$/);
+    expect(errors[0].id).not.toBe(errors[1].id);
+  });
+
+  it('works standalone: hint, error, and control outside any hlm-form-field', () => {
+    // Arrange — the enclosing-field inject is optional; a bare message must
+    // render, register nowhere, and unregister safely on destroy.
+    @Component({
+      standalone: true,
+      imports: [HlmFormFieldHint, HlmFormFieldError, HlmFormFieldControl],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `
+        <span hlmFormFieldHint>Bare hint</span>
+        <span hlmFormFieldError>Bare error</span>
+        <input hlmFormFieldControl />
+      `,
+    })
+    class BareHost {}
+    // Act
+    const fixture = TestBed.createComponent(BareHost);
+    expect(() => fixture.detectChanges()).not.toThrow();
+    const control = fixture.nativeElement.querySelector(
+      '[hlmFormFieldControl]',
+    ) as HTMLElement;
+    // Assert — nothing to describe, and teardown must not dereference a field.
+    expect(control.getAttribute('aria-describedby')).toBeNull();
+    expect(() => fixture.destroy()).not.toThrow();
   });
 });

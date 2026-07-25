@@ -310,11 +310,16 @@ export class HlmReorderableList<T> {
   // The element to refocus after a keyboard move: the handle button in handle
   // modes, the row itself in `item` mode (where no button exists).
   private focusAfterMove(index: number): void {
+    // Stryker disable OptionalChaining: equivalent — the keyboard path clamps
+    // `index` into [0, items.length) before scheduling this, and rows()/
+    // handles() render exactly one element per item, so `.at(index)` and
+    // `nativeElement` are always defined on every reachable path.
     const el =
       this.handlePosition() === 'item'
         ? this.rows().at(index)?.nativeElement
         : this.handles().at(index)?.nativeElement;
     el?.focus();
+    // Stryker restore OptionalChaining
   }
 
   private move(previousIndex: number, currentIndex: number): void {
@@ -325,6 +330,7 @@ export class HlmReorderableList<T> {
     // than splice out of range and emit an array with an `undefined` hole.
     if (
       previousIndex < 0 ||
+      // Stryker disable next-line EqualityOperator, ConditionalExpression: equivalent — a previousIndex at/past the end makes splice() return no element, and the moved===undefined guard below bails identically
       previousIndex >= items.length ||
       currentIndex < 0 ||
       currentIndex >= items.length

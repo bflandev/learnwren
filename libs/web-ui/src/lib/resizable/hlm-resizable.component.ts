@@ -73,7 +73,7 @@ export class HlmResizable {
     const rect = this.el.nativeElement.getBoundingClientRect();
     const vertical = this.orientation() === 'vertical';
     const extent = vertical ? rect.height : rect.width;
-    if (extent === 0) return;
+    // A zero extent divides to ±Infinity/NaN below; the isFinite guard bails.
     const raw = (clientPos - (vertical ? rect.top : rect.left)) / extent;
     if (!Number.isFinite(raw)) return;
     this.ratio.set(this.clamp(raw));

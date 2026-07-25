@@ -112,6 +112,42 @@ describe('HlmStatePill', () => {
     ).toBe('Applied');
   });
 
+  it('models the clean state as an explicit hidden view (not a bare object)', () => {
+    const { fixture } = setup(CLEAN);
+    const view = (
+      fixture.componentInstance as unknown as {
+        view: () => { show: boolean; label: string; variant: string };
+      }
+    ).view();
+    expect(view).toEqual({ show: false, label: '', variant: 'default' });
+  });
+
+  it('honors custom labels for committing and error states', () => {
+    const fixture = TestBed.createComponent(HlmStatePill);
+    fixture.componentRef.setInput('state', { kind: 'committing' });
+    fixture.componentRef.setInput('labels', {
+      committing: 'Applying',
+      error: 'Broken',
+    });
+    fixture.detectChanges();
+    const pill = () =>
+      fixture.nativeElement.querySelector(
+        '[data-component="state-pill"]',
+      ) as HTMLElement;
+    expect(pill().textContent?.trim()).toBe('Applying');
+    fixture.componentRef.setInput('state', { kind: 'error', message: 'boom' });
+    fixture.detectChanges();
+    expect(pill().textContent?.trim()).toBe('Broken');
+  });
+
+  it('defaults the error label to "Error: <message>"', () => {
+    const { el } = setup({ kind: 'error', message: 'boom' } as CommitState);
+    const pill = el.querySelector(
+      '[data-component="state-pill"]',
+    ) as HTMLElement;
+    expect(pill.textContent?.trim()).toBe('Error: boom');
+  });
+
   it('throws on an unexpected state kind (exhaustiveness guard)', () => {
     const fixture = TestBed.createComponent(HlmStatePill);
     fixture.componentRef.setInput('state', {

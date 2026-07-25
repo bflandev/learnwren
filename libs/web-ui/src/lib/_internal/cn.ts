@@ -8,6 +8,7 @@ import { extendTailwindMerge } from 'tailwind-merge';
 const twMerge = extendTailwindMerge({
   extend: {
     theme: {
+      // Stryker disable next-line ArrayDeclaration: equivalent — tailwind-merge v3's default color scale accepts any value, so custom color names conflict-resolve (bg-/text-/border-) even with this list emptied; the registration documents the DS palette rather than changing merge behavior (verified empirically)
       color: [
         // lw core palette
         'bg',
@@ -164,6 +165,7 @@ const twMerge = extendTailwindMerge({
         'badge-category-border',
       ],
       radius: ['control', 'nav-item', 'badge', 'tooltip'],
+      // Stryker disable next-line ArrayDeclaration, StringLiteral: equivalent — tailwind-merge v3's default shadow scale accepts any value, so shadow-* names conflict-resolve even with this list emptied (verified empirically: shadow-raised/shadow-overlay merge with no registration at all)
       shadow: ['1', '2', 'raised', 'overlay', 'dialog'],
       // No named t-shirt spacing scale here (donor's xs..xl / cell-* were not
       // ported — Learn Wren keeps Tailwind's numeric spacing scale).

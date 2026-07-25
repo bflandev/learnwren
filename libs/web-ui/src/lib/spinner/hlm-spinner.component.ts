@@ -30,6 +30,9 @@ import {
   },
 })
 export class HlmSpinner {
+  // Stryker disable next-line StringLiteral: equivalent — an empty default
+  // fails the SPINNER_SIZES guard below and falls through to cva's
+  // defaultVariants, which is 'md' anyway; the rendered classes are identical.
   public readonly size = input<SpinnerSize>('md');
 
   public readonly label = input<string>('Loading');

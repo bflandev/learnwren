@@ -1,6 +1,11 @@
-import { ApplicationRef, ChangeDetectionStrategy, Component } from '@angular/core';
+import {
+  ApplicationRef,
+  ChangeDetectionStrategy,
+  Component,
+  type Type,
+} from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { CdkMenuTrigger } from '@angular/cdk/menu';
+import { CdkMenuTrigger, MENU_STACK, MenuStack } from '@angular/cdk/menu';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import { HlmMenu } from './hlm-menu.component';
 import { HlmMenuItem } from './hlm-menu-item.directive';
@@ -273,5 +278,132 @@ describe('HlmMenuItem selectedIndicator', () => {
     const row = open('check');
     expect(row.getAttribute('data-menu-check')).toBe('');
     expect(row.classList.contains(TINT_CLASS)).toBe(false);
+    expect(row.className).not.toContain('Stryker');
+  });
+});
+
+describe('HlmMenuItem defaults and guards', () => {
+  let overlayContainer: OverlayContainer;
+
+  afterEach(() => {
+    overlayContainer?.ngOnDestroy();
+    TestBed.resetTestingModule();
+    vi.unstubAllGlobals();
+  });
+
+  function openMenu(hostType: Type<unknown>) {
+    TestBed.configureTestingModule({ imports: [hostType] });
+    overlayContainer = TestBed.inject(OverlayContainer);
+    const containerEl = overlayContainer.getContainerElement();
+    const fixture = TestBed.createComponent(hostType);
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="trigger"]',
+      ) as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    return { fixture, containerEl };
+  }
+
+  it('defaults the menu root selectedIndicator to both (unbound input)', () => {
+    @Component({
+      standalone: true,
+      imports: [CdkMenuTrigger, HlmMenu, HlmMenuItem],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `
+        <button [cdkMenuTriggerFor]="menu" data-testid="trigger">Open</button>
+        <ng-template #menu>
+          <hlm-menu>
+            <button hlmMenuItem data-testid="row">Profile</button>
+          </hlm-menu>
+        </ng-template>
+      `,
+    })
+    class DefaultIndicatorHost {}
+    const { containerEl } = openMenu(DefaultIndicatorHost);
+    const row = containerEl.querySelector('[data-testid="row"]') as HTMLElement;
+    expect(row.getAttribute('data-menu-check')).toBe('');
+    expect(row.classList.contains('aria-checked:bg-selection-bg')).toBe(true);
+    // Default variant is the literal 'default', not an empty string.
+    expect(row.getAttribute('data-variant')).toBe('default');
+  });
+
+  it('renders a bare [hlmMenuItem] without an hlm-menu root (defaults apply)', () => {
+    @Component({
+      standalone: true,
+      imports: [HlmMenuItem],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      // CdkMenuItem needs a menu stack even outside a menu panel.
+      providers: [{ provide: MENU_STACK, useClass: MenuStack }],
+      template: `<div hlmMenuItem data-testid="bare">Solo</div>`,
+    })
+    class BareHost {}
+    const fixture = TestBed.createComponent(BareHost);
+    expect(() => fixture.detectChanges()).not.toThrow();
+    const row = fixture.nativeElement.querySelector(
+      '[data-testid="bare"]',
+    ) as HTMLElement;
+    expect(row.getAttribute('data-menu-check')).toBe('');
+    expect(row.classList.contains('aria-checked:bg-selection-bg')).toBe(true);
+  });
+
+  it('never stamps the native disabled attribute on a non-button host', () => {
+    @Component({
+      standalone: true,
+      imports: [CdkMenuTrigger, HlmMenu, HlmMenuItem],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `
+        <button [cdkMenuTriggerFor]="menu" data-testid="trigger">Open</button>
+        <ng-template #menu>
+          <hlm-menu>
+            <div hlmMenuItem disabled data-testid="row">Delete</div>
+          </hlm-menu>
+        </ng-template>
+      `,
+    })
+    class DivItemHost {}
+    const { containerEl } = openMenu(DivItemHost);
+    const row = containerEl.querySelector('[data-testid="row"]') as HTMLElement;
+    expect(row.getAttribute('data-disabled')).toBe('');
+    // A native disabled attribute is only meaningful (and only stamped) on a
+    // real <button> host.
+    expect(row.getAttribute('disabled')).toBeNull();
+  });
+
+  it('does not flash a disabled item even with motion enabled', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) =>
+        ({
+          matches: false,
+          media: query,
+          onchange: null,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+          addListener: () => undefined,
+          removeListener: () => undefined,
+          dispatchEvent: () => false,
+        }) as unknown as MediaQueryList,
+    );
+    @Component({
+      standalone: true,
+      imports: [CdkMenuTrigger, HlmMenu, HlmMenuItem],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `
+        <button [cdkMenuTriggerFor]="menu" data-testid="trigger">Open</button>
+        <ng-template #menu>
+          <hlm-menu>
+            <button hlmMenuItem disabled data-testid="row">Delete</button>
+          </hlm-menu>
+        </ng-template>
+      `,
+    })
+    class DisabledFlashHost {}
+    const { fixture, containerEl } = openMenu(DisabledFlashHost);
+    const row = containerEl.querySelector('[data-testid="row"]') as HTMLElement;
+    row.click();
+    fixture.detectChanges();
+    expect(row.classList.contains('ds-menu-item-flash')).toBe(false);
   });
 });

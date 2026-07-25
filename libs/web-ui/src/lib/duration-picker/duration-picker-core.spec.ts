@@ -97,6 +97,13 @@ describe('parseDuration', () => {
     expect(parseDuration('   ', false)).toBeNull();
   });
 
+  it('returns null for an entry that masks to fewer characters than the template', () => {
+    // '02:3' normalizes to a 4-char partial against the 5-char '99:99' mask —
+    // without the completeness check it would parse as a valid 02:03.
+    expect(parseDuration('02:3', false)).toBeNull();
+    expect(parseDuration('023', false)).toBeNull();
+  });
+
   it('returns null when a string is full-length but has missing numeric segments', () => {
     // The defensive check on lines 104-109 guards against a scenario where the
     // normalized string has the right length but the regex extracts fewer numeric
@@ -132,6 +139,11 @@ describe('durationToParts / partsToDuration', () => {
     expect(durationToParts(null, true)).toEqual(zero);
     expect(durationToParts(Duration.invalid('bad'), true)).toEqual(zero);
   });
+  it('carries the milliseconds component through to the parts', () => {
+    expect(
+      durationToParts(Duration.fromObject({ milliseconds: 250 }), false),
+    ).toEqual({ days: 0, hours: 0, minutes: 0, seconds: 0, milliseconds: 250 });
+  });
   it('round-trips parts back into the same total', () => {
     const parts = {
       days: 1,
@@ -164,6 +176,13 @@ describe('clampDuration', () => {
   it('treats both bounds as optional', () => {
     const v = Duration.fromObject({ hours: 99 });
     expect(clampDuration(v)).toBe(v);
+  });
+  it('returns the original object (not the bound) at an exact boundary', () => {
+    // Strict > / < : a value exactly on a bound passes through by identity.
+    const atMax = Duration.fromObject({ hours: 3 });
+    const atMin = Duration.fromObject({ hours: 1 });
+    expect(clampDuration(atMax, min, max)).toBe(atMax);
+    expect(clampDuration(atMin, min, max)).toBe(atMin);
   });
 });
 

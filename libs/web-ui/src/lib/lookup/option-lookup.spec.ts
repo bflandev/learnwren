@@ -37,6 +37,22 @@ const FRUIT = [
   'melon',
 ];
 
+// A fully manual source: every call parks a deferred the test settles by hand,
+// so supersede/stale races can be sequenced deterministically.
+function deferredSource() {
+  const pending: Array<{
+    query: string;
+    page: number;
+    resolve: (p: LookupPage<string>) => void;
+    reject: (e: unknown) => void;
+  }> = [];
+  const fetcher = (query: string, page: number): Promise<LookupPage<string>> =>
+    new Promise((resolve, reject) => {
+      pending.push({ query, page, resolve, reject });
+    });
+  return { fetcher, pending };
+}
+
 describe('OptionLookup', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
@@ -225,6 +241,149 @@ describe('OptionLookup', () => {
     lookup.search('b'); // was evicted — refetches
     await vi.runAllTimersAsync();
     expect(src.calls).toBe(4);
+  });
+
+  it('starts with a fully empty state', () => {
+    const lookup = new OptionLookup(makeSource(FRUIT).fetcher);
+    expect([...lookup.options()]).toEqual([]);
+    expect(lookup.loading()).toBe(false);
+    expect(lookup.error()).toBeNull();
+    expect(lookup.hasMore()).toBe(false);
+    expect(lookup.query()).toBe('');
+  });
+
+  it('debounces 200ms by default when no config is given', async () => {
+    const src = makeSource(FRUIT);
+    const lookup = new OptionLookup(src.fetcher);
+    lookup.search('a');
+    await vi.advanceTimersByTimeAsync(199);
+    expect(src.calls).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(src.calls).toBe(1);
+  });
+
+  it('reports hasMore false while a fresh uncached search is pending', () => {
+    const lookup = new OptionLookup(makeSource(FRUIT).fetcher, {
+      debounceMs: 200,
+    });
+    lookup.search('a');
+    expect(lookup.hasMore()).toBe(false);
+  });
+
+  it('loadMore() is a safe no-op before any page is cached', () => {
+    const src = makeSource(FRUIT);
+    const lookup = new OptionLookup(src.fetcher, { debounceMs: 0 });
+    expect(() => lookup.loadMore()).not.toThrow();
+    expect(src.calls).toBe(0);
+  });
+
+  it('a second loadMore() while one is in flight is a no-op', async () => {
+    const src = makeSource(FRUIT, 3);
+    const lookup = new OptionLookup(src.fetcher, { debounceMs: 0 });
+    lookup.search('');
+    await vi.runAllTimersAsync();
+    expect(src.calls).toBe(1);
+    lookup.loadMore();
+    expect(lookup.loading()).toBe(true); // page fetch in flight
+    lookup.loadMore(); // guarded by loading
+    await vi.runAllTimersAsync();
+    expect(src.calls).toBe(2);
+    expect(lookup.options().length).toBe(6);
+  });
+
+  it('reset() clears loading and hasMore', async () => {
+    const src = makeSource(FRUIT, 3);
+    const lookup = new OptionLookup(src.fetcher, { debounceMs: 200 });
+    lookup.search('a');
+    await vi.runAllTimersAsync();
+    expect(lookup.hasMore()).toBe(true);
+    lookup.search('uncached'); // leaves loading true inside the debounce
+    expect(lookup.loading()).toBe(true);
+    lookup.reset();
+    expect(lookup.loading()).toBe(false);
+    expect(lookup.hasMore()).toBe(false);
+  });
+
+  it('discards a stale rejection when a newer query superseded it', async () => {
+    const { fetcher, pending } = deferredSource();
+    const lookup = new OptionLookup(fetcher, { debounceMs: 0 });
+    lookup.search('a');
+    await vi.advanceTimersByTimeAsync(0); // 'a' fetch dispatched
+    lookup.search('b');
+    await vi.advanceTimersByTimeAsync(0); // 'b' fetch dispatched
+    pending[1].resolve({ items: ['b1'], hasMore: false });
+    await vi.runAllTimersAsync();
+    pending[0].reject(new Error('stale boom'));
+    await vi.runAllTimersAsync();
+    expect(lookup.error()).toBeNull();
+    expect([...lookup.options()]).toEqual(['b1']);
+  });
+
+  it('re-selecting the current cached query does not cancel an in-flight loadMore', async () => {
+    const { fetcher, pending } = deferredSource();
+    const lookup = new OptionLookup(fetcher, { debounceMs: 0 });
+    lookup.search('a');
+    await vi.advanceTimersByTimeAsync(0);
+    pending[0].resolve({ items: ['a1', 'a2'], hasMore: true });
+    await vi.runAllTimersAsync();
+    lookup.loadMore(); // page 1 in flight
+    lookup.search('a'); // contract: a no-op for the current cached query
+    pending[1].resolve({ items: ['a3'], hasMore: false });
+    await vi.runAllTimersAsync();
+    expect([...lookup.options()]).toEqual(['a1', 'a2', 'a3']);
+    expect(lookup.hasMore()).toBe(false);
+  });
+
+  it('a fetch superseded across a reset() can never be accepted later', async () => {
+    const { fetcher, pending } = deferredSource();
+    const lookup = new OptionLookup(fetcher, { debounceMs: 0 });
+    lookup.search('a');
+    await vi.advanceTimersByTimeAsync(0); // 'a' fetch in flight
+    lookup.reset();
+    lookup.search('b');
+    await vi.advanceTimersByTimeAsync(0); // 'b' fetch in flight
+    pending[0].resolve({ items: ['stale-a'], hasMore: true });
+    await vi.runAllTimersAsync();
+    // The stale 'a' page must be discarded — 'b' is still loading.
+    expect([...lookup.options()]).toEqual([]);
+    expect(lookup.loading()).toBe(true);
+    pending[1].resolve({ items: ['b1'], hasMore: false });
+    await vi.runAllTimersAsync();
+    expect([...lookup.options()]).toEqual(['b1']);
+  });
+
+  it('a fetch superseded across a destroy() can never be accepted later', async () => {
+    const { fetcher, pending } = deferredSource();
+    const lookup = new OptionLookup(fetcher, { debounceMs: 0 });
+    lookup.search('a');
+    await vi.advanceTimersByTimeAsync(0); // 'a' fetch in flight
+    lookup.destroy();
+    lookup.search('b');
+    await vi.advanceTimersByTimeAsync(0); // 'b' fetch in flight
+    pending[0].resolve({ items: ['stale-a'], hasMore: true });
+    await vi.runAllTimersAsync();
+    expect([...lookup.options()]).toEqual([]);
+    pending[1].resolve({ items: ['b1'], hasMore: false });
+    await vi.runAllTimersAsync();
+    expect([...lookup.options()]).toEqual(['b1']);
+  });
+
+  it('keeps the active query cached even with a zero cache cap', async () => {
+    const src = makeSource(FRUIT);
+    const lookup = new OptionLookup(src.fetcher, {
+      debounceMs: 0,
+      maxCacheEntries: 0,
+    });
+    lookup.search('a');
+    await vi.runAllTimersAsync();
+    expect(src.calls).toBe(1);
+    lookup.search('grape');
+    await vi.runAllTimersAsync();
+    expect(src.calls).toBe(2);
+    // The just-written active query survives its own eviction pass.
+    lookup.search('grape');
+    await vi.runAllTimersAsync();
+    expect(src.calls).toBe(2);
   });
 
   it('destroy() cancels any pending fetch and increments the seq', async () => {

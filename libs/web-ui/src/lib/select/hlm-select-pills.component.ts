@@ -124,9 +124,8 @@ export class HlmSelectPills<T> {
           '[data-testid="hlm-select-pill"] button',
         ),
       );
-      if (buttons.length === 0) return;
-      const next = buttons[Math.min(removedIndex, buttons.length - 1)];
-      next?.focus();
+      // Empty list → index -1 → undefined → no focus, via the same `?.`.
+      buttons[Math.min(removedIndex, buttons.length - 1)]?.focus();
     });
   }
 }

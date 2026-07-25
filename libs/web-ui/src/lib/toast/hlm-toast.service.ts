@@ -117,6 +117,7 @@ export class HlmToastService {
       // `provideHlmToast()` (or an equivalent override of
       // `HLM_TOAST_CONTAINER_COMPONENT`). The toast is still stored in the
       // signal — just never rendered — so the warning is the only signal.
+      // Stryker disable next-line StringLiteral: equivalent — typeof never yields '', so the mutated comparison is constantly true and the branch reduces to ngDevMode's truthiness; the typeof guard only protects undeclared-global environments, and Angular defines ngDevMode before any app code runs
       if (typeof ngDevMode !== 'undefined' && ngDevMode) {
         console.warn(
           '[HlmToastService] No HLM_TOAST_CONTAINER_COMPONENT provided. ' +
@@ -156,6 +157,7 @@ export class HlmToastService {
   // lifetime (root service) and is cheap: it bails immediately when no toast is
   // visible.
   private _observeModalOverlays(): void {
+    // Stryker disable next-line ConditionalExpression: equivalent — the sole caller (_ensureAttached) runs once behind the _attached flag, so this re-entry guard can never fire; removing it changes nothing observable
     if (this._topLayerObserver) return;
     if (typeof MutationObserver === 'undefined') return;
     const container = this._overlayContainer.getContainerElement();

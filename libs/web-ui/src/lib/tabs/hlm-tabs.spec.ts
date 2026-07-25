@@ -5,6 +5,8 @@ import { BrnTabs, BrnTabsTrigger } from '@spartan-ng/brain/tabs';
 import {
   HlmTabs,
   HlmTabsImports,
+  HlmTabsList,
+  HlmTabsTrigger,
   TABS_LIST_BASE,
   TABS_TRIGGER_BASE,
 } from './hlm-tabs.directive';
@@ -14,6 +16,8 @@ import {
   TABS_SIZES,
   TABS_SIZE_MAP,
   TABS_TRIGGER_VARIANT_MAP,
+  tabsListVariants,
+  tabsTriggerVariants,
 } from './hlm-tabs.variants';
 
 // Mirrors the lib's other directive specs (Vitest globals + jsdom). A small host
@@ -348,6 +352,61 @@ describe('HlmTabs', () => {
     // any leaked default (defensive — `default` no longer paints h-10 at
     // all post-R2, so this stays green either way).
     expect(trigger.classList.contains('h-10')).toBe(false);
+  });
+
+  it('exposes segment/default as the root-level input defaults', () => {
+    const { fixture } = setup();
+    const root = fixture.debugElement
+      .query(By.directive(HlmTabs))
+      .injector.get(HlmTabs);
+    expect(root.appearance()).toBe('segment');
+    expect(root.size()).toBe('default');
+  });
+
+  it('paints the root strip layout classes', () => {
+    const { fixture } = setup();
+    const rootEl = fixture.debugElement.query(By.directive(HlmTabs))
+      .nativeElement as HTMLElement;
+    for (const cls of ['flex', 'flex-col', 'gap-2']) {
+      expect(rootEl.classList.contains(cls), `root ${cls}`).toBe(true);
+    }
+  });
+
+  it('list + trigger fall back to segment/default with no root [hlmTabs] at all', () => {
+    // The root inject is optional; instantiate the children with no provider so
+    // the null-root fallback path actually executes.
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    TestBed.runInInjectionContext(() => {
+      const list = new HlmTabsList();
+      const trigger = new HlmTabsTrigger();
+      const listAppearance = (
+        list as unknown as { effectiveAppearance(): string }
+      ).effectiveAppearance();
+      const triggerAppearance = (
+        trigger as unknown as { effectiveAppearance(): string }
+      ).effectiveAppearance();
+      const triggerSize = (
+        trigger as unknown as { effectiveSize(): string }
+      ).effectiveSize();
+      expect(listAppearance).toBe('segment');
+      expect(triggerAppearance).toBe('segment');
+      expect(triggerSize).toBe('default');
+    });
+  });
+
+  it('cva defaults paint segment/default when no variant prop is passed', () => {
+    const listClasses = tabsListVariants({});
+    for (const cls of TABS_LIST_VARIANT_MAP.segment.split(/\s+/)) {
+      expect(listClasses, `list default ${cls}`).toContain(cls);
+    }
+    const triggerClasses = tabsTriggerVariants({});
+    for (const cls of TABS_TRIGGER_VARIANT_MAP.segment.split(/\s+/)) {
+      expect(triggerClasses, `trigger default ${cls}`).toContain(cls);
+    }
+    for (const cls of TABS_SIZE_MAP.default.split(/\s+/)) {
+      expect(triggerClasses, `trigger default size ${cls}`).toContain(cls);
+    }
   });
 
   it('applies trigger size sm / lg to override the default height + type', () => {

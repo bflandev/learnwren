@@ -2,6 +2,16 @@ import { TestBed } from '@angular/core/testing';
 import { HlmFreshFlash } from './hlm-fresh-flash.component';
 
 describe('HlmFreshFlash', () => {
+  it('defaults to inactive when the input is left unbound', () => {
+    const fixture = TestBed.createComponent(HlmFreshFlash);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.active()).toBe(false);
+    const wrap = fixture.nativeElement.querySelector(
+      '[data-component="fresh-flash"]',
+    ) as HTMLElement;
+    expect(wrap.getAttribute('data-active')).toBeNull();
+  });
+
   it('does not apply the flash class when active is false', () => {
     const fixture = TestBed.createComponent(HlmFreshFlash);
     fixture.componentRef.setInput('active', false);

@@ -451,6 +451,8 @@ describe('HlmDatePicker format hint + slot skeleton', () => {
     field().dispatchEvent(new FocusEvent('blur'));
     fixture.detectChanges();
     expect(field().value).toBe('');
+    // Collapsing an untouched skeleton is not a rejection.
+    expect(field().getAttribute('aria-invalid')).toBeNull();
   });
 
   it('fills the skeleton left-to-right as digits are typed', () => {
@@ -462,6 +464,8 @@ describe('HlmDatePicker format hint + slot skeleton', () => {
     field().dispatchEvent(new Event('input'));
     fixture.detectChanges();
     expect(field().value).toBe('12__-__-__');
+    // Typing puts the entry back in flight — it must not flag a rejection.
+    expect(field().getAttribute('aria-invalid')).toBeNull();
   });
 
   it('does not reveal the skeleton when the hint is off', () => {
@@ -642,6 +646,39 @@ describe('HlmDatePicker custom format', () => {
     const picked = host.picked();
     expect(picked).toBeTruthy();
     expect(picked?.toFormat('yyyy-MM-dd')).toBe('2025-12-31');
+    // The fallback parse must land in the picker's zone, not the host's.
+    expect(picked?.zoneName).toBe('UTC');
+  });
+
+  it('trims the draft before the custom-format fallback parse', () => {
+    const { fixture, host } = setupFormat();
+    host.format.set('dd-MMM-yyyy');
+    fixture.detectChanges();
+    const picker = host.pickerRef() as any;
+    picker.draft.set('   31-Dec-2025   ');
+    picker.commit();
+    fixture.detectChanges();
+    expect(host.picked()?.toFormat('yyyy-MM-dd')).toBe('2025-12-31');
+  });
+
+  it('prefers the standard mode parse even when a custom format is set', () => {
+    const { fixture, host, field } = setupFormat();
+    host.format.set('dd/MM/yyyy');
+    fixture.detectChanges();
+    // Standard ISO entry parses on the mode format; the custom format is only
+    // a fallback and must not veto a successful standard parse.
+    typeEntry(field(), '2025-06-15');
+    fixture.detectChanges();
+    expect(host.picked()?.toFormat('yyyy-MM-dd')).toBe('2025-06-15');
+    expect(field().getAttribute('aria-invalid')).toBeNull();
+  });
+
+  it('shows an empty field for a custom format with no value', () => {
+    const { fixture, host } = setupFormat();
+    host.format.set('dd/MM/yyyy');
+    fixture.detectChanges();
+    const picker = host.pickerRef() as any;
+    expect(picker.display()).toBe('');
   });
 });
 
@@ -1054,6 +1091,15 @@ describe('HlmDatePicker no formatHint masking', () => {
     fixture.detectChanges();
     expect(field().value).toBe('');
   });
+
+  it('leaves partial entry unpadded (insert-and-heal, no slot skeleton)', () => {
+    const { fixture, field } = setupNoHint();
+    field().value = '2025';
+    field().dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    // The overwrite-in-place branch would render '2025-__-__' instead.
+    expect(field().value).toBe('2025');
+  });
 });
 
 // Enter-key commit test (line 110)
@@ -1091,5 +1137,665 @@ describe('HlmDatePicker enter-key commit', () => {
     field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     fixture.detectChanges();
     expect(host.picked()?.toFormat('yyyy-MM-dd')).toBe('2025-07-20');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mutation-round additions: chrome classes, computed contracts, guard flows.
+// ---------------------------------------------------------------------------
+
+// Grabs the picker component instance out of any host fixture.
+function pickerOf(fixture: { debugElement: any }): any {
+  return fixture.debugElement.query(By.directive(HlmDatePicker))
+    .componentInstance;
+}
+
+describe('HlmDatePicker chrome + computed contract', () => {
+  beforeEach(purgeOverlays);
+  afterEach(purgeOverlays);
+
+  it('wraps the field in the group/relative/w-full anchor wrapper', () => {
+    const { field } = setup();
+    const wrapper = field().parentElement as HTMLElement;
+    for (const cls of ['group', 'relative', 'w-full']) {
+      expect(wrapper.classList.contains(cls), `wrapper missing \`${cls}\``).toBe(
+        true,
+      );
+    }
+  });
+
+  it('paints the popover trigger on the DATE_PICKER_TRIGGER_BASE tokens', () => {
+    const { trigger } = setup();
+    for (const cls of [
+      'rounded-md',
+      'text-input-placeholder',
+      'focus-ring',
+      'group-hover:text-ink',
+    ]) {
+      expect(
+        trigger().classList.contains(cls),
+        `trigger missing \`${cls}\``,
+      ).toBe(true);
+    }
+  });
+
+  it('pads the field for the trailing clear button only when it shows', () => {
+    const { fixture, host, field } = setup();
+    // No clear → leading padding only.
+    expect(field().classList.contains('pl-10')).toBe(true);
+    expect(field().classList.contains('pr-10')).toBe(false);
+    // Clearable + value → both paddings.
+    host.clearable.set(true);
+    host.picked.set(utcNoon(1, 5));
+    fixture.detectChanges();
+    expect(field().classList.contains('pl-10')).toBe(true);
+    expect(field().classList.contains('pr-10')).toBe(true);
+  });
+
+  it('keeps the clear button hidden when clearable but there is no value', () => {
+    const { fixture, host, root } = setup();
+    host.clearable.set(true);
+    fixture.detectChanges();
+    expect(root.querySelector('button[aria-label="Clear"]')).toBeNull();
+  });
+
+  it('shows no time sub-controls in date mode', () => {
+    const { fixture, trigger } = setup();
+    trigger().click();
+    fixture.detectChanges();
+    const panel = document.body.querySelector('hlm-popover-content');
+    expect(panel?.querySelector('[aria-label="Hour"]')).toBeNull();
+    expect(panel?.querySelector('[hlmToggleGroup]')).toBeNull();
+    expect(pickerOf(fixture).showTime()).toBe(false);
+  });
+
+  it('switches trigger icon + aria-label between calendar and clock per mode', () => {
+    const { fixture, host, trigger } = setup();
+    const picker = pickerOf(fixture);
+    expect(picker.triggerIcon()).toBe('lucideCalendar');
+    expect(picker.triggerAriaLabel()).toBe('Open date picker');
+    expect(trigger().getAttribute('aria-label')).toBe('Open date picker');
+    host.mode.set('time');
+    fixture.detectChanges();
+    expect(picker.triggerIcon()).toBe('lucideClock');
+    expect(picker.triggerAriaLabel()).toBe('Open time picker');
+    expect(trigger().getAttribute('aria-label')).toBe('Open time picker');
+  });
+
+  it('implies seconds when only milliseconds are requested', () => {
+    const { fixture, host } = setup();
+    host.showSeconds.set(false);
+    host.showMilliseconds.set(true);
+    fixture.detectChanges();
+    expect(pickerOf(fixture).precision()).toEqual({
+      seconds: true,
+      milliseconds: true,
+    });
+  });
+
+  it('never renders the meridiem toggle unless hour12 + toggle entry agree', () => {
+    const { fixture, host } = setup();
+    const picker = pickerOf(fixture);
+    // Default select entry: no toggle.
+    expect(picker.useMeridiemToggle()).toBe(false);
+    // 24-hour clock with toggle entry: still no toggle.
+    host.hour12.set(false);
+    host.meridiemEntry.set('toggle');
+    fixture.detectChanges();
+    expect(picker.useMeridiemToggle()).toBe(false);
+    // Both agree: toggle on.
+    host.hour12.set(true);
+    fixture.detectChanges();
+    expect(picker.useMeridiemToggle()).toBe(true);
+  });
+
+  it('builds the zero-padded 12-hour option ring starting at 12', () => {
+    const { fixture } = setup();
+    expect(pickerOf(fixture).hourOptions()).toEqual([
+      '12',
+      '01',
+      '02',
+      '03',
+      '04',
+      '05',
+      '06',
+      '07',
+      '08',
+      '09',
+      '10',
+      '11',
+    ]);
+  });
+
+  it('feeds the calendar the zoned committed value', () => {
+    const { fixture, host } = setup();
+    host.picked.set(utcNoon(1, 15));
+    fixture.detectChanges();
+    const calendarDate = pickerOf(fixture).calendarDate();
+    expect(calendarDate?.day).toBe(15);
+    expect(calendarDate?.month).toBe(1);
+  });
+
+  it('styles the time columns, selects, and number inputs on their chrome consts', () => {
+    // Select-entry chrome (time mode, defaults).
+    const { fixture, host, trigger } = setup();
+    host.mode.set('time');
+    fixture.detectChanges();
+    trigger().click();
+    fixture.detectChanges();
+    const panel = document.body.querySelector(
+      'hlm-popover-content',
+    ) as HTMLElement;
+    const hourBtn = panel.querySelector(
+      'button[aria-label="Hour"]',
+    ) as HTMLElement;
+    for (const cls of ['w-16', 'bg-input', 'text-center', 'rounded-control']) {
+      expect(
+        hourBtn.classList.contains(cls),
+        `hour select missing \`${cls}\``,
+      ).toBe(true);
+    }
+    const column = hourBtn.closest('div.flex-col') as HTMLElement;
+    expect(column).toBeTruthy();
+    for (const cls of ['flex', 'items-center', 'gap-1', 'text-ink-3']) {
+      expect(
+        column.classList.contains(cls),
+        `time column missing \`${cls}\``,
+      ).toBe(true);
+    }
+    // Input-entry chrome.
+    host.timeEntry.set('input');
+    fixture.detectChanges();
+    const hourInput = document.body.querySelector(
+      'input[aria-label="Hour"]',
+    ) as HTMLElement;
+    expect(hourInput.classList.contains('w-14')).toBe(true);
+    expect(hourInput.classList.contains('text-center')).toBe(true);
+  });
+});
+
+describe('HlmDatePicker time readouts', () => {
+  beforeEach(purgeOverlays);
+  afterEach(purgeOverlays);
+
+  const at = (hour: number) =>
+    DateTime.fromObject(
+      { year: 2025, month: 6, day: 15, hour, minute: 30, second: 45, millisecond: 123 },
+      { zone: 'utc' },
+    );
+
+  function readouts() {
+    const ctx = setup();
+    const picker = pickerOf(ctx.fixture);
+    return { ...ctx, picker };
+  }
+
+  it('zero-pads the 12-hour readouts and derives PM for an afternoon value', () => {
+    const { fixture, host, picker } = readouts();
+    host.picked.set(at(13));
+    fixture.detectChanges();
+    expect(picker.hourField()).toBe('01');
+    expect(picker.minuteField()).toBe('30');
+    expect(picker.secondField()).toBe('45');
+    expect(picker.millisecondField()).toBe('123');
+    expect(picker.meridiem()).toBe('PM');
+  });
+
+  it('reads the raw 24-hour value when hour12 is off', () => {
+    const { fixture, host, picker } = readouts();
+    host.hour12.set(false);
+    host.picked.set(at(13));
+    fixture.detectChanges();
+    expect(picker.hourField()).toBe('13');
+  });
+
+  it('renders noon as 12 PM and midnight as 12 AM', () => {
+    const { fixture, host, picker } = readouts();
+    host.picked.set(at(12));
+    fixture.detectChanges();
+    expect(picker.hourField()).toBe('12');
+    expect(picker.meridiem()).toBe('PM');
+    host.picked.set(at(0));
+    fixture.detectChanges();
+    expect(picker.hourField()).toBe('12');
+    expect(picker.meridiem()).toBe('AM');
+  });
+
+  it('blanks every readout when there is no value (AM placeholder meridiem)', () => {
+    const { picker } = readouts();
+    expect(picker.hourField()).toBe('');
+    expect(picker.minuteField()).toBe('');
+    expect(picker.secondField()).toBe('');
+    expect(picker.millisecondField()).toBe('');
+    expect(picker.meridiem()).toBe('AM');
+  });
+});
+
+// Only value + a fixed zone bound: every other input exercises its default.
+@Component({
+  standalone: true,
+  imports: [HlmDatePicker],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-date-picker [(value)]="picked" timezone="UTC" />`,
+})
+class DefaultsHost {
+  readonly picked = signal<DateTime | null>(null);
+}
+
+// Time mode with entry styles left at their defaults (select + select).
+@Component({
+  standalone: true,
+  imports: [HlmDatePicker],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-date-picker mode="time" timezone="UTC" />`,
+})
+class TimeDefaultsHost {}
+
+describe('HlmDatePicker input defaults', () => {
+  beforeEach(purgeOverlays);
+  afterEach(purgeOverlays);
+
+  function setupDefaults() {
+    TestBed.configureTestingModule({
+      providers: [provideDateAdapter(BrnLuxonDateAdapter)],
+    });
+    const fixture = TestBed.createComponent(DefaultsHost);
+    const host = fixture.componentInstance;
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const field = () =>
+      root.querySelector('input[hlmInput]') as HTMLInputElement;
+    return { fixture, host, field };
+  }
+
+  it('defaults to date mode with the derived ISO format hint', () => {
+    const { field } = setupDefaults();
+    expect(field().placeholder).toBe('YYYY-MM-DD');
+  });
+
+  it('displays a value on the derived mode format when no override is set', () => {
+    const { fixture, host, field } = setupDefaults();
+    host.picked.set(utcNoon(1, 5));
+    fixture.detectChanges();
+    fixture.detectChanges();
+    expect(field().value).toBe('2025-01-05');
+  });
+
+  it('enables every date by default (dateDisabled returns strict false)', () => {
+    const { fixture } = setupDefaults();
+    expect(pickerOf(fixture).dateDisabled()(utcNoon(1, 5))).toBe(false);
+  });
+
+  it('renders Hr/Min and AM/PM as select dropdowns by default in time mode', () => {
+    TestBed.configureTestingModule({
+      providers: [provideDateAdapter(BrnLuxonDateAdapter)],
+    });
+    const fixture = TestBed.createComponent(TimeDefaultsHost);
+    fixture.detectChanges();
+    const trigger = fixture.nativeElement.querySelector(
+      'button[hlmPopoverTrigger]',
+    ) as HTMLButtonElement;
+    trigger.click();
+    fixture.detectChanges();
+    const panel = document.body.querySelector('hlm-popover-content');
+    expect(
+      panel?.querySelector('button[hlmSelectTrigger][aria-label="Hour"]'),
+    ).toBeTruthy();
+    expect(
+      panel?.querySelector('button[hlmSelectTrigger][aria-label="AM or PM"]'),
+    ).toBeTruthy();
+  });
+});
+
+describe('HlmDatePicker focus / blur / clear flows', () => {
+  beforeEach(purgeOverlays);
+  afterEach(purgeOverlays);
+
+  const skeleton = '____-__-__';
+
+  function clearButton(root: HTMLElement): HTMLButtonElement {
+    return root.querySelector(
+      'button[aria-label="Clear"]',
+    ) as HTMLButtonElement;
+  }
+
+  it('keeps a populated field intact across focus and blur', () => {
+    const { fixture, host, field } = setup();
+    host.picked.set(utcNoon(1, 5));
+    fixture.detectChanges();
+    fixture.detectChanges();
+    field().dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    // Focus must not overwrite an existing value with the skeleton…
+    expect(field().value).toBe('2025-01-05');
+    field().dispatchEvent(new FocusEvent('blur'));
+    fixture.detectChanges();
+    // …and blur must not collapse a field that carries payload.
+    expect(field().value).toBe('2025-01-05');
+    expect(host.picked()).not.toBeNull();
+  });
+
+  it('clear without focus empties the field to the placeholder state', () => {
+    const { fixture, host, root, field } = setup();
+    host.clearable.set(true);
+    host.picked.set(utcNoon(1, 5));
+    fixture.detectChanges();
+    clearButton(root).click();
+    fixture.detectChanges();
+    expect(host.picked()).toBeNull();
+    expect(field().value).toBe('');
+  });
+
+  it('clear while the field holds focus re-arms the slot skeleton', () => {
+    const { fixture, host, root, field } = setup();
+    host.clearable.set(true);
+    host.picked.set(utcNoon(1, 5));
+    fixture.detectChanges();
+    field().dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    clearButton(root).click();
+    fixture.detectChanges();
+    expect(host.picked()).toBeNull();
+    expect(field().value).toBe(skeleton);
+  });
+
+  it('clear after the field has blurred empties instead of re-arming', () => {
+    const { fixture, host, root, field } = setup();
+    host.clearable.set(true);
+    host.picked.set(utcNoon(1, 5));
+    fixture.detectChanges();
+    field().dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    field().dispatchEvent(new FocusEvent('blur'));
+    fixture.detectChanges();
+    clearButton(root).click();
+    fixture.detectChanges();
+    expect(field().value).toBe('');
+  });
+
+  it('keeps aria-invalid clear when emptying an already-empty field', () => {
+    const { fixture, field } = setup();
+    typeEntry(field(), '');
+    fixture.detectChanges();
+    expect(field().getAttribute('aria-invalid')).toBeNull();
+  });
+
+  it('keeps aria-invalid clear on a programmatic clear with no value', () => {
+    const { fixture, field } = setup();
+    pickerOf(fixture).clear();
+    fixture.detectChanges();
+    expect(field().getAttribute('aria-invalid')).toBeNull();
+  });
+});
+
+// Everything about a readonly picker: the field, popover controls, and every
+// programmatic mutation path must be inert.
+@Component({
+  standalone: true,
+  imports: [HlmDatePicker],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-date-picker
+    [(value)]="picked"
+    mode="date"
+    timezone="UTC"
+    readonly
+  />`,
+})
+class ReadonlyHost {
+  readonly picked = signal<DateTime | null>(null);
+}
+
+describe('HlmDatePicker readonly guards', () => {
+  beforeEach(purgeOverlays);
+  afterEach(purgeOverlays);
+
+  function setupReadonly() {
+    TestBed.configureTestingModule({
+      providers: [provideDateAdapter(BrnLuxonDateAdapter)],
+    });
+    const fixture = TestBed.createComponent(ReadonlyHost);
+    const host = fixture.componentInstance;
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const field = () =>
+      root.querySelector('input[hlmInput]') as HTMLInputElement;
+    return { fixture, host, field, picker: pickerOf(fixture) };
+  }
+
+  it('leaves typed text unmasked and uncommitted', () => {
+    const { fixture, host, field } = setupReadonly();
+    field().value = '20250615';
+    field().dispatchEvent(new Event('input'));
+    field().dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    // onType must bail before masking rewrites the DOM…
+    expect(field().value).toBe('20250615');
+    // …and commit must bail before writing the model.
+    expect(host.picked()).toBeNull();
+  });
+
+  it('does not reveal the skeleton on focus', () => {
+    const { fixture, field } = setupReadonly();
+    field().dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    expect(field().value).toBe('');
+  });
+
+  it('refuses every programmatic mutation path', () => {
+    const { fixture, host, picker } = setupReadonly();
+    picker.clear();
+    picker.onSelect(utcNoon(6, 15));
+    picker.setHour('5');
+    picker.setMinute('5');
+    picker.setSecond('5');
+    picker.onMillisecondChange({ target: { value: '5' } } as unknown as Event);
+    picker.onMeridiem('PM');
+    picker.onNow();
+    fixture.detectChanges();
+    expect(host.picked()).toBeNull();
+  });
+});
+
+describe('HlmDatePicker time setter semantics', () => {
+  beforeEach(purgeOverlays);
+  afterEach(purgeOverlays);
+
+  const utcAt = (hour: number, minute = 30) =>
+    DateTime.fromObject(
+      { year: 2025, month: 6, day: 15, hour, minute, second: 0 },
+      { zone: 'utc' },
+    );
+
+  function setupTime() {
+    TestBed.configureTestingModule({
+      providers: [provideDateAdapter(BrnLuxonDateAdapter)],
+    });
+    const fixture = TestBed.createComponent(TimeSelectHost);
+    const host = fixture.componentInstance;
+    fixture.detectChanges();
+    return { fixture, host, picker: () => host.pickerRef() as any };
+  }
+
+  it('ignores a non-numeric value in every time setter', () => {
+    const { fixture, host, picker } = setupTime();
+    host.picked.set(utcAt(8));
+    fixture.detectChanges();
+    picker().setHour('xx');
+    picker().setMinute('xx');
+    picker().setSecond('xx');
+    picker().onMillisecondChange({
+      target: { value: 'xx' },
+    } as unknown as Event);
+    fixture.detectChanges();
+    const picked = host.picked();
+    expect(picked?.isValid).toBe(true);
+    expect(picked?.hour).toBe(8);
+    expect(picked?.minute).toBe(30);
+  });
+
+  it('maps the 12 o’clock hour through the meridiem (12 AM → 00)', () => {
+    const { fixture, host, picker } = setupTime();
+    host.picked.set(utcAt(8)); // morning → AM preserved
+    fixture.detectChanges();
+    picker().setHour('12');
+    fixture.detectChanges();
+    expect(host.picked()?.hour).toBe(0);
+  });
+
+  it('preserves an afternoon meridiem when the hour is edited (2 PM stays PM)', () => {
+    const { fixture, host, picker } = setupTime();
+    host.picked.set(utcAt(13));
+    fixture.detectChanges();
+    picker().setHour('02');
+    fixture.detectChanges();
+    expect(host.picked()?.hour).toBe(14);
+  });
+
+  it('treats the noon hour itself as PM when re-picking the hour', () => {
+    const { fixture, host, picker } = setupTime();
+    host.picked.set(utcAt(12));
+    fixture.detectChanges();
+    picker().setHour('01');
+    fixture.detectChanges();
+    expect(host.picked()?.hour).toBe(13);
+  });
+
+  it('shifts PM back to AM through the meridiem control', () => {
+    const { fixture, host, picker } = setupTime();
+    host.picked.set(utcAt(13));
+    fixture.detectChanges();
+    picker().onMeridiem('AM');
+    fixture.detectChanges();
+    expect(host.picked()?.hour).toBe(1);
+    expect(host.picked()?.minute).toBe(30);
+  });
+
+  it('treats a same-meridiem pick as a no-op (value untouched)', () => {
+    const { fixture, host, picker } = setupTime();
+    const pm = utcAt(13);
+    host.picked.set(pm);
+    fixture.detectChanges();
+    picker().onMeridiem('PM');
+    fixture.detectChanges();
+    expect(host.picked()).toBe(pm);
+    // Noon is already PM — picking PM again must not add 12 hours.
+    const noon = utcAt(12);
+    host.picked.set(noon);
+    fixture.detectChanges();
+    picker().onMeridiem('PM');
+    fixture.detectChanges();
+    expect(host.picked()).toBe(noon);
+    // And a morning value picking AM stays put.
+    const am = utcAt(8);
+    host.picked.set(am);
+    fixture.detectChanges();
+    picker().onMeridiem('AM');
+    fixture.detectChanges();
+    expect(host.picked()).toBe(am);
+  });
+});
+
+// Min/max window host: the picker must clamp typed, picked, and captured values.
+@Component({
+  standalone: true,
+  imports: [HlmDatePicker],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-date-picker
+    #picker="hlmDatePicker"
+    [(value)]="picked"
+    mode="date"
+    timezone="UTC"
+    [min]="min"
+    [max]="max"
+  />`,
+})
+class MinMaxHost {
+  readonly picked = signal<DateTime | null>(null);
+  readonly min = utcNoon(1, 10);
+  readonly max = utcNoon(1, 20);
+  readonly pickerRef = viewChild<HlmDatePicker>('picker');
+}
+
+describe('HlmDatePicker min/max clamping', () => {
+  beforeEach(purgeOverlays);
+  afterEach(purgeOverlays);
+
+  function setupMinMax() {
+    TestBed.configureTestingModule({
+      providers: [provideDateAdapter(BrnLuxonDateAdapter)],
+    });
+    const fixture = TestBed.createComponent(MinMaxHost);
+    const host = fixture.componentInstance;
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const field = () =>
+      root.querySelector('input[hlmInput]') as HTMLInputElement;
+    return { fixture, host, field, picker: () => host.pickerRef() as any };
+  }
+
+  it('clamps typed entry below the window up to min on commit', () => {
+    const { fixture, host, field } = setupMinMax();
+    typeEntry(field(), '2025-01-05');
+    fixture.detectChanges();
+    expect(host.picked()?.toISODate()).toBe('2025-01-10');
+  });
+
+  it('clamps typed entry above the window down to max on commit', () => {
+    const { fixture, host, field } = setupMinMax();
+    typeEntry(field(), '2025-01-25');
+    fixture.detectChanges();
+    expect(host.picked()?.toISODate()).toBe('2025-01-20');
+  });
+
+  it('clamps a date-mode calendar pick to the window', () => {
+    const { fixture, host, picker } = setupMinMax();
+    picker().onSelect(utcNoon(1, 5));
+    fixture.detectChanges();
+    expect(host.picked()?.toISODate()).toBe('2025-01-10');
+  });
+
+  it('clamps a captured "now" to the window (max in the past)', () => {
+    const { fixture, host, picker } = setupMinMax();
+    picker().onNow();
+    fixture.detectChanges();
+    // Today is far beyond the 2025 window, so Now must land exactly on max.
+    expect(host.picked()?.toMillis()).toBe(utcNoon(1, 20).toMillis());
+  });
+});
+
+describe('HlmDatePicker popover lifecycle safety', () => {
+  beforeEach(purgeOverlays);
+  afterEach(purgeOverlays);
+
+  it('survives a date-mode select and Now before the view initializes', () => {
+    // Before the first change detection the popover viewChild is unresolved;
+    // both close attempts must no-op through the optional chain.
+    TestBed.configureTestingModule({
+      providers: [provideDateAdapter(BrnLuxonDateAdapter)],
+    });
+    const selectFixture = TestBed.createComponent(HlmDatePicker);
+    const selectPicker = selectFixture.componentInstance as any;
+    expect(() => selectPicker.onSelect(utcNoon(1, 15))).not.toThrow();
+    expect(selectPicker.value()?.day).toBe(15);
+    const nowFixture = TestBed.createComponent(HlmDatePicker);
+    const nowPicker = nowFixture.componentInstance as any;
+    expect(() => nowPicker.onNow()).not.toThrow();
+    expect(nowPicker.value()).toBeTruthy();
+  });
+
+  it('keeps the panel open after Now outside date mode', async () => {
+    const { fixture, host, trigger } = setup();
+    host.mode.set('time');
+    fixture.detectChanges();
+    trigger().click();
+    fixture.detectChanges();
+    const now = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Now',
+    ) as HTMLButtonElement | undefined;
+    expect(now).toBeTruthy();
+    now?.click();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    fixture.detectChanges();
+    expect(document.body.querySelector('hlm-popover-content')).not.toBeNull();
   });
 });

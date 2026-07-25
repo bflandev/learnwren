@@ -25,6 +25,25 @@ class TestHost {
   emptyLabel = 'No results.';
 }
 
+// Only `state` bound: the label inputs fall back to the component defaults —
+// the surface the fully-bound TestHost (whose values merely coincide) hides.
+@Component({
+  standalone: true,
+  imports: [HlmGridState],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-grid-state [state]="state" />`,
+})
+class DefaultLabelsHost {
+  state: GridState = 'loading';
+}
+
+function setupDefaults(state: GridState) {
+  const fixture = TestBed.createComponent(DefaultLabelsHost);
+  fixture.componentInstance.state = state;
+  fixture.detectChanges();
+  return fixture.nativeElement.querySelector('hlm-grid-state') as HTMLElement;
+}
+
 function setup(state: GridState = 'loading') {
   const fixture = TestBed.createComponent(TestHost);
   fixture.componentInstance.state = state;
@@ -62,6 +81,21 @@ describe('HlmGridState', () => {
     expect(host.querySelector('hlm-spinner')).toBeNull();
     expect(host.querySelector('hlm-alert')).toBeNull();
     expect(host.textContent).toContain('No results.');
+  });
+
+  it('falls back to the default label for each state when none is bound', () => {
+    expect(setupDefaults('loading').textContent).toContain('Loading…');
+    expect(setupDefaults('error').textContent).toContain(
+      'Something went wrong.',
+    );
+    expect(setupDefaults('empty').textContent).toContain('No results.');
+  });
+
+  it('styles the message on the DS helper roles (text-body text-ink-3)', () => {
+    const host = setupDefaults('empty');
+    const message = host.querySelector('p[role="status"]') as HTMLElement;
+    expect(message.classList.contains('text-body')).toBe(true);
+    expect(message.classList.contains('text-ink-3')).toBe(true);
   });
 
   it('keeps GRID_STATES exhaustive (the canonical state set)', () => {

@@ -271,6 +271,9 @@ export class HlmDurationPicker {
   // mirrors the model except mid-edit (value only changes on commit).
   protected readonly draft = signal('');
   // Set when the last commit rejected a non-empty entry; drives aria-invalid.
+  // Stryker disable next-line BooleanLiteral: equivalent — the constructor
+  // effect unconditionally resets invalid on its first flush, before the
+  // first render can bind aria-invalid, so the initial literal is unread.
   protected readonly invalid = signal(false);
   // True while the field holds focus — gates the skeleton reveal so it appears on
   // focus and collapses back to the placeholder on blur.
