@@ -100,3 +100,34 @@ describe('DataTableFilterMenuComponent', () => {
     expect(q('[data-test="filter-value"]')).not.toBeNull();
   });
 });
+
+describe('DataTableFilterMenuComponent Clear All', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [DataTableFilterMenuComponent],
+      providers: [
+        DataTableFilterStore,
+        {
+          provide: DataTableStateService,
+          useValue: { columns: signal(COLUMNS) },
+        },
+      ],
+    });
+  });
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('empties the whole filter store', () => {
+    const fixture = TestBed.createComponent(DataTableFilterMenuComponent);
+    const store = TestBed.inject(DataTableFilterStore);
+    store.setFilter({ field: 'title', comparator: 'equals', value: 'x' });
+    store.setFilter({ field: 'other', comparator: 'equals', value: 'y' });
+    fixture.detectChanges();
+    (
+      fixture.nativeElement.querySelector(
+        '[data-test="filter-clear-all"]',
+      ) as HTMLButtonElement
+    ).click();
+    expect(store.filters()).toEqual([]);
+  });
+});

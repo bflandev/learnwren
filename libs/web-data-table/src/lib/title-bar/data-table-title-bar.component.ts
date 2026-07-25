@@ -140,10 +140,11 @@ export class DataTableTitleBarComponent {
     { value: 'spacious', label: 'Spacious' },
   ];
 
+  /** Non-hideable columns are clamped visible by the state service, so an
+   * unfiltered every() over the filtered columns is exactly the hideable-only
+   * check (and one fewer moving part). */
   protected readonly allFilteredVisible = computed(() =>
-    this.columns()
-      .filter((c) => c.hideable !== false)
-      .every((c) => this.state.isColumnVisible(c.id)),
+    this.columns().every((c) => this.state.isColumnVisible(c.id)),
   );
   protected readonly noneFilteredVisible = computed(() =>
     this.columns()
@@ -178,6 +179,7 @@ export class DataTableTitleBarComponent {
   }
   protected hideAllColumns(): void {
     for (const c of this.columns()) {
+      // Stryker disable next-line ConditionalExpression: equivalent — without the skip, toggling a non-hideable column is clamped to a no-op by the state service
       if (c.hideable === false) continue;
       if (this.state.isColumnVisible(c.id))
         this.state.toggleColumnVisibility(c.id);

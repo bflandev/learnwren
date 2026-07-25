@@ -267,3 +267,57 @@ describe('ViewPickerComponent', () => {
     expect(emitted).toBe('v2');
   });
 });
+
+// Mutation hardening: input defaults and the computed-title trimming rules.
+describe('ViewPickerComponent (defaults + title)', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', makeStorageMock());
+    localStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    TestBed.resetTestingModule();
+  });
+
+  function makeBare(spaceName?: string) {
+    TestBed.configureTestingModule({ imports: [ViewPickerComponent] });
+    const fixture = TestBed.createComponent(ViewPickerComponent);
+    fixture.componentRef.setInput('spaceId', 'space-a');
+    if (spaceName !== undefined) {
+      fixture.componentRef.setInput('spaceName', spaceName);
+    }
+    fixture.detectChanges();
+    return {
+      cmp: fixture.componentInstance,
+      internals: fixture.componentInstance as unknown as {
+        computedTitle: () => string;
+        count: () => number;
+      },
+    };
+  }
+
+  it('defaults views/viewKind/activeViewDirty', () => {
+    const { cmp, internals } = makeBare();
+    expect(cmp.views()).toEqual([]);
+    expect(internals.count()).toBe(0);
+    expect(cmp.viewKind()).toBe('system');
+    expect(cmp.activeViewDirty()).toBe(false);
+  });
+
+  it('computes a bare "Views" title for an empty space name', () => {
+    const { internals } = makeBare();
+    expect(internals.computedTitle()).toBe('Views');
+  });
+
+  it('trims a whitespace-only space name down to "Views"', () => {
+    const { internals } = makeBare('   ');
+    expect(internals.computedTitle()).toBe('Views');
+  });
+
+  it('capitalizes the trimmed space name', () => {
+    const { internals } = makeBare('sports');
+    expect(internals.computedTitle()).toBe('Sports Views');
+  });
+});

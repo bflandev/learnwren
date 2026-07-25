@@ -102,6 +102,7 @@ export class DataTableFilterEditorComponent {
 
   private readonly comparatorValue = toSignal(
     this.form.controls.comparator.valueChanges,
+    // Stryker disable next-line ObjectLiteral: equivalent — the 'equals' initial and toSignal's undefined default both map to "comparator takes a value" in showValue
     { initialValue: this.form.controls.comparator.value },
   );
   protected readonly showValue = computed(
@@ -112,6 +113,7 @@ export class DataTableFilterEditorComponent {
   // Bridge the reactive-form validity to a signal so the Apply button's
   // [disabled] refreshes under zoneless OnPush even when the form is mutated
   // programmatically (statusChanges drives the recompute).
+  // Stryker disable next-line ObjectLiteral: equivalent — the form starts INVALID (required empty value), and toSignal's undefined default is likewise !== 'VALID'
   private readonly formStatus = toSignal(this.form.statusChanges, {
     initialValue: this.form.status,
   });
@@ -142,6 +144,7 @@ export class DataTableFilterEditorComponent {
       // hlm-date-picker (a Luxon DateTime model), so deserialize before seeding
       // or the picker receives a string and renders blank.
       const column = this.state.columns().find((c) => c.id === edit.field);
+      // Stryker disable next-line BooleanLiteral: equivalent — FormGroup.setValue assigns the value control after the field control, so an unsuppressed reset is overwritten before it can be observed
       this.suppressFieldChangeReset = true;
       this.form.setValue({
         field: edit.field,
@@ -155,6 +158,7 @@ export class DataTableFilterEditorComponent {
     this.form.controls.field.valueChanges
       .pipe(takeUntilDestroyed())
       .subscribe(() => {
+        // Stryker disable next-line ConditionalExpression: equivalent — during a seed, FormGroup.setValue assigns the value control after the field control, so an unsuppressed reset is overwritten anyway
         if (!this.suppressFieldChangeReset)
           this.form.controls.value.reset(null);
       });

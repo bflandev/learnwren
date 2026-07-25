@@ -493,6 +493,153 @@ describe('DataTableStateService (sidebar presence)', () => {
   });
 });
 
+describe('DataTableStateService (mutation hardening)', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('starts with an empty column order before setColumns', () => {
+    TestBed.configureTestingModule({ providers: [DataTableStateService] });
+    const svc = TestBed.inject(DataTableStateService);
+    expect(svc.columnOrder()).toEqual([]);
+  });
+
+  it('filteredColumns returns the very same array when the filter is empty', () => {
+    const svc = build();
+    expect(svc.filteredColumns()).toBe(svc.columns());
+  });
+
+  it('noColumnsPinned is false for either single side and copes with absent sides', () => {
+    const svc = build();
+    svc.setPinSide('name', 'left');
+    expect(svc.noColumnsPinned()).toBe(false);
+    svc.setPinSide('name', false);
+    svc.setPinSide('city', 'right');
+    expect(svc.noColumnsPinned()).toBe(false);
+    svc.setPinning({});
+    expect(svc.noColumnsPinned()).toBe(true);
+  });
+
+  it('setColumns keeps pins on both sides for surviving ids', () => {
+    const svc = build();
+    svc.setPinSide('name', 'left');
+    svc.setPinSide('city', 'right');
+    svc.setColumns(COLS);
+    expect(svc.columnPinning()).toEqual({ left: ['name'], right: ['city'] });
+  });
+
+  it('keeps definition order when setColumns repeats the same set', () => {
+    const svc = build();
+    svc.setColumns(COLS);
+    expect(svc.columnOrder()).toEqual(['name', 'city', 'age']);
+  });
+
+  it('preserves a fully reversed user order across a same-set setColumns', () => {
+    const svc = build();
+    svc.setColumnOrder(['age', 'city', 'name']);
+    svc.setColumns(COLS);
+    expect(svc.columnOrder()).toEqual(['age', 'city', 'name']);
+  });
+
+  it('getPinSide reports right pins and copes with absent sides', () => {
+    const svc = build();
+    svc.setPinSide('city', 'right');
+    expect(svc.getPinSide('city')).toBe('right');
+    svc.setPinning({ left: ['name'] });
+    expect(svc.getPinSide('name')).toBe('left');
+    expect(svc.getPinSide('city')).toBe(false);
+  });
+
+  it('setPinSide works when a prior setPinning dropped a side', () => {
+    const svc = build();
+    svc.setPinning({});
+    svc.setPinSide('name', 'right');
+    expect(svc.columnPinning()).toEqual({ left: [], right: ['name'] });
+  });
+
+  it('keeps existing pins on the same side when another column is pinned', () => {
+    const svc = build();
+    svc.setPinSide('name', 'right');
+    svc.setPinSide('city', 'right');
+    expect(svc.columnPinning()).toEqual({ left: [], right: ['name', 'city'] });
+  });
+
+  it('canPin defaults to true for an unknown column id', () => {
+    expect(build().canPin('missing')).toBe(true);
+  });
+
+  it('still unpins a column that later became non-pinnable', () => {
+    const svc = build();
+    svc.setPinSide('name', 'left');
+    svc.setColumns([{ id: 'name', header: 'Name', pinnable: false }]);
+    expect(svc.getPinSide('name')).toBe('left'); // pin survives the redefine
+    svc.setPinSide('name', false);
+    expect(svc.columnPinning()).toEqual({ left: [], right: [] });
+  });
+
+  it('clearAllPins(scope) clears the scoped side and copes with absent sides', () => {
+    const svc = build();
+    svc.setPinSide('name', 'left');
+    svc.setPinSide('city', 'right');
+    svc.clearAllPins([COLS[1]]); // city
+    expect(svc.columnPinning()).toEqual({ left: ['name'], right: [] });
+    svc.setPinning({});
+    svc.clearAllPins([COLS[0]]);
+    expect(svc.columnPinning()).toEqual({ left: [], right: [] });
+  });
+
+  it('clampHideable keeps an explicit visible=true entry on a locked column', () => {
+    TestBed.configureTestingModule({ providers: [DataTableStateService] });
+    const svc = TestBed.inject(DataTableStateService);
+    svc.setColumns([{ id: 'locked', header: 'Locked', hideable: false }]);
+    svc.setVisibility({ locked: true });
+    // Only a stored `false` is clamped away; a truthy entry must survive.
+    expect(svc.columnVisibility()).toEqual({ locked: true });
+  });
+
+  it('clampHideable only drops entries for locked columns', () => {
+    TestBed.configureTestingModule({ providers: [DataTableStateService] });
+    const svc = TestBed.inject(DataTableStateService);
+    svc.setColumns([
+      { id: 'name', header: 'Name' },
+      { id: 'locked', header: 'Locked', hideable: false },
+    ]);
+    svc.setVisibility({ name: false, locked: false });
+    expect(svc.columnVisibility()).toEqual({ name: false });
+  });
+});
+
+describe('DataTableStateService (density hydration variants)', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', makeStorageMock());
+    localStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    TestBed.resetTestingModule();
+  });
+
+  it('hydrates "compact" from localStorage', () => {
+    localStorage.setItem('lw.density', 'compact');
+    TestBed.configureTestingModule({ providers: [DataTableStateService] });
+    expect(TestBed.inject(DataTableStateService).density()).toBe('compact');
+  });
+
+  it('hydrates a stored "normal" verbatim', () => {
+    localStorage.setItem('lw.density', 'normal');
+    TestBed.configureTestingModule({ providers: [DataTableStateService] });
+    expect(TestBed.inject(DataTableStateService).density()).toBe('normal');
+  });
+
+  it('hydrates to undefined when reading localStorage throws', () => {
+    vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
+      throw new Error('SecurityError');
+    });
+    TestBed.configureTestingModule({ providers: [DataTableStateService] });
+    expect(TestBed.inject(DataTableStateService).density()).toBeUndefined();
+  });
+});
+
 describe('DataTableStateService columnOrder', () => {
   afterEach(() => TestBed.resetTestingModule());
 
@@ -518,6 +665,20 @@ describe('DataTableStateService columnOrder', () => {
     svc.setColumnOrder(['age', 'city', 'name']);
     svc.resetColumnLayout();
     expect(svc.columnOrder()).toEqual(['name', 'city', 'age']);
+  });
+
+  it('slots a new column BETWEEN kept ones without flushing the kept tail early', () => {
+    // Sharper variant of the slotting test: the new id sits between kept ids,
+    // so an over-eager flush (pushing every kept id at the first match) would
+    // misplace it after the tail instead of in its definition slot.
+    const svc = build(); // order seeded name, city, age
+    svc.setColumns([
+      { id: 'name', header: 'Name' },
+      { id: 'inserted', header: 'Inserted' },
+      { id: 'city', header: 'City' },
+      { id: 'age', header: 'Age', pinnable: false },
+    ]);
+    expect(svc.columnOrder()).toEqual(['name', 'inserted', 'city', 'age']);
   });
 
   it('slots a newly-defined column into its definition position (not the end)', () => {

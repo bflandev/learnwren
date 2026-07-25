@@ -97,6 +97,7 @@ export class DataTableSidebarComponent implements OnInit {
   };
 
   private detach(): void {
+    // Stryker disable next-line ConditionalExpression: equivalent — skipping the guard only runs removeEventListener where nothing was ever attached
     if (!this.isBrowser) return;
     document.removeEventListener('mousemove', this.onMove);
     document.removeEventListener('mouseup', this.onUp);
@@ -131,6 +132,7 @@ export class DataTableSidebarComponent implements OnInit {
     if (!this.isBrowser) return DEFAULT_WIDTH;
     try {
       const raw = localStorage.getItem(WIDTH_KEY);
+      // Stryker disable next-line ConditionalExpression: equivalent — parseInt(null) is NaN, which the finite guard below also maps to the default
       const px = raw === null ? DEFAULT_WIDTH : Number.parseInt(raw, 10);
       if (!Number.isFinite(px)) return DEFAULT_WIDTH;
       return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, px));

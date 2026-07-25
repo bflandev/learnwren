@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { coerceCellValue, isBlankBulkValue } from './bulk-edit-value.util';
+import {
+  type BulkRawValue,
+  coerceCellValue,
+  isBlankBulkValue,
+} from './bulk-edit-value.util';
 
 describe('coerceCellValue', () => {
   it('string: null/undefined collapse to empty string, others stringify', () => {
@@ -53,11 +57,23 @@ describe('coerceCellValue', () => {
     expect(coerceCellValue('date', '')).toBeNull();
     expect(coerceCellValue('date', null)).toBeNull();
   });
+
+  it('date: non-string raw values clear to null', () => {
+    expect(coerceCellValue('date', 5)).toBeNull();
+    expect(coerceCellValue('date', true)).toBeNull();
+  });
+
+  it('string: undefined collapses to empty string like null', () => {
+    expect(
+      coerceCellValue('string', undefined as unknown as BulkRawValue),
+    ).toBe('');
+  });
 });
 
 describe('isBlankBulkValue', () => {
   it('treats null/undefined and whitespace-only strings as blank', () => {
     expect(isBlankBulkValue(null)).toBe(true);
+    expect(isBlankBulkValue(undefined as unknown as BulkRawValue)).toBe(true);
     expect(isBlankBulkValue('')).toBe(true);
     expect(isBlankBulkValue('   ')).toBe(true);
   });

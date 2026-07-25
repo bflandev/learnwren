@@ -1,6 +1,6 @@
 import type { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { OverlayContainer } from '@angular/cdk/overlay';
-import { Component } from '@angular/core';
+import { Component, PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { injectFlexRenderContext } from '@tanstack/angular-table';
@@ -297,6 +297,68 @@ describe('DataTableListComponent (structure)', () => {
     // Two columns, but the locked one renders no handle.
     expect(handles).toHaveLength(1);
   });
+
+  it('disables TanStack pinning for a column with pinnable:false', () => {
+    const fixture = build({
+      columns: [
+        { id: 'name', header: 'Name' },
+        { id: 'city', header: 'City', pinnable: false },
+      ],
+    });
+    const table = fixture.componentInstance.getTableForTesting();
+    expect(table.getColumn('name')?.getCanPin()).toBe(true);
+    expect(table.getColumn('city')?.getCanPin()).toBe(false);
+  });
+
+  it('defaults to an empty row set when the rows input is never bound', () => {
+    TestBed.configureTestingModule({ imports: [DataTableListComponent] });
+    const fixture = TestBed.createComponent(DataTableListComponent);
+    fixture.componentRef.setInput('columns', columns);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    expect(
+      fixture.componentInstance.getTableForTesting().getRowModel().rows,
+    ).toHaveLength(0);
+  });
+
+  it('holds an empty SortingState before the first change detection', () => {
+    // The sortingResetToken seeding effect overwrites `sorting` with sortSeed
+    // (default []) on the first flush, so the declared initial value is only
+    // observable BEFORE detectChanges. Assert it directly.
+    TestBed.configureTestingModule({ imports: [DataTableListComponent] });
+    const fixture = TestBed.createComponent(DataTableListComponent);
+    fixture.componentRef.setInput('columns', columns);
+    fixture.componentRef.setInput('rows', rows);
+    const cmp = fixture.componentInstance as unknown as {
+      sorting(): unknown;
+    };
+    expect(cmp.sorting()).toEqual([]);
+  });
+
+  it('starts with an empty SortingState and reports no active sort until one is set', () => {
+    const fixture = build();
+    const cmp = fixture.componentInstance as unknown as {
+      hasActiveSort(): boolean;
+    };
+    const table = fixture.componentInstance.getTableForTesting();
+    expect(table.getState().sorting).toEqual([]);
+    expect(cmp.hasActiveSort()).toBe(false);
+    table.setSorting([{ id: 'name', desc: false }]);
+    fixture.detectChanges();
+    expect(cmp.hasActiveSort()).toBe(true);
+  });
+
+  it("maps a null cell value and a missing key both to '' in the accessor", () => {
+    const fixture = build({
+      columns: [{ id: 'v', header: 'V' }],
+      rows: [{ v: null }, {}],
+    });
+    const modelRows = fixture.componentInstance
+      .getTableForTesting()
+      .getRowModel().rows;
+    expect(modelRows[0].getValue('v')).toBe('');
+    expect(modelRows[1].getValue('v')).toBe('');
+  });
 });
 
 describe('DataTableListComponent (sortMode)', () => {
@@ -446,6 +508,56 @@ describe('DataTableListComponent (sortMode)', () => {
       fixture.componentInstance.getTableForTesting().getState().sorting,
     ).toEqual([{ id: 'age', desc: true }]);
   });
+
+  it('keeps the same sorting array reference when the token changes with an equal seed', () => {
+    // Arrange: seed a sort, then re-seed with an equal-by-value (new array) seed.
+    const fixture = build();
+    fixture.componentRef.setInput('sortSeed', [{ id: 'name', desc: true }]);
+    fixture.componentRef.setInput('sortingResetToken', 'view-a');
+    fixture.detectChanges();
+    const table = fixture.componentInstance.getTableForTesting();
+    const before = table.getState().sorting;
+    // Act
+    fixture.componentRef.setInput('sortSeed', [{ id: 'name', desc: true }]);
+    fixture.componentRef.setInput('sortingResetToken', 'view-b');
+    fixture.detectChanges();
+    // Assert: the equality guard skipped the write entirely — same reference.
+    expect(table.getState().sorting).toBe(before);
+  });
+
+  it('reseeds when only a later sort entry differs (index-sensitive equality)', () => {
+    const fixture = build();
+    fixture.componentRef.setInput('sortingResetToken', 'view-a');
+    fixture.detectChanges();
+    const table = fixture.componentInstance.getTableForTesting();
+    table.setSorting([
+      { id: 'name', desc: false },
+      { id: 'age', desc: true },
+    ]);
+    fixture.detectChanges();
+    fixture.componentRef.setInput('sortSeed', [
+      { id: 'name', desc: false },
+      { id: 'city', desc: false },
+    ]);
+    fixture.componentRef.setInput('sortingResetToken', 'view-b');
+    fixture.detectChanges();
+    expect(table.getState().sorting).toEqual([
+      { id: 'name', desc: false },
+      { id: 'city', desc: false },
+    ]);
+  });
+
+  it('reseeds when only the sort direction differs for the same column', () => {
+    const fixture = build();
+    fixture.componentRef.setInput('sortSeed', [{ id: 'name', desc: false }]);
+    fixture.componentRef.setInput('sortingResetToken', 'view-a');
+    fixture.detectChanges();
+    const table = fixture.componentInstance.getTableForTesting();
+    fixture.componentRef.setInput('sortSeed', [{ id: 'name', desc: true }]);
+    fixture.componentRef.setInput('sortingResetToken', 'view-b');
+    fixture.detectChanges();
+    expect(table.getState().sorting).toEqual([{ id: 'name', desc: true }]);
+  });
 });
 
 describe('DataTableListComponent (filters)', () => {
@@ -559,6 +671,80 @@ describe('DataTableListComponent (filters)', () => {
     expect(emitted).toEqual([
       [{ field: 'name', comparator: 'equals', value: 'X' }],
     ]);
+  });
+
+  it('keeps the same filters array reference when the token changes with an equal seed', () => {
+    const fixture = build();
+    fixture.componentRef.setInput('filterSeed', [
+      { field: 'city', comparator: 'equals', value: 'London' },
+    ]);
+    fixture.componentRef.setInput('filterResetToken', 'view-a');
+    fixture.detectChanges();
+    const store = fixture.debugElement.injector.get(DataTableFilterStore);
+    const before = store.filters();
+    // Same content, brand-new seed array/objects: value-equality must skip the write.
+    fixture.componentRef.setInput('filterSeed', [
+      { field: 'city', comparator: 'equals', value: 'London' },
+    ]);
+    fixture.componentRef.setInput('filterResetToken', 'view-b');
+    fixture.detectChanges();
+    expect(store.filters()).toBe(before);
+  });
+
+  it('treats an order-swapped but identical filter set as equal (no reseed)', () => {
+    const fixture = build();
+    const f1 = { field: 'name', comparator: 'equals', value: 'A' } as const;
+    const f2 = { field: 'city', comparator: 'equals', value: 'B' } as const;
+    fixture.componentRef.setInput('filterSeed', [f1, f2]);
+    fixture.componentRef.setInput('filterResetToken', 'view-a');
+    fixture.detectChanges();
+    const store = fixture.debugElement.injector.get(DataTableFilterStore);
+    const before = store.filters();
+    fixture.componentRef.setInput('filterSeed', [{ ...f2 }, { ...f1 }]);
+    fixture.componentRef.setInput('filterResetToken', 'view-b');
+    fixture.detectChanges();
+    expect(store.filters()).toBe(before);
+  });
+
+  it.each([
+    ['field', { field: 'city', comparator: 'equals', value: 'X' }],
+    ['comparator', { field: 'name', comparator: 'contains', value: 'X' }],
+    ['value', { field: 'name', comparator: 'equals', value: 'Y' }],
+  ] as const)(
+    'reseeds when only the %s differs between the store and the seed',
+    (_part, seedRow) => {
+      const fixture = build();
+      fixture.componentRef.setInput('filterSeed', [
+        { field: 'name', comparator: 'equals', value: 'X' },
+      ]);
+      fixture.componentRef.setInput('filterResetToken', 'view-a');
+      fixture.detectChanges();
+      const store = fixture.debugElement.injector.get(DataTableFilterStore);
+      fixture.componentRef.setInput('filterSeed', [seedRow]);
+      fixture.componentRef.setInput('filterResetToken', 'view-b');
+      fixture.detectChanges();
+      expect(store.filters()).toEqual([seedRow]);
+    },
+  );
+
+  it('reseeds when only part of a multi-filter set overlaps', () => {
+    const fixture = build();
+    const shared = { field: 'name', comparator: 'equals', value: 'A' } as const;
+    fixture.componentRef.setInput('filterSeed', [
+      shared,
+      { field: 'city', comparator: 'equals', value: 'B' },
+    ]);
+    fixture.componentRef.setInput('filterResetToken', 'view-a');
+    fixture.detectChanges();
+    const store = fixture.debugElement.injector.get(DataTableFilterStore);
+    const nextSeed = [
+      shared,
+      { field: 'age', comparator: 'equals', value: 'C' } as const,
+    ];
+    fixture.componentRef.setInput('filterSeed', nextSeed);
+    fixture.componentRef.setInput('filterResetToken', 'view-b');
+    fixture.detectChanges();
+    expect(store.filters()).toEqual(nextSeed);
   });
 });
 
@@ -836,9 +1022,96 @@ describe('DataTableListComponent (behaviour)', () => {
       virtualizer.getVirtualItems as unknown as { mockRestore: () => void }
     ).mockRestore();
   });
+
+  it("resolves sortDirFor to 'asc'/'desc' for sorted columns and null otherwise", () => {
+    const fixture = build();
+    const table = fixture.componentInstance.getTableForTesting();
+    table.setSorting([
+      { id: 'name', desc: false },
+      { id: 'age', desc: true },
+    ]);
+    fixture.detectChanges();
+    const cmp = fixture.componentInstance as unknown as {
+      sortDirFor(id: string): 'asc' | 'desc' | null;
+    };
+    expect(cmp.sortDirFor('name')).toBe('asc');
+    expect(cmp.sortDirFor('age')).toBe('desc');
+    expect(cmp.sortDirFor('city')).toBeNull();
+  });
+
+  it('exposes multi-sort positions only when two or more sorts are active', () => {
+    const fixture = build();
+    const table = fixture.componentInstance.getTableForTesting();
+    const cmp = fixture.componentInstance as unknown as {
+      multiSortIndexFor(id: string): number | null;
+    };
+    table.setSorting([{ id: 'name', desc: false }]);
+    fixture.detectChanges();
+    expect(cmp.multiSortIndexFor('name')).toBeNull(); // single sort: no badge
+    table.setSorting([
+      { id: 'name', desc: false },
+      { id: 'age', desc: true },
+    ]);
+    fixture.detectChanges();
+    expect(cmp.multiSortIndexFor('name')).toBe(0);
+    expect(cmp.multiSortIndexFor('age')).toBe(1);
+    expect(cmp.multiSortIndexFor('city')).toBeNull(); // unsorted column
+  });
+
+  it('replaces (not duplicates) the entry when addMultiSort targets an already-sorted column', () => {
+    const fixture = build();
+    const table = fixture.componentInstance.getTableForTesting();
+    const cmp = fixture.componentInstance as unknown as {
+      onAddMultiSort(id: string, dir: 'asc' | 'desc'): void;
+    };
+    table.setSorting([{ id: 'name', desc: false }]);
+    fixture.detectChanges();
+    cmp.onAddMultiSort('name', 'desc');
+    fixture.detectChanges();
+    expect(table.getState().sorting).toEqual([{ id: 'name', desc: true }]);
+  });
+
+  it('appends addMultiSort for a new column after the existing entries with the chosen direction', () => {
+    const fixture = build();
+    const table = fixture.componentInstance.getTableForTesting();
+    const cmp = fixture.componentInstance as unknown as {
+      onAddMultiSort(id: string, dir: 'asc' | 'desc'): void;
+    };
+    table.setSorting([{ id: 'name', desc: false }]);
+    fixture.detectChanges();
+    cmp.onAddMultiSort('age', 'desc');
+    fixture.detectChanges();
+    expect(table.getState().sorting).toEqual([
+      { id: 'name', desc: false },
+      { id: 'age', desc: true },
+    ]);
+  });
+
+  it('clearSort removes only the chosen column from a multi-sort', () => {
+    const fixture = build();
+    const table = fixture.componentInstance.getTableForTesting();
+    const cmp = fixture.componentInstance as unknown as {
+      onClearSort(id: string): void;
+    };
+    table.setSorting([
+      { id: 'name', desc: false },
+      { id: 'age', desc: true },
+    ]);
+    fixture.detectChanges();
+    cmp.onClearSort('name');
+    fixture.detectChanges();
+    expect(table.getState().sorting).toEqual([{ id: 'age', desc: true }]);
+  });
 });
 
 describe('DataTableListComponent (column sizing)', () => {
+  it('uses live (onChange) column resize mode', () => {
+    const fixture = build();
+    expect(
+      fixture.componentInstance.getTableForTesting().options.columnResizeMode,
+    ).toBe('onChange');
+  });
+
   afterEach(() => {
     document.body.innerHTML = '';
     TestBed.resetTestingModule();
@@ -1170,6 +1443,114 @@ describe('DataTableListComponent (row selection)', () => {
     // A re-render that does not change the token must preserve the selection.
     fixture.detectChanges();
     expect(table.getIsAllRowsSelected()).toBe(true);
+  });
+
+  it('locks the selection column: no sorting, no resizing, empty header, pinnable', () => {
+    const { fixture } = buildWithSelection();
+    const col = fixture.componentInstance
+      .getTableForTesting()
+      .getColumn(SELECTION_COLUMN_ID);
+    expect(col?.getCanSort()).toBe(false);
+    expect(col?.getCanResize()).toBe(false);
+    expect(col?.getCanPin()).toBe(true);
+    expect(col?.columnDef.header).toBe('');
+  });
+
+  it('sizes the selection column for checkbox+menu only while editing is off (default)', () => {
+    const { fixture } = buildWithSelection();
+    // 56px = checkbox + row menu; the 88px register is editing-only.
+    expect(
+      fixture.componentInstance
+        .getTableForTesting()
+        .getColumn(SELECTION_COLUMN_ID)
+        ?.getSize(),
+    ).toBe(56);
+  });
+
+  it('normalizes absent pinning sides to empty arrays when TanStack writes pinning back', () => {
+    const { fixture } = buildWithSelection();
+    const table = fixture.componentInstance.getTableForTesting();
+    const state = fixture.componentRef.injector.get(DataTableStateService);
+    table.setColumnPinning({
+      left: [SELECTION_COLUMN_ID, 'name'],
+      right: ['city', SELECTION_COLUMN_ID],
+    });
+    fixture.detectChanges();
+    // The synthetic column is stripped from BOTH sides of the stored state.
+    expect(state.columnPinning()).toEqual({ left: ['name'], right: ['city'] });
+    // A value-updater with absent sides must store clean empty arrays.
+    table.setColumnPinning({});
+    fixture.detectChanges();
+    expect(state.columnPinning()).toEqual({ left: [], right: [] });
+  });
+
+  it('keeps stored pinning clean when the selection column itself is pinned via the table', () => {
+    const { fixture } = buildWithSelection();
+    const table = fixture.componentInstance.getTableForTesting();
+    const state = fixture.componentRef.injector.get(DataTableStateService);
+    table.getColumn(SELECTION_COLUMN_ID)?.pin('left');
+    fixture.detectChanges();
+    expect(state.columnPinning().left).toEqual([]);
+    table.getColumn(SELECTION_COLUMN_ID)?.pin('right');
+    fixture.detectChanges();
+    expect(state.columnPinning().right).toEqual([]);
+    // The synthetic column still renders pinned left via effectivePinning.
+    expect(table.getState().columnPinning.left).toEqual([SELECTION_COLUMN_ID]);
+  });
+
+  it('dedupes the synthetic id and defaults missing sides in the pinning fed to TanStack', () => {
+    const { fixture } = buildWithSelection();
+    const table = fixture.componentInstance.getTableForTesting();
+    const state = fixture.componentRef.injector.get(DataTableStateService);
+    // Stored state may carry the synthetic id (a consumer writing state
+    // directly); the effective pinning must not double it.
+    state.setPinning({ left: [SELECTION_COLUMN_ID, 'city'] });
+    fixture.detectChanges();
+    expect(table.getState().columnPinning.left).toEqual([
+      SELECTION_COLUMN_ID,
+      'city',
+    ]);
+    expect(table.getState().columnPinning.right).toEqual([]);
+    // A missing left side defaults to just the selection column.
+    state.setPinning({ right: ['city'] });
+    fixture.detectChanges();
+    expect(table.getState().columnPinning.left).toEqual([SELECTION_COLUMN_ID]);
+    expect(table.getState().columnPinning.right).toEqual(['city']);
+  });
+
+  it('never injects the selection column into the pinning when selection is disabled', () => {
+    const fixture = build();
+    const pinning = fixture.componentInstance
+      .getTableForTesting()
+      .getState().columnPinning;
+    expect(pinning.left ?? []).toEqual([]);
+    expect(pinning.right ?? []).toEqual([]);
+  });
+
+  it('emits only rows whose selection flag is true (false entries are filtered out)', () => {
+    const { fixture, emitted } = buildWithSelection();
+    const table = fixture.componentInstance.getTableForTesting();
+    table.setRowSelection({ '0': true, '1': false });
+    fixture.detectChanges();
+    expect(emitted[emitted.length - 1]).toEqual([rows[0]]);
+  });
+
+  it('leaves the row selection untouched when the reset token changes while selection is disabled', () => {
+    const fixture = build();
+    const table = fixture.componentInstance.getTableForTesting();
+    table.setRowSelection({ '0': true });
+    fixture.detectChanges();
+    fixture.componentRef.setInput('selectionResetToken', 'view-b');
+    fixture.detectChanges();
+    expect(table.getState().rowSelection).toEqual({ '0': true });
+  });
+
+  it('does not re-emit selectionChange when the reset token changes with nothing selected', () => {
+    const { fixture, emitted } = buildWithSelection();
+    const before = emitted.length;
+    fixture.componentRef.setInput('selectionResetToken', 'view-b');
+    fixture.detectChanges();
+    expect(emitted.length).toBe(before);
   });
 });
 
@@ -1837,6 +2218,212 @@ describe('DataTableListComponent (inline editing)', () => {
       containerEl.querySelector('[data-test="row-action-separator"]'),
     ).toBeNull();
   });
+
+  it('captures the row geometry from the header height, virtual start, and scroll offset', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+    });
+    const cmp = fixture.componentInstance;
+    const scrollEl = fixture.nativeElement.querySelector(
+      '.qa-table__scroll',
+    ) as HTMLElement;
+    const thead = scrollEl.querySelector('thead') as HTMLElement;
+    Object.defineProperty(thead, 'offsetHeight', {
+      value: 30,
+      configurable: true,
+    });
+    Object.defineProperty(scrollEl, 'scrollTop', {
+      value: 20,
+      configurable: true,
+      writable: true,
+    });
+    cmp.toggleEditForTesting('0', 100, 44);
+    const state = cmp.editStateForTesting();
+    // top = header height (30) + virtual start (100) − scrollTop (20)
+    expect(state?.top).toBe(110);
+    expect(state?.height).toBe(44);
+  });
+
+  it('falls back to the editing selection width when the selection column is absent', () => {
+    const fixture = buildEditing({});
+    const cmp = fixture.componentInstance;
+    expect(() => cmp.toggleEditForTesting('0', 0, 44)).not.toThrow();
+    expect(cmp.editStateForTesting()?.selectWidth).toBe(88);
+  });
+
+  it('ignores an editor save when no edit is in progress', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+    });
+    const cmp = fixture.componentInstance;
+    const emitted: RowSaveEvent[] = [];
+    cmp.rowSave.subscribe((e) => emitted.push(e));
+    expect(() =>
+      cmp.onEditorSaveForTesting([{ field: 'name', value: 'X' }]),
+    ).not.toThrow();
+    expect(emitted).toEqual([]);
+  });
+
+  it('edit-layer sync is a safe no-op when no editor is open', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+    });
+    const cmp = fixture.componentInstance;
+    expect(() => cmp.syncEditLayerForTesting()).not.toThrow();
+    expect(cmp.editStateForTesting()).toBeNull();
+  });
+
+  it('patches the layer when only the viewport width changes', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+    });
+    const cmp = fixture.componentInstance;
+    cmp.toggleEditForTesting('0', 0, 44);
+    const scrollEl = fixture.nativeElement.querySelector(
+      '.qa-table__scroll',
+    ) as HTMLElement;
+    Object.defineProperty(scrollEl, 'clientWidth', {
+      value: 500,
+      configurable: true,
+    });
+    // clientHeight stays at the captured jsdom default (0).
+    cmp.syncEditLayerForTesting();
+    const state = cmp.editStateForTesting();
+    expect(state?.layerWidth).toBe(500);
+    expect(state?.layerHeight).toBe(0);
+  });
+
+  it('patches the layer when only the viewport height changes', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+    });
+    const cmp = fixture.componentInstance;
+    cmp.toggleEditForTesting('0', 0, 44);
+    const scrollEl = fixture.nativeElement.querySelector(
+      '.qa-table__scroll',
+    ) as HTMLElement;
+    Object.defineProperty(scrollEl, 'clientHeight', {
+      value: 300,
+      configurable: true,
+    });
+    cmp.syncEditLayerForTesting();
+    const state = cmp.editStateForTesting();
+    expect(state?.layerHeight).toBe(300);
+    expect(state?.layerWidth).toBe(0);
+  });
+
+  it('keeps the exact same edit state object when the viewport box is unchanged', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+    });
+    const cmp = fixture.componentInstance;
+    cmp.toggleEditForTesting('0', 0, 44);
+    const before = cmp.editStateForTesting();
+    cmp.syncEditLayerForTesting();
+    expect(cmp.editStateForTesting()).toBe(before);
+  });
+
+  it('projects the column header text into each editor field', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+    });
+    const cmp = fixture.componentInstance;
+    cmp.toggleEditForTesting('0', 0, 44);
+    expect(cmp.editStateForTesting()?.fields.map((f) => f.header)).toEqual([
+      'Name',
+      'City',
+      'Age',
+    ]);
+  });
+
+  it('flows custom min/max widths from the column into the editor field', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+      columns: [{ id: 'name', header: 'Name', minWidth: 80, maxWidth: 500 }],
+      rows: [{ name: 'Ada' }],
+    });
+    const cmp = fixture.componentInstance;
+    cmp.toggleEditForTesting('0', 0, 44);
+    expect(cmp.editStateForTesting()?.fields[0]).toMatchObject({
+      minWidth: 80,
+      maxWidth: 500,
+    });
+  });
+
+  it('projects the option label/value pairs into a combobox field', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+      columns: [
+        {
+          id: 'brand',
+          header: 'Brand',
+          options: [
+            { label: 'Acme', value: 'acme' },
+            { label: 'Globex', value: 'globex' },
+          ],
+        },
+      ],
+      rows: [{ brand: 'acme' }],
+    });
+    const cmp = fixture.componentInstance;
+    cmp.toggleEditForTesting('0', 0, 44);
+    expect(
+      cmp.editStateForTesting()?.fields.find((f) => f.id === 'brand')?.options,
+    ).toEqual([
+      { label: 'Acme', value: 'acme' },
+      { label: 'Globex', value: 'globex' },
+    ]);
+  });
+
+  it('keeps a null option-backed value null and a plain numeric value numeric', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+      columns: [
+        { id: 'tier', header: 'Tier', options: [{ label: 'One', value: '1' }] },
+        { id: 'count', header: 'Count' },
+      ],
+      rows: [{ tier: null, count: 7 }],
+    });
+    const cmp = fixture.componentInstance;
+    cmp.toggleEditForTesting('0', 0, 44);
+    const fields = cmp.editStateForTesting()?.fields;
+    // A null lookup value must NOT be stringified to 'null'.
+    expect(fields?.find((f) => f.id === 'tier')?.value).toBeNull();
+    // A plain (non-lookup) numeric value stays a number.
+    expect(fields?.find((f) => f.id === 'count')?.value).toBe(7);
+  });
+
+  it('maps column types to editor controls: number, boolean=switch, date, text fallback', () => {
+    const fixture = buildEditing({
+      enableSelection: true,
+      enableEditing: true,
+      columns: [
+        { id: 'n', header: 'N', type: 'number' },
+        { id: 'b', header: 'B', type: 'boolean' },
+        { id: 'd', header: 'D', type: 'date' },
+        { id: 's', header: 'S' },
+      ],
+      rows: [{ n: 1, b: true, d: '2026-01-01', s: 'x' }],
+    });
+    const cmp = fixture.componentInstance;
+    cmp.toggleEditForTesting('0', 0, 44);
+    expect(cmp.editStateForTesting()?.fields.map((f) => f.type)).toEqual([
+      'number',
+      'switch',
+      'date',
+      'text',
+    ]);
+  });
 });
 
 @Component({
@@ -2324,6 +2911,74 @@ describe('DataTableListComponent (infinite scroll)', () => {
     component.scrollToRowIndex(-1);
     expect(spy).toHaveBeenCalledTimes(1); // negative index is a no-op
   });
+
+  it('scrollToRowIndex(0) scrolls to the first row (0 is a valid index)', () => {
+    const { component } = renderList({ rows: makeRows(50) });
+    const spy = vi.spyOn(component.virtualizerForTesting(), 'scrollToIndex');
+    component.scrollToRowIndex(0);
+    expect(spy).toHaveBeenCalledWith(0, { align: 'start' });
+  });
+
+  it('emits endReached when remaining equals the threshold exactly (boundary)', async () => {
+    const { component } = renderList({ rows: makeRows(200) });
+    const el = component.scrollRefForTesting().nativeElement;
+    // threshold = 44px * 25 rows = 1100; remaining = 2000 - 300 - 600 = 1100.
+    setScroll(el, 300, 600, 2000);
+    const spy = vi.fn();
+    component.endReached.subscribe(spy);
+    el.dispatchEvent(new Event('scroll'));
+    await flushAnimationFrame();
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it('feeds the overscan input, row count, and resolved row height into the virtualizer options', () => {
+    const { component } = renderList({
+      overscanRows: 7,
+      rows: makeRows(50),
+    });
+    const options = (
+      component.virtualizerForTesting() as unknown as {
+        options: () => {
+          overscan: number;
+          count: number;
+          estimateSize: (i: number) => number;
+        };
+      }
+    ).options();
+    expect(options.overscan).toBe(7);
+    expect(options.count).toBe(50);
+    expect(options.estimateSize(0)).toBe(44);
+  });
+
+  it('cancels the pending scroll frame on destroy', () => {
+    const { fixture, component } = renderList({ rows: makeRows(50) });
+    const el = component.scrollRefForTesting().nativeElement;
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame');
+    const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
+    el.dispatchEvent(new Event('scroll'));
+    const handle = rafSpy.mock.results[rafSpy.mock.results.length - 1]
+      ?.value as number;
+    expect(handle).toBeGreaterThan(0);
+    fixture.destroy();
+    expect(cancelSpy).toHaveBeenCalledWith(handle);
+    rafSpy.mockRestore();
+    cancelSpy.mockRestore();
+  });
+
+  it('does not cancel a zero frame handle when destroyed with no pending scroll', () => {
+    const { fixture } = renderList({ rows: makeRows(10) });
+    const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
+    fixture.destroy();
+    expect(cancelSpy.mock.calls.some((c) => c[0] === 0)).toBe(false);
+    cancelSpy.mockRestore();
+  });
+
+  it('shows no loading footer by default', () => {
+    const { fixture } = renderList({ rows: makeRows(5) });
+    expect(
+      fixture.nativeElement.querySelector('[data-test="loading-more"]'),
+    ).toBeNull();
+  });
 });
 
 describe('DataTableListComponent (pinned-column rendering)', () => {
@@ -2735,6 +3390,102 @@ describe('columnLayoutResetToken', () => {
     // actually changed (default `undefined` is the mount value).
     expect(state.columnPinning()).toEqual({ left: ['name'], right: [] });
   });
+
+  it('preserves a peer-applied layout when mounting with a non-undefined token', () => {
+    // Same PVED-10945 scenario, but the view identity is already bound at
+    // mount: the first effect run must only SEED the token, never reset.
+    TestBed.configureTestingModule({ imports: [DataTableListComponent] });
+    const fixture = TestBed.createComponent(DataTableListComponent);
+    fixture.componentRef.setInput('columns', columns);
+    fixture.componentRef.setInput('rows', rows);
+    fixture.componentRef.setInput('columnLayoutResetToken', 'space1:view1');
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.setPinning({ left: ['name'], right: [] });
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    expect(state.columnPinning()).toEqual({ left: ['name'], right: [] });
+  });
+
+  it('resets when only hidden columns are dirty (no pins, no order)', () => {
+    const fixture = build();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    // Mixed map: one hidden entry among explicit visible ones.
+    state.setVisibility(() => ({ city: false, name: true }));
+    fixture.componentRef.setInput('columnLayoutResetToken', 'space1:view2');
+    fixture.detectChanges();
+    expect(state.columnVisibility()).toEqual({});
+  });
+
+  it('skips the reset when the layout is at defaults (visible-only entries, no pins, no order)', () => {
+    const fixture = build();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    // Explicit-visible entries are NOT dirty; a reset would wipe this map to {}.
+    state.setVisibility(() => ({ name: true }));
+    fixture.componentRef.setInput('columnLayoutResetToken', 'space1:view2');
+    fixture.detectChanges();
+    expect(state.columnVisibility()).toEqual({ name: true });
+  });
+
+  it('resets when only a left pin is dirty', () => {
+    const fixture = build();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.setPinning({ left: ['name'] }); // right side deliberately absent
+    fixture.componentRef.setInput('columnLayoutResetToken', 'space1:view2');
+    fixture.detectChanges();
+    expect(state.columnPinning()).toEqual({ left: [], right: [] });
+  });
+
+  it('resets when only a right pin is dirty', () => {
+    const fixture = build();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.setPinning({ right: ['name'] }); // left side deliberately absent
+    fixture.componentRef.setInput('columnLayoutResetToken', 'space1:view2');
+    fixture.detectChanges();
+    expect(state.columnPinning()).toEqual({ left: [], right: [] });
+  });
+
+  it('resets when only the column order is dirty', () => {
+    const fixture = build();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.setColumnOrder(['city', 'age', 'name']);
+    fixture.componentRef.setInput('columnLayoutResetToken', 'space1:view2');
+    fixture.detectChanges();
+    expect(state.columnOrder()).toEqual(['name', 'city', 'age']);
+  });
+
+  it('resets hidden columns when the pinning state lacks a right side entirely', () => {
+    // `pin.right` may legitimately be absent (setPinning stores verbatim); the
+    // dirty check must cope without touching .length on undefined.
+    const fixture = build();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.setVisibility(() => ({ city: false }));
+    state.setPinning({ left: [] }); // right side deliberately absent
+    fixture.componentRef.setInput('columnLayoutResetToken', 'space1:view2');
+    fixture.detectChanges();
+    expect(state.columnVisibility()).toEqual({});
+  });
+
+  it('skips the reset when the stored order is empty and nothing else is dirty', () => {
+    // An empty order means "definition order": it must not count as dirty even
+    // though its joined form differs from the joined definition ids.
+    const fixture = build();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.setColumnOrder([]);
+    state.setVisibility(() => ({ name: true })); // sentinel: wiped only by a reset
+    fixture.componentRef.setInput('columnLayoutResetToken', 'space1:view2');
+    fixture.detectChanges();
+    expect(state.columnVisibility()).toEqual({ name: true });
+  });
+
+  it('does not treat an order equal to the definition order as dirty', () => {
+    const fixture = build();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.setColumnOrder(['name', 'city', 'age']); // matches definition order
+    state.setVisibility(() => ({ name: true })); // sentinel: wiped only by a reset
+    fixture.componentRef.setInput('columnLayoutResetToken', 'space1:view2');
+    fixture.detectChanges();
+    expect(state.columnVisibility()).toEqual({ name: true });
+  });
 });
 
 describe('enableColumnReorder / column order', () => {
@@ -2811,6 +3562,73 @@ describe('enableColumnReorder / column order', () => {
       currentIndex: 2,
     } as CdkDragDrop<unknown>);
     expect(state.columnOrder()).toEqual(before);
+    // With reorder disabled, TanStack must be fed an EMPTY order (definition
+    // order), not the stored one and not any sentinel.
+    expect(
+      fixture.componentInstance.getTableForTesting().getState().columnOrder,
+    ).toEqual([]);
+  });
+
+  it('onColumnDrop falls back to the definition order when the stored order is empty', () => {
+    const fixture = build();
+    fixture.componentRef.setInput('enableColumnReorder', true);
+    fixture.detectChanges();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.setColumnOrder([]); // e.g. a consumer cleared the stored order
+    const comp = fixture.componentInstance as unknown as {
+      onColumnDrop: (e: CdkDragDrop<unknown>) => void;
+    };
+    comp.onColumnDrop({
+      previousIndex: 0,
+      currentIndex: 2,
+    } as CdkDragDrop<unknown>);
+    // The reorder is applied to the column DEFINITION ids, not to junk.
+    expect(state.columnOrder()).toEqual(['city', 'age', 'name']);
+  });
+
+  it('feeds an empty order to TanStack while the stored order is empty (selection on)', () => {
+    // The shared state seeds the order from the column definitions, so the
+    // empty-order passthrough is only observable with an empty column set —
+    // it must stay [] (definition order), not gain the synthetic id.
+    TestBed.configureTestingModule({ imports: [DataTableListComponent] });
+    const fixture = TestBed.createComponent(DataTableListComponent);
+    fixture.componentRef.setInput('columns', []);
+    fixture.componentRef.setInput('rows', rows);
+    fixture.componentRef.setInput('enableSelection', true);
+    fixture.componentRef.setInput('enableColumnReorder', true);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    expect(
+      fixture.componentInstance.getTableForTesting().getState().columnOrder,
+    ).toEqual([]);
+  });
+
+  it('leads the stored order with the selection column when selection is on', () => {
+    TestBed.configureTestingModule({ imports: [DataTableListComponent] });
+    const fixture = TestBed.createComponent(DataTableListComponent);
+    fixture.componentRef.setInput('columns', columns);
+    fixture.componentRef.setInput('rows', rows);
+    fixture.componentRef.setInput('enableSelection', true);
+    fixture.componentRef.setInput('enableColumnReorder', true);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.setColumnOrder(['city', 'age', 'name']);
+    fixture.detectChanges();
+    expect(
+      fixture.componentInstance.getTableForTesting().getState().columnOrder,
+    ).toEqual([SELECTION_COLUMN_ID, 'city', 'age', 'name']);
+  });
+
+  it('feeds the stored order verbatim when selection is off', () => {
+    const fixture = build();
+    fixture.componentRef.setInput('enableColumnReorder', true);
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.setColumnOrder(['city', 'age', 'name']);
+    fixture.detectChanges();
+    expect(
+      fixture.componentInstance.getTableForTesting().getState().columnOrder,
+    ).toEqual(['city', 'age', 'name']);
   });
 });
 
@@ -2826,5 +3644,53 @@ describe('drag handles', () => {
     expect(
       fixture.nativeElement.querySelectorAll('[data-test="drag-handle"]').length,
     ).toBe(3);
+  });
+});
+
+describe('DataTableListComponent (server platform)', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    TestBed.resetTestingModule();
+  });
+
+  function createServerFixture() {
+    TestBed.configureTestingModule({
+      imports: [DataTableListComponent],
+      providers: [{ provide: PLATFORM_ID, useValue: 'server' }],
+    });
+    const fixture = TestBed.createComponent(DataTableListComponent);
+    fixture.componentRef.setInput('columns', columns);
+    fixture.componentRef.setInput('rows', rows);
+    document.body.appendChild(fixture.nativeElement);
+    return fixture;
+  }
+
+  it('handles scroll synchronously on the server (no animation-frame deferral)', () => {
+    const fixture = createServerFixture();
+    fixture.detectChanges();
+    const spy = vi.fn();
+    fixture.componentInstance.firstVisibleRowChange.subscribe(spy);
+    const el = fixture.nativeElement.querySelector(
+      '.qa-table__scroll',
+    ) as HTMLElement;
+    el.dispatchEvent(new Event('scroll'));
+    // No rAF flush: the SSR branch runs the handler in the same task.
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it('does not invalidate the virtualizer measurements on the server', async () => {
+    const fixture = createServerFixture();
+    const virtualizer = (
+      fixture.componentInstance as unknown as {
+        virtualizer: { measure: () => void };
+      }
+    ).virtualizer;
+    const spy = vi.spyOn(virtualizer, 'measure');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.componentRef.setInput('rowHeightPx', 72);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(spy).not.toHaveBeenCalled();
   });
 });

@@ -503,3 +503,127 @@ describe('DataTableTitleBarComponent (selection cluster)', () => {
     expect(cleared).toBe(1);
   });
 });
+
+// Direct-instance tests for the protected computeds and pin/visibility helpers:
+// mutation hardening the DOM-level suites above cannot reach cheaply.
+describe('DataTableTitleBarComponent (computed state + pin helpers)', () => {
+  const MIXED: DataTableColumn[] = [
+    { id: 'a', header: 'A', hideable: true },
+    { id: 'b', header: 'B' },
+    { id: 'locked', header: 'Locked', hideable: false },
+  ];
+
+  interface BarInternals {
+    allFilteredVisible: () => boolean;
+    noneFilteredVisible: () => boolean;
+    noneFilteredPinned: () => boolean;
+    densityOptions: readonly { value: string; label: string }[];
+    setFilter: (v: string) => void;
+    hideAllColumns: () => void;
+    getPinSide: (id: string) => 'left' | 'right' | false;
+    pinValue: (id: string) => 'left' | 'right' | 'none';
+    onPinChange: (id: string, v: unknown) => void;
+    clearAllPins: () => void;
+  }
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    TestBed.resetTestingModule();
+  });
+
+  function buildBar() {
+    TestBed.configureTestingModule({
+      imports: [DataTableTitleBarComponent],
+      providers: [DataTableStateService, DataTableFilterStore],
+    });
+    const fixture = TestBed.createComponent(DataTableTitleBarComponent);
+    const state = TestBed.inject(DataTableStateService);
+    state.setColumns(MIXED);
+    fixture.detectChanges();
+    return {
+      fixture,
+      state,
+      bar: fixture.componentInstance as unknown as BarInternals,
+      cmp: fixture.componentInstance,
+    };
+  }
+
+  it('defaults the view inputs and exposes the three density options', () => {
+    const { cmp, bar } = buildBar();
+    expect(cmp.activeViewKind()).toBe('system');
+    expect(cmp.activeViewDirty()).toBe(false);
+    expect(bar.densityOptions).toEqual([
+      { value: 'compact', label: 'Compact' },
+      { value: 'normal', label: 'Normal' },
+      { value: 'spacious', label: 'Spacious' },
+    ]);
+  });
+
+  it('all/none visibility computeds react to mixed visibility', () => {
+    const { state, bar } = buildBar();
+    expect(bar.allFilteredVisible()).toBe(true);
+    expect(bar.noneFilteredVisible()).toBe(false);
+    state.toggleColumnVisibility('a');
+    expect(bar.allFilteredVisible()).toBe(false);
+    expect(bar.noneFilteredVisible()).toBe(false);
+    state.toggleColumnVisibility('b');
+    // Only the locked column remains visible — it does not count against "none".
+    expect(bar.noneFilteredVisible()).toBe(true);
+    expect(bar.allFilteredVisible()).toBe(false);
+  });
+
+  it('noneFilteredPinned flips when any column is pinned', () => {
+    const { state, bar } = buildBar();
+    expect(bar.noneFilteredPinned()).toBe(true);
+    state.setPinSide('a', 'left');
+    expect(bar.noneFilteredPinned()).toBe(false);
+    state.setPinSide('a', false);
+    expect(bar.noneFilteredPinned()).toBe(true);
+  });
+
+  it('hideAllColumns hides hideable columns only and keeps pre-hidden ones hidden', () => {
+    const { state, bar } = buildBar();
+    state.toggleColumnVisibility('b'); // pre-hidden: must stay hidden
+    bar.hideAllColumns();
+    expect(state.isColumnVisible('a')).toBe(false);
+    expect(state.isColumnVisible('b')).toBe(false);
+    expect(state.isColumnVisible('locked')).toBe(true);
+  });
+
+  it('pinValue/onPinChange round-trip through the state service', () => {
+    const { state, bar } = buildBar();
+    expect(bar.pinValue('a')).toBe('none');
+    bar.onPinChange('a', 'left');
+    expect(bar.getPinSide('a')).toBe('left');
+    expect(bar.pinValue('a')).toBe('left');
+    bar.onPinChange('a', 'right');
+    expect(state.getPinSide('a')).toBe('right');
+    expect(bar.pinValue('a')).toBe('right');
+    bar.onPinChange('a', 'none');
+    expect(state.getPinSide('a')).toBe(false);
+    expect(bar.pinValue('a')).toBe('none');
+  });
+
+  it('onPinChange("none") clears a stale pin even on a non-pinnable column', () => {
+    // A non-pinnable column can still hold a stale pin (e.g. written before the
+    // column became non-pinnable). Choosing "none" must clear it — the canPin
+    // gate applies only to ADDING a pin, never to removing one.
+    const { state, bar } = buildBar();
+    state.setColumns([
+      ...MIXED,
+      { id: 'nopin', header: 'NoPin', pinnable: false },
+    ]);
+    state.setPinning({ left: ['nopin'], right: [] });
+    bar.onPinChange('nopin', 'none');
+    expect(state.getPinSide('nopin')).toBe(false);
+  });
+
+  it('setFilter writes through and clearAllPins clears the scoped pins', () => {
+    const { state, bar } = buildBar();
+    state.setPinSide('a', 'left');
+    bar.clearAllPins();
+    expect(state.noColumnsPinned()).toBe(true);
+    bar.setFilter('lo'); // matches only "Locked"
+    expect(state.columnsFilter()).toBe('lo');
+  });
+});

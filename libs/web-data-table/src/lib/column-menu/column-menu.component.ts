@@ -120,15 +120,19 @@ export class ColumnMenuComponent {
    * Both live in separate overlays, so the menu must be dismissed explicitly
    * before the anchored editor pops. */
   protected openFilterEditor(): void {
+    // Stryker disable next-line OptionalChaining: equivalent — signal viewChild queries resolve at component creation (verified empirically: defined even before the first detectChanges), so the guard is type-level only
     this.menuTrigger()?.close();
+    // Stryker disable next-line OptionalChaining: equivalent — signal viewChild queries resolve at component creation (verified empirically: defined even before the first detectChanges), so the guard is type-level only
     this.editorPopover()?.open();
   }
 
   protected closeFilterEditor(): void {
+    // Stryker disable next-line OptionalChaining: equivalent — signal viewChild queries resolve at component creation (verified empirically: defined even before the first detectChanges), so the guard is type-level only
     this.editorPopover()?.close();
   }
 
   protected onFilterCommitted(): void {
+    // Stryker disable next-line OptionalChaining: equivalent — signal viewChild queries resolve at component creation (verified empirically: defined even before the first detectChanges), so the guard is type-level only
     this.editorPopover()?.close();
     this.filterCommitted.emit();
   }

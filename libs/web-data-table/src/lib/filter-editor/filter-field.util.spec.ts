@@ -66,6 +66,12 @@ describe('columnToFilterOptions', () => {
   it('returns [] for no column', () => {
     expect(columnToFilterOptions(undefined)).toEqual([]);
   });
+  it('falls back to True/False for a boolean column with an empty options array', () => {
+    expect(columnToFilterOptions(col({ type: 'boolean', options: [] }))).toEqual([
+      { value: 'true', label: 'True' },
+      { value: 'false', label: 'False' },
+    ]);
+  });
 });
 
 describe('comparatorLabel', () => {

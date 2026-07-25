@@ -71,6 +71,7 @@ export class ViewPickerComponent {
 
   /** Favorited views first (preserving input order), then the rest. */
   protected readonly orderedViews = computed<readonly DataTableView[]>(() => {
+    // Stryker disable next-line ArrayDeclaration: equivalent — the fallback array is only probed via includes(view name); a sentinel entry can never match a real view
     const favs = this.favorites.favorites()[this.spaceId()] ?? [];
     const isFav = (v: DataTableView): boolean => favs.includes(v.name);
     return [

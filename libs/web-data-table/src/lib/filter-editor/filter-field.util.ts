@@ -80,10 +80,14 @@ export function columnToFilterOptions(
  * DateTime is duck-typed (callable `toISODate`) and rendered date-only via
  * `toISODate()`; an invalid DateTime (`toISODate()` → null) collapses to ''. */
 export function serializeFilterValue(raw: unknown): string {
-  if (raw === null || raw === undefined || raw === '') return '';
+  if (raw === null || raw === undefined) return '';
+  // Stryker disable next-line ConditionalExpression,StringLiteral: equivalent — a '' that misses this check falls through to String(''), returning '' all the same
+  if (raw === '') return '';
   if (
+    // Stryker disable ConditionalExpression: equivalent — forcing this object/'in' pair true leaves the typeof-function check below, which resolves identically for every value past the null gate (property access on a primitive boxes to undefined; 'in' already includes the prototype chain)
     typeof raw === 'object' &&
     'toISODate' in raw &&
+    // Stryker restore ConditionalExpression
     typeof (raw as Record<string, unknown>)['toISODate'] === 'function'
   ) {
     return (raw as { toISODate(): string | null }).toISODate() ?? '';

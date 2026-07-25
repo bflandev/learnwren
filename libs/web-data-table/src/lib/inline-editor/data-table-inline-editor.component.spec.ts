@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { DateTime } from 'luxon';
 import {
   DataTableInlineEditorComponent,
   type InlineEditField,
@@ -597,5 +598,203 @@ describe('DataTableInlineEditorComponent', () => {
     );
     document.dispatchEvent(new MouseEvent('pointermove', { clientX: 50 }));
     expect(emitted).toEqual([{ id: 'name', width: 250 }]);
+  });
+});
+
+// Direct-instance mutation hardening for the name sanitizer, seed/display value
+// mapping, and drag/effect cleanup paths.
+describe('DataTableInlineEditorComponent (mutation hardening)', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    TestBed.resetTestingModule();
+  });
+
+  const f = (over: Partial<InlineEditField>): InlineEditField => ({
+    id: 'x',
+    header: 'X',
+    width: 100,
+    minWidth: 50,
+    maxWidth: 300,
+    resizable: true,
+    type: 'text',
+    value: '',
+    ...over,
+  });
+
+  function makeRaw(customFields: readonly InlineEditField[], render = false) {
+    TestBed.configureTestingModule({
+      imports: [DataTableInlineEditorComponent],
+    });
+    const fixture = TestBed.createComponent(DataTableInlineEditorComponent);
+    fixture.componentRef.setInput('fields', customFields);
+    fixture.componentRef.setInput('top', 0);
+    fixture.componentRef.setInput('rowHeight', 44);
+    fixture.componentRef.setInput('layerWidth', 900);
+    fixture.componentRef.setInput('layerHeight', 500);
+    fixture.componentRef.setInput('selectCellWidth', 88);
+    fixture.componentRef.setInput('initialScrollLeft', 0);
+    if (render) {
+      document.body.appendChild(fixture.nativeElement);
+      fixture.detectChanges();
+    }
+    return fixture;
+  }
+
+  interface EditorInternals {
+    controlNameFor(id: string): string;
+    form(): {
+      get(name: string): { value: unknown; markAsDirty(): void } | null;
+      markAsDirty(): void;
+    };
+    formPristine(): boolean;
+    resizingId(): string | null;
+    displayValue(field: InlineEditField): string;
+    onResizeMove(event: MouseEvent): void;
+  }
+  const internals = (
+    fx: ComponentFixture<DataTableInlineEditorComponent>,
+  ): EditorInternals => fx.componentInstance as unknown as EditorInternals;
+
+  it('sanitizes dotted ids and de-duplicates colliding control names', () => {
+    const cmp = internals(
+      makeRaw([f({ id: 'a.b' }), f({ id: 'a_b' }), f({ id: 'a-b' }), f({ id: '' })]),
+    );
+    expect(cmp.controlNameFor('a.b')).toBe('a_b');
+    expect(cmp.controlNameFor('a_b')).toBe('a_b_1');
+    expect(cmp.controlNameFor('a-b')).toBe('a_b_2');
+    expect(cmp.controlNameFor('')).toBe('field');
+  });
+
+  it('builds controls for editable fields only', () => {
+    const cmp = internals(
+      makeRaw([f({ id: 'ro', readonly: true, value: 'v' }), f({ id: 'ed' })]),
+    );
+    expect(cmp.form().get('ro')).toBeNull();
+    expect(cmp.form().get('ed')).not.toBeNull();
+  });
+
+  it('starts pristine even before the mirroring effect first runs', () => {
+    const cmp = internals(makeRaw([f({ id: 'ed' })]));
+    expect(cmp.formPristine()).toBe(true);
+  });
+
+  it('seeds a date field with an existing DateTime instance unchanged', () => {
+    const dt = DateTime.fromISO('2026-01-02T03:04:05Z');
+    const cmp = internals(makeRaw([f({ id: 'when', type: 'date', value: dt })]));
+    expect(cmp.form().get('when')?.value).toBe(dt);
+  });
+
+  it('seeds a date field with a non-string, non-DateTime value as null', () => {
+    const cmp = internals(makeRaw([f({ id: 'when', type: 'date', value: 42 })]));
+    expect(cmp.form().get('when')?.value).toBeNull();
+  });
+
+  it('displayValue maps blanks, options, dates and booleans', () => {
+    const cmp = internals(makeRaw([f({ id: 'ed' })]));
+    const base = f({ id: 'any' });
+    expect(cmp.displayValue({ ...base, value: null })).toBe('');
+    expect(cmp.displayValue({ ...base, value: undefined })).toBe('');
+    expect(cmp.displayValue({ ...base, value: '' })).toBe('');
+    // An empty value short-circuits BEFORE option lookup.
+    expect(
+      cmp.displayValue({
+        ...base,
+        value: '',
+        options: [{ value: '', label: 'Empty' }],
+      }),
+    ).toBe('');
+    expect(
+      cmp.displayValue({
+        ...base,
+        value: 'a',
+        options: [{ value: 'a', label: 'Alpha' }],
+      }),
+    ).toBe('Alpha');
+    // The option lookup matches by VALUE, not by position: a value matching
+    // the second option must resolve that label, and a miss keeps the raw value.
+    expect(
+      cmp.displayValue({
+        ...base,
+        value: 'b',
+        options: [
+          { value: 'a', label: 'Alpha' },
+          { value: 'b', label: 'Beta' },
+        ],
+      }),
+    ).toBe('Beta');
+    expect(
+      cmp.displayValue({
+        ...base,
+        value: 'z',
+        options: [{ value: 'a', label: 'Alpha' }],
+      }),
+    ).toBe('z');
+    const iso = '2026-06-25T10:30:00Z';
+    const formatted = DateTime.fromISO(iso).toLocaleString(
+      DateTime.DATETIME_MED,
+    );
+    expect(cmp.displayValue({ ...base, type: 'date', value: iso })).toBe(
+      formatted,
+    );
+    expect(
+      cmp.displayValue({
+        ...base,
+        type: 'date',
+        value: DateTime.fromISO(iso),
+      }),
+    ).toBe(formatted);
+    // A non-date field never date-formats an ISO-looking string.
+    expect(cmp.displayValue({ ...base, value: iso })).toBe(iso);
+    // Junk on a date field falls back to stringification without throwing.
+    expect(cmp.displayValue({ ...base, type: 'date', value: 42 })).toBe('42');
+    expect(cmp.displayValue({ ...base, type: 'date', value: 'nope' })).toBe(
+      'nope',
+    );
+    expect(cmp.displayValue({ ...base, type: 'switch', value: true })).toBe(
+      'True',
+    );
+    expect(cmp.displayValue({ ...base, type: 'switch', value: false })).toBe(
+      'False',
+    );
+  });
+
+  it('unsubscribes from a replaced form (a stale group cannot flip pristine)', () => {
+    const initial = [f({ id: 'ed', value: 'one' })];
+    const fixture = makeRaw(initial, true);
+    const cmp = internals(fixture);
+    const oldForm = cmp.form();
+    fixture.componentRef.setInput(
+      'fields',
+      initial.map((x) => ({ ...x })),
+    );
+    fixture.detectChanges();
+    expect(cmp.form()).not.toBe(oldForm);
+    oldForm.markAsDirty();
+    expect(cmp.formPristine()).toBe(true);
+  });
+
+  it('tears down an in-flight drag on destroy', () => {
+    const fixture = makeRaw([f({ id: 'ed' })], true);
+    const cmp = internals(fixture);
+    const handle = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-test="edit-resize-handle"]',
+    ) as HTMLElement;
+    handle.dispatchEvent(
+      new MouseEvent('pointerdown', { clientX: 0, bubbles: true }),
+    );
+    expect(cmp.resizingId()).toBe('ed');
+    fixture.destroy();
+    expect(cmp.resizingId()).toBeNull();
+  });
+
+  it('ignores a stray pointermove without an active drag', () => {
+    const fixture = makeRaw([f({ id: 'ed' })], true);
+    const cmp = internals(fixture);
+    const emitted: unknown[] = [];
+    fixture.componentInstance.resized.subscribe((e) => emitted.push(e));
+    expect(() =>
+      cmp.onResizeMove(new MouseEvent('pointermove', { clientX: 10 })),
+    ).not.toThrow();
+    expect(emitted).toHaveLength(0);
   });
 });
