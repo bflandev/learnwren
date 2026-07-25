@@ -51,7 +51,7 @@ test('UC-01-03 — user edits displayName and biography; header updates without 
     name: new RegExp(`Profile settings for ${displayName}`),
   });
   await expect(chip).toBeVisible();
-  await expect(chip.locator('.lw-avatar-initials')).toHaveText('EW');
+  await expect(chip.locator('[data-testid="header-avatar-initials"]')).toHaveText('EW');
   await chip.click();
   await expect(page).toHaveURL(/\/settings\/profile$/);
 
@@ -69,7 +69,7 @@ test('UC-01-03 — user edits displayName and biography; header updates without 
   // Header chip reflects the new display name immediately (no reload).
   const updatedChip = page.getByRole('img', { name: /Profile settings for Etta Updated/ });
   await expect(updatedChip).toBeVisible();
-  await expect(updatedChip.locator('.lw-avatar-initials')).toHaveText('EU');
+  await expect(updatedChip.locator('[data-testid="header-avatar-initials"]')).toHaveText('EU');
 
   // Persistence: reload the page and confirm the form values stuck.
   await page.reload();

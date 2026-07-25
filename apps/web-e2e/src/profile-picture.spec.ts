@@ -47,14 +47,15 @@ test('UC-01-03 Slice B — user uploads profile picture, it persists across relo
   await page.getByRole('button', { name: /sign in/i }).click();
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
 
-  // The header chip is an <a role="img"> wrapping <lw-avatar>. Initially the
-  // avatar has no photoUrl, so it renders <span class="lw-avatar-initials">EW</span>.
+  // The header chip is an <a role="img"> wrapping <hlm-avatar>. Initially the
+  // avatar has no photoUrl, so it projects the initials span
+  // (data-testid="header-avatar-initials").
   const headerChip = page.getByRole('img', {
     name: new RegExp(`Profile settings for ${displayName}`),
   });
   await expect(headerChip).toBeVisible();
-  await expect(headerChip.locator('.lw-avatar-initials')).toHaveText('EW');
-  await expect(headerChip.locator('img.lw-avatar-image')).toHaveCount(0);
+  await expect(headerChip.locator('[data-testid="header-avatar-initials"]')).toHaveText('EW');
+  await expect(headerChip.locator('hlm-avatar img')).toHaveCount(0);
 
   // Click the chip to land on /settings/profile.
   await headerChip.click();
@@ -67,13 +68,13 @@ test('UC-01-03 Slice B — user uploads profile picture, it persists across relo
   await fileInput.setInputFiles(fixturePath);
 
   // After successful upload the header chip switches from initials to <img>.
-  await expect(headerChip.locator('img.lw-avatar-image')).toBeVisible({ timeout: 10_000 });
-  await expect(headerChip.locator('.lw-avatar-initials')).toHaveCount(0);
+  await expect(headerChip.locator('hlm-avatar img')).toBeVisible({ timeout: 10_000 });
+  await expect(headerChip.locator('[data-testid="header-avatar-initials"]')).toHaveCount(0);
 
   // Grab the src so we can assert it survives reload. The preceding
   // toHaveAttribute('src', /.+/) guarantees the attribute is a non-empty string.
-  await expect(headerChip.locator('img.lw-avatar-image')).toHaveAttribute('src', /.+/);
-  const uploadedSrc = await headerChip.locator('img.lw-avatar-image').getAttribute('src');
+  await expect(headerChip.locator('hlm-avatar img')).toHaveAttribute('src', /.+/);
+  const uploadedSrc = await headerChip.locator('hlm-avatar img').getAttribute('src');
 
   // The uploader's own preview should also be an image now.
   await expect(
@@ -82,8 +83,8 @@ test('UC-01-03 Slice B — user uploads profile picture, it persists across relo
 
   // Reload — the picture persists (read from Firestore via /me on bootstrap).
   await page.reload();
-  await expect(headerChip.locator('img.lw-avatar-image')).toBeVisible({ timeout: 10_000 });
-  await expect(headerChip.locator('img.lw-avatar-image')).toHaveAttribute(
+  await expect(headerChip.locator('hlm-avatar img')).toBeVisible({ timeout: 10_000 });
+  await expect(headerChip.locator('hlm-avatar img')).toHaveAttribute(
     'src',
     uploadedSrc!,
   );
@@ -93,8 +94,8 @@ test('UC-01-03 Slice B — user uploads profile picture, it persists across relo
   await page.getByRole('button', { name: /remove picture/i }).click();
 
   // Header chip falls back to initials and the <img> is gone.
-  await expect(headerChip.locator('.lw-avatar-initials')).toHaveText('EW', {
+  await expect(headerChip.locator('[data-testid="header-avatar-initials"]')).toHaveText('EW', {
     timeout: 10_000,
   });
-  await expect(headerChip.locator('img.lw-avatar-image')).toHaveCount(0);
+  await expect(headerChip.locator('hlm-avatar img')).toHaveCount(0);
 });
