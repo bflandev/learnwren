@@ -1,0 +1,6 @@
+{
+  "name": "@learnwren/web-data-table",
+  "version": "0.0.0",
+  "private": true,
+  "sideEffects": false
+}

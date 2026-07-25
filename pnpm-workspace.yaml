@@ -4,3 +4,4 @@ packages:
   # web-ui carries a package.json solely for its `sideEffects: false` flag
   # (esbuild tree-shaking); it is not a workspace package.
   - "!libs/web-ui"
+  - "!libs/web-data-table"

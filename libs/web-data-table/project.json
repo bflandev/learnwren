@@ -1,0 +1,32 @@
+{
+  "name": "web-data-table",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/web-data-table/src",
+  "prefix": "lw",
+  "projectType": "library",
+  "tags": ["scope:web"],
+  "targets": {
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "options": {
+        "cwd": "libs/web-data-table",
+        "command": "tsc --build tsconfig.lib.json --emitDeclarationOnly"
+      },
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default",
+        {
+          "externalDependencies": ["typescript"]
+        }
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/out-tsc/libs/web-data-table/**/*.{d.ts,d.cts,d.mts}",
+        "{workspaceRoot}/libs/web-data-table/tsconfig.lib.tsbuildinfo"
+      ]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

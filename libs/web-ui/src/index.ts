@@ -25,6 +25,7 @@ export * from './lib/date-picker';
 export * from './lib/dialog';
 export * from './lib/dots';
 export * from './lib/duration-picker';
+export * from './lib/dynamic-field';
 export * from './lib/footer-content';
 export * from './lib/form-field';
 export * from './lib/grid-state';

@@ -59,6 +59,12 @@ importers:
       '@spartan-ng/brain':
         specifier: 0.0.1-alpha.699
         version: 0.0.1-alpha.699(@angular/cdk@21.2.10(@angular/common@21.2.10(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))(@angular/platform-browser@21.2.10(@angular/common@21.2.10(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2)))(rxjs@7.8.2))(@angular/common@21.2.10(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))(@angular/forms@21.2.10(@angular/common@21.2.10(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))(@angular/platform-browser@21.2.10(@angular/common@21.2.10(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2)))(rxjs@7.8.2))(clsx@2.1.1)(luxon@3.7.2)(rxjs@7.8.2)(tailwindcss@4.3.3)
+      '@tanstack/angular-table':
+        specifier: ^8.21.4
+        version: 8.21.4(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))
+      '@tanstack/angular-virtual':
+        specifier: ^5.0.8
+        version: 5.0.8(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -4233,6 +4239,24 @@ packages:
 
   '@tailwindcss/postcss@4.3.3':
     resolution: {integrity: sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg==}
+
+  '@tanstack/angular-table@8.21.4':
+    resolution: {integrity: sha512-djyuJFvIB/pBuBIqny8b7+5ozeXJSElaxYRZyyKLpYrXn4xQSysBT//X51eDT/mi3kS0spcjIHhoObjk3iCjcQ==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      '@angular/core': '>=17'
+
+  '@tanstack/angular-virtual@5.0.8':
+    resolution: {integrity: sha512-lihNCowSS1UKyUA3b7lxGMpmuLO8ChjPgojegRZLZ6J9lwnWSZJ0nFvonZwE+K8MubmAiZjRkwgZSVPKzSgdLw==}
+    peerDependencies:
+      '@angular/core': '>=19.0.0'
+
+  '@tanstack/table-core@8.21.3':
+    resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==}
+    engines: {node: '>=12'}
+
+  '@tanstack/virtual-core@3.17.4':
+    resolution: {integrity: sha512-nGm5KteqxasUdThLc2izl6dHUqLv0LQj7Nuyo5gYalTPf/U8a9ermvsl7reT+6ioBW1l8WfpP/mcU338nLXpqw==}
 
   '@tokenizer/inflate@0.4.1':
     resolution: {integrity: sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA==}
@@ -15005,6 +15029,21 @@ snapshots:
       '@tailwindcss/oxide': 4.3.3
       postcss: 8.5.23
       tailwindcss: 4.3.3
+
+  '@tanstack/angular-table@8.21.4(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))':
+    dependencies:
+      '@angular/core': 21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2)
+      '@tanstack/table-core': 8.21.3
+      tslib: 2.8.1
+
+  '@tanstack/angular-virtual@5.0.8(@angular/core@21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2))':
+    dependencies:
+      '@angular/core': 21.2.10(@angular/compiler@21.2.10)(rxjs@7.8.2)
+      '@tanstack/virtual-core': 3.17.4
+
+  '@tanstack/table-core@8.21.3': {}
+
+  '@tanstack/virtual-core@3.17.4': {}
 
   '@tokenizer/inflate@0.4.1':
     dependencies:
