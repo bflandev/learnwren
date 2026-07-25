@@ -122,11 +122,14 @@ describe('AdminInstructorApplicationsPageComponent', () => {
     });
     const fixture = TestBed.createComponent(AdminInstructorApplicationsPageComponent);
     fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Loading');
+    // The loading state renders hlm-skeleton lines (announced via aria-label).
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('hlm-skeleton[aria-label="Loading applications"]'),
+    ).toBeTruthy();
     resolveList({ applications: [row('u1')] });
     await fixture.whenStable();
     fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Loading');
+    expect((fixture.nativeElement as HTMLElement).querySelector('hlm-skeleton')).toBeNull();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('ada@example.com');
   });
 

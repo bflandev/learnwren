@@ -7,13 +7,14 @@ import {
   APPLICATION_NOT_PENDING,
 } from '@learnwren/shared-data-models';
 import type { PendingInstructorApplicationView } from '@learnwren/shared-data-models';
+import { HlmAlert, HlmButton, HlmSkeleton } from '@learnwren/web-ui';
 
 import { AdminInstructorApplicationsService } from '../admin-instructor-applications.service';
 
 @Component({
   selector: 'lib-admin-instructor-applications-page',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, HlmAlert, HlmButton, HlmSkeleton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin-instructor-applications-page.component.html',
 })

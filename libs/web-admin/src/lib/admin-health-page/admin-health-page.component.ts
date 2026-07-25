@@ -1,6 +1,14 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 
 import type { AdminHealthReport, HealthServiceKey } from '@learnwren/shared-data-models';
+import {
+  HlmAlert,
+  HlmAlertDescription,
+  HlmAlertTitle,
+  HlmBadge,
+  HlmButton,
+  HlmSkeleton,
+} from '@learnwren/web-ui';
 
 import { AdminHealthService } from '../admin-health.service';
 
@@ -18,6 +26,7 @@ const QUOTA_BAR_MAX_PERCENT = 100;
 @Component({
   selector: 'lib-admin-health-page',
   standalone: true,
+  imports: [HlmAlert, HlmAlertDescription, HlmAlertTitle, HlmBadge, HlmButton, HlmSkeleton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin-health-page.component.html',
 })

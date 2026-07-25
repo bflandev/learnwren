@@ -2,19 +2,26 @@
   <h1 class="text-xl font-semibold text-ink">Instructor applications</h1>
 
   @if (loading()) {
-    <p class="mt-6 text-sm text-muted">Loading…</p>
+    <div class="mt-6 flex flex-col gap-3">
+      <hlm-skeleton label="Loading applications" class="h-4 w-1/3" />
+      <hlm-skeleton class="h-4 w-2/3" />
+      <hlm-skeleton class="h-4 w-1/2" />
+    </div>
   } @else if (loadError()) {
-    <div class="mt-6" role="alert" data-testid="load-error">
-      <p class="text-sm text-ink-2">Couldn’t load applications. Check your connection and try again.</p>
+    <hlm-alert severity="error" class="mt-6" data-testid="load-error">
+      <p>Couldn’t load applications. Check your connection and try again.</p>
       <button
+        hlmBtn
+        variant="ghost"
+        size="sm"
         type="button"
-        class="lw-btn lw-btn-ghost mt-2"
+        class="mt-2"
         data-testid="retry-button"
         (click)="retry()"
       >
         Retry
       </button>
-    </div>
+    </hlm-alert>
   } @else if (applications().length === 0) {
     <p class="mt-6 text-sm text-muted" data-testid="empty-state">No pending applications.</p>
   } @else {
@@ -32,13 +39,13 @@
           <p class="mt-1 text-sm text-ink"><span class="font-medium">Expertise:</span> {{ app.expertise }}</p>
 
           @if (rowError(app.uid); as err) {
-            <p class="mt-2 text-sm text-red-600" role="alert" data-testid="row-error">{{ err }}</p>
+            <p class="mt-2 text-sm text-bad" role="alert" data-testid="row-error">{{ err }}</p>
           }
 
           <div class="mt-4 flex gap-2">
             <button
+              hlmBtn
               type="button"
-              class="lw-btn lw-btn-primary"
               data-testid="approve-button"
               [disabled]="isBusy(app.uid)"
               (click)="approve(app.uid)"
@@ -46,8 +53,9 @@
               Approve
             </button>
             <button
+              hlmBtn
+              variant="ghost"
               type="button"
-              class="lw-btn lw-btn-ghost"
               data-testid="decline-button"
               [disabled]="isBusy(app.uid)"
               (click)="decline(app.uid)"
