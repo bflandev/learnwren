@@ -42,7 +42,10 @@ describe('VideoUploadComponent', () => {
     const svc = buildFakeSvc({ kind: 'uploading', percent: 42, videoId: 'v1' as never });
     const { fixture } = build(svc);
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('lw-progress')).toBeTruthy();
+    const progress = el.querySelector('hlm-progress');
+    expect(progress).toBeTruthy();
+    // hlm-progress is 0..100 — the service percent binds straight through.
+    expect(progress!.getAttribute('aria-valuenow')).toBe('42');
     expect(el.textContent).toContain('42');
   });
 

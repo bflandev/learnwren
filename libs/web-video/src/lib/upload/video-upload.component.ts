@@ -8,13 +8,13 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import { VideoUploadService } from './video-upload.service';
-import { LwButtonDirective, LwProgressComponent } from '@learnwren/web-ui';
+import { HlmAlert, HlmButton, HlmProgress } from '@learnwren/web-ui';
 
 @Component({
   selector: 'lib-video-upload',
   standalone: true,
   templateUrl: './video-upload.component.html',
-  imports: [LwButtonDirective, LwProgressComponent],
+  imports: [HlmAlert, HlmButton, HlmProgress],
   providers: [VideoUploadService],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

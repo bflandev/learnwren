@@ -1,8 +1,9 @@
-<lw-pill
+<span
+  hlmBadge
+  [variant]="variant()"
   data-testid="video-state-badge"
   [attr.data-video-id]="video().id"
   [attr.data-state]="video().state"
-  [tone]="tone()"
 >
   @if (showSpinner()) {
     <span
@@ -11,14 +12,15 @@
     ></span>
   }
   {{ label() }}
-</lw-pill>
+</span>
 @if (canRemove()) {
   <button
-    lwButton
-    variant="ghost"
+    hlmBtn
+    variant="destructive"
+    size="sm"
     type="button"
     data-testid="video-remove"
-    class="ml-2 text-bad"
+    class="ml-2"
     (click)="removeRequested.emit()"
   >
     Remove video

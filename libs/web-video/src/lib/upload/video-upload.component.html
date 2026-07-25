@@ -21,9 +21,14 @@
   }
   @case ('uploading') {
     <div class="flex items-center gap-3">
-      <lw-progress class="flex-1" [value]="s.percent / 100" />
+      <hlm-progress
+        class="flex-1"
+        data-testid="upload-progress"
+        label="Upload progress"
+        [value]="s.percent"
+      />
       <span class="text-sm text-ink-2">{{ s.percent }}%</span>
-      <button lwButton type="button" (click)="onCancel()">Cancel</button>
+      <button hlmBtn variant="secondary" type="button" (click)="onCancel()">Cancel</button>
     </div>
   }
   @case ('finalizing') {
@@ -33,9 +38,11 @@
     <p class="text-sm text-ink-3">Cancelling…</p>
   }
   @case ('failed') {
-    <div role="alert" class="rounded-lg border border-line bg-bg-2 p-4">
-      <p class="text-sm text-bad">{{ s.reason }}</p>
-      <button lwButton type="button" class="mt-2" (click)="onRetry()">Try again</button>
-    </div>
+    <hlm-alert severity="error">
+      <p>{{ s.reason }}</p>
+      <button hlmBtn variant="secondary" type="button" class="mt-2" (click)="onRetry()">
+        Try again
+      </button>
+    </hlm-alert>
   }
 }

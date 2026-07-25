@@ -14,14 +14,14 @@ import {
 
 import type { VideoId } from '@learnwren/shared-data-models';
 
-import { LwButtonDirective } from '@learnwren/web-ui';
+import { HlmButton } from '@learnwren/web-ui';
 import { PlaybackConfigService } from '../playback-config.service';
 import { VideoPlayerService, type PlayerHandle } from './video-player.service';
 
 @Component({
   selector: 'lib-video-player',
   standalone: true,
-  imports: [LwButtonDirective],
+  imports: [HlmButton],
   templateUrl: './video-player.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

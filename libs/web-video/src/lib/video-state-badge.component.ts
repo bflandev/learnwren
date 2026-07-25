@@ -14,7 +14,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { Video, VideoState } from '@learnwren/shared-data-models';
 
 import { VideoStatePollingService } from './polling/video-state-polling.service';
-import { LwButtonDirective, LwPillComponent, type LwPillTone } from '@learnwren/web-ui';
+import { HlmBadge, HlmButton, type BadgeVariant } from '@learnwren/web-ui';
 
 const STUCK_THRESHOLD_MIN = 30;
 const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
@@ -23,7 +23,7 @@ const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
   selector: 'lib-video-state-badge',
   standalone: true,
   templateUrl: './video-state-badge.component.html',
-  imports: [LwPillComponent, LwButtonDirective],
+  imports: [HlmBadge, HlmButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VideoStateBadgeComponent implements OnInit {
@@ -59,19 +59,19 @@ export class VideoStateBadgeComponent implements OnInit {
     }
   });
 
-  readonly tone = computed<LwPillTone>(() => {
+  readonly variant = computed<BadgeVariant>(() => {
     const v = this.current();
-    if (this.isStuck(v, 'PENDING_UPLOAD')) return 'bad';
-    if (this.isStuck(v, 'TRANSCODING')) return 'bad';
+    if (this.isStuck(v, 'PENDING_UPLOAD')) return 'destructive';
+    if (this.isStuck(v, 'TRANSCODING')) return 'destructive';
     switch (v.state) {
       case 'PENDING_UPLOAD':
       case 'UPLOADED':
       case 'TRANSCODING':
-        return 'warn';
+        return 'warning';
       case 'READY':
-        return 'good';
+        return 'success';
       case 'FAILED':
-        return 'bad';
+        return 'destructive';
       // Stryker disable ConditionalExpression,StringLiteral: switch is exhaustive over the VideoState union ('PENDING_UPLOAD'|'UPLOADED'|'TRANSCODING'|'READY'|'FAILED'); the default arm is unreachable.
       default:
         return 'default';
