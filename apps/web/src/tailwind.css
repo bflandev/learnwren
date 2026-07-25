@@ -2,8 +2,15 @@
 @import 'tailwindcss';
 
 /* Utility names map onto the lw custom properties so template classes
- * (bg-bg-2, text-ink-3, border-line, …) keep working unchanged. */
+ * (bg-bg-2, text-ink-3, border-line, …) keep working unchanged. `inline`
+ * makes utilities resolve as var(--lw-*) at runtime, so the theme class
+ * (.lw-theme-light) swaps every role without rebuilding.
+ * NOTE (kept from the donor): --color-field-label is intentionally NOT
+ * mapped — it would name-collide with --text-field-label and Tailwind v4
+ * picks ONE namespace per utility (color wins, the typography tuple is
+ * dropped). Colour is applied via text-(--lw-field-label) instead. */
 @theme inline {
+  /* lw core */
   --color-bg: var(--lw-bg);
   --color-bg-2: var(--lw-bg-2);
   --color-bg-3: var(--lw-bg-3);
@@ -16,19 +23,245 @@
   --color-ochre: var(--lw-ochre);
   --color-ochre-2: var(--lw-ochre-2);
   --color-ochre-ink: var(--lw-ochre-ink);
+  --color-ochre-soft: var(--lw-ochre-soft);
   --color-moss: var(--lw-moss);
   --color-clay: var(--lw-clay);
   --color-rust: var(--lw-rust);
   --color-good: var(--lw-good);
   --color-warn: var(--lw-warn);
   --color-bad: var(--lw-bad);
+
+  /* shadcn-compat semantic aliases */
+  --color-background: var(--lw-background);
+  --color-foreground: var(--lw-foreground);
+  --color-muted: var(--lw-muted);
+  --color-muted-foreground: var(--lw-muted-foreground);
+  --color-surface: var(--lw-surface);
+  --color-surface-raised: var(--lw-surface-raised);
+  --color-surface-sunken: var(--lw-surface-sunken);
+  --color-surface-hover: var(--lw-surface-hover);
+  --color-surface-active: var(--lw-surface-active);
+  --color-border: var(--lw-border);
+  --color-border-subtle: var(--lw-border-subtle);
+  --color-border-strong: var(--lw-border-strong);
+  --color-border-hover: var(--lw-border-hover);
+  --color-border-focus: var(--lw-border-focus);
+  --color-primary: var(--lw-primary);
+  --color-primary-soft: var(--lw-primary-soft);
+  --color-primary-strong: var(--lw-primary-strong);
+  --color-primary-foreground: var(--lw-primary-foreground);
+  --color-primary-hover: var(--lw-primary-hover);
+  --color-primary-hover-foreground: var(--lw-primary-hover-foreground);
+  --color-primary-active: var(--lw-primary-active);
+  --color-primary-active-foreground: var(--lw-primary-active-foreground);
+  --color-primary-disabled: var(--lw-primary-disabled);
+  --color-primary-disabled-foreground: var(--lw-primary-disabled-foreground);
+  --color-success: var(--lw-success);
+  --color-success-foreground: var(--lw-success-foreground);
+  --color-warning: var(--lw-warning);
+  --color-warning-foreground: var(--lw-warning-foreground);
+  --color-destructive: var(--lw-destructive);
+  --color-destructive-foreground: var(--lw-destructive-foreground);
+  --color-info: var(--lw-info);
+  --color-info-foreground: var(--lw-info-foreground);
+  --color-ring: var(--lw-ring);
+  /* shadcn `secondary` is the secondary-button surface; shadcn-sense
+   * `accent` is the menu-hover slot. One-way aliases, no standalone role. */
+  --color-secondary: var(--lw-button-secondary-bg);
+  --color-secondary-foreground: var(--lw-button-secondary-fg);
+  --color-accent: var(--lw-nav-item-bg-hover);
+  --color-accent-foreground: var(--lw-nav-item-fg-hover);
+
+  /* form field roles */
+  --color-input: var(--lw-input);
+  --color-input-disabled: var(--lw-input-disabled);
+  --color-input-border: var(--lw-input-border);
+  --color-input-border-hover: var(--lw-input-border-hover);
+  --color-input-border-focus: var(--lw-input-border-focus);
+  --color-input-border-invalid: var(--lw-input-border-invalid);
+  --color-input-placeholder: var(--lw-input-placeholder);
+  --color-checkbox-bg: var(--lw-checkbox-bg);
+  --color-field-helper: var(--lw-field-helper);
+  --color-field-helper-invalid: var(--lw-field-helper-invalid);
+
+  /* list/table roles */
+  --color-list-row-bg-hover: var(--lw-list-row-bg-hover);
+  --color-list-row-bg-selected: var(--lw-list-row-bg-selected);
+  --color-list-row-bg-selected-hover: var(--lw-list-row-bg-selected-hover);
+  --color-list-header-bg: var(--lw-list-header-bg);
+  --color-list-header-border: var(--lw-list-header-border);
+  --color-list-cell-border: var(--lw-list-cell-border);
+
+  /* overlay */
+  --color-scrim: var(--lw-scrim);
+  --color-dialog: var(--lw-dialog);
+  --color-dialog-border: var(--lw-dialog-border);
+  --color-dialog-foreground: var(--lw-dialog-foreground);
+  --color-popover: var(--lw-popover);
+  --color-popover-border: var(--lw-popover-border);
+  --color-popover-foreground: var(--lw-popover-foreground);
+  --color-overlay-select-bg: var(--lw-overlay-select-bg);
+  --color-overlay-select-border: var(--lw-overlay-select-border);
+  --color-overlay-select-fg: var(--lw-overlay-select-fg);
+  --color-tooltip-bg: var(--lw-tooltip-bg);
+  --color-tooltip-fg: var(--lw-tooltip-fg);
+
+  /* content surfaces */
+  --color-card: var(--lw-card);
+  --color-card-hover: var(--lw-card-hover);
+  --color-card-foreground: var(--lw-card-foreground);
+  --color-card-foreground-hover: var(--lw-card-foreground-hover);
+  --color-card-foreground-muted: var(--lw-card-foreground-muted);
+
+  /* selection */
+  --color-selection-bg: var(--lw-selection-bg);
+  --color-selection-bg-hover: var(--lw-selection-bg-hover);
+  --color-selection-fg: var(--lw-selection-fg);
+
+  /* nav item */
+  --color-nav-item-bg-hover: var(--lw-nav-item-bg-hover);
+  --color-nav-item-bg-selected: var(--lw-nav-item-bg-selected);
+  --color-nav-item-fg: var(--lw-nav-item-fg);
+  --color-nav-item-fg-hover: var(--lw-nav-item-fg-hover);
+  --color-nav-item-fg-selected: var(--lw-nav-item-fg-selected);
+  --color-nav-item-icon: var(--lw-nav-item-icon);
+  --color-nav-item-icon-hover: var(--lw-nav-item-icon-hover);
+
+  /* button — 5 variants */
+  --color-button-primary-bg: var(--lw-button-primary-bg);
+  --color-button-primary-bg-hover: var(--lw-button-primary-bg-hover);
+  --color-button-primary-bg-active: var(--lw-button-primary-bg-active);
+  --color-button-primary-fg: var(--lw-button-primary-fg);
+  --color-button-primary-fg-hover: var(--lw-button-primary-fg-hover);
+  --color-button-primary-fg-active: var(--lw-button-primary-fg-active);
+  --color-button-primary-border: var(--lw-button-primary-border);
+  --color-button-primary-border-hover: var(--lw-button-primary-border-hover);
+  --color-button-secondary-bg: var(--lw-button-secondary-bg);
+  --color-button-secondary-bg-hover: var(--lw-button-secondary-bg-hover);
+  --color-button-secondary-bg-active: var(--lw-button-secondary-bg-active);
+  --color-button-secondary-fg: var(--lw-button-secondary-fg);
+  --color-button-secondary-border: var(--lw-button-secondary-border);
+  --color-button-secondary-border-hover: var(
+    --lw-button-secondary-border-hover
+  );
+  --color-button-ghost-bg-hover: var(--lw-button-ghost-bg-hover);
+  --color-button-ghost-bg-active: var(--lw-button-ghost-bg-active);
+  --color-button-ghost-fg: var(--lw-button-ghost-fg);
+  --color-button-ghost-fg-hover: var(--lw-button-ghost-fg-hover);
+  --color-button-link-fg: var(--lw-button-link-fg);
+  --color-button-link-fg-hover: var(--lw-button-link-fg-hover);
+  --color-button-danger-bg: var(--lw-button-danger-bg);
+  --color-button-danger-bg-hover: var(--lw-button-danger-bg-hover);
+  --color-button-danger-fg: var(--lw-button-danger-fg);
+  --color-button-danger-fg-hover: var(--lw-button-danger-fg-hover);
+  --color-button-danger-border: var(--lw-button-danger-border);
+
+  /* badge — 7 hue families */
+  --color-badge-neutral-bg: var(--lw-badge-neutral-bg);
+  --color-badge-neutral-fg: var(--lw-badge-neutral-fg);
+  --color-badge-accent-bg: var(--lw-badge-accent-bg);
+  --color-badge-accent-fg: var(--lw-badge-accent-fg);
+  --color-badge-info-bg: var(--lw-badge-info-bg);
+  --color-badge-info-fg: var(--lw-badge-info-fg);
+  --color-badge-success-bg: var(--lw-badge-success-bg);
+  --color-badge-success-fg: var(--lw-badge-success-fg);
+  --color-badge-warn-bg: var(--lw-badge-warn-bg);
+  --color-badge-warn-fg: var(--lw-badge-warn-fg);
+  --color-badge-danger-bg: var(--lw-badge-danger-bg);
+  --color-badge-danger-fg: var(--lw-badge-danger-fg);
+  --color-badge-category-bg: var(--lw-badge-category-bg);
+  --color-badge-category-fg: var(--lw-badge-category-fg);
+  --color-badge-info-border: var(--lw-badge-info-border);
+  --color-badge-success-border: var(--lw-badge-success-border);
+  --color-badge-warn-border: var(--lw-badge-warn-border);
+  --color-badge-danger-border: var(--lw-badge-danger-border);
+  --color-badge-category-border: var(--lw-badge-category-border);
+
+  /* fonts */
   --font-sans: var(--lw-font-sans);
   --font-serif: var(--lw-font-serif);
   --font-mono: var(--lw-font-mono);
+
+  /* semantic typography roles — Tailwind v4 tuple form: size + line-height
+   * + weight, at Learn Wren's 16px-rem scale (body 14px = .lw-screen). */
+  --text-page-title: var(--lw-type-page-title-size);
+  --text-page-title--line-height: var(--lw-type-page-title-line-height);
+  --text-page-title--font-weight: var(--lw-type-page-title-weight);
+  --text-section-title: var(--lw-type-section-title-size);
+  --text-section-title--line-height: var(--lw-type-section-title-line-height);
+  --text-section-title--font-weight: var(--lw-type-section-title-weight);
+  --text-field-label: var(--lw-type-field-label-size);
+  --text-field-label--line-height: var(--lw-type-field-label-line-height);
+  --text-field-label--font-weight: var(--lw-type-field-label-weight);
+  --text-body: var(--lw-type-body-size);
+  --text-body--line-height: var(--lw-type-body-line-height);
+  --text-body--font-weight: var(--lw-type-body-weight);
+  --text-helper: var(--lw-type-helper-size);
+  --text-helper--line-height: var(--lw-type-helper-line-height);
+  --text-helper--font-weight: var(--lw-type-helper-weight);
+  --text-code: var(--lw-type-code-size);
+  --text-code--line-height: var(--lw-type-code-line-height);
+  --text-code--font-weight: var(--lw-type-code-weight);
+
+  /* radius — px scale + semantic component roles */
+  --radius-xs: var(--lw-radius-xs);
   --radius-sm: var(--lw-r-sm);
+  --radius-md: var(--lw-radius-md);
   --radius: var(--lw-r);
   --radius-lg: var(--lw-r-lg);
   --radius-xl: var(--lw-r-xl);
+  --radius-control: var(--lw-control-radius);
+  --radius-nav-item: var(--lw-nav-item-radius);
+  --radius-badge: var(--lw-badge-radius);
+  --radius-tooltip: var(--lw-tooltip-radius);
+
+  /* elevation — size-named legacy pair + role-named tiers */
   --shadow-1: var(--lw-shadow-1);
   --shadow-2: var(--lw-shadow-2);
+  --shadow-raised: var(--lw-shadow-raised);
+  --shadow-overlay: var(--lw-shadow-overlay);
+  --shadow-dialog: var(--lw-shadow-dialog);
+
+  /* component spacing roles (px-control-x, py-badge-y, gap-control-gap, …) */
+  --spacing-control-x: var(--lw-control-padding-x);
+  --spacing-control-y: var(--lw-control-padding-y);
+  --spacing-control-x-sm: var(--lw-control-padding-x-sm);
+  --spacing-control-y-sm: var(--lw-control-padding-y-sm);
+  --spacing-control-x-lg: var(--lw-control-padding-x-lg);
+  --spacing-control-y-lg: var(--lw-control-padding-y-lg);
+  --spacing-control-gap: var(--lw-control-gap);
+  --spacing-nav-item-x: var(--lw-nav-item-padding-x);
+  --spacing-nav-item-y: var(--lw-nav-item-padding-y);
+  --spacing-nav-item-gap: var(--lw-nav-item-gap);
+  --spacing-badge-x: var(--lw-badge-padding-x);
+  --spacing-badge-y: var(--lw-badge-padding-y);
+  --spacing-badge-gap: var(--lw-badge-gap);
+  --spacing-tooltip-x: var(--lw-tooltip-padding-x);
+  --spacing-tooltip-y: var(--lw-tooltip-padding-y);
+  --spacing-form-field-gap: var(--lw-form-field-gap);
+  --spacing-form-row-gap: var(--lw-form-row-gap);
+  --spacing-form-section-gap: var(--lw-form-section-gap);
+
+  /* z-index — Tailwind v4 generates z-{key} from --z-index-*, NOT --z-*. */
+  --z-index-base: var(--lw-z-base);
+  --z-index-sticky: var(--lw-z-sticky);
+  --z-index-sticky-elevated: var(--lw-z-sticky-elevated);
+  --z-index-dropdown: var(--lw-z-dropdown);
+  --z-index-popover: var(--lw-z-popover);
+  --z-index-dialog-backdrop: var(--lw-z-dialog-backdrop);
+  --z-index-dialog: var(--lw-z-dialog);
+  --z-index-toast: var(--lw-z-toast);
+
+  /* weights + opacity */
+  --font-weight-normal: var(--lw-font-weight-normal);
+  --font-weight-medium: var(--lw-font-weight-medium);
+  --font-weight-semibold: var(--lw-font-weight-semibold);
+  --font-weight-bold: var(--lw-font-weight-bold);
+  --opacity-disabled: var(--lw-opacity-disabled);
+  --opacity-muted: var(--lw-opacity-muted);
+
+  /* transition defaults — every transition-* utility rides the fast
+   * register; reduced-motion zeroes the duration token in tokens.css. */
+  --default-transition-duration: var(--lw-motion-duration-fast);
+  --default-transition-timing-function: var(--lw-motion-ease-fast);
 }
