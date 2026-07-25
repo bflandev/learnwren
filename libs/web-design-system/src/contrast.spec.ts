@@ -141,3 +141,17 @@ describe('lw token contrast gate', () => {
     ).toBeGreaterThanOrEqual(min);
   });
 });
+
+describe('contrastRatio input guards', () => {
+  it('rejects an unparseable foreground, naming the offending value', () => {
+    expect(() => contrastRatio('not-a-color', 'oklch(50% 0.1 60)')).toThrow(
+      'unparseable color: not-a-color',
+    );
+  });
+
+  it('rejects an unparseable background, naming the offending value', () => {
+    expect(() => contrastRatio('oklch(50% 0.1 60)', 'garbage')).toThrow(
+      'unparseable color: garbage',
+    );
+  });
+});
