@@ -1,61 +1,68 @@
 <section class="w-full max-w-md rounded-lg border border-line bg-bg-2 p-6">
   <h1 class="mb-4 text-xl">Create an account</h1>
   <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-3">
-    <label class="block">
-      <span class="text-sm font-medium text-ink-2">Display name</span>
+    <hlm-form-field>
+      <label hlmLabel for="register-display-name">Display name</label>
       <input
-        lwInput
+        hlmInput
+        hlmFormFieldControl
+        id="register-display-name"
         type="text"
         formControlName="displayName"
         autocomplete="name"
-        class="mt-1"
         required
       />
-    </label>
+    </hlm-form-field>
 
-    <label class="block">
-      <span class="text-sm font-medium text-ink-2">Email</span>
+    <hlm-form-field>
+      <label hlmLabel for="register-email">Email</label>
       <input
-        lwInput
+        hlmInput
+        hlmFormFieldControl
+        id="register-email"
         type="email"
         formControlName="email"
         autocomplete="email"
-        class="mt-1"
         required
       />
-    </label>
+    </hlm-form-field>
 
-    <label class="block">
-      <span class="text-sm font-medium text-ink-2">Password</span>
+    <hlm-form-field>
+      <label hlmLabel for="register-password">Password</label>
       <input
-        lwInput
+        hlmInput
+        hlmFormFieldControl
+        id="register-password"
         type="password"
         formControlName="password"
         autocomplete="new-password"
-        class="mt-1"
         required
       />
       @if (passwordHints().length > 0) {
-        <ul class="mt-1 list-inside list-disc text-xs text-ink-3">
+        <ul hlmFormFieldHint class="list-inside list-disc">
           @for (hint of passwordHints(); track hint) {
             <li>{{ hint }}</li>
           }
         </ul>
       }
-    </label>
+    </hlm-form-field>
 
     @if (error()) {
-      <p class="text-sm text-bad" role="alert">{{ error() }}</p>
+      <hlm-alert severity="error">{{ error() }}</hlm-alert>
     }
 
     <button
-      lwButton
-      variant="primary"
+      hlmBtn
       type="submit"
-      class="w-full justify-center disabled:opacity-50"
+      class="w-full"
       [disabled]="form.invalid || busy()"
     >
-      @if (busy()) { Creating account… } @else { Create account }
+      @if (busy()) {
+        <hlm-spinner size="sm" />
+        Creating account…
+      } @else {
+        Create account
+      }
     </button>
   </form>
 

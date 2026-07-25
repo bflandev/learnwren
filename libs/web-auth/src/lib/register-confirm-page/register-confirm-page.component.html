@@ -11,17 +11,22 @@
   }
 
   @if (resendError()) {
-    <p class="text-sm text-bad" role="alert">Could not send. Please try again.</p>
+    <hlm-alert severity="error">Could not send. Please try again.</hlm-alert>
   }
 
   <button
-    lwButton
+    hlmBtn
+    variant="outline"
     type="button"
-    class="disabled:opacity-50"
     [disabled]="busy() || cooldownActive() || !email()"
     (click)="resend()"
   >
-    @if (busy()) { Sending… } @else { Didn't get the email? Resend }
+    @if (busy()) {
+      <hlm-spinner size="sm" />
+      Sending…
+    } @else {
+      Didn't get the email? Resend
+    }
   </button>
 
   <p class="text-sm text-ink-2">

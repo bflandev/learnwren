@@ -1,6 +1,8 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
+import { HlmAlert } from '@learnwren/web-ui';
+
 import { AuthService, type UnlockResult } from '../auth.service';
 
 type UnlockState =
@@ -13,7 +15,7 @@ type UnlockState =
 @Component({
   selector: 'app-unlock-page',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, HlmAlert],
   templateUrl: './unlock-page.component.html',
 })
 export class UnlockPageComponent implements OnInit {
