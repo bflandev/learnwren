@@ -41,7 +41,7 @@
   --lw-ink-2: oklch(38% 0.014 64);
   --lw-ink-3: oklch(52% 0.014 70);
   --lw-ink-4: oklch(64% 0.012 72);
-  --lw-ochre: oklch(64% 0.14 70);
+  --lw-ochre: oklch(54% 0.14 70);
   --lw-ochre-2: oklch(58% 0.14 65);
   --lw-ochre-ink: oklch(98% 0.01 80);
   --lw-moss: oklch(50% 0.12 145);
@@ -70,4 +70,287 @@
   --lw-gap: 20px;
   --lw-card-pad: 20px;
   --lw-card-gap: 14px;
+}
+
+/* Component-scoped role tokens (slice B) */
+
+.lw-theme-dark,
+:root {
+  /* button */
+  --lw-button-primary-bg: var(--lw-ochre);
+  --lw-button-primary-bg-hover: var(--lw-ochre-2);
+  --lw-button-primary-bg-active: var(--lw-ochre-2);
+  --lw-button-primary-fg: var(--lw-ochre-ink);
+  --lw-button-primary-fg-hover: var(--lw-ochre-ink);
+  --lw-button-primary-fg-active: var(--lw-ochre-ink);
+  --lw-button-primary-border: var(--lw-ochre);
+  --lw-button-primary-border-hover: var(--lw-ochre-2);
+  --lw-button-secondary-bg: var(--lw-bg-3);
+  --lw-button-secondary-bg-hover: var(--lw-line);
+  --lw-button-secondary-bg-active: var(--lw-line);
+  --lw-button-secondary-fg: var(--lw-ink);
+  --lw-button-secondary-border: var(--lw-line);
+  --lw-button-secondary-border-hover: var(--lw-line-2);
+  --lw-button-ghost-fg: var(--lw-ink-2);
+  --lw-button-ghost-fg-hover: var(--lw-ink);
+  --lw-button-ghost-bg-hover: var(--lw-bg-3);
+  --lw-button-ghost-bg-active: var(--lw-line);
+  --lw-button-link-fg: var(--lw-ochre);
+  --lw-button-link-fg-hover: var(--lw-ochre-2);
+  --lw-button-danger-bg: transparent;
+  --lw-button-danger-bg-hover: oklch(52% 0.15 40);
+  --lw-button-danger-fg: var(--lw-destructive-foreground);
+  --lw-button-danger-fg-hover: oklch(98% 0.01 80);
+  --lw-button-danger-border: var(--lw-bad);
+
+  /* status-foreground */
+  --lw-success-foreground: oklch(74% 0.12 145);
+  --lw-warning-foreground: oklch(76% 0.13 75);
+  --lw-destructive-foreground: oklch(76% 0.18 25);
+  --lw-info-foreground: oklch(74% 0.10 145);
+
+  /* badge */
+  --lw-badge-neutral-bg: var(--lw-bg-3);
+  --lw-badge-neutral-fg: var(--lw-ink);
+  --lw-badge-accent-bg: var(--lw-bg-3);
+  --lw-badge-accent-fg: oklch(76% 0.13 75);
+  --lw-badge-info-bg: var(--lw-bg-3);
+  --lw-badge-info-fg: var(--lw-info-foreground);
+  --lw-badge-success-bg: var(--lw-bg-3);
+  --lw-badge-success-fg: var(--lw-success-foreground);
+  --lw-badge-warn-bg: var(--lw-bg-3);
+  --lw-badge-warn-fg: var(--lw-warning-foreground);
+  --lw-badge-danger-bg: var(--lw-bg-3);
+  --lw-badge-danger-fg: var(--lw-destructive-foreground);
+  --lw-badge-category-bg: var(--lw-bg-3);
+  --lw-badge-category-fg: oklch(76% 0.13 75);
+  --lw-badge-info-border: var(--lw-line-2);
+  --lw-badge-success-border: var(--lw-line-2);
+  --lw-badge-warn-border: var(--lw-line-2);
+  --lw-badge-danger-border: var(--lw-line-2);
+  --lw-badge-category-border: var(--lw-line-2);
+
+  /* input-field */
+  --lw-input: var(--lw-bg);
+  --lw-input-disabled: var(--lw-bg-3);
+  --lw-input-border: var(--lw-ink-3);
+  --lw-input-border-hover: var(--lw-ink-2);
+  --lw-input-border-focus: var(--lw-ochre);
+  --lw-input-border-invalid: var(--lw-bad);
+  --lw-input-placeholder: var(--lw-ink-3);
+  --lw-checkbox-bg: var(--lw-bg);
+  --lw-field-label: var(--lw-ink-2);
+  --lw-field-helper: var(--lw-ink-2);
+  --lw-field-helper-invalid: var(--lw-destructive-foreground);
+
+  /* overlay */
+  --lw-scrim: oklch(10% 0.01 60 / 0.6);
+  --lw-dialog: var(--lw-bg-2);
+  --lw-dialog-border: var(--lw-line);
+  --lw-dialog-foreground: var(--lw-ink);
+  --lw-popover: var(--lw-bg-2);
+  --lw-popover-border: var(--lw-line);
+  --lw-popover-foreground: var(--lw-ink);
+  --lw-overlay-select-bg: var(--lw-bg-2);
+  --lw-overlay-select-border: var(--lw-line);
+  --lw-overlay-select-fg: var(--lw-ink);
+  --lw-tooltip-bg: oklch(26% 0.016 64);
+  --lw-tooltip-fg: oklch(96% 0.012 80);
+
+  /* selection */
+  --lw-selection-bg: var(--lw-ochre-soft);
+  --lw-selection-bg-hover: var(--lw-ochre-soft);
+  --lw-selection-fg: var(--lw-ink);
+
+  /* card */
+  --lw-card: var(--lw-bg-2);
+  --lw-card-hover: var(--lw-bg-3);
+  --lw-card-foreground: var(--lw-ink);
+  --lw-card-foreground-hover: var(--lw-ink);
+  --lw-card-foreground-muted: var(--lw-ink-2);
+
+  /* nav-item */
+  --lw-nav-item-bg-hover: var(--lw-bg-3);
+  --lw-nav-item-bg-selected: var(--lw-ochre-soft);
+  --lw-nav-item-fg: var(--lw-ink);
+  --lw-nav-item-fg-hover: var(--lw-ink);
+  --lw-nav-item-fg-selected: var(--lw-ink);
+  --lw-nav-item-icon: var(--lw-ink-3);
+  --lw-nav-item-icon-hover: var(--lw-ink);
+
+  /* list */
+  --lw-list-row-bg-hover: var(--lw-bg-3);
+  --lw-list-row-bg-selected: var(--lw-ochre-soft);
+  --lw-list-row-bg-selected-hover: var(--lw-ochre-soft);
+  --lw-list-header-bg: var(--lw-bg-2);
+  --lw-list-header-border: var(--lw-line);
+  --lw-list-cell-border: var(--lw-line);
+
+  /* shadcn-compat */
+  --lw-background: var(--lw-bg);
+  --lw-foreground: var(--lw-ink);
+  --lw-muted: var(--lw-bg-3);
+  --lw-muted-foreground: var(--lw-ink-2);
+  --lw-surface: var(--lw-bg-2);
+  --lw-surface-raised: var(--lw-bg-3);
+  --lw-surface-sunken: var(--lw-bg);
+  --lw-surface-hover: var(--lw-bg-3);
+  --lw-surface-active: var(--lw-bg-3);
+  --lw-border: var(--lw-line);
+  --lw-border-subtle: var(--lw-line);
+  --lw-border-strong: var(--lw-line-2);
+  --lw-border-hover: var(--lw-line-2);
+  --lw-border-focus: var(--lw-ochre);
+  --lw-primary: var(--lw-ochre);
+  --lw-primary-soft: var(--lw-ochre-soft);
+  --lw-primary-strong: var(--lw-ochre-2);
+  --lw-primary-foreground: var(--lw-ochre-ink);
+  --lw-primary-hover: var(--lw-ochre-2);
+  --lw-primary-hover-foreground: var(--lw-ochre-ink);
+  --lw-primary-active: var(--lw-ochre-2);
+  --lw-primary-active-foreground: var(--lw-ochre-ink);
+  --lw-primary-disabled: var(--lw-bg-3);
+  --lw-primary-disabled-foreground: var(--lw-ink-4);
+  --lw-success: var(--lw-good);
+  --lw-warning: var(--lw-warn);
+  --lw-destructive: var(--lw-bad);
+  --lw-info: var(--lw-moss);
+  --lw-ring: var(--lw-ochre);
+
+  /* misc */
+  --lw-ochre-soft: oklch(30% 0.05 72);
+  --lw-focus-ring-glow: color-mix(in oklch, var(--lw-ochre) 18%, transparent);
+
+  /* type-roles */
+  --lw-type-page-title-size: 28px;
+  --lw-type-page-title-line-height: 34px;
+  --lw-type-page-title-weight: 700;
+  --lw-type-section-title-size: 20px;
+  --lw-type-section-title-line-height: 26px;
+  --lw-type-section-title-weight: 600;
+  --lw-type-field-label-size: 12px;
+  --lw-type-field-label-line-height: 20px;
+  --lw-type-field-label-weight: 600;
+  --lw-type-body-size: 14px;
+  --lw-type-body-line-height: 20px;
+  --lw-type-body-weight: 400;
+  --lw-type-helper-size: 12px;
+  --lw-type-helper-line-height: 16px;
+  --lw-type-helper-weight: 400;
+  --lw-type-code-size: 13px;
+  --lw-type-code-line-height: 18px;
+  --lw-type-code-weight: 400;
+
+  /* radius */
+  --lw-radius-xs: 4px;
+  --lw-radius-sm: var(--lw-r-sm);
+  --lw-radius-md: 8px;
+  --lw-radius-lg: var(--lw-r-lg);
+  --lw-radius-xl: var(--lw-r-xl);
+  --lw-control-radius: var(--lw-radius-md);
+  --lw-nav-item-radius: var(--lw-radius-sm);
+  --lw-badge-radius: var(--lw-radius-sm);
+  --lw-tooltip-radius: var(--lw-radius-sm);
+
+  /* shadow */
+  --lw-shadow-raised: var(--lw-shadow-1);
+  --lw-shadow-overlay: var(--lw-shadow-2);
+  --lw-shadow-dialog: var(--lw-shadow-2);
+
+  /* spacing */
+  --lw-control-padding-x: 12px;
+  --lw-control-padding-y: 8px;
+  --lw-control-padding-x-sm: 8px;
+  --lw-control-padding-y-sm: 4px;
+  --lw-control-padding-x-lg: 16px;
+  --lw-control-padding-y-lg: 12px;
+  --lw-control-gap: 8px;
+  --lw-nav-item-padding-x: 12px;
+  --lw-nav-item-padding-y: 8px;
+  --lw-nav-item-gap: 8px;
+  --lw-badge-padding-x: 8px;
+  --lw-badge-padding-y: 2px;
+  --lw-badge-gap: 4px;
+  --lw-tooltip-padding-x: 12px;
+  --lw-tooltip-padding-y: 8px;
+  --lw-form-field-gap: 4px;
+  --lw-form-row-gap: 16px;
+  --lw-form-section-gap: 24px;
+
+  /* z-index */
+  --lw-z-base: 0;
+  --lw-z-sticky: 100;
+  --lw-z-sticky-elevated: 110;
+  --lw-z-dropdown: 200;
+  --lw-z-popover: 300;
+  --lw-z-dialog-backdrop: 400;
+  --lw-z-dialog: 500;
+  --lw-z-toast: 600;
+
+  /* motion */
+  --lw-motion-duration-fast: 120ms;
+  --lw-motion-duration-medium: 200ms;
+  --lw-motion-duration-slow: 320ms;
+  --lw-motion-duration-emphasis: 700ms;
+  --lw-motion-duration-glacial: 1400ms;
+  --lw-motion-ease-fast: cubic-bezier(0.25, 1, 0.5, 1);
+  --lw-motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --lw-motion-ease-emphasis: cubic-bezier(0.3, 0, 0, 1);
+  --lw-motion-popover-enter: var(--lw-motion-duration-medium) var(--lw-motion-ease-standard);
+  --lw-motion-dialog-enter: var(--lw-motion-duration-medium) var(--lw-motion-ease-emphasis);
+  --lw-motion-drawer-slide: var(--lw-motion-duration-medium) var(--lw-motion-ease-emphasis);
+  --lw-motion-row-flash: var(--lw-motion-duration-emphasis) var(--lw-motion-ease-standard);
+  --lw-motion-skeleton-shimmer-duration: var(--lw-motion-duration-glacial);
+
+  /* font-weight */
+  --lw-font-weight-normal: 400;
+  --lw-font-weight-medium: 500;
+  --lw-font-weight-semibold: 600;
+  --lw-font-weight-bold: 700;
+
+  /* opacity */
+  --lw-opacity-disabled: 0.5;
+  --lw-opacity-muted: 0.7;
+}
+
+:root.lw-theme-light,
+.lw-theme-light {
+  /* button */
+  --lw-button-primary-bg-hover: oklch(52% 0.14 65);
+  --lw-button-primary-bg-active: oklch(52% 0.14 65);
+  --lw-button-primary-border-hover: oklch(52% 0.14 65);
+  --lw-button-link-fg-hover: oklch(52% 0.14 65);
+  --lw-button-danger-bg-hover: var(--lw-rust);
+
+  /* status-foreground */
+  --lw-success-foreground: oklch(36% 0.12 145);
+  --lw-warning-foreground: oklch(38% 0.13 75);
+  --lw-destructive-foreground: oklch(40% 0.18 25);
+  --lw-info-foreground: oklch(36% 0.10 145);
+
+  /* badge */
+  --lw-badge-accent-fg: oklch(38% 0.14 70);
+  --lw-badge-category-fg: oklch(38% 0.14 70);
+
+  /* overlay */
+  --lw-scrim: oklch(20% 0.01 60 / 0.4);
+
+  /* misc */
+  --lw-ochre-soft: oklch(90% 0.05 75);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --lw-motion-duration-fast: 0ms !important;
+    --lw-motion-duration-medium: 0ms !important;
+    --lw-motion-duration-slow: 0ms !important;
+    --lw-motion-duration-emphasis: 0ms !important;
+    --lw-motion-duration-glacial: 0ms !important;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

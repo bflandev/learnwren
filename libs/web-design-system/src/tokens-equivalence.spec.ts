@@ -28,6 +28,12 @@ describe('generated tokens.css equivalence with the legacy hand-written file', (
   const legacy = parseCustomProps(
     readFileSync(join(HERE, 'legacy-tokens.fixture.css'), 'utf8'),
   );
+  // SANCTIONED DEVIATION (slice B contrast fix): light-theme --lw-ochre was
+  // darkened 64% -> 54% lightness so ochre-ink-on-ochre clears WCAG AA 4.5:1
+  // (it measured 3.27:1 in the legacy palette; see contrast.spec.ts). The
+  // fixture stays frozen as the pre-port record; only this one property is
+  // expected to differ from it. Every other property must match exactly.
+  legacy.get('.lw-theme-light')?.set('--lw-ochre', 'oklch(54% 0.14 70)');
   const generated = parseCustomProps(
     readFileSync(join(HERE, 'generated/tokens.css'), 'utf8'),
   );
