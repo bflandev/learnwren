@@ -11,7 +11,9 @@
     <p class="mt-6 text-sm text-muted" data-testid="not-found">User not found.</p>
   } @else if (user(); as u) {
     <div class="mt-6 flex items-center gap-4">
-      <lw-avatar [photoUrl]="u.photoUrl" [displayName]="u.displayName" [userId]="u.id" size="md" />
+      <hlm-avatar [src]="u.photoUrl" [alt]="u.displayName" [attr.data-tone]="avatarTone(u)">
+        <span class="text-xs font-medium">{{ avatarInitials(u) }}</span>
+      </hlm-avatar>
       <div>
         <h1 class="text-xl font-semibold text-ink">{{ u.displayName }}</h1>
         <p class="text-sm text-muted">{{ u.email }}</p>

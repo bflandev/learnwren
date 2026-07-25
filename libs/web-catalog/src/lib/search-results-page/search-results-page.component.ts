@@ -6,6 +6,8 @@ import type { CourseCatalogPage } from '@learnwren/shared-data-models';
 import { AuthService } from '@learnwren/web-auth';
 import { EnrollmentService } from '@learnwren/web-enrollment';
 
+import { HlmButton } from '@learnwren/web-ui';
+
 import { CatalogService } from '../catalog.service';
 import { CourseCardComponent } from '../components/course-card/course-card.component';
 
@@ -13,7 +15,7 @@ import { CourseCardComponent } from '../components/course-card/course-card.compo
   selector: 'lib-search-results-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CourseCardComponent],
+  imports: [CourseCardComponent, HlmButton],
   templateUrl: './search-results-page.component.html',
 })
 export class SearchResultsPageComponent {

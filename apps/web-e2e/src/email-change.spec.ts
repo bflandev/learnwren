@@ -70,9 +70,8 @@ test(
     // Open the email-change form.
     await page.getByTestId('toggle-email-change').click();
 
-    // Fill the form fields.  The template uses <label><span>…</span><input/></label>
-    // (implicit label association via nesting), which Playwright's getByLabel
-    // resolves correctly.
+    // Fill the form fields. The hlm-form-field template uses explicit
+    // label[for]/input[id] association, which Playwright's getByLabel resolves.
     await page.getByLabel('New email address').fill('new@example.com');
     await page.getByLabel('Current password').fill('Aa1!aaaaaaaa');
 

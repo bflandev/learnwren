@@ -78,7 +78,7 @@ test('UC-01-03 Slice B — user uploads profile picture, it persists across relo
 
   // The uploader's own preview should also be an image now.
   await expect(
-    page.locator('lib-profile-picture-uploader img.lw-avatar-image'),
+    page.locator('[data-testid="uploader-avatar"] img'),
   ).toBeVisible();
 
   // Reload — the picture persists (read from Firestore via /me on bootstrap).

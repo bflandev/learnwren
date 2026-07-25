@@ -1,15 +1,10 @@
 export * from './lib/_internal/cn';
 export * from './lib/theme/theme.service';
-export * from './lib/button/lw-button.directive';
 export * from './lib/wordmark/lw-wordmark.component';
-export * from './lib/card/lw-card.component';
-export * from './lib/pill/lw-pill.component';
 export * from './lib/cover/lw-cover.component';
 export * from './lib/cover/cover-tone';
-export * from './lib/avatar/lw-avatar.component';
-export * from './lib/avatar/avatar-tone';
+export * from './lib/avatar-tone/avatar-tone';
 export * from './lib/theme-toggle/theme-toggle.component';
-export * from './lib/input/lw-input.directive';
 
 /* hlm ports (donor design system) — per-dir index files */
 export * from './lib/accent';

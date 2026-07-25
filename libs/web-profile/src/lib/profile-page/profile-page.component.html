@@ -7,8 +7,10 @@
     <div class="mt-6" role="alert" data-testid="profile-load-error">
       <p class="text-sm text-ink-2">Couldn't load your profile. Check your connection and try again.</p>
       <button
+        hlmBtn
+        variant="ghost"
         type="button"
-        class="lw-btn lw-btn-ghost mt-2"
+        class="mt-2"
         data-testid="profile-retry-button"
         (click)="retryLoad()"
       >
@@ -22,18 +24,18 @@
   </section>
 
   <form [formGroup]="form" (ngSubmit)="save()" class="flex flex-col gap-4">
-    <label class="flex flex-col gap-1">
-      <span class="text-sm font-medium text-ink-2">Display name</span>
+    <hlm-form-field>
+      <label hlmLabel for="profile-display-name">Display name</label>
       <input
-        lwInput
+        hlmInput
+        hlmFormFieldControl
+        id="profile-display-name"
         type="text"
         formControlName="displayName"
         maxlength="80"
-        class="mt-1"
-        aria-describedby="displayName-err"
       />
       @if (form.controls.displayName.touched && form.controls.displayName.invalid) {
-        <span id="displayName-err" class="text-sm text-bad">
+        <span hlmFormFieldError>
           @if (form.controls.displayName.errors?.['server']) {
             {{ form.controls.displayName.errors?.['server'] }}
           } @else if (form.controls.displayName.errors?.['maxlength']) {
@@ -41,20 +43,20 @@
           }
         </span>
       }
-    </label>
+    </hlm-form-field>
 
-    <label class="flex flex-col gap-1">
-      <span class="text-sm font-medium text-ink-2">Biography</span>
+    <hlm-form-field>
+      <label hlmLabel for="profile-biography">Biography</label>
       <textarea
-        lwInput
+        hlmInput
+        hlmFormFieldControl
+        id="profile-biography"
         formControlName="biography"
         maxlength="1000"
         rows="6"
-        class="mt-1"
-        aria-describedby="bio-err"
       ></textarea>
       @if (form.controls.biography.touched && form.controls.biography.invalid) {
-        <span id="bio-err" class="text-sm text-bad">
+        <span hlmFormFieldError>
           @if (form.controls.biography.errors?.['server']) {
             {{ form.controls.biography.errors?.['server'] }}
           } @else if (form.controls.biography.errors?.['maxlength']) {
@@ -62,7 +64,7 @@
           }
         </span>
       }
-    </label>
+    </hlm-form-field>
 
     @if (readonly(); as ro) {
       <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
@@ -73,8 +75,7 @@
 
     <div class="flex items-center gap-3 mt-2">
       <button
-        lwButton
-        variant="primary"
+        hlmBtn
         type="submit"
         [disabled]="status() === 'saving'"
       >
@@ -98,7 +99,7 @@
       } @else {
         <div>
           <button
-            lwButton
+            hlmBtn
             variant="ghost"
             type="button"
             data-testid="toggle-email-change"
@@ -116,11 +117,17 @@
           (ngSubmit)="submitEmailChange()"
           class="flex flex-col gap-3 border border-line rounded p-4"
         >
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink-2">New email address</span>
-            <input lwInput type="email" formControlName="newEmail" aria-describedby="newEmail-err" />
+          <hlm-form-field>
+            <label hlmLabel for="email-change-new">New email address</label>
+            <input
+              hlmInput
+              hlmFormFieldControl
+              id="email-change-new"
+              type="email"
+              formControlName="newEmail"
+            />
             @if (emailForm.controls.newEmail.touched && emailForm.controls.newEmail.invalid) {
-              <span id="newEmail-err" class="text-sm text-bad">
+              <span hlmFormFieldError>
                 @if (emailForm.controls.newEmail.errors?.['server']) {
                   {{ emailForm.controls.newEmail.errors?.['server'] }}
                 } @else {
@@ -128,12 +135,18 @@
                 }
               </span>
             }
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink-2">Current password</span>
-            <input lwInput type="password" formControlName="currentPassword" aria-describedby="curpw-err" />
+          </hlm-form-field>
+          <hlm-form-field>
+            <label hlmLabel for="email-change-password">Current password</label>
+            <input
+              hlmInput
+              hlmFormFieldControl
+              id="email-change-password"
+              type="password"
+              formControlName="currentPassword"
+            />
             @if (emailForm.controls.currentPassword.touched && emailForm.controls.currentPassword.invalid) {
-              <span id="curpw-err" class="text-sm text-bad">
+              <span hlmFormFieldError>
                 @if (emailForm.controls.currentPassword.errors?.['server']) {
                   {{ emailForm.controls.currentPassword.errors?.['server'] }}
                 } @else {
@@ -141,11 +154,10 @@
                 }
               </span>
             }
-          </label>
+          </hlm-form-field>
           <div>
             <button
-              lwButton
-              variant="primary"
+              hlmBtn
               type="submit"
               data-testid="submit-email-change"
               [disabled]="emailStatus() === 'sending'"
@@ -162,7 +174,7 @@
 
       <div>
         <button
-          lwButton
+          hlmBtn
           variant="ghost"
           type="button"
           data-testid="toggle-password-change"
@@ -179,11 +191,18 @@
           (ngSubmit)="submitPasswordChange()"
           class="flex flex-col gap-3 border border-line rounded p-4"
         >
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink-2">Current password</span>
-            <input lwInput type="password" formControlName="currentPassword" autocomplete="current-password" aria-describedby="cur-pw-err" />
+          <hlm-form-field>
+            <label hlmLabel for="password-change-current">Current password</label>
+            <input
+              hlmInput
+              hlmFormFieldControl
+              id="password-change-current"
+              type="password"
+              formControlName="currentPassword"
+              autocomplete="current-password"
+            />
             @if (passwordForm.controls.currentPassword.touched && passwordForm.controls.currentPassword.invalid) {
-              <span id="cur-pw-err" class="text-sm text-bad">
+              <span hlmFormFieldError>
                 @if (passwordForm.controls.currentPassword.errors?.['server']) {
                   {{ passwordForm.controls.currentPassword.errors?.['server'] }}
                 } @else {
@@ -191,42 +210,55 @@
                 }
               </span>
             }
-          </label>
+          </hlm-form-field>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink-2">New password</span>
-            <input lwInput type="password" formControlName="newPassword" autocomplete="new-password" aria-describedby="new-pw-err" />
+          <hlm-form-field>
+            <label hlmLabel for="password-change-new">New password</label>
+            <input
+              hlmInput
+              hlmFormFieldControl
+              id="password-change-new"
+              type="password"
+              formControlName="newPassword"
+              autocomplete="new-password"
+            />
             @if (passwordForm.controls.newPassword.errors?.['server']) {
-              <span id="new-pw-err" class="text-sm text-bad">
+              <span hlmFormFieldError>
                 {{ passwordForm.controls.newPassword.errors?.['server'] }}
               </span>
             } @else if (passwordHints().length > 0) {
-              <ul class="mt-1 list-inside list-disc text-xs text-ink-3">
+              <ul hlmFormFieldHint class="mt-1 list-inside list-disc">
                 @for (hint of passwordHints(); track hint) {
                   <li>{{ hint }}</li>
                 }
               </ul>
             }
-          </label>
+          </hlm-form-field>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-ink-2">Confirm new password</span>
-            <input lwInput type="password" formControlName="confirmNewPassword" autocomplete="new-password" aria-describedby="confirm-pw-err" />
+          <hlm-form-field>
+            <label hlmLabel for="password-change-confirm">Confirm new password</label>
+            <input
+              hlmInput
+              hlmFormFieldControl
+              id="password-change-confirm"
+              type="password"
+              formControlName="confirmNewPassword"
+              autocomplete="new-password"
+            />
             @if (passwordForm.controls.confirmNewPassword.touched && passwordForm.errors?.['confirmMismatch']) {
-              <span id="confirm-pw-err" class="text-sm text-bad">Passwords do not match.</span>
+              <span hlmFormFieldError>Passwords do not match.</span>
             }
-          </label>
+          </hlm-form-field>
 
           @if (passwordBannerError()) {
-            <p class="text-sm text-bad" role="alert" data-testid="password-change-error">
+            <hlm-alert severity="error" data-testid="password-change-error">
               {{ passwordBannerError() }}
-            </p>
+            </hlm-alert>
           }
 
           <div>
             <button
-              lwButton
-              variant="primary"
+              hlmBtn
               type="submit"
               data-testid="submit-password-change"
               [disabled]="passwordStatus() === 'saving'"

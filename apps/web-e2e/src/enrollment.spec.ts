@@ -71,7 +71,7 @@ async function seedPublishedCourse(
 test('a logged-in student can enroll and then leave a course', async ({ page }) => {
   const { email, password } = await registerVerifiedStudent();
   // Seed an instructor with a photoUrl so the course detail page renders the
-  // <img> avatar branch of lw-avatar. We use a stable data: URL — no upload
+  // <img> avatar branch of hlm-avatar. We use a stable data: URL — no upload
   // round-trip needed, and the catalog API echoes the raw photoUrl through.
   const instructorUid = `web-e2e-enr-instructor-${Date.now()}`;
   const photoUrl =
@@ -94,12 +94,12 @@ test('a logged-in student can enroll and then leave a course', async ({ page }) 
   await page.goto(`/catalog/${courseId}`);
 
   // UC-01-03 Slice B avatar render: the instructor card on the course detail
-  // page renders an lw-avatar. With a photoUrl seeded above, the <img> branch
-  // should win over the initials span.
-  const instructorAvatar = page.locator('[data-test="instructor-card"] lw-avatar');
+  // page renders an hlm-avatar. With a photoUrl seeded above, the <img> branch
+  // should win over the projected initials span.
+  const instructorAvatar = page.locator('[data-test="instructor-card"] hlm-avatar');
   await expect(instructorAvatar).toBeVisible();
-  await expect(instructorAvatar.locator('img.lw-avatar-image')).toBeVisible();
-  await expect(instructorAvatar.locator('span.lw-avatar-initials')).toHaveCount(0);
+  await expect(instructorAvatar.locator('img')).toBeVisible();
+  await expect(page.getByTestId('instructor-avatar-initials')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Enroll' }).click();
   await expect(page.getByText('Enrolled', { exact: false })).toBeVisible({ timeout: 10_000 });
@@ -122,11 +122,11 @@ test('a guest who clicks Enroll is sent to login and auto-enrolled on return', a
 
   // UC-01-03 Slice B avatar render — initials fallback path: no users/{uid}
   // doc is seeded for this test's instructorId, so InstructorDirectory falls
-  // back to displayName "Instructor" and lw-avatar renders the initials span.
-  const instructorAvatar = page.locator('[data-test="instructor-card"] lw-avatar');
+  // back to displayName "Instructor" and hlm-avatar projects the initials span.
+  const instructorAvatar = page.locator('[data-test="instructor-card"] hlm-avatar');
   await expect(instructorAvatar).toBeVisible();
-  await expect(instructorAvatar.locator('span.lw-avatar-initials')).toBeVisible();
-  await expect(instructorAvatar.locator('img.lw-avatar-image')).toHaveCount(0);
+  await expect(page.getByTestId('instructor-avatar-initials')).toBeVisible();
+  await expect(instructorAvatar.locator('img')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Enroll' }).click();
   await page.waitForURL(/\/login/, { timeout: 10_000 });

@@ -181,6 +181,8 @@
   --font-sans: var(--lw-font-sans);
   --font-serif: var(--lw-font-serif);
   --font-mono: var(--lw-font-mono);
+  /* .lw-mono carried "ss01"; the font-mono utility keeps it (ds sweep F2). */
+  --font-mono--font-feature-settings: 'ss01';
 
   /* semantic typography roles — Tailwind v4 tuple form: size + line-height
    * + weight, at Learn Wren's 16px-rem scale (body 14px = .lw-screen). */

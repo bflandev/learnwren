@@ -3,7 +3,14 @@ import { DatePipe } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 
-import { HlmBadge, HlmButton, HlmSkeleton, LwAvatarComponent } from '@learnwren/web-ui';
+import {
+  HlmAvatar,
+  HlmBadge,
+  HlmButton,
+  HlmSkeleton,
+  avatarToneFor,
+  deriveInitials,
+} from '@learnwren/web-ui';
 import type { AdminUserDetail, AdminUserRoleResponse, AdminUserStatusResponse } from '@learnwren/shared-data-models';
 
 import { AdminUsersService } from '../admin-users.service';
@@ -11,7 +18,7 @@ import { AdminUsersService } from '../admin-users.service';
 @Component({
   selector: 'lib-admin-user-detail-page',
   standalone: true,
-  imports: [DatePipe, RouterLink, LwAvatarComponent, HlmBadge, HlmButton, HlmSkeleton],
+  imports: [DatePipe, RouterLink, HlmAvatar, HlmBadge, HlmButton, HlmSkeleton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin-user-detail-page.component.html',
 })
@@ -37,6 +44,14 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
    */
   private loadToken = 0;
   private sub?: Subscription;
+
+  protected avatarTone(u: AdminUserDetail): string {
+    return avatarToneFor(u.id);
+  }
+
+  protected avatarInitials(u: AdminUserDetail): string {
+    return deriveInitials(u.displayName);
+  }
 
   ngOnInit(): void {
     this.sub = this.route.paramMap.subscribe((params) => {

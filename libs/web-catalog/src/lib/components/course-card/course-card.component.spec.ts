@@ -62,7 +62,7 @@ describe('CourseCardComponent', () => {
     expect(anchor?.getAttribute('href')).toBe('/catalog/c-1');
   });
 
-  it('omits the difficulty pill when difficulty is absent', () => {
+  it('omits the difficulty badge when difficulty is absent', () => {
     const summaryWithoutDifficulty: CourseSummary = {
       id: 'c-2',
       title: 'Learn Go',
@@ -72,10 +72,10 @@ describe('CourseCardComponent', () => {
       publishedAt: '2026-01-01T00:00:00.000Z' as CourseSummary['publishedAt'],
     };
     const el = render(summaryWithoutDifficulty);
-    expect(el.querySelector('lw-pill')).toBeNull();
+    expect(el.querySelector('[data-testid="card-difficulty-badge"]')).toBeNull();
   });
 
-  it('renders <lw-avatar> bound to instructorPhotoUrl + instructorId', () => {
+  it('renders <hlm-avatar> bound to instructorPhotoUrl', () => {
     const summaryWithPhoto: CourseSummary = {
       id: 'c-1' as CourseSummary['id'],
       title: 'Intro',
@@ -86,7 +86,7 @@ describe('CourseCardComponent', () => {
       publishedAt: '2026-05-28T00:00:00.000Z' as CourseSummary['publishedAt'],
     };
     const el = render(summaryWithPhoto);
-    const avatar = el.querySelector('lw-avatar');
+    const avatar = el.querySelector('hlm-avatar');
     expect(avatar).toBeTruthy();
     const img = avatar?.querySelector('img');
     expect(img?.getAttribute('src')).toContain('avatar.jpg');
@@ -102,8 +102,10 @@ describe('CourseCardComponent', () => {
       publishedAt: '2026-05-28T00:00:00.000Z' as CourseSummary['publishedAt'],
     };
     const el = render(summaryNoPhoto);
-    expect(el.querySelector('lw-avatar img')).toBeNull();
-    expect(el.querySelector('lw-avatar .lw-avatar-initials')?.textContent?.trim()).toBe('AD');
+    expect(el.querySelector('hlm-avatar img')).toBeNull();
+    expect(
+      el.querySelector('[data-testid="card-avatar-initials"]')?.textContent?.trim(),
+    ).toBe('AD');
   });
 
   it('shows a Completed pill when completed', () => {

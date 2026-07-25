@@ -3,7 +3,15 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { AuthService } from '@learnwren/web-auth';
-import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
+import {
+  HlmAlert,
+  HlmButton,
+  HlmFormField,
+  HlmFormFieldControl,
+  HlmFormFieldError,
+  HlmInput,
+  HlmLabel,
+} from '@learnwren/web-ui';
 import type {
   InstructorApplicationErrorBody,
   InstructorApplicationView,
@@ -17,7 +25,16 @@ type Status = 'idle' | 'submitting';
   selector: 'lib-instructor-application',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, LwInputDirective, LwButtonDirective],
+  imports: [
+    ReactiveFormsModule,
+    HlmAlert,
+    HlmButton,
+    HlmFormField,
+    HlmFormFieldControl,
+    HlmFormFieldError,
+    HlmInput,
+    HlmLabel,
+  ],
   templateUrl: './instructor-application.component.html',
 })
 export class InstructorApplicationComponent {

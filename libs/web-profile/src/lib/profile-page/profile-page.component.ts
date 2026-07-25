@@ -6,7 +6,16 @@ import { Router } from '@angular/router';
 
 import { AuthService, passwordPolicyValidator, PASSWORD_REQUIREMENT_PROSE } from '@learnwren/web-auth';
 import type { PolicyRequirement } from '@learnwren/web-auth';
-import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
+import {
+  HlmAlert,
+  HlmButton,
+  HlmFormField,
+  HlmFormFieldControl,
+  HlmFormFieldError,
+  HlmFormFieldHint,
+  HlmInput,
+  HlmLabel,
+} from '@learnwren/web-ui';
 import type { ProfileView, ProfileInvalidErrorBody, EmailChangeErrorBody, PasswordChangeErrorBody } from '@learnwren/shared-data-models';
 
 import { ProfileService } from '../profile.service';
@@ -34,8 +43,14 @@ function confirmMatchesValidator(control: AbstractControl): ValidationErrors | n
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
-    LwInputDirective,
-    LwButtonDirective,
+    HlmAlert,
+    HlmButton,
+    HlmFormField,
+    HlmFormFieldControl,
+    HlmFormFieldError,
+    HlmFormFieldHint,
+    HlmInput,
+    HlmLabel,
     ProfilePictureUploaderComponent,
     CompletedCoursesComponent,
     InstructorApplicationComponent,

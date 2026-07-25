@@ -1,38 +1,40 @@
 @if (state() === 'LOADING') {
   <div data-testid="lesson-skeleton" class="animate-pulse">
-    <div class="h-8 w-1/2 bg-gray-200 rounded mb-4"></div>
-    <div class="aspect-video w-full bg-gray-200 rounded"></div>
+    <div class="h-8 w-1/2 bg-bg-3 rounded mb-4"></div>
+    <div class="aspect-video w-full bg-bg-3 rounded"></div>
   </div>
 } @else if (state() === 'NOT_ENROLLED') {
-  <div class="rounded border border-line p-6">
+  <hlm-card class="p-6">
     <h1 class="text-xl font-semibold">You're not enrolled in this course</h1>
-    <p class="mt-2 text-sm text-gray-600">
+    <p class="mt-2 text-sm text-ink-2">
       You don't have access to this course's lessons. Visit the course page to enrol.
     </p>
     <div class="mt-4 flex flex-wrap items-center gap-4">
       <a data-testid="view-course-to-enrol"
-         class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-white"
+         hlmBtn
          [routerLink]="['/catalog', courseId]">
         View course to enrol
       </a>
     </div>
-  </div>
+  </hlm-card>
 } @else if (state() === 'NOT_FOUND') {
-  <div class="rounded border border-line p-6">
+  <hlm-card class="p-6">
     <h1 class="text-xl font-semibold">Lesson not available</h1>
-    <p class="mt-2 text-sm text-gray-600">This lesson could not be found.</p>
-    <a data-testid="back-to-course" class="mt-4 inline-block underline"
+    <p class="mt-2 text-sm text-ink-2">This lesson could not be found.</p>
+    <a data-testid="back-to-course" hlmBtn variant="link" class="mt-4 px-0"
        [routerLink]="['/catalog', courseId]">← Back to course</a>
-  </div>
+  </hlm-card>
 } @else if (state() === 'LOAD_ERROR') {
-  <div class="rounded border border-line p-6">
+  <hlm-card class="p-6">
     <h1 class="text-xl font-semibold">Something went wrong</h1>
-    <button class="mt-4 underline" type="button" (click)="retry()">Retry</button>
-  </div>
+    <button hlmBtn variant="outline" class="mt-4" type="button" (click)="retry()">Retry</button>
+  </hlm-card>
 } @else if (view(); as v) {
   <div>
     <div class="mb-4">
       <button
+        hlmBtn
+        variant="outline"
         type="button"
         data-testid="outline-toggle"
         [attr.aria-expanded]="outlineOpen()"
@@ -60,7 +62,7 @@
         <article class="space-y-4">
           <h1 class="text-2xl font-semibold">{{ v.lesson.title }}</h1>
           @if (v.lesson.description) {
-            <p class="text-sm text-gray-700">{{ v.lesson.description }}</p>
+            <p class="text-sm text-ink-2">{{ v.lesson.description }}</p>
           }
 
           @if (state() === 'READY' && v.lesson.videoId; as vid) {
@@ -72,26 +74,28 @@
               (paused)="onPaused()"
               (videoEnded)="onEnded()" />
           } @else {
-            <div class="rounded border border-line p-6 bg-amber-50" data-testid="video-processing">
+            <hlm-alert severity="warning" data-testid="video-processing">
               This lesson's video is still being processed. Please check back later.
-            </div>
+            </hlm-alert>
           }
 
           <section class="mt-4">
             @if (isOwnerPreview()) {
-              <p data-testid="instructor-preview-hint" class="text-sm text-gray-500 italic">
+              <p data-testid="instructor-preview-hint" class="text-sm text-ink-3 italic">
                 (Instructor preview — progress not tracked)
               </p>
             } @else if (completedAt(); as ts) {
               <span data-testid="completed-pill"
-                    class="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-sm text-green-800"
+                    hlmBadge
+                    variant="success"
+                    density="comfortable"
                     aria-disabled="true">
                 ✓ Completed on {{ ts | date: 'mediumDate' }}
               </span>
             } @else {
               <button data-testid="mark-complete"
+                      hlmBtn
                       type="button"
-                      class="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
                       [disabled]="markBusy()"
                       (click)="onMarkComplete()">
                 {{ markBusy() ? 'Marking…' : 'Mark as Complete' }}
@@ -99,73 +103,76 @@
             }
 
             @if (markError() === 'revoked') {
-              <p data-testid="mark-error-revoked" class="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm">
+              <hlm-alert severity="warning" class="mt-3" data-testid="mark-error-revoked">
                 Your enrolment is no longer active.
                 <a class="underline" [routerLink]="['/catalog', courseId]">Back to course</a>
-              </p>
+              </hlm-alert>
             } @else if (markError() === 'other') {
-              <p data-testid="mark-error-other" class="mt-3 rounded border border-red-300 bg-red-50 p-3 text-sm">
+              <hlm-alert severity="error" class="mt-3" data-testid="mark-error-other">
                 Something went wrong.
-                <button class="underline" type="button" [disabled]="markBusy()" (click)="onMarkComplete()">Retry</button>
-              </p>
+                <button hlmBtn variant="link" size="sm" class="ml-2 h-auto px-0" type="button" [disabled]="markBusy()" (click)="onMarkComplete()">Retry</button>
+              </hlm-alert>
             }
           </section>
 
           @if (v.materials.length > 0) {
-            <section data-testid="lesson-materials" class="mt-6 rounded border border-line p-4">
-              <h2 class="text-lg font-semibold mb-3">Lesson materials</h2>
-              <ul class="space-y-2">
-                @for (m of v.materials; track m.id) {
-                  <li
-                    [attr.data-testid]="'material-row-' + m.id"
-                    class="flex items-center justify-between gap-4 rounded border border-line p-3"
-                  >
-                    <div class="min-w-0 flex items-center gap-3">
-                      <span
-                        class="inline-flex shrink-0 items-center rounded bg-gray-100 px-2 py-1 text-xs font-medium uppercase text-gray-700"
-                      >{{ m.extension.toUpperCase() }}</span>
-                      <span class="truncate" [attr.title]="m.displayName">{{ m.displayName }}</span>
-                      <span class="shrink-0 text-xs text-gray-500">{{ formatBytes(m.sizeBytes) }}</span>
-                    </div>
-                    @if (rowState(m.id); as rs) {
-                      <button
-                        type="button"
-                        [attr.data-testid]="'material-download-' + m.id"
-                        class="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
-                        [disabled]="rs.status === 'preparing'"
-                        (click)="onDownloadMaterial(m.id)"
-                      >
-                        {{ rs.status === 'preparing' ? 'Preparing…' : 'Download' }}
-                      </button>
-                    }
-                  </li>
-                  @if (rowState(m.id); as rs) {
-                    @if (rs.status === 'error') {
-                      <li
-                        [attr.data-testid]="'material-error-' + m.id"
-                        class="rounded border border-red-300 bg-red-50 p-2 text-sm"
-                      >
-                        @if (rs.kind === 'gone') {
-                          This file is no longer available.
-                        } @else if (rs.kind === 'forbidden') {
-                          You no longer have access to this material.
-                        } @else {
-                          Couldn't prepare the download. Try again.
-                        }
+            <section data-testid="lesson-materials" class="mt-6">
+              <hlm-card class="p-4">
+                <h2 class="text-lg font-semibold mb-3">Lesson materials</h2>
+                <ul class="space-y-2">
+                  @for (m of v.materials; track m.id) {
+                    <li
+                      [attr.data-testid]="'material-row-' + m.id"
+                      class="flex items-center justify-between gap-4 rounded-control border border-line p-3"
+                    >
+                      <div class="min-w-0 flex items-center gap-3">
+                        <span hlmBadge class="shrink-0 uppercase">{{ m.extension.toUpperCase() }}</span>
+                        <span class="truncate" [attr.title]="m.displayName">{{ m.displayName }}</span>
+                        <span class="shrink-0 text-xs text-ink-3">{{ formatBytes(m.sizeBytes) }}</span>
+                      </div>
+                      @if (rowState(m.id); as rs) {
                         <button
+                          hlmBtn
+                          size="sm"
                           type="button"
-                          class="ml-2 underline"
+                          [attr.data-testid]="'material-download-' + m.id"
+                          [disabled]="rs.status === 'preparing'"
                           (click)="onDownloadMaterial(m.id)"
-                        >Retry</button>
-                      </li>
+                        >
+                          {{ rs.status === 'preparing' ? 'Preparing…' : 'Download' }}
+                        </button>
+                      }
+                    </li>
+                    @if (rowState(m.id); as rs) {
+                      @if (rs.status === 'error') {
+                        <li [attr.data-testid]="'material-error-' + m.id">
+                          <hlm-alert severity="error">
+                            @if (rs.kind === 'gone') {
+                              This file is no longer available.
+                            } @else if (rs.kind === 'forbidden') {
+                              You no longer have access to this material.
+                            } @else {
+                              Couldn't prepare the download. Try again.
+                            }
+                            <button
+                              hlmBtn
+                              variant="link"
+                              size="sm"
+                              class="ml-2 h-auto px-0"
+                              type="button"
+                              (click)="onDownloadMaterial(m.id)"
+                            >Retry</button>
+                          </hlm-alert>
+                        </li>
+                      }
                     }
                   }
-                }
-              </ul>
+                </ul>
+              </hlm-card>
             </section>
           }
 
-          <a data-testid="back-to-course" class="inline-block underline"
+          <a data-testid="back-to-course" hlmBtn variant="link" class="px-0"
              [routerLink]="['/catalog', courseId]">← Back to course</a>
         </article>
       </div>

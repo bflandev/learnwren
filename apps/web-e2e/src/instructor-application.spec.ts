@@ -91,11 +91,11 @@ test(
     //    The template uses <label><span>…</span><textarea …></label>, so the
     //    span text is the accessible name for the textarea within the label.
     await page
-      .locator('label:has-text("Statement of intent") textarea')
+      .getByLabel('Statement of intent')
       .fill('I have taught Rust for five years.');
 
     await page
-      .locator('label:has-text("Areas of expertise") textarea')
+      .getByLabel('Areas of expertise')
       .fill('Rust, systems programming');
 
     // 6. Submit the application.

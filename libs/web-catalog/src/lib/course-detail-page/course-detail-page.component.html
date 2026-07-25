@@ -23,12 +23,12 @@
         <h1 class="text-3xl text-ink">{{ course()!.title }}</h1>
         <div class="flex flex-wrap gap-2">
           @if (course()!.difficulty) {
-            <lw-pill tone="default">{{ course()!.difficulty }}</lw-pill>
+            <span hlmBadge>{{ course()!.difficulty }}</span>
           }
           @if (course()!.category) {
-            <lw-pill tone="default">{{ course()!.category }}</lw-pill>
+            <span hlmBadge variant="category">{{ course()!.category }}</span>
           }
-          <lw-pill tone="default">{{ course()!.lessonCount }} lessons</lw-pill>
+          <span hlmBadge>{{ course()!.lessonCount }} lessons</span>
         </div>
         <lib-course-enrollment-panel
           [courseId]="course()!.id"
@@ -36,30 +36,36 @@
         @if (canStartLearning()) {
           <a
             [attr.data-testid]="resumeLabel() === 'Continue Learning' ? 'continue-learning' : 'start-learning'"
-            class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-white"
+            hlmBtn
+            class="self-start"
             [routerLink]="resumeHref()">
             {{ resumeLabel() }}
           </a>
         } @else if (showNoLessons()) {
-          <span data-testid="no-lessons" class="inline-block text-sm text-gray-500" aria-disabled="true">
+          <span data-testid="no-lessons" class="inline-block text-sm text-ink-3" aria-disabled="true">
             No lessons yet
           </span>
         }
       </header>
 
-      <lw-card data-test="instructor-card" class="flex items-start gap-4 p-4">
-        <lw-avatar
-          [photoUrl]="course()!.instructorPhotoUrl"
-          [displayName]="course()!.instructorDisplayName"
-          [userId]="course()!.instructorId"
-          size="md" />
+      <hlm-card data-test="instructor-card" class="flex items-start gap-4 p-4">
+        <hlm-avatar
+          class="shrink-0"
+          [src]="course()!.instructorPhotoUrl"
+          [alt]="course()!.instructorDisplayName"
+          [attr.data-tone]="instructorTone()"
+        >
+          <span data-testid="instructor-avatar-initials" class="text-xs font-medium">{{
+            instructorInitials()
+          }}</span>
+        </hlm-avatar>
         <div>
           <p class="font-medium text-ink">{{ course()!.instructorDisplayName }}</p>
           @if (course()!.instructorBiography) {
             <p data-test="instructor-bio" class="text-ink-2 mt-1">{{ course()!.instructorBiography }}</p>
           }
         </div>
-      </lw-card>
+      </hlm-card>
 
       <p class="text-ink">{{ course()!.description }}</p>
       @if (course()!.longDescription) {

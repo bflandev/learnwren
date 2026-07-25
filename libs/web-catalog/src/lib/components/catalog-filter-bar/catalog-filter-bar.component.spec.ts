@@ -22,11 +22,14 @@ describe('CatalogFilterBarComponent', () => {
 
   it('shows the active category even when the options render after the first pass', () => {
     // Deep link (/catalog?category=DESIGN): the page sets `category`
-    // immediately but fetches `categories` async — the select must pick up
-    // the selection when the options arrive, not silently show "All".
+    // immediately but fetches `categories` async — the trigger must pick up
+    // the selection's name when the options arrive, not silently show "All".
     const fixture = TestBed.createComponent(CatalogFilterBarComponent);
     fixture.componentRef.setInput('category', 'DESIGN');
-    fixture.detectChanges(); // options not rendered yet — value coerces to ''
+    fixture.detectChanges(); // options not loaded yet — trigger falls back to "All"
+    const trigger = (): HTMLElement =>
+      fixture.nativeElement.querySelector('[data-testid="filter-category"]');
+    expect(trigger().textContent).toContain('All');
 
     fixture.componentRef.setInput('categories', [
       { id: 'DESIGN', name: 'Design', createdAt: 't', updatedAt: 't' },
@@ -34,8 +37,7 @@ describe('CatalogFilterBarComponent', () => {
     ]);
     fixture.detectChanges();
 
-    const select: HTMLSelectElement = fixture.nativeElement.querySelector('select');
-    expect(select.value).toBe('DESIGN');
+    expect(trigger().textContent).toContain('Design');
   });
 
   it('emits a category change when the category select changes', () => {

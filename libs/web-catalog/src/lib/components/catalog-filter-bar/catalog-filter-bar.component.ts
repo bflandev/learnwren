@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import {
   CATALOG_SORT_OPTIONS,
@@ -8,6 +8,7 @@ import {
   type CourseCategoryDoc,
   type CourseDifficulty,
 } from '@learnwren/shared-data-models';
+import { HlmSelectSingleImports } from '@learnwren/web-ui';
 
 export interface CatalogFilterChange {
   category?: CourseCategory;
@@ -19,6 +20,7 @@ export interface CatalogFilterChange {
   selector: 'lib-catalog-filter-bar',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [...HlmSelectSingleImports],
   templateUrl: './catalog-filter-bar.component.html',
 })
 export class CatalogFilterBarComponent {
@@ -33,17 +35,29 @@ export class CatalogFilterBarComponent {
   readonly difficulties = COURSE_DIFFICULTIES;
   readonly sorts = CATALOG_SORT_OPTIONS;
 
-  onCategoryChange(value: string): void {
-    this.filterChange.emit({ category: (value || undefined) as CourseCategory | undefined });
+  /** Display name of the active category; undefined until the async list carries it. */
+  readonly categoryName = computed(
+    () => this.categories().find((c) => c.id === this.category())?.name,
+  );
+
+  /** hlmSelectSingle emits `T | null`; normalise to '' so the guards stay falsy checks. */
+  private static asValue(value: unknown): string {
+    return typeof value === 'string' ? value : '';
   }
 
-  onDifficultyChange(value: string): void {
+  onCategoryChange(value: unknown): void {
+    const v = CatalogFilterBarComponent.asValue(value);
+    this.filterChange.emit({ category: (v || undefined) as CourseCategory | undefined });
+  }
+
+  onDifficultyChange(value: unknown): void {
+    const v = CatalogFilterBarComponent.asValue(value);
     this.filterChange.emit({
-      difficulty: (value || undefined) as CourseDifficulty | undefined,
+      difficulty: (v || undefined) as CourseDifficulty | undefined,
     });
   }
 
-  onSortChange(value: string): void {
-    this.filterChange.emit({ sort: value as CatalogSort });
+  onSortChange(value: unknown): void {
+    this.filterChange.emit({ sort: CatalogFilterBarComponent.asValue(value) as CatalogSort });
   }
 }

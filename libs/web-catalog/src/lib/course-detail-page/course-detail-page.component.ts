@@ -5,10 +5,13 @@ import { ActivatedRoute, RouterLink, type ParamMap } from '@angular/router';
 
 import type { CourseCatalogDetail, EnrollmentStatusView } from '@learnwren/shared-data-models';
 import {
-  LwAvatarComponent,
-  LwCardComponent,
+  HlmAvatar,
+  HlmBadge,
+  HlmButton,
+  HlmCard,
   LwCoverComponent,
-  LwPillComponent,
+  avatarToneFor,
+  deriveInitials,
   coverToneForId,
 } from '@learnwren/web-ui';
 import { CourseEnrollmentPanelComponent, EnrollmentService } from '@learnwren/web-enrollment';
@@ -22,10 +25,11 @@ import { ModuleOutlineComponent } from '../components/module-outline/module-outl
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    LwAvatarComponent,
-    LwCardComponent,
+    HlmAvatar,
+    HlmBadge,
+    HlmButton,
+    HlmCard,
     LwCoverComponent,
-    LwPillComponent,
     ModuleOutlineComponent,
     CourseEnrollmentPanelComponent,
     RouterLink,
@@ -47,6 +51,11 @@ export class CourseDetailPageComponent {
     const c = this.course();
     return c ? coverToneForId(c.id) : 'ink';
   });
+
+  readonly instructorTone = computed(() => avatarToneFor(this.course()?.instructorId ?? ''));
+  readonly instructorInitials = computed(() =>
+    deriveInitials(this.course()?.instructorDisplayName ?? ''),
+  );
 
   readonly firstLessonHref = computed<readonly [string, string, string] | null>(() => {
     const c = this.course();

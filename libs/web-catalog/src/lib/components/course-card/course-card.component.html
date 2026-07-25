@@ -1,5 +1,5 @@
 <a [routerLink]="['/catalog', course().id]" class="block no-underline">
-  <lw-card class="overflow-hidden">
+  <hlm-card class="overflow-hidden">
     <lw-cover
       [glyph]="course().title.charAt(0)"
       [tone]="coverTone()"
@@ -9,19 +9,25 @@
     <div class="flex flex-col items-start gap-2 p-4">
       <h3 class="text-base text-ink">{{ course().title }}</h3>
       <div class="byline flex items-center gap-2">
-        <lw-avatar
-          [photoUrl]="course().instructorPhotoUrl"
-          [displayName]="course().instructorDisplayName"
-          [userId]="course().instructorId"
-          size="sm" />
+        <hlm-avatar
+          size="sm"
+          data-testid="card-instructor-avatar"
+          [src]="course().instructorPhotoUrl"
+          [alt]="course().instructorDisplayName"
+          [attr.data-tone]="avatarTone()"
+        >
+          <span data-testid="card-avatar-initials" class="text-xs font-medium">{{
+            avatarInitials()
+          }}</span>
+        </hlm-avatar>
         <p class="text-sm text-ink-2">{{ course().instructorDisplayName }}</p>
       </div>
       @if (course().difficulty) {
-        <lw-pill tone="default">{{ course().difficulty }}</lw-pill>
+        <span hlmBadge data-testid="card-difficulty-badge">{{ course().difficulty }}</span>
       }
       @if (completed()) {
-        <lw-pill data-testid="card-completed-pill" tone="default">Completed</lw-pill>
+        <span hlmBadge data-testid="card-completed-pill" variant="success">Completed</span>
       }
     </div>
-  </lw-card>
+  </hlm-card>
 </a>

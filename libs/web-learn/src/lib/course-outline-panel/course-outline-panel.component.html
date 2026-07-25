@@ -3,44 +3,52 @@
      existed, leaving the toggle inert and trapping keyboard focus. -->
 <aside
   aria-label="Course outline"
-  class="course-outline"
+  class="course-outline flex flex-col gap-4 pr-4"
   [attr.hidden]="!outlineOpen() ? '' : null"
 >
   @if (courseComplete()) {
-    <p data-testid="course-complete-banner" class="course-complete-banner text-ink" role="status">
+    <hlm-alert severity="success" data-testid="course-complete-banner">
       &#127881; Course completed
-    </p>
+    </hlm-alert>
   }
   @for (m of outline().modules; track m.id) {
     <section>
-      <h3>
+      <h3 class="mb-1 flex items-center gap-2 text-sm font-medium text-ink">
         {{ m.title }}
         @if (isModuleComplete(m)) {
-          <span data-testid="module-complete" aria-label="Module completed" class="text-ink-2">&#10003;</span>
+          <span data-testid="module-complete" aria-label="Module completed" class="text-good">&#10003;</span>
         }
       </h3>
-      <ol>
+      <ol class="flex list-none flex-col gap-0.5 p-0">
         @for (l of m.lessons; track l.id) {
           <li>
             <button
+              hlmBtn
+              variant="ghost"
+              size="sm"
               type="button"
               data-testid="outline-row"
+              class="w-full justify-start gap-2 text-left font-normal"
               [attr.aria-current]="l.id === activeLessonId() ? 'page' : null"
               [attr.aria-disabled]="l.videoState !== 'READY' ? 'true' : null"
               [class.is-active]="l.id === activeLessonId()"
               [class.is-processing]="l.videoState !== 'READY'"
+              [class.bg-bg-3]="l.id === activeLessonId()"
+              [class.text-ink-3]="l.videoState !== 'READY'"
               (click)="onRowClick(l.id, l.videoState)"
             >
               @if (l.completedAt) {
-                <span aria-label="Completed">&#10003;</span>
+                <span aria-label="Completed" class="text-good">&#10003;</span>
               }
-              <span>{{ l.title }}</span>
+              <span class="truncate">{{ l.title }}</span>
               @if (l.videoState !== 'READY') {
-                <span> (processing)</span>
+                <span hlmBadge variant="warning" density="compact">processing</span>
               }
             </button>
             @if (processingNoticeFor() === l.id) {
-              <p data-testid="processing-notice">This lesson's video is still being processed.</p>
+              <p data-testid="processing-notice" class="px-2.5 py-1 text-xs text-ink-3">
+                This lesson's video is still being processed.
+              </p>
             }
           </li>
         }

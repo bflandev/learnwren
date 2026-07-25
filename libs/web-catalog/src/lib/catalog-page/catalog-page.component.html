@@ -32,8 +32,9 @@
     @if (result()!.totalPages > 1) {
       <nav class="mt-6 flex items-center justify-center gap-3" aria-label="Pagination">
         <button
+          hlmBtn
+          variant="ghost"
           type="button"
-          class="lw-btn lw-btn-ghost"
           [disabled]="result()!.page <= 1"
           (click)="goToPage(result()!.page - 1)"
         >
@@ -43,8 +44,9 @@
           >Page {{ result()!.page }} of {{ result()!.totalPages }}</span
         >
         <button
+          hlmBtn
+          variant="ghost"
           type="button"
-          class="lw-btn lw-btn-ghost"
           [disabled]="result()!.page >= result()!.totalPages"
           (click)="goToPage(result()!.page + 1)"
         >

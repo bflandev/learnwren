@@ -10,16 +10,17 @@
           [class.border-line]="!tier.featured"
           [attr.data-featured]="tier.featured"
         >
-          <p class="lw-meta">{{ tier.name }}</p>
+          <p class="text-xs tracking-wide text-ink-3">{{ tier.name }}</p>
           <p class="mt-2">
             <span class="font-serif text-4xl">{{ tier.price }}</span>
-            <span class="lw-meta ml-1">{{ tier.cadence }}</span>
+            <span class="ml-1 text-xs tracking-wide text-ink-3">{{ tier.cadence }}</span>
           </p>
           <p class="mt-3 flex-1 text-ink-2">{{ tier.blurb }}</p>
           <a
             [routerLink]="ctaRoute"
-            class="lw-btn mt-6"
-            [class.lw-btn-primary]="tier.featured"
+            hlmBtn
+            class="mt-6"
+            [variant]="tier.featured ? 'default' : 'outline'"
             >{{ tier.cta }}</a
           >
         </div>

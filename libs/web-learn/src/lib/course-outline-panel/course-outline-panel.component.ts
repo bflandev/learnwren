@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, HostListener, computed, input, output, signal } from '@angular/core';
 
 import type { CourseId, CourseOutline, LessonId } from '@learnwren/shared-data-models';
+import { HlmAlert, HlmBadge, HlmButton } from '@learnwren/web-ui';
 
 export type CourseOutlinePanelMode = 'sidebar' | 'drawer';
 
@@ -8,6 +9,7 @@ export type CourseOutlinePanelMode = 'sidebar' | 'drawer';
   selector: 'lib-course-outline-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [HlmAlert, HlmBadge, HlmButton],
   templateUrl: './course-outline-panel.component.html',
 })
 export class CourseOutlinePanelComponent {

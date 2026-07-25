@@ -12,6 +12,6 @@ describe('LandingTestimonialComponent', () => {
     const text = el.textContent ?? '';
     expect(text).toContain('I wanted a place where my course could just sit');
     expect(text).toContain('Etta Holloway');
-    expect(el.querySelector('lw-avatar')).not.toBeNull();
+    expect(el.querySelector('hlm-avatar')).not.toBeNull();
   });
 });

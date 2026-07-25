@@ -1,38 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+export type LwAvatarTone = 'moss' | 'clay' | 'bark' | 'paper' | 'ochre';
 
-import { avatarToneFor, type LwAvatarTone } from './avatar-tone';
+const AVATAR_TONES: readonly LwAvatarTone[] = ['moss', 'clay', 'bark', 'paper', 'ochre'];
 
-@Component({
-  selector: 'lw-avatar',
-  standalone: true,
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    @if (photoUrl()) {
-      <img
-        class="lw-avatar-image"
-        [src]="photoUrl()"
-        [alt]="alt() || displayName()"
-        loading="lazy"
-      />
-    } @else {
-      <span class="lw-avatar-initials">{{ initials() }}</span>
-    }
-  `,
-  host: {
-    class: 'lw-avatar',
-    '[attr.data-tone]': 'tone()',
-    '[attr.data-size]': 'size()',
-  },
-})
-export class LwAvatarComponent {
-  readonly photoUrl = input<string | undefined>(undefined);
-  readonly displayName = input.required<string>();
-  readonly userId = input.required<string>();
-  readonly size = input<'sm' | 'md' | 'lg'>('md');
-  readonly alt = input<string>('');
-
-  readonly tone = computed<LwAvatarTone>(() => avatarToneFor(this.userId()));
-  readonly initials = computed<string>(() => deriveInitials(this.displayName()));
+export function avatarToneFor(id: string): LwAvatarTone {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    // Stryker disable next-line ArithmeticOperator: hash*31-c ≡ -(hash*31+c) at every step (sign flips uniformly), and the tone is chosen via Math.abs(hash)%5 — so +c and -c always select the same tone. Equivalent (no differing id across 783 candidates).
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  const index = Math.abs(hash) % AVATAR_TONES.length;
+  // Stryker disable next-line StringLiteral: index is always in [0,5) so AVATAR_TONES[index] is never undefined; the `?? 'moss'` fallback is unreachable (only present for noUncheckedIndexedAccess). Equivalent.
+  return AVATAR_TONES[index] ?? 'moss';
 }
 
 export function deriveInitials(name: string): string {
