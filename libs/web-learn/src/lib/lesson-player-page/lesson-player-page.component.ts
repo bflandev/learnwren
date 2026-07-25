@@ -22,6 +22,7 @@ import type {
   LessonView,
   MaterialId,
 } from '@learnwren/shared-data-models';
+import { HlmAlert, HlmBadge, HlmButton, HlmCard } from '@learnwren/web-ui';
 import { VideoPlayerComponent } from '@learnwren/web-video';
 
 import { CourseOutlinePanelComponent } from '../course-outline-panel/course-outline-panel.component';
@@ -46,7 +47,16 @@ export function formatBytes(n: number): string {
   selector: 'lib-lesson-player-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, VideoPlayerComponent, DatePipe, CourseOutlinePanelComponent],
+  imports: [
+    RouterLink,
+    VideoPlayerComponent,
+    DatePipe,
+    CourseOutlinePanelComponent,
+    HlmAlert,
+    HlmBadge,
+    HlmButton,
+    HlmCard,
+  ],
   templateUrl: './lesson-player-page.component.html',
 })
 export class LessonPlayerPageComponent implements OnInit, OnDestroy {

@@ -60,11 +60,11 @@ describe('CourseOutlinePanelComponent', () => {
     expect(row?.textContent).toContain('L1');
   });
 
-  it('marks non-READY rows aria-disabled and shows a processing suffix', () => {
+  it('marks non-READY rows aria-disabled and shows a processing badge', () => {
     const fixture = build();
     const rows = fixture.nativeElement.querySelectorAll('button[data-testid="outline-row"]');
     expect(rows[2].getAttribute('aria-disabled')).toBe('true');
-    expect(rows[2].textContent).toContain('(processing)');
+    expect(rows[2].textContent).toContain('processing');
   });
 
   it('emits lessonSelected when a READY non-active row is clicked', () => {
