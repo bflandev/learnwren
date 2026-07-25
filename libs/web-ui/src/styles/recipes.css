@@ -51,25 +51,22 @@
   background: var(--lw-bg-3);
   display: flex; align-items: flex-end;
 }
-.lw-cover[data-tone="ochre"] { background: linear-gradient(135deg, oklch(40% 0.08 75), oklch(30% 0.06 80)); }
-.lw-cover[data-tone="moss"]  { background: linear-gradient(135deg, oklch(38% 0.08 145), oklch(28% 0.05 145)); }
-.lw-cover[data-tone="clay"]  { background: linear-gradient(135deg, oklch(40% 0.10 35), oklch(28% 0.07 30)); }
-.lw-cover[data-tone="ink"]   { background: linear-gradient(135deg, oklch(28% 0.02 60), oklch(20% 0.02 60)); }
-.lw-cover[data-tone="paper"] { background: linear-gradient(135deg, oklch(74% 0.06 80), oklch(60% 0.05 78)); }
-.lw-cover[data-tone="bark"]  { background: linear-gradient(135deg, oklch(34% 0.04 50), oklch(24% 0.03 50)); }
-.lw-theme-light .lw-cover[data-tone="ochre"] { background: linear-gradient(135deg, oklch(74% 0.13 75), oklch(64% 0.14 70)); }
-.lw-theme-light .lw-cover[data-tone="moss"]  { background: linear-gradient(135deg, oklch(62% 0.12 145), oklch(52% 0.12 145)); }
-.lw-theme-light .lw-cover[data-tone="clay"]  { background: linear-gradient(135deg, oklch(64% 0.13 35), oklch(54% 0.14 35)); }
-.lw-theme-light .lw-cover[data-tone="ink"]   { background: linear-gradient(135deg, oklch(42% 0.014 60), oklch(32% 0.014 60)); }
-.lw-theme-light .lw-cover[data-tone="paper"] { background: linear-gradient(135deg, oklch(86% 0.04 82), oklch(78% 0.05 78)); }
-.lw-theme-light .lw-cover[data-tone="bark"]  { background: linear-gradient(135deg, oklch(50% 0.05 50), oklch(40% 0.05 50)); }
+/* Tone gradients + glyph/label colors live in the --lw-cover-* role tokens
+ * (slice G): the light theme swaps values at the token layer, so no
+ * .lw-theme-light selector variants are needed here. */
+.lw-cover[data-tone="ochre"] { background: var(--lw-cover-grad-ochre); }
+.lw-cover[data-tone="moss"]  { background: var(--lw-cover-grad-moss); }
+.lw-cover[data-tone="clay"]  { background: var(--lw-cover-grad-clay); }
+.lw-cover[data-tone="ink"]   { background: var(--lw-cover-grad-ink); }
+.lw-cover[data-tone="paper"] { background: var(--lw-cover-grad-paper); }
+.lw-cover[data-tone="bark"]  { background: var(--lw-cover-grad-bark); }
 .lw-cover::before {
   content: "";
   position: absolute; inset: 0;
   background: repeating-linear-gradient(
     135deg,
     transparent 0 14px,
-    oklch(100% 0 0 / 0.04) 14px 15px
+    var(--lw-cover-stripe) 14px 15px
   );
   pointer-events: none;
 }
@@ -79,8 +76,8 @@
   font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: oklch(100% 0 0 / 0.7);
-  background: oklch(0% 0 0 / 0.35);
+  color: var(--lw-cover-label-fg);
+  background: var(--lw-cover-label-bg);
   padding: 3px 6px;
   border-radius: 4px;
 }
@@ -90,13 +87,14 @@
   font-family: var(--lw-font-serif);
   font-style: italic;
   font-size: 64px;
-  color: oklch(100% 0 0 / 0.16);
+  color: var(--lw-cover-glyph);
   user-select: none;
 }
-.lw-cover[data-tone="paper"] .lw-cover-glyph { color: oklch(20% 0.02 60 / 0.45); }
-.lw-theme-light .lw-cover .lw-cover-glyph { color: oklch(18% 0.02 60 / 0.45); }
-.lw-theme-light .lw-cover[data-tone="ink"] .lw-cover-glyph { color: oklch(100% 0 0 / 0.40); }
-.lw-theme-light .lw-cover[data-tone="bark"] .lw-cover-glyph { color: oklch(100% 0 0 / 0.32); }
+/* Per-tone glyph registers: in dark, ink/bark equal the base glyph token; the
+ * light theme re-points all three (see roles/light.json "cover"). */
+.lw-cover[data-tone="paper"] .lw-cover-glyph { color: var(--lw-cover-glyph-paper); }
+.lw-cover[data-tone="ink"] .lw-cover-glyph { color: var(--lw-cover-glyph-ink); }
+.lw-cover[data-tone="bark"] .lw-cover-glyph { color: var(--lw-cover-glyph-bark); }
 
 /* Progress bar */
 .lw-progress {

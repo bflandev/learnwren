@@ -250,6 +250,21 @@
       "list-header-font-size": { "value": "11px" },
       "list-header-letter-spacing": { "value": "0.04em" },
       "radius-pill": { "value": "9999px" }
+    },
+    "cover": {
+      "cover-grad-ochre": { "value": "linear-gradient(135deg, oklch(40% 0.08 75), oklch(30% 0.06 80))" },
+      "cover-grad-moss": { "value": "linear-gradient(135deg, oklch(38% 0.08 145), oklch(28% 0.05 145))" },
+      "cover-grad-clay": { "value": "linear-gradient(135deg, oklch(40% 0.10 35), oklch(28% 0.07 30))" },
+      "cover-grad-ink": { "value": "linear-gradient(135deg, oklch(28% 0.02 60), oklch(20% 0.02 60))" },
+      "cover-grad-paper": { "value": "linear-gradient(135deg, oklch(74% 0.06 80), oklch(60% 0.05 78))" },
+      "cover-grad-bark": { "value": "linear-gradient(135deg, oklch(34% 0.04 50), oklch(24% 0.03 50))" },
+      "cover-stripe": { "value": "oklch(100% 0 0 / 0.04)" },
+      "cover-label-fg": { "value": "oklch(100% 0 0 / 0.7)" },
+      "cover-label-bg": { "value": "oklch(0% 0 0 / 0.35)" },
+      "cover-glyph": { "value": "oklch(100% 0 0 / 0.16)" },
+      "cover-glyph-paper": { "value": "oklch(20% 0.02 60 / 0.45)" },
+      "cover-glyph-ink": { "value": "oklch(100% 0 0 / 0.16)" },
+      "cover-glyph-bark": { "value": "oklch(100% 0 0 / 0.16)" }
     }
   }
 }

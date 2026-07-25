@@ -23,6 +23,18 @@
     },
     "misc": {
       "ochre-soft": { "value": "oklch(90% 0.05 75)" }
+    },
+    "cover": {
+      "cover-grad-ochre": { "value": "linear-gradient(135deg, oklch(74% 0.13 75), oklch(64% 0.14 70))" },
+      "cover-grad-moss": { "value": "linear-gradient(135deg, oklch(62% 0.12 145), oklch(52% 0.12 145))" },
+      "cover-grad-clay": { "value": "linear-gradient(135deg, oklch(64% 0.13 35), oklch(54% 0.14 35))" },
+      "cover-grad-ink": { "value": "linear-gradient(135deg, oklch(42% 0.014 60), oklch(32% 0.014 60))" },
+      "cover-grad-paper": { "value": "linear-gradient(135deg, oklch(86% 0.04 82), oklch(78% 0.05 78))" },
+      "cover-grad-bark": { "value": "linear-gradient(135deg, oklch(50% 0.05 50), oklch(40% 0.05 50))" },
+      "cover-glyph": { "value": "oklch(18% 0.02 60 / 0.45)" },
+      "cover-glyph-paper": { "value": "oklch(18% 0.02 60 / 0.45)" },
+      "cover-glyph-ink": { "value": "oklch(100% 0 0 / 0.40)" },
+      "cover-glyph-bark": { "value": "oklch(100% 0 0 / 0.32)" }
     }
   }
 }
