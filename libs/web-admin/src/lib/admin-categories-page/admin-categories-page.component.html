@@ -2,34 +2,47 @@
   <h1 class="text-xl font-semibold text-ink">Course categories</h1>
 
   <form class="mt-6 flex items-start gap-2" (ngSubmit)="create()">
-    <div class="flex-1">
+    <hlm-form-field class="flex-1">
       <input
+        hlmInput
+        hlmFormFieldControl
         type="text"
         name="newName"
-        class="w-full rounded border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-ochre"
         placeholder="New category name"
         maxlength="60"
         [(ngModel)]="newName"
         data-testid="create-input"
       />
       @if (createError(); as err) {
-        <p class="mt-1 text-sm text-red-600" role="alert" data-testid="create-error">{{ err }}</p>
+        <p hlmFormFieldError data-testid="create-error">{{ err }}</p>
       }
-    </div>
-    <button type="submit" class="lw-btn lw-btn-primary" [disabled]="busy()" data-testid="create-button">
+    </hlm-form-field>
+    <button hlmBtn type="submit" [disabled]="busy()" data-testid="create-button">
       Add
     </button>
   </form>
 
   @if (loading()) {
-    <p class="mt-6 text-sm text-muted">Loading…</p>
+    <div class="mt-6 flex flex-col gap-3">
+      <hlm-skeleton label="Loading categories" class="h-4 w-1/3" />
+      <hlm-skeleton class="h-4 w-2/3" />
+      <hlm-skeleton class="h-4 w-1/2" />
+    </div>
   } @else if (loadError()) {
-    <div class="mt-6" role="alert" data-testid="load-error">
-      <p class="text-sm text-ink-2">Couldn’t load categories. Check your connection and try again.</p>
-      <button type="button" class="lw-btn lw-btn-ghost mt-2" data-testid="retry-button" (click)="retry()">
+    <hlm-alert severity="error" class="mt-6" data-testid="load-error">
+      <p>Couldn’t load categories. Check your connection and try again.</p>
+      <button
+        hlmBtn
+        variant="ghost"
+        size="sm"
+        type="button"
+        class="mt-2"
+        data-testid="retry-button"
+        (click)="retry()"
+      >
         Retry
       </button>
-    </div>
+    </hlm-alert>
   } @else {
     <ul class="mt-6 flex flex-col gap-3" data-testid="category-list">
       @for (cat of categories(); track cat.id) {
@@ -37,65 +50,81 @@
           @if (renamingId() === cat.id) {
             <div class="flex items-center gap-2">
               <input
+                hlmInput
                 type="text"
                 name="renameName"
-                class="flex-1 rounded border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-ochre"
+                class="flex-1"
                 maxlength="60"
                 [(ngModel)]="renameName"
                 data-testid="rename-input"
               />
               <button
+                hlmBtn
                 type="button"
-                class="lw-btn lw-btn-primary"
                 [disabled]="busy()"
                 (click)="confirmRename(cat.id)"
                 data-testid="rename-save-button"
               >
                 Save
               </button>
-              <button type="button" class="lw-btn lw-btn-ghost" (click)="cancelRowAction()">Cancel</button>
+              <button hlmBtn variant="ghost" type="button" (click)="cancelRowAction()">Cancel</button>
             </div>
           } @else if (deletingId() === cat.id) {
             <div class="flex flex-wrap items-center gap-2">
               <p class="text-sm text-ink">
                 Delete <span class="font-medium">{{ cat.name }}</span> and reassign its courses to
               </p>
-              <select
-                name="reassignTo"
-                class="rounded border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-ochre"
-                [(ngModel)]="reassignTo"
-                data-testid="reassign-select"
+              <div
+                class="min-w-44"
+                [hlmSelectSingle]="reassignTo()"
+                (hlmSelectSingleChange)="onReassignChange($event)"
               >
-                @for (option of reassignOptions(); track option.id) {
-                  <option [value]="option.id">{{ option.name }}</option>
-                }
-              </select>
+                <button hlmSelectTrigger type="button" data-testid="reassign-select">
+                  @if (reassignToName(); as name) {
+                    <span>{{ name }}</span>
+                  } @else {
+                    <span class="text-input-placeholder">Choose a category…</span>
+                  }
+                </button>
+                <ng-template hlmSelectPortal>
+                  <div hlmSelectContent>
+                    <div hlmSelectList>
+                      @for (option of reassignOptions(); track option.id) {
+                        <div [hlmSelectItem]="option.id">{{ option.name }}</div>
+                      }
+                    </div>
+                  </div>
+                </ng-template>
+              </div>
               <button
+                hlmBtn
+                variant="destructive"
                 type="button"
-                class="lw-btn lw-btn-primary"
-                [disabled]="busy() || !reassignTo"
+                [disabled]="busy() || !reassignTo()"
                 (click)="confirmDelete(cat.id)"
                 data-testid="delete-confirm-button"
               >
                 Delete
               </button>
-              <button type="button" class="lw-btn lw-btn-ghost" (click)="cancelRowAction()">Cancel</button>
+              <button hlmBtn variant="ghost" type="button" (click)="cancelRowAction()">Cancel</button>
             </div>
           } @else {
             <div class="flex items-center justify-between gap-4">
               <p class="font-medium text-ink">{{ cat.name }}</p>
               <div class="flex gap-2">
                 <button
+                  hlmBtn
+                  variant="ghost"
                   type="button"
-                  class="lw-btn lw-btn-ghost"
                   (click)="startRename(cat)"
                   data-testid="rename-button"
                 >
                   Rename
                 </button>
                 <button
+                  hlmBtn
+                  variant="ghost"
                   type="button"
-                  class="lw-btn lw-btn-ghost"
                   (click)="startDelete(cat)"
                   data-testid="delete-button"
                 >
@@ -105,7 +134,7 @@
             </div>
           }
           @if ((renamingId() === cat.id || deletingId() === cat.id) && rowError(); as err) {
-            <p class="mt-2 text-sm text-red-600" role="alert" data-testid="row-error">{{ err }}</p>
+            <p class="mt-2 text-sm text-bad" role="alert" data-testid="row-error">{{ err }}</p>
           }
         </li>
       }
