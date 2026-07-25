@@ -4,16 +4,16 @@
       <span class="text-sm text-ink">Captions: {{ m.label }}</span>
       <label class="inline-block cursor-pointer" data-testid="captions-replace">
         <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy()" />
-        <span class="lw-btn">Replace</span>
+        <span hlmBtn variant="secondary" size="sm">Replace</span>
       </label>
-      <button lwButton type="button" class="text-bad" [disabled]="busy()" (click)="onRemove()" data-testid="captions-remove">
+      <button hlmBtn variant="destructive" size="sm" type="button" [disabled]="busy()" (click)="onRemove()" data-testid="captions-remove">
         Remove
       </button>
     </div>
   } @else {
     <label class="inline-block cursor-pointer" data-testid="captions-add">
       <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy()" />
-      <span class="lw-btn">Add captions (.vtt)</span>
+      <span hlmBtn variant="secondary" size="sm">Add captions (.vtt)</span>
     </label>
   }
   @if (error(); as e) {

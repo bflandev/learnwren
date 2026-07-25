@@ -1,8 +1,5 @@
 @if (eligibility(); as e) {
-  <div
-    class="panel rounded-lg border border-line bg-bg-2 p-4"
-    data-testid="eligibility-panel"
-  >
+  <hlm-card class="panel p-4" data-testid="eligibility-panel">
     @if (e.eligible) {
       <div class="panel-header ok flex items-center gap-2 text-good">
         <span>&#x2713; Ready to publish</span>
@@ -20,8 +17,9 @@
             <span class="reason-text text-sm text-ink-2">{{ reasonText(r) }}</span>
             @if (jumpLinkVisible(r) === 'lesson') {
               <button
-                lwButton
+                hlmBtn
                 variant="ghost"
+                size="sm"
                 type="button"
                 class="jump"
                 data-testid="jump-lesson"
@@ -32,8 +30,9 @@
             }
             @if (jumpLinkVisible(r) === 'module') {
               <button
-                lwButton
+                hlmBtn
                 variant="ghost"
+                size="sm"
                 type="button"
                 class="jump"
                 data-testid="jump-module"
@@ -55,5 +54,5 @@
         <span>Couldn't check publish status — {{ msg }}</span>
       </div>
     }
-  </div>
+  </hlm-card>
 }

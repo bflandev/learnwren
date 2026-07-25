@@ -1,14 +1,14 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 
 import type { VideoCaptionsMeta, VideoId } from '@learnwren/shared-data-models';
-import { LwButtonDirective } from '@learnwren/web-ui';
+import { HlmButton } from '@learnwren/web-ui';
 
 import { CaptionsService } from './captions.service';
 
 @Component({
   selector: 'lib-captions-panel',
   standalone: true,
-  imports: [LwButtonDirective],
+  imports: [HlmButton],
   templateUrl: './captions-panel.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

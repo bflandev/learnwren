@@ -1,42 +1,44 @@
-<lw-card class="course-meta p-5" data-testid="course-meta">
+<hlm-card class="course-meta p-5" data-testid="course-meta">
   <h2 class="mb-3 text-lg">Course details</h2>
   <div class="space-y-4">
-    <label class="block">
-      <span class="text-sm font-medium text-ink-2">Title</span>
+    <hlm-form-field>
+      <label hlmLabel for="course-title-input">Title</label>
       <input
-        lwInput
+        hlmInput
+        hlmFormFieldControl
+        id="course-title-input"
         data-testid="course-title"
         type="text"
         [ngModel]="draftTitle()"
         (ngModelChange)="draftTitle.set($event)"
         (blur)="commitTitle()"
         maxlength="100"
-        class="mt-1"
       />
-    </label>
+    </hlm-form-field>
 
-    <label class="block">
-      <span class="text-sm font-medium text-ink-2">Description</span>
+    <hlm-form-field>
+      <label hlmLabel for="course-description-input">Description</label>
       <textarea
-        lwInput
+        hlmTextarea
+        hlmFormFieldControl
+        id="course-description-input"
         data-testid="course-description"
         [ngModel]="draftDescription()"
         (ngModelChange)="draftDescription.set($event)"
         (blur)="commitDescription()"
         maxlength="500"
         rows="3"
-        class="mt-1"
       ></textarea>
-    </label>
+    </hlm-form-field>
 
     <button
-      lwButton
+      hlmBtn
+      variant="destructive"
       data-testid="delete-course"
       type="button"
-      class="text-bad"
       (click)="deleteCourse.emit()"
     >
       Delete course
     </button>
   </div>
-</lw-card>
+</hlm-card>

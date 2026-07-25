@@ -9,14 +9,22 @@ import {
 import { FormsModule } from '@angular/forms';
 
 import type { Course } from '@learnwren/shared-data-models';
-import { LwButtonDirective, LwCardComponent, LwInputDirective } from '@learnwren/web-ui';
+import {
+  HlmButton,
+  HlmCard,
+  HlmFormField,
+  HlmFormFieldControl,
+  HlmInput,
+  HlmLabel,
+  HlmTextarea,
+} from '@learnwren/web-ui';
 
 import type { UpdateCourseInput } from '../../courses.service';
 
 @Component({
   selector: 'lib-course-meta-panel',
   standalone: true,
-  imports: [FormsModule, LwButtonDirective, LwCardComponent, LwInputDirective],
+  imports: [FormsModule, HlmButton, HlmCard, HlmFormField, HlmFormFieldControl, HlmInput, HlmLabel, HlmTextarea],
   templateUrl: './course-meta-panel.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

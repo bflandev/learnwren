@@ -15,7 +15,7 @@ import type {
   PublishNotEligibleDetails,
 } from '@learnwren/shared-data-models';
 
-import { LwButtonDirective, LwPillComponent } from '@learnwren/web-ui';
+import { HlmBadge, HlmButton, HlmCard } from '@learnwren/web-ui';
 
 import { CoursesService } from '../courses.service';
 import { PublishEligibilityService } from './publish-eligibility.service';
@@ -25,7 +25,7 @@ type PrimaryActionKind = 'publish' | 'unpublish' | 'restore' | null;
 @Component({
   selector: 'lib-course-publish-bar',
   standalone: true,
-  imports: [LwButtonDirective, LwPillComponent],
+  imports: [HlmBadge, HlmButton, HlmCard],
   templateUrl: './course-publish-bar.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

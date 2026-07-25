@@ -1,8 +1,8 @@
-<lw-card class="module-item block p-4" data-testid="module-item">
+<hlm-card class="module-item p-4" data-testid="module-item">
   <header class="mb-3 flex flex-wrap items-center gap-2">
     @if (editing()) {
       <input
-        lwInput
+        hlmInput
         data-testid="module-rename-input"
         type="text"
         class="flex-1"
@@ -23,17 +23,17 @@
       </button>
     }
     <button
-      lwButton
+      hlmBtn
+      variant="destructive"
       data-testid="module-delete"
       type="button"
-      class="text-bad"
       (click)="deleteModule.emit()"
     >
       Delete module
     </button>
     @if (canNotify()) {
       <button
-        lwButton
+        hlmBtn
         variant="ghost"
         data-testid="module-notify"
         type="button"
@@ -60,7 +60,7 @@
 
   @if (addingLesson()) {
     <input
-      lwInput
+      hlmInput
       data-testid="add-lesson-input"
       type="text"
       class="mt-3"
@@ -72,7 +72,7 @@
     />
   } @else {
     <button
-      lwButton
+      hlmBtn
       variant="ghost"
       data-testid="add-lesson"
       type="button"
@@ -82,4 +82,4 @@
       Add lesson
     </button>
   }
-</lw-card>
+</hlm-card>
