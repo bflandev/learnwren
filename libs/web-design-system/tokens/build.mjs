@@ -64,6 +64,28 @@ const REDUCED_MOTION = `@media (prefers-reduced-motion: reduce) {
   }
 }`;
 
+// Data-table per-grid density registers (slice G). The grid host writes
+// [data-lw-density] and its SCSS reads the rebound cell padding; the TanStack
+// virtualizer reads --lw-row-height as a px count via getComputedStyle, so
+// these stay px literals. Distinct from the page-level .lw-density-* scale.
+const DATA_TABLE_DENSITY = `[data-lw-density="compact"] {
+  --lw-cell-padding-x: 8px;
+  --lw-cell-padding-y: 4px;
+  --lw-row-height: 36px;
+}
+
+[data-lw-density="normal"] {
+  --lw-cell-padding-x: 14px;
+  --lw-cell-padding-y: 12px;
+  --lw-row-height: 44px;
+}
+
+[data-lw-density="spacious"] {
+  --lw-cell-padding-x: 20px;
+  --lw-cell-padding-y: 16px;
+  --lw-row-height: 56px;
+}`;
+
 const darkAll = { ...dark.lw, ...type.lw, ...radius.lw };
 const css = [
   '/* GENERATED — do not edit. Source: libs/web-design-system/tokens/ */',
@@ -78,6 +100,7 @@ const css = [
   '/* Component-scoped role tokens (slice B) */',
   groupedBlock('.lw-theme-dark,\n:root', rolesShared.groups),
   groupedBlock(':root.lw-theme-light,\n.lw-theme-light', rolesLight.groups),
+  DATA_TABLE_DENSITY,
   REDUCED_MOTION,
 ].join('\n\n');
 

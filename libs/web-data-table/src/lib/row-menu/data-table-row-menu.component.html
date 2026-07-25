@@ -1,0 +1,48 @@
+<button
+  type="button"
+  data-test="trigger"
+  class="row-menu__trigger"
+  aria-label="Row options"
+  [cdkMenuTriggerFor]="menu"
+  (click)="$event.stopPropagation()"
+>
+  <hlm-icon name="lucideEllipsisVertical" class="size-4" aria-hidden="true" />
+</button>
+
+<ng-template #menu>
+  <hlm-menu data-test="menu" class="row-menu__panel">
+    <button
+      hlmMenuItem
+      type="button"
+      data-test="duplicate"
+      (triggered)="duplicate.emit()"
+    >
+      Duplicate
+    </button>
+    @if (showDelete()) {
+      <button
+        hlmMenuItem
+        type="button"
+        variant="destructive"
+        data-test="delete"
+        (triggered)="delete.emit()"
+      >
+        Delete
+      </button>
+    }
+    @if (actions().length) {
+      <hlm-separator data-test="row-action-separator" [decorative]="false" />
+      @for (a of actions(); track a.id) {
+        <button
+          hlmMenuItem
+          type="button"
+          [disabled]="a.disabled"
+          [attr.data-test]="'row-action-' + a.id"
+          (triggered)="action.emit(a.id)"
+        >
+          {{ a.label }}
+        </button>
+      }
+    }
+  </hlm-menu>
+</ng-template>

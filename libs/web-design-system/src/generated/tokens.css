@@ -313,6 +313,33 @@
   /* opacity */
   --lw-opacity-disabled: 0.5;
   --lw-opacity-muted: 0.7;
+
+  /* data-table */
+  --lw-cell-padding-x: 14px;
+  --lw-cell-padding-y: 12px;
+  --lw-row-height: 44px;
+  --lw-data-table-title-bar-height: 52px;
+  --lw-data-table-header-row-height: 46px;
+  --lw-data-table-title-bg: var(--lw-surface-raised);
+  --lw-data-table-sidebar-bg: var(--lw-surface-sunken);
+  --lw-list-header-font-size: 11px;
+  --lw-list-header-letter-spacing: 0.04em;
+  --lw-radius-pill: 9999px;
+
+  /* cover */
+  --lw-cover-grad-ochre: linear-gradient(135deg, oklch(40% 0.08 75), oklch(30% 0.06 80));
+  --lw-cover-grad-moss: linear-gradient(135deg, oklch(38% 0.08 145), oklch(28% 0.05 145));
+  --lw-cover-grad-clay: linear-gradient(135deg, oklch(40% 0.10 35), oklch(28% 0.07 30));
+  --lw-cover-grad-ink: linear-gradient(135deg, oklch(28% 0.02 60), oklch(20% 0.02 60));
+  --lw-cover-grad-paper: linear-gradient(135deg, oklch(74% 0.06 80), oklch(60% 0.05 78));
+  --lw-cover-grad-bark: linear-gradient(135deg, oklch(34% 0.04 50), oklch(24% 0.03 50));
+  --lw-cover-stripe: oklch(100% 0 0 / 0.04);
+  --lw-cover-label-fg: oklch(100% 0 0 / 0.7);
+  --lw-cover-label-bg: oklch(0% 0 0 / 0.35);
+  --lw-cover-glyph: oklch(100% 0 0 / 0.16);
+  --lw-cover-glyph-paper: oklch(20% 0.02 60 / 0.45);
+  --lw-cover-glyph-ink: oklch(100% 0 0 / 0.16);
+  --lw-cover-glyph-bark: oklch(100% 0 0 / 0.16);
 }
 
 :root.lw-theme-light,
@@ -339,6 +366,36 @@
 
   /* misc */
   --lw-ochre-soft: oklch(90% 0.05 75);
+
+  /* cover */
+  --lw-cover-grad-ochre: linear-gradient(135deg, oklch(74% 0.13 75), oklch(64% 0.14 70));
+  --lw-cover-grad-moss: linear-gradient(135deg, oklch(62% 0.12 145), oklch(52% 0.12 145));
+  --lw-cover-grad-clay: linear-gradient(135deg, oklch(64% 0.13 35), oklch(54% 0.14 35));
+  --lw-cover-grad-ink: linear-gradient(135deg, oklch(42% 0.014 60), oklch(32% 0.014 60));
+  --lw-cover-grad-paper: linear-gradient(135deg, oklch(86% 0.04 82), oklch(78% 0.05 78));
+  --lw-cover-grad-bark: linear-gradient(135deg, oklch(50% 0.05 50), oklch(40% 0.05 50));
+  --lw-cover-glyph: oklch(18% 0.02 60 / 0.45);
+  --lw-cover-glyph-paper: oklch(18% 0.02 60 / 0.45);
+  --lw-cover-glyph-ink: oklch(100% 0 0 / 0.40);
+  --lw-cover-glyph-bark: oklch(100% 0 0 / 0.32);
+}
+
+[data-lw-density="compact"] {
+  --lw-cell-padding-x: 8px;
+  --lw-cell-padding-y: 4px;
+  --lw-row-height: 36px;
+}
+
+[data-lw-density="normal"] {
+  --lw-cell-padding-x: 14px;
+  --lw-cell-padding-y: 12px;
+  --lw-row-height: 44px;
+}
+
+[data-lw-density="spacious"] {
+  --lw-cell-padding-x: 20px;
+  --lw-cell-padding-y: 16px;
+  --lw-row-height: 56px;
 }
 
 @media (prefers-reduced-motion: reduce) {

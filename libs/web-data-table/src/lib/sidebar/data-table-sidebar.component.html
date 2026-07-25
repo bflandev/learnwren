@@ -1,0 +1,45 @@
+<div class="data-table-sidebar">
+  <lw-view-picker
+    [spaceId]="spaceId()"
+    [spaceName]="spaceName()"
+    [viewKind]="'system'"
+    [views]="views()"
+    [activeViewId]="activeViewId()"
+    [activeViewDirty]="activeViewDirty()"
+    (viewSelected)="viewSelected.emit($event)"
+    (rename)="rename.emit($event)"
+    (duplicate)="duplicate.emit($event)"
+    (share)="share.emit($event)"
+    (promote)="promote.emit($event)"
+    (delete)="delete.emit($event)"
+    (reset)="reset.emit($event)"
+    (saveChanges)="saveChanges.emit($event)"
+    (saveChangesAs)="saveChangesAs.emit($event)"
+  />
+  @if (myViews().length > 0) {
+    <lw-view-picker
+      [spaceId]="spaceId()"
+      [title]="myViewsTitle()"
+      [viewKind]="'mine'"
+      [views]="myViews()"
+      [activeViewId]="activeViewId()"
+      [activeViewDirty]="activeViewDirty()"
+      (viewSelected)="viewSelected.emit($event)"
+      (rename)="rename.emit($event)"
+      (duplicate)="duplicate.emit($event)"
+      (share)="share.emit($event)"
+      (promote)="promote.emit($event)"
+      (delete)="delete.emit($event)"
+      (reset)="reset.emit($event)"
+      (saveChanges)="saveChanges.emit($event)"
+      (saveChangesAs)="saveChangesAs.emit($event)"
+    />
+  }
+  <button
+    type="button"
+    data-test="resize-handle"
+    class="data-table-sidebar__resize"
+    aria-label="Resize sidebar"
+    (mousedown)="beginResize($event)"
+  ></button>
+</div>

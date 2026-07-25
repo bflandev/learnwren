@@ -1,0 +1,75 @@
+<!-- tabindex/-1 + click/keydown stopPropagation keep the CDK menu open on interaction (and satisfy interactive-supports-focus / click-events-have-key-events); do not remove. -->
+<div
+  class="filter-editor"
+  data-test="filter-editor"
+  tabindex="-1"
+  (click)="$event.stopPropagation()"
+  (keydown)="$event.stopPropagation()"
+>
+  <div
+    class="filter-editor__header"
+    role="group"
+    [attr.aria-label]="editing() ? 'Edit filter' : 'Add filter'"
+  >
+    <button
+      type="button"
+      data-test="filter-close"
+      class="filter-editor__close"
+      aria-label="Close filter editor"
+      (click)="cancel(); $event.stopPropagation()"
+    >
+      <hlm-icon name="lucideX" aria-hidden="true" />
+    </button>
+    <span class="filter-editor__title">{{
+      editing() ? 'Edit Filter' : 'Add Filter'
+    }}</span>
+  </div>
+  @if (!lockedField()) {
+    <hlm-dynamic-field
+      data-test="filter-field"
+      [group]="form"
+      controlName="field"
+      type="combobox"
+      label="Field"
+      placeholder="Select a field…"
+      [options]="fieldOptions()"
+    />
+  }
+  <hlm-dynamic-field
+    data-test="filter-comparator"
+    [group]="form"
+    controlName="comparator"
+    type="select"
+    label="Condition"
+    [options]="comparatorOptions()"
+  />
+  @if (showValue()) {
+    <hlm-dynamic-field
+      data-test="filter-value"
+      [group]="form"
+      controlName="value"
+      label="Value"
+      [type]="valueType()"
+      [options]="valueOptions()"
+    />
+  }
+  <div class="filter-editor__actions">
+    <button
+      type="button"
+      data-test="filter-cancel"
+      aria-label="Cancel filter editing"
+      (click)="cancel()"
+    >
+      Cancel
+    </button>
+    <button
+      type="button"
+      data-test="filter-confirm"
+      aria-label="Apply filter"
+      [disabled]="formInvalid()"
+      (click)="confirm()"
+    >
+      Apply
+    </button>
+  </div>
+</div>

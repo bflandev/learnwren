@@ -1,0 +1,144 @@
+:host {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: var(--lw-z-dropdown);
+}
+
+.inline-editor__layer {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: scroll;
+  // Semi-transparent so the underlying table rows remain faintly visible while
+  // editing. color-mix with the surface token + `transparent` keeps this on the
+  // sanctioned --lw-* path (raw rgba()/hex would trip the token guard).
+  background: color-mix(in srgb, var(--lw-surface) 25%, transparent);
+}
+
+.inline-editor__form {
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--lw-border-strong);
+  background: var(--lw-background);
+}
+
+// Left-aligned edit actions (cancel + placeholder save). Width is capped to the
+// select checkbox cell (passed in) so the wrapper never overruns that cell; the
+// two buttons split it evenly and stretch to the row height, rendering square.
+// Sticky-left so the cancel/save controls stay pinned to the viewport edge as
+// the form scrolls horizontally; the opaque fill + sticky z-index keep the
+// scrolling fields from showing through or painting over it.
+.inline-editor__actions {
+  position: sticky;
+  left: 0;
+  z-index: var(--lw-z-sticky);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  background: var(--lw-background);
+  border-right: 1px solid var(--lw-border-subtle);
+}
+
+.inline-editor__action {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--lw-muted-foreground);
+
+  &:not(:last-child) {
+    border-right: 1px solid var(--lw-border-subtle);
+  }
+
+  // Hover feedback is suppressed while the button is disabled (e.g. Save on a
+  // pristine row) so it doesn't invite a click it won't honour.
+  &:hover:not(:disabled) {
+    color: var(--lw-foreground);
+    background: var(--lw-surface-hover);
+  }
+
+  &:focus-visible {
+    outline: 0.1rem solid var(--lw-border-focus);
+    outline-offset: -0.1rem;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+}
+
+.inline-editor__field {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--lw-cell-padding-x);
+  border-right: 1px solid var(--lw-border-subtle);
+  color: var(--lw-muted-foreground);
+}
+
+// The dynamic-field control fills the field cell; min-width:0 lets it shrink
+// below its intrinsic width so the field honours the resized column width.
+.inline-editor__control {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+// Static value shown for a readonly field in place of a control. Fills the cell
+// like the control does (flex + min-width:0) and truncates with an ellipsis so
+// a long value never overruns the resized column width.
+.inline-editor__readonly {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--lw-foreground);
+}
+
+// Read-only reason shown for a locked field (e.g. lock + "Sync to edit") in
+// place of the static value, mirroring the single-cell grid's marker: muted,
+// not-allowed cursor, icon and label on one line, truncating past the column
+// width. The icon is fixed-size so only the label shrinks.
+.inline-editor__readonly-note {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--lw-muted-foreground);
+  cursor: not-allowed;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+// Mirrors the table header's `.qa-table__resize-handle`: a thin col-resize strip
+// pinned to the field's right edge, highlighted on hover and while dragging.
+.inline-editor__resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 5px;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  background: transparent;
+
+  &:hover,
+  &--active {
+    background: var(--lw-primary);
+  }
+}

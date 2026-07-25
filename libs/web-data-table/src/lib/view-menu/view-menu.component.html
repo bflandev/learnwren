@@ -1,0 +1,90 @@
+<button
+  type="button"
+  data-test="trigger"
+  class="view-menu__trigger"
+  aria-label="View options"
+  [cdkMenuTriggerFor]="menu"
+>
+  <span aria-hidden="true">⋮</span>
+</button>
+
+<ng-template #menu>
+  <hlm-menu data-test="menu" class="view-menu__panel">
+    <button
+      hlmMenuItem
+      type="button"
+      data-test="duplicate"
+      (triggered)="duplicate.emit()"
+    >
+      Duplicate
+    </button>
+    <button
+      hlmMenuItem
+      type="button"
+      data-test="share"
+      (triggered)="share.emit()"
+    >
+      Share
+    </button>
+    @if (isDirty()) {
+      <button
+        hlmMenuItem
+        type="button"
+        data-test="save-changes-as"
+        (triggered)="saveChangesAs.emit()"
+      >
+        Save changes as
+      </button>
+    }
+    @if (viewKind() === 'mine' && isDirty()) {
+      <button
+        hlmMenuItem
+        type="button"
+        data-test="save-changes"
+        (triggered)="saveChanges.emit()"
+      >
+        Save changes
+      </button>
+    }
+    @if (isDirty()) {
+      <button
+        hlmMenuItem
+        type="button"
+        data-test="reset"
+        (triggered)="reset.emit()"
+      >
+        Reset
+      </button>
+    }
+    @if (viewKind() === 'mine') {
+      <button
+        hlmMenuItem
+        type="button"
+        data-test="rename"
+        (triggered)="rename.emit()"
+      >
+        Rename
+      </button>
+    }
+    @if (viewKind() === 'mine') {
+      <button
+        hlmMenuItem
+        type="button"
+        data-test="promote"
+        (triggered)="promote.emit()"
+      >
+        Promote
+      </button>
+    }
+    @if (viewKind() === 'mine') {
+      <button
+        hlmMenuItem
+        type="button"
+        data-test="delete"
+        (triggered)="delete.emit()"
+      >
+        Delete
+      </button>
+    }
+  </hlm-menu>
+</ng-template>

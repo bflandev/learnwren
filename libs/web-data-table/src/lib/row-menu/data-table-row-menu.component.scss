@@ -1,0 +1,25 @@
+:host {
+  display: inline-flex;
+}
+
+.row-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--lw-radius-sm);
+  cursor: pointer;
+  color: var(--lw-muted-foreground);
+}
+
+.row-menu__trigger:hover {
+  color: var(--lw-foreground);
+  background: var(--lw-surface-hover);
+}
+
+.row-menu__trigger:focus-visible {
+  outline: 0.1rem solid var(--lw-border-focus);
+  outline-offset: 0.1rem;
+}

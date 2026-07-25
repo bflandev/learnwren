@@ -1,0 +1,66 @@
+<section class="view-picker">
+  <header class="view-picker__header">
+    <button
+      type="button"
+      data-test="collapse"
+      class="view-picker__collapse"
+      [attr.aria-expanded]="!collapsed()"
+      (click)="toggleCollapsed()"
+    >
+      <span class="view-picker__title">{{ resolvedTitle() }}</span>
+      <span data-test="count" class="view-picker__count">{{ count() }}</span>
+      <span class="view-picker__chevron" aria-hidden="true">{{
+        collapsed() ? '▸' : '▾'
+      }}</span>
+    </button>
+  </header>
+
+  @if (!collapsed()) {
+    <ul data-test="view-list" class="view-picker__list">
+      @for (view of orderedViews(); track view.id) {
+        <li
+          class="view-picker__row"
+          [class.view-picker__row--favorited]="isFavorite(view.name)"
+          [attr.data-view-id]="view.id"
+        >
+          <button
+            type="button"
+            data-test="favorite"
+            class="view-picker__favorite"
+            [class.view-picker__favorite--on]="isFavorite(view.name)"
+            [attr.aria-pressed]="isFavorite(view.name)"
+            [attr.aria-label]="
+              (isFavorite(view.name) ? 'Unfavorite ' : 'Favorite ') + view.name
+            "
+            (click)="toggleFavorite(view.name)"
+          >
+            <span aria-hidden="true">{{ isFavorite(view.name) ? '★' : '☆' }}</span>
+          </button>
+
+          <button
+            type="button"
+            data-test="view-button"
+            class="view-picker__select"
+            [attr.aria-current]="view.id === activeViewId() ? 'true' : 'false'"
+            (click)="select(view.id)"
+          >
+            {{ view.name }}
+          </button>
+
+          <lw-view-menu
+            [viewKind]="viewKind()"
+            [isDirty]="activeViewDirty() && view.id === activeViewId()"
+            (rename)="rename.emit(view.id)"
+            (duplicate)="duplicate.emit(view.id)"
+            (share)="share.emit(view.id)"
+            (promote)="promote.emit(view.id)"
+            (delete)="delete.emit(view.id)"
+            (reset)="reset.emit(view.id)"
+            (saveChanges)="saveChanges.emit(view.id)"
+            (saveChangesAs)="saveChangesAs.emit(view.id)"
+          />
+        </li>
+      }
+    </ul>
+  }
+</section>

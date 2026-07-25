@@ -1,0 +1,127 @@
+.filter-menu {
+  display: block;
+  padding: 0.4rem;
+  font-size: 1.3rem;
+}
+
+.filter-menu__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.8rem 0.6rem;
+
+  button {
+    margin-left: auto;
+    padding: 0.4rem 1rem;
+    font: inherit;
+    background: var(--lw-surface);
+    border: 0.1rem solid var(--lw-border-strong);
+    border-radius: var(--lw-radius-sm);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--lw-background);
+    }
+    &:disabled {
+      opacity: var(--lw-opacity-disabled);
+      cursor: not-allowed;
+    }
+  }
+}
+
+.filter-menu__title {
+  font-weight: 600;
+}
+
+.filter-menu__badge {
+  font-size: 0.7em;
+  padding: 0 0.6rem;
+  border-radius: var(--lw-radius-pill);
+  background: var(--lw-primary-soft);
+  color: var(--lw-primary-strong);
+}
+
+.filter-menu__section-label {
+  padding: 0.4rem 0.8rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--lw-muted-foreground);
+}
+
+.filter-menu__row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--lw-radius-sm);
+
+  &:hover {
+    background: var(--lw-background);
+  }
+
+  button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--lw-muted-foreground);
+    visibility: hidden;
+  }
+
+  &:hover button,
+  &:focus-within button {
+    visibility: visible;
+  }
+}
+
+.filter-menu__row-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.filter-menu__row-field {
+  font-weight: 600;
+}
+
+.filter-menu__row-value {
+  font-style: italic;
+}
+
+.filter-menu__row-conj {
+  color: var(--lw-muted-foreground);
+  font-size: 1.1rem;
+  text-transform: uppercase;
+}
+
+.filter-menu__add {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.4rem 0.8rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--lw-primary-strong);
+  font-weight: 600;
+
+  &:hover {
+    background: var(--lw-background);
+  }
+  &:focus-visible {
+    outline: var(--lw-focus-ring-width) solid var(--lw-ring);
+    outline-offset: -0.1rem;
+  }
+}
+
+// Inline editor section, separated from the Add Filter control above it.
+.filter-menu__editor {
+  display: block;
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 0.1rem solid var(--lw-border);
+}

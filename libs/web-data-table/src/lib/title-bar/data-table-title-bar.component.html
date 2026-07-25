@@ -1,0 +1,279 @@
+<div class="qa-controls">
+  <div class="qa-controls__toolbar">
+    <div class="qa-controls__heading">
+      <lw-title-box
+        [title]="title()"
+        [showMenu]="showTitleMenu()"
+        [viewKind]="activeViewKind()"
+        [isDirty]="activeViewDirty()"
+        (rename)="rename.emit()"
+        (duplicate)="duplicate.emit()"
+        (share)="share.emit()"
+        (promote)="promote.emit()"
+        (delete)="delete.emit()"
+        (reset)="reset.emit()"
+        (saveChanges)="saveChanges.emit()"
+        (saveChangesAs)="saveChangesAs.emit()"
+      />
+    </div>
+    <div class="qa-controls__toolbar-actions">
+      @if (selectionCount() > 0) {
+        <div
+          class="mr-2 flex items-center gap-2 border-r border-border-subtle pr-2"
+          data-test="selection-action-bar"
+        >
+          <span class="text-body" aria-live="polite" data-test="selection-count"
+            >{{ selectionCount() }} selected</span
+          >
+          <button
+            hlmBtn
+            size="sm"
+            type="button"
+            (click)="bulkEdit.emit()"
+            data-test="bulk-edit-open"
+          >
+            Bulk edit
+          </button>
+          <button
+            hlmBtn
+            variant="ghost"
+            size="sm"
+            type="button"
+            (click)="clearSelection.emit()"
+            data-test="selection-clear"
+          >
+            <hlm-icon name="lucideX" class="mr-1.5 size-4" aria-hidden="true" />
+            Clear
+          </button>
+        </div>
+      }
+      @if (showColumns()) {
+        <button
+          type="button"
+          data-test="columns-button"
+          class="qa-controls__toolbar-button"
+          [hlmMenuTriggerFor]="columnsMenu"
+          (opened)="onMenuOpened()"
+        >
+          <hlm-icon name="lucideColumnsSettings" aria-hidden="true" />
+          Columns
+        </button>
+      }
+      @if (showFixed()) {
+        <button
+          type="button"
+          data-test="fixed-button"
+          class="qa-controls__toolbar-button"
+          [hlmMenuTriggerFor]="fixedMenu"
+          (opened)="onMenuOpened()"
+        >
+          <hlm-icon name="lucideTableColumnsSplit" aria-hidden="true" />
+          Fixed
+        </button>
+      }
+      @if (showFilters()) {
+        <!-- A popover, not an hlmMenuTriggerFor (CdkMenu): the editor's
+             hlm-dynamic-field selects open their own overlays, and a CdkMenu
+             closes on any outside pointer event (the select panel is a sibling
+             overlay), which dismissed the panel mid-edit. A popover keeps
+             closeOnOutsidePointerEvents off; the transparent backdrop still
+             gives click-outside dismissal because the select overlay stacks
+             above it. -->
+        <hlm-popover align="end" [sideOffset]="6" [hasBackdrop]="true" (closed)="onFiltersClosed()">
+          <button
+            type="button"
+            hlmPopoverTrigger
+            data-test="filters-button"
+            class="qa-controls__toolbar-button"
+          >
+            <hlm-icon name="lucideFilter" aria-hidden="true" />
+            Filters
+          </button>
+          <hlm-popover-content
+            *brnPopoverContent
+            data-test="filters-menu"
+            class="qa-menu qa-menu--filters w-auto p-1"
+          >
+            <lw-data-table-filter-menu />
+          </hlm-popover-content>
+        </hlm-popover>
+      }
+      @if (showSettings()) {
+        <button
+          type="button"
+          data-test="settings-button"
+          class="qa-controls__toolbar-button"
+          [hlmMenuTriggerFor]="settingsMenu"
+        >
+          <hlm-icon name="lucideSettings2" aria-hidden="true" />
+          Settings
+        </button>
+      }
+    </div>
+  </div>
+</div>
+
+<ng-template #columnsMenu>
+  <hlm-menu data-test="columns-menu" class="qa-menu qa-menu--wide">
+    <div class="qa-menu__header">
+      <input
+        data-test="columns-filter"
+        class="qa-menu__filter"
+        type="search"
+        aria-label="Filter columns"
+        placeholder="Filter columns…"
+        [value]="filterText()"
+        (input)="setFilter($any($event.target).value)"
+        (keydown)="$event.stopPropagation()"
+        (click)="$event.stopPropagation()"
+      />
+    </div>
+    <div class="qa-menu__groups">
+      @for (group of columnGroups(); track group.key) {
+        <div class="qa-menu__group">
+          <div class="qa-menu__group-label">{{ group.label }}</div>
+          <div class="qa-menu__grid">
+            @for (col of group.columns; track col.id) {
+              @if (col.hideable !== false) {
+                <button
+                  type="button"
+                  class="qa-menu__row"
+                  [attr.role]="'menuitemcheckbox'"
+                  [attr.data-test]="'column-toggle-' + col.id"
+                  [attr.aria-checked]="isColumnVisible(col.id)"
+                  (click)="toggleColumnVisibility(col.id); $event.stopPropagation()"
+                >
+                  <hlm-icon
+                    class="qa-menu__row-check"
+                    name="lucideCheck"
+                    aria-hidden="true"
+                  />
+                  <span class="qa-menu__row-label">{{ col.header }}</span>
+                </button>
+              }
+            }
+          </div>
+        </div>
+      }
+    </div>
+    @if (columns().length === 0 && filterText().trim() !== '') {
+      <p data-test="columns-filter-empty" class="qa-menu__empty">
+        No columns match "{{ filterText() }}"
+      </p>
+    }
+    <div class="qa-menu__footer">
+      <button
+        type="button"
+        data-test="columns-hide-all"
+        [disabled]="noneFilteredVisible()"
+        (click)="hideAllColumns(); $event.stopPropagation()"
+      >
+        Hide all
+      </button>
+      <button
+        type="button"
+        data-test="columns-show-all"
+        [disabled]="allFilteredVisible()"
+        (click)="showAllColumns(); $event.stopPropagation()"
+      >
+        Show all
+      </button>
+    </div>
+  </hlm-menu>
+</ng-template>
+
+<ng-template #fixedMenu>
+  <hlm-menu data-test="fixed-menu" class="qa-menu qa-menu--wide">
+    <div class="qa-menu__header">
+      <input
+        data-test="fixed-filter"
+        class="qa-menu__filter"
+        type="search"
+        aria-label="Filter columns"
+        placeholder="Filter columns…"
+        [value]="filterText()"
+        (input)="setFilter($any($event.target).value)"
+        (keydown)="$event.stopPropagation()"
+        (click)="$event.stopPropagation()"
+      />
+    </div>
+    <div class="qa-menu__groups">
+      @for (group of columnGroups(); track group.key) {
+        <div class="qa-menu__group">
+          <div class="qa-menu__group-label">{{ group.label }}</div>
+          <div class="qa-menu__grid">
+            @for (col of group.columns; track col.id) {
+              <div class="qa-menu__fixed-cell">
+                <span class="qa-menu__row-label">{{ col.header }}</span>
+                <div
+                  class="qa-menu__fixed-toggle"
+                  [hlmToggleGroup]="pinValue(col.id)"
+                  [type]="'single'"
+                  [nullable]="false"
+                  [disabled]="!canPin(col.id)"
+                  appearance="pill"
+                  (hlmToggleGroupChange)="onPinChange(col.id, $event)"
+                >
+                  <button
+                    [hlmToggleGroupItem]="'left'"
+                    [attr.data-test]="'pin-left-' + col.id"
+                    (click)="$event.stopPropagation()"
+                  >
+                    L
+                  </button>
+                  <button
+                    [hlmToggleGroupItem]="'none'"
+                    [attr.data-test]="'pin-none-' + col.id"
+                    (click)="$event.stopPropagation()"
+                  >
+                    N
+                  </button>
+                  <button
+                    [hlmToggleGroupItem]="'right'"
+                    [attr.data-test]="'pin-right-' + col.id"
+                    (click)="$event.stopPropagation()"
+                  >
+                    R
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+    @if (columns().length === 0 && filterText().trim() !== '') {
+      <p data-test="fixed-filter-empty" class="qa-menu__empty">
+        No columns match "{{ filterText() }}"
+      </p>
+    }
+    <div class="qa-menu__footer">
+      <button
+        type="button"
+        data-test="fixed-clear-all"
+        [disabled]="noneFilteredPinned()"
+        (click)="clearAllPins(); $event.stopPropagation()"
+      >
+        Clear all
+      </button>
+    </div>
+  </hlm-menu>
+</ng-template>
+
+<ng-template #settingsMenu>
+  <hlm-menu data-test="settings-menu" class="qa-menu">
+    <div class="qa-menu__section-label">Density</div>
+    @for (option of densityOptions; track option.value) {
+      <button
+        hlmMenuItem
+        type="button"
+        [attr.role]="'menuitemradio'"
+        [attr.data-test]="'density-' + option.value"
+        [attr.aria-checked]="activeDensity() === option.value"
+        (triggered)="setDensity(option.value)"
+      >
+        <span class="qa-menu__row-label">{{ option.label }}</span>
+      </button>
+    }
+  </hlm-menu>
+</ng-template>

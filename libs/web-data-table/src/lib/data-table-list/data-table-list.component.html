@@ -1,0 +1,332 @@
+<div #scrollContainer class="qa-table__scroll" (scroll)="onScroll()">
+  <table class="qa-table" [style.width.px]="table.getTotalSize()">
+    <thead class="qa-table__head">
+      <tr
+        cdkDropList
+        cdkDropListOrientation="horizontal"
+        [cdkDropListDisabled]="!enableColumnReorder()"
+        (cdkDropListDropped)="onColumnDrop($event)"
+      >
+        @for (
+          header of table.getLeftHeaderGroups()[0]?.headers ?? [];
+          track header.id;
+          let last = $last
+        ) {
+          <th
+            class="qa-table__th qa-table__th--pinned-left"
+            [class.qa-table__th--pinned-left-edge]="last"
+            [class.qa-table__th--select]="
+              header.column.id === selectionColumnId
+            "
+            [style.width.px]="header.getSize()"
+            [style.left.px]="header.column.getStart('left')"
+          >
+            @if (header.column.id === selectionColumnId) {
+              <input
+                hlmCheckbox
+                type="checkbox"
+                data-test="select-all"
+                class="qa-table__select-checkbox"
+                aria-label="Select all rows"
+                [checked]="table.getIsAllRowsSelected()"
+                [indeterminate]="table.getIsSomeRowsSelected()"
+                (change)="table.getToggleAllRowsSelectedHandler()($event)"
+              />
+            } @else {
+              <lw-data-table-column-menu
+                [header]="$any(header.column.columnDef.header)"
+                [columnId]="header.column.id"
+                [canHide]="header.column.getCanHide()"
+                [sortDir]="sortDirFor(header.column.id)"
+                [multiSortIndex]="multiSortIndexFor(header.column.id)"
+                [allowMultiSort]="multiSort()"
+                [sortActive]="hasActiveSort()"
+                (sort)="onSort(header.column.id, $event)"
+                (addMultiSort)="onAddMultiSort(header.column.id, $event)"
+                (clearSort)="onClearSort(header.column.id)"
+                (hide)="onHide(header.column.id)"
+                (filterCommitted)="onColumnFilterCommitted()"
+              />
+              @if (header.column.getCanResize()) {
+                <div
+                  data-test="resize-handle"
+                  class="qa-table__resize-handle"
+                  [class.qa-table__resize-handle--active]="
+                    header.column.getIsResizing()
+                  "
+                  (mousedown)="header.getResizeHandler()($event)"
+                  (touchstart)="header.getResizeHandler()($event)"
+                ></div>
+              }
+            }
+          </th>
+        }
+        @for (
+          header of table.getCenterHeaderGroups()[0]?.headers ?? [];
+          track header.id
+        ) {
+          <th
+            class="qa-table__th"
+            [class.qa-table__th--reorderable]="enableColumnReorder()"
+            [style.width.px]="header.getSize()"
+            cdkDrag
+            cdkDragLockAxis="x"
+            [cdkDragData]="header.column.id"
+            [cdkDragDisabled]="!enableColumnReorder()"
+            [cdkDragPreviewContainer]="'parent'"
+          >
+            @if (enableColumnReorder()) {
+              <button
+                type="button"
+                cdkDragHandle
+                class="qa-table__drag-handle"
+                data-test="drag-handle"
+                [attr.aria-label]="
+                  'Reorder column ' + $any(header.column.columnDef.header)
+                "
+              >
+                <hlm-icon
+                  name="lucideGripVertical"
+                  class="size-4"
+                  aria-hidden="true"
+                />
+              </button>
+            }
+            <lw-data-table-column-menu
+              [header]="$any(header.column.columnDef.header)"
+              [columnId]="header.column.id"
+              [canHide]="header.column.getCanHide()"
+              [sortDir]="sortDirFor(header.column.id)"
+              [multiSortIndex]="multiSortIndexFor(header.column.id)"
+              [allowMultiSort]="multiSort()"
+              [sortActive]="hasActiveSort()"
+              (sort)="onSort(header.column.id, $event)"
+              (addMultiSort)="onAddMultiSort(header.column.id, $event)"
+              (clearSort)="onClearSort(header.column.id)"
+              (hide)="onHide(header.column.id)"
+              (filterCommitted)="onColumnFilterCommitted()"
+            />
+            @if (header.column.getCanResize()) {
+              <div
+                data-test="resize-handle"
+                class="qa-table__resize-handle"
+                [class.qa-table__resize-handle--active]="
+                  header.column.getIsResizing()
+                "
+                (mousedown)="header.getResizeHandler()($event)"
+                (touchstart)="header.getResizeHandler()($event)"
+              ></div>
+            }
+            @if (enableColumnReorder()) {
+              <div
+                *cdkDragPlaceholder
+                class="qa-table__drop-target"
+                [style.width.px]="header.getSize()"
+              ></div>
+            }
+          </th>
+        }
+        @for (
+          header of table.getRightHeaderGroups()[0]?.headers ?? [];
+          track header.id;
+          let first = $first
+        ) {
+          <th
+            class="qa-table__th qa-table__th--pinned-right"
+            [class.qa-table__th--pinned-right-edge]="first"
+            [style.width.px]="header.getSize()"
+            [style.right.px]="header.column.getAfter('right')"
+          >
+            <lw-data-table-column-menu
+              [header]="$any(header.column.columnDef.header)"
+              [columnId]="header.column.id"
+              [canHide]="header.column.getCanHide()"
+              [sortDir]="sortDirFor(header.column.id)"
+              [multiSortIndex]="multiSortIndexFor(header.column.id)"
+              [allowMultiSort]="multiSort()"
+              [sortActive]="hasActiveSort()"
+              (sort)="onSort(header.column.id, $event)"
+              (addMultiSort)="onAddMultiSort(header.column.id, $event)"
+              (clearSort)="onClearSort(header.column.id)"
+              (hide)="onHide(header.column.id)"
+              (filterCommitted)="onColumnFilterCommitted()"
+            />
+            @if (header.column.getCanResize()) {
+              <div
+                data-test="resize-handle"
+                class="qa-table__resize-handle"
+                [class.qa-table__resize-handle--active]="
+                  header.column.getIsResizing()
+                "
+                (mousedown)="header.getResizeHandler()($event)"
+                (touchstart)="header.getResizeHandler()($event)"
+              ></div>
+            }
+          </th>
+        }
+      </tr>
+    </thead>
+    <tbody
+      class="qa-table__body"
+      [style.height.px]="virtualizer.getTotalSize()"
+    >
+      @for (vRow of virtualizer.getVirtualItems(); track vRow.key) {
+        @let row = table.getRowModel().rows[vRow.index];
+        @if (row) {
+          <tr
+            data-test="row"
+            class="qa-table__row"
+            [class.qa-table__row--selected]="row.getIsSelected()"
+            (click)="rowActivate.emit(row.original)"
+            [class.qa-table__row--active]="
+              activeRowId() !== null && row.id === activeRowId()
+            "
+            [style.transform]="'translateY(' + vRow.start + 'px)'"
+            [style.height.px]="vRow.size"
+          >
+            @for (
+              cell of row.getLeftVisibleCells();
+              track cell.id;
+              let last = $last
+            ) {
+              <td
+                data-test="cell"
+                class="qa-table__td qa-table__td--pinned-left"
+                [class.qa-table__td--pinned-left-edge]="last"
+                [class.qa-table__td--select]="
+                  cell.column.id === selectionColumnId
+                "
+                [style.width.px]="cell.column.getSize()"
+                [style.left.px]="cell.column.getStart('left')"
+              >
+                @if (cell.column.id === selectionColumnId) {
+                  <div class="qa-table__select-cell">
+                    @if (editingEnabled()) {
+                      <button
+                        type="button"
+                        class="qa-table__edit-toggle"
+                        data-test="edit-toggle"
+                        aria-label="Edit row"
+                        (click)="
+                          $event.stopPropagation();
+                          onToggleEdit(row, vRow.start, vRow.size)
+                        "
+                      >
+                        <hlm-icon
+                          name="lucideEdit3"
+                          class="size-4"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    }
+                    <input
+                      hlmCheckbox
+                      type="checkbox"
+                      [attr.data-test]="'select-row-' + cell.row.id"
+                      class="qa-table__select-checkbox"
+                      aria-label="Select row"
+                      [checked]="cell.row.getIsSelected()"
+                      (change)="cell.row.getToggleSelectedHandler()($event)"
+                      (click)="$event.stopPropagation()"
+                    />
+                    <lw-data-table-row-menu
+                      class="qa-table__row-menu"
+                      data-test="row-menu"
+                      [actions]="rowMenuActionsFor(row.original)"
+                      [showDelete]="showRowDelete()"
+                      (duplicate)="rowDuplicate.emit(row.original)"
+                      (delete)="rowDelete.emit(row.original)"
+                      (action)="
+                        rowAction.emit({ actionId: $event, row: row.original })
+                      "
+                    />
+                  </div>
+                } @else {
+                  <ng-container
+                    *flexRender="
+                      cell.column.columnDef.cell;
+                      props: cell.getContext();
+                      let cellValue
+                    "
+                  >
+                    {{ cellValue }}
+                  </ng-container>
+                }
+              </td>
+            }
+            @for (cell of row.getCenterVisibleCells(); track cell.id) {
+              <td
+                data-test="cell"
+                class="qa-table__td"
+                [style.width.px]="cell.column.getSize()"
+              >
+                <ng-container
+                  *flexRender="
+                    cell.column.columnDef.cell;
+                    props: cell.getContext();
+                    let cellValue
+                  "
+                >
+                  {{ cellValue }}
+                </ng-container>
+              </td>
+            }
+            @for (
+              cell of row.getRightVisibleCells();
+              track cell.id;
+              let first = $first
+            ) {
+              <td
+                data-test="cell"
+                class="qa-table__td qa-table__td--pinned-right"
+                [class.qa-table__td--pinned-right-edge]="first"
+                [style.width.px]="cell.column.getSize()"
+                [style.right.px]="cell.column.getAfter('right')"
+              >
+                <ng-container
+                  *flexRender="
+                    cell.column.columnDef.cell;
+                    props: cell.getContext();
+                    let cellValue
+                  "
+                >
+                  {{ cellValue }}
+                </ng-container>
+              </td>
+            }
+          </tr>
+        }
+      }
+    </tbody>
+  </table>
+  @if (loadMoreError(); as err) {
+    <div class="qa-table__footer qa-table__footer--error" data-test="load-more-error" role="alert">
+      <span>{{ err }}</span>
+      <button type="button" class="qa-table__retry" data-test="retry-more" (click)="retry.emit()">
+        Retry
+      </button>
+    </div>
+  } @else if (loadingMore()) {
+    <div class="qa-table__footer" data-test="loading-more" role="status" aria-live="polite">
+      <span class="qa-table__spinner" aria-hidden="true"></span>
+      Loading more…
+    </div>
+  }
+</div>
+
+@if (editState(); as edit) {
+  <lw-data-table-inline-editor
+    data-test="inline-editor"
+    [fields]="edit.fields"
+    [top]="edit.top"
+    [rowHeight]="edit.height"
+    [layerWidth]="edit.layerWidth"
+    [layerHeight]="edit.layerHeight"
+    [selectCellWidth]="edit.selectWidth"
+    [initialScrollLeft]="edit.scrollLeft"
+    (closed)="onCloseEdit()"
+    (save)="onEditorSave($event)"
+    (scrolledX)="onEditorScrollX($event)"
+    (resized)="onFieldResized($event)"
+  />
+}

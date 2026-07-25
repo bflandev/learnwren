@@ -9,11 +9,7 @@ violations=$(grep -rnE '(^|[^&])#[0-9a-fA-F]{3,8}\b|oklch\(' \
   libs/web-landing/src libs/web-learn/src libs/web-ui/src libs/web-video/src \
   --include='*.scss' --include='*.css' --include='*.html' \
   | grep -v 'web-design-system/src/generated' \
-  | grep -v 'web-design-system/src/legacy-tokens.fixture.css' \
-  | grep -v 'web-ui/src/styles/recipes.css' || true)
-  # recipes.css exemption kept after the F2 strip: the surviving decorative
-  # .lw-cover gradient/label/glyph rules still carry raw oklch() literals.
-  # Tokenising those gradients is slice G's call.
+  | grep -v 'web-design-system/src/legacy-tokens.fixture.css' || true)
 if [[ -n "$violations" ]]; then
   echo "Raw color values found (use --lw-* tokens):"
   echo "$violations"

@@ -1,0 +1,141 @@
+:host {
+  display: block;
+  width: 100%;
+  padding: .9rem .8rem;
+}
+
+.view-picker {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  width: 100%;
+  color: var(--lw-foreground);
+}
+
+.view-picker__header {
+  display: block;
+}
+
+.view-picker__collapse {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.view-picker__collapse:hover {
+  background: var(--lw-surface-hover);
+}
+
+.view-picker__title {
+  font-weight: 600;
+}
+
+.view-picker__count {
+  font-weight: 400;
+  color: var(--lw-muted-foreground);
+}
+
+.view-picker__chevron {
+  margin-left: auto;
+  color: var(--lw-muted-foreground);
+  line-height: 1;
+}
+
+.view-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.view-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0 0.4rem;
+}
+
+.view-picker__row:hover {
+  background: var(--lw-surface-hover);
+}
+
+.view-picker__favorite {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--lw-radius-sm);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  color: var(--lw-muted-foreground);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.view-picker__favorite--on {
+  opacity: 1;
+  color: var(--lw-warning);
+}
+
+.view-picker__row:hover .view-picker__favorite,
+.view-picker__row:focus-within .view-picker__favorite {
+  opacity: 1;
+}
+
+.view-picker__favorite:focus-visible {
+  opacity: 1;
+  outline: .1rem solid var(--lw-border-focus);
+  outline-offset: .1rem;
+}
+
+.view-picker__select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--lw-radius-sm);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view-picker__select[aria-current='true'] {
+  background: var(--lw-list-row-bg-selected);
+  font-weight: 500;
+}
+
+// `lw-view-menu` is the host element of the child component, so it lives in
+// this view and can be targeted directly. Hidden by default; revealed on row
+// hover, when the toggle (or any descendant) is focused, and while the menu is
+// open (CDK sets `aria-expanded="true"` on the trigger button).
+.view-picker__row lw-view-menu {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.view-picker__row:hover lw-view-menu,
+.view-picker__row:focus-within lw-view-menu,
+.view-picker__row lw-view-menu:has([aria-expanded='true']) {
+  opacity: 1;
+}

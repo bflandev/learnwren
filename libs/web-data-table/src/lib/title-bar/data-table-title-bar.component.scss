@@ -1,0 +1,214 @@
+:host {
+  display: block;
+}
+
+.qa-controls {
+  position: relative;
+  display: block;
+  background: var(--lw-data-table-title-bg);
+  border: 0.1rem solid var(--lw-border-subtle);
+  border-bottom: none;
+}
+
+.qa-controls__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: var(--lw-data-table-title-bar-height);
+  gap: 1.6rem;
+  padding: 0.5rem;
+  padding-right: 1.6rem;
+}
+
+.qa-controls__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 1.2rem;
+  min-width: 0;
+}
+
+.qa-controls__toolbar-actions {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.qa-controls__toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 1rem;
+  font: inherit;
+  font-size: 1.3rem;
+  // Match the title bar at rest (aliases --lw-surface in light, so light is
+  // unchanged; blends into the raised gray.870 band in dark).
+  background: var(--lw-data-table-title-bg);
+  border: none;
+  border-radius: var(--lw-radius-sm);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--lw-background);
+  }
+}
+
+// --- Dropdown panels (rendered in the CDK overlay) ---------------------------
+// <hlm-menu> already paints the popover surface (bg/border/shadow) via its base
+// class; these rules only add the data-table-specific layout on top.
+.qa-menu--wide {
+  max-width: 50vw;
+  width: max-content;
+}
+
+.qa-menu--filters {
+  // Grow with content (the inline filter editor) up to half the viewport.
+  width: max-content;
+  min-width: 36rem;
+  max-width: 50vw;
+}
+
+.qa-menu__header {
+  padding: 0.4rem 0.4rem 0.6rem;
+}
+
+.qa-menu__filter {
+  width: 100%;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  font-size: 1.3rem;
+  border: 0.1rem solid var(--lw-border-strong);
+  border-radius: var(--lw-radius-sm);
+
+  &:focus {
+    outline: var(--lw-focus-ring-width) solid var(--lw-ring);
+    outline-offset: -0.1rem;
+  }
+}
+
+.qa-menu__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  max-height: 50vh;
+  overflow: auto;
+}
+
+.qa-menu__group-label {
+  padding: 0.2rem 0.8rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--lw-muted-foreground);
+}
+
+.qa-menu__grid {
+  display: grid;
+  gap: 0.2rem 1.6rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .qa-menu--wide .qa-menu__grid {
+    grid-template-columns: repeat(2, minmax(16rem, 1fr));
+  }
+}
+@media (min-width: 64rem) {
+  .qa-menu--wide .qa-menu__grid {
+    grid-template-columns: repeat(3, minmax(16rem, 1fr));
+  }
+}
+
+// Columns toggle rows are plain buttons (not hlmMenuItem) so the menu stays
+// open across multiple toggles; these rules supply the row affordance the
+// menu-item directive would otherwise provide.
+.qa-menu__row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  font-size: 1.3rem;
+  color: var(--lw-foreground);
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--lw-radius-sm);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--lw-background);
+  }
+  &:focus-visible {
+    outline: var(--lw-focus-ring-width) solid var(--lw-ring);
+    outline-offset: -0.1rem;
+  }
+}
+
+.qa-menu__row-check {
+  flex: 0 0 auto;
+  color: var(--lw-muted-foreground);
+  visibility: hidden;
+}
+
+.qa-menu__row[aria-checked='true'] .qa-menu__row-check {
+  visibility: visible;
+}
+
+.qa-menu__row-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qa-menu__fixed-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.8rem;
+}
+
+.qa-menu__fixed-toggle {
+  align-self: flex-start;
+}
+
+.qa-menu__section-label {
+  padding: 0.4rem 0.8rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--lw-muted-foreground);
+}
+
+.qa-menu__empty {
+  padding: 1.6rem;
+  color: var(--lw-muted-foreground);
+  font-size: 1.3rem;
+  text-align: center;
+}
+
+.qa-menu__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  padding: 0.6rem 0.4rem 0.2rem;
+  border-top: 0.1rem solid var(--lw-border);
+  margin-top: 0.4rem;
+
+  button {
+    padding: 0.4rem 1rem;
+    font: inherit;
+    font-size: 1.3rem;
+    background: var(--lw-surface);
+    border: 0.1rem solid var(--lw-border-strong);
+    border-radius: var(--lw-radius-sm);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--lw-background);
+    }
+    &:disabled {
+      opacity: var(--lw-opacity-disabled);
+      cursor: not-allowed;
+    }
+  }
+}
