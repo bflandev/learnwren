@@ -301,9 +301,12 @@ export class HlmComboboxContent {
   // race against brain's synchronous focusout-close.)
   // Stryker disable next-line all: Angular signal-input options must stay a
   // statically analyzable object literal; instrumented mutants fatal ngtsc.
+  // Stryker disable all: Angular query options must stay statically analyzable
+  // (ngtsc requires "descendants" to be a boolean literal); mutants fatal it.
   private readonly _input = contentChild(BrnComboboxInput, {
     descendants: true,
   });
+  // Stryker restore all
   protected readonly _tabindex = computed(() => (this._input() ? '-1' : '0'));
 }
 
