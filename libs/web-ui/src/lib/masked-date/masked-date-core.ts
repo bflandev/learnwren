@@ -59,9 +59,9 @@ export function applyMask(raw: string, template: string): string {
   for (const slot of template) {
     if (slot === '9' || slot === 'a') {
       const match = slot === '9' ? isDigit : isAlpha;
-      while (i < raw.length && !match(raw[i])) i++;
+      while (i < raw.length && !match(raw.charAt(i))) i++;
       if (i >= raw.length) break;
-      out += pending + (slot === 'a' ? raw[i].toUpperCase() : raw[i]);
+      out += pending + (slot === 'a' ? raw.charAt(i).toUpperCase() : raw.charAt(i));
       pending = '';
       i++;
     } else {
@@ -122,9 +122,9 @@ export function applyMaskWithSkeleton(
   for (const slot of template) {
     if (slot === '9' || slot === 'a') {
       const match = slot === '9' ? isDigit : isAlpha;
-      while (i < raw.length && !match(raw[i])) i++;
+      while (i < raw.length && !match(raw.charAt(i))) i++;
       if (i < raw.length) {
-        text += slot === 'a' ? raw[i].toUpperCase() : raw[i];
+        text += slot === 'a' ? raw.charAt(i).toUpperCase() : raw.charAt(i);
         lastFilledEnd = text.length;
         i++;
       } else {
