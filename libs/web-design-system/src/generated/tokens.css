@@ -220,6 +220,8 @@
   /* misc */
   --lw-ochre-soft: oklch(30% 0.05 72);
   --lw-focus-ring-glow: color-mix(in oklch, var(--lw-ochre) 18%, transparent);
+  --lw-focus-ring-width: 2px;
+  --lw-focus-ring-offset: 2px;
 
   /* type-roles */
   --lw-type-page-title-size: 28px;

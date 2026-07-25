@@ -144,7 +144,9 @@
     },
     "misc": {
       "ochre-soft": { "value": "oklch(30% 0.05 72)" },
-      "focus-ring-glow": { "value": "color-mix(in oklch, var(--lw-ochre) 18%, transparent)" }
+      "focus-ring-glow": { "value": "color-mix(in oklch, var(--lw-ochre) 18%, transparent)" },
+      "focus-ring-width": { "value": "2px" },
+      "focus-ring-offset": { "value": "2px" }
     },
     "type-roles": {
       "type-page-title-size": { "value": "28px" },

@@ -265,3 +265,36 @@
   --default-transition-duration: var(--lw-motion-duration-fast);
   --default-transition-timing-function: var(--lw-motion-ease-fast);
 }
+
+/* Design-system `@utility` recipes ported from the donor design-system
+ * (tokens/utilities.css). Tailwind v4 `@utility` MUST sit at the top level —
+ * nested inside `@layer` it would be silently dropped.
+ *
+ * focus-ring: token-driven focus treatment shared by every hlm primitive.
+ * Painted as an `outline` (not `box-shadow`) so the WCAG 2.4.11 affordance
+ * never collides with `shadow-raised` on active+focused affordances; outline
+ * follows border-radius in all modern browsers, so rounded controls keep
+ * their corners. Flat 2px solid --lw-ochre, offset 2px — no decorative glow. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: var(--lw-focus-ring-width) solid var(--lw-ochre);
+    outline-offset: var(--lw-focus-ring-offset);
+  }
+}
+
+/* Opt-in "lift on hover" affordance (avatar, pickable tiles). `scale` rather
+ * than `translateY` so the hover hit-box never retreats from the pointer
+ * (translateY oscillates). Lives entirely inside prefers-reduced-motion:
+ * no-preference — reduced-motion users get neither transition nor lift. */
+@utility ds-hover-lift {
+  @media (prefers-reduced-motion: no-preference) {
+    transition:
+      transform var(--lw-motion-duration-slow) var(--lw-motion-ease-standard),
+      box-shadow var(--lw-motion-duration-slow) var(--lw-motion-ease-standard);
+
+    &:hover {
+      transform: scale(1.08);
+      box-shadow: var(--lw-shadow-raised);
+    }
+  }
+}
