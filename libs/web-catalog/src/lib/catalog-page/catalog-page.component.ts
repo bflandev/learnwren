@@ -12,6 +12,8 @@ import type {
 import { AuthService } from '@learnwren/web-auth';
 import { EnrollmentService } from '@learnwren/web-enrollment';
 
+import { HlmButton } from '@learnwren/web-ui';
+
 import { CatalogService } from '../catalog.service';
 import { CategoriesService } from '../categories.service';
 import {
@@ -24,7 +26,7 @@ import { CourseCardComponent } from '../components/course-card/course-card.compo
   selector: 'lib-catalog-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CourseCardComponent, CatalogFilterBarComponent],
+  imports: [CourseCardComponent, CatalogFilterBarComponent, HlmButton],
   templateUrl: './catalog-page.component.html',
 })
 export class CatalogPageComponent {

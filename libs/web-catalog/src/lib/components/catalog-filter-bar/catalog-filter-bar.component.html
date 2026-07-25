@@ -1,45 +1,72 @@
 <div class="flex flex-wrap items-center gap-3">
-  <label class="flex items-center gap-2 text-sm text-ink-2">
-    Category
-    <select
-      class="rounded border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-ochre"
-      [value]="category() ?? ''"
-      (change)="onCategoryChange($any($event.target).value)"
+  <div class="flex items-center gap-2 text-sm text-ink-2">
+    <span>Category</span>
+    <div
+      class="min-w-36"
+      [hlmSelectSingle]="category() ?? ''"
+      (hlmSelectSingleChange)="onCategoryChange($event)"
     >
-      <!-- [selected] on each option: the categories arrive async, so options
-           created after the select's [value] was applied must carry the
-           active deep-linked selection themselves. -->
-      <option value="" [selected]="!category()">All</option>
-      @for (c of categories(); track c.id) {
-        <option [value]="c.id" [selected]="c.id === category()">{{ c.name }}</option>
-      }
-    </select>
-  </label>
+      <!-- The trigger label is derived from the async `categories` list, so a
+           deep-linked selection (/catalog?category=X) renders once the options
+           arrive — same guarantee the old per-option [selected] carried. -->
+      <button hlmSelectTrigger type="button" aria-label="Category" data-testid="filter-category">
+        <span>{{ categoryName() ?? 'All' }}</span>
+      </button>
+      <ng-template hlmSelectPortal>
+        <div hlmSelectContent>
+          <div hlmSelectList>
+            <div [hlmSelectItem]="''">All</div>
+            @for (c of categories(); track c.id) {
+              <div [hlmSelectItem]="c.id">{{ c.name }}</div>
+            }
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  </div>
 
-  <label class="flex items-center gap-2 text-sm text-ink-2">
-    Difficulty
-    <select
-      class="rounded border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-ochre"
-      [value]="difficulty() ?? ''"
-      (change)="onDifficultyChange($any($event.target).value)"
+  <div class="flex items-center gap-2 text-sm text-ink-2">
+    <span>Difficulty</span>
+    <div
+      class="min-w-36"
+      [hlmSelectSingle]="difficulty() ?? ''"
+      (hlmSelectSingleChange)="onDifficultyChange($event)"
     >
-      <option value="">All</option>
-      @for (d of difficulties; track d) {
-        <option [value]="d">{{ d }}</option>
-      }
-    </select>
-  </label>
+      <button hlmSelectTrigger type="button" aria-label="Difficulty" data-testid="filter-difficulty">
+        <span>{{ difficulty() ?? 'All' }}</span>
+      </button>
+      <ng-template hlmSelectPortal>
+        <div hlmSelectContent>
+          <div hlmSelectList>
+            <div [hlmSelectItem]="''">All</div>
+            @for (d of difficulties; track d) {
+              <div [hlmSelectItem]="d">{{ d }}</div>
+            }
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  </div>
 
-  <label class="flex items-center gap-2 text-sm text-ink-2">
-    Sort
-    <select
-      class="rounded border border-line bg-bg px-3 py-2 text-ink outline-none focus:border-ochre"
-      [value]="sort()"
-      (change)="onSortChange($any($event.target).value)"
+  <div class="flex items-center gap-2 text-sm text-ink-2">
+    <span>Sort</span>
+    <div
+      class="min-w-36"
+      [hlmSelectSingle]="sort()"
+      (hlmSelectSingleChange)="onSortChange($event)"
     >
-      @for (s of sorts; track s) {
-        <option [value]="s">{{ s }}</option>
-      }
-    </select>
-  </label>
+      <button hlmSelectTrigger type="button" aria-label="Sort" data-testid="filter-sort">
+        <span>{{ sort() }}</span>
+      </button>
+      <ng-template hlmSelectPortal>
+        <div hlmSelectContent>
+          <div hlmSelectList>
+            @for (s of sorts; track s) {
+              <div [hlmSelectItem]="s">{{ s }}</div>
+            }
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  </div>
 </div>

@@ -244,7 +244,7 @@ describe('CourseDetailPageComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     const card = el.querySelector('[data-test="instructor-card"]');
     expect(card).not.toBeNull();
-    expect(card!.querySelector('lw-avatar img')).not.toBeNull();
+    expect(card!.querySelector('hlm-avatar img')).not.toBeNull();
     expect(card!.textContent).toContain('Ada Lovelace');
     expect(card!.textContent).toContain('Mathematician.');
     expect(el.querySelector('[data-test="instructor-bio"]')).not.toBeNull();
