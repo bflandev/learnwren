@@ -20,6 +20,9 @@
  * `data-[state=checked]:*`. Those never match the patterns below.
  */
 
+import { CONFIRM_DIALOG_PANEL_BASE } from './alert-dialog/confirm-dialog-container.component';
+import { DATE_PICKER_TRIGGER_BASE } from './date-picker/hlm-date-picker.component';
+import { DURATION_PICKER_TRIGGER_BASE } from './duration-picker/hlm-duration-picker.component';
 import {
   AUTOCOMPLETE_CONTENT_BASE,
   AUTOCOMPLETE_EMPTY_BASE,
@@ -357,6 +360,9 @@ const CLASS_STRINGS: readonly string[] = [
   ...Object.values(TABS_LIST_VARIANT_MAP),
   ...Object.values(TABS_TRIGGER_VARIANT_MAP),
   ...Object.values(TABS_SIZE_MAP),
+  CONFIRM_DIALOG_PANEL_BASE,
+  DATE_PICKER_TRIGGER_BASE,
+  DURATION_PICKER_TRIGGER_BASE,
   ...Object.values(ALERT_SEVERITY_MAP),
   ...Object.values(ALERT_APPEARANCE_MAP),
   ...Object.values(SHEET_SIDE_MAP),
@@ -379,8 +385,10 @@ describe('lib-wide .ts class strings (token discipline)', () => {
     // (Task 6): 43 base consts (alert 3, boolean-radio 1, calendar 6,
     // combobox 10, grid-state 2, pagination 3, reorderable-list 5, select 7,
     // sheet 1, tags 1, toast 4) + 14 variant map entries (alert 4+2, sheet 4,
-    // toast 4).
-    expect(CLASS_STRINGS.length).toBeGreaterThanOrEqual(187);
+    // toast 4). 187 → 190 in Tiers 4-5 (Tasks 7-8): 3 base consts
+    // (alert-dialog confirm panel 1, date-picker trigger 1,
+    // duration-picker trigger 1).
+    expect(CLASS_STRINGS.length).toBeGreaterThanOrEqual(190);
   });
 
   it('contains no raw hex colour', () => {

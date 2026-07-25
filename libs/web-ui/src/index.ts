@@ -16,6 +16,7 @@ export * from './lib/input/lw-input.directive';
 /* hlm ports (donor design system) — per-dir index files */
 export * from './lib/accent';
 export * from './lib/alert';
+export * from './lib/alert-dialog';
 export * from './lib/autocomplete';
 export * from './lib/avatar';
 export * from './lib/badge';
@@ -27,8 +28,10 @@ export * from './lib/calendar';
 export * from './lib/card';
 export * from './lib/checkbox';
 export * from './lib/combobox';
+export * from './lib/date-picker';
 export * from './lib/dialog';
 export * from './lib/dots';
+export * from './lib/duration-picker';
 export * from './lib/footer-content';
 export * from './lib/form-field';
 export * from './lib/grid-state';
