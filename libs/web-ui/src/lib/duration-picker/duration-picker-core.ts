@@ -24,6 +24,9 @@ export interface DurationPrecision {
 
 // The default — minute only — keeps the helpers backward compatible with their
 // minute-precision callers and the pure spec table.
+// Stryker disable next-line ObjectLiteral: equivalent — every consumer reads
+// `precision.seconds` / `precision.milliseconds` by truthiness only, so `{}`
+// (both undefined) behaves identically to both-false at runtime.
 export const MINUTE_PRECISION: DurationPrecision = {
   seconds: false,
   milliseconds: false,
@@ -89,19 +92,32 @@ export function parseDuration(
   showDays: boolean,
   precision: DurationPrecision = MINUTE_PRECISION,
 ): Duration | null {
+  // Stryker disable next-line MethodExpression: equivalent — applyMask skips
+  // every non-digit, so surrounding whitespace never reaches the mask; a
+  // whitespace-only raw normalizes to '' and fails the length check below.
   const trimmed = raw.trim();
+  // Stryker disable next-line ConditionalExpression: equivalent — fast path
+  // only; an empty string also falls out via the length check below.
   if (trimmed.length === 0) return null;
   const template = maskForDuration(showDays, precision);
   const normalized = applyMask(trimmed, template);
   // Require a complete entry — a partial mask fill is treated as not-yet-valid.
   if (normalized.length !== template.length) return null;
+  // Stryker disable next-line ArrayDeclaration: equivalent — a full-length
+  // applyMask output always contains digits, so match() never returns null.
   const nums = (normalized.match(/[0-9]+/g) ?? []).map(Number);
   let i = 0;
   const days = showDays ? nums[i++] : 0;
   const hours = nums[i++];
   const minutes = nums[i++];
   const seconds = precision.seconds || precision.milliseconds ? nums[i++] : 0;
+  // Stryker disable next-line UpdateOperator: equivalent — post-op value is
+  // read before the update and `i` is never used again after this line.
   const milliseconds = precision.milliseconds ? nums[i++] : 0;
+  // Stryker disable all: equivalent — unreachable defensive guard. A
+  // full-template-length applyMask output has every digit slot filled, so the
+  // regex above always yields a complete numeric segment set (no undefined,
+  // no NaN). Kept as defence against future applyMask changes.
   if (
     [days, hours, minutes, seconds, milliseconds].some(
       (n) => n === undefined || Number.isNaN(n),
@@ -109,6 +125,7 @@ export function parseDuration(
   ) {
     return null;
   }
+  // Stryker restore all
   const duration = Duration.fromObject({
     days,
     hours,

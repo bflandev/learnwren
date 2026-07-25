@@ -38,7 +38,8 @@ export class HlmDots {
   // dots stand alone.
   public readonly label = input<string>('');
 
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   protected readonly computedClass = computed(() =>

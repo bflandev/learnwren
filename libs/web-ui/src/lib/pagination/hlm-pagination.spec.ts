@@ -51,6 +51,34 @@ describe('buildPaginationItems', () => {
       [1, 2, 3, 4, 5, 6, 7, 8, 9],
       'siblingCount=2 collapses ellipses when totalPageNumbers ≥ pageCount',
     ],
+    [
+      3,
+      10,
+      1,
+      [1, 2, 3, 4, 5, 'ellipsis', 10],
+      'leftSibling exactly 2 — the single-page gap is shown, not elided',
+    ],
+    [
+      8,
+      10,
+      1,
+      [1, 'ellipsis', 6, 7, 8, 9, 10],
+      'rightSibling exactly pageCount-1 — the single-page gap is shown, not elided',
+    ],
+    [
+      1,
+      10,
+      2,
+      [1, 2, 3, 4, 5, 6, 7, 'ellipsis', 10],
+      'siblingCount=2 leading window spans 3 + 2·siblings pages',
+    ],
+    [
+      10,
+      10,
+      2,
+      [1, 'ellipsis', 4, 5, 6, 7, 8, 9, 10],
+      'siblingCount=2 trailing window spans 3 + 2·siblings pages',
+    ],
   ];
   it.each(rows)(
     'page=%i / count=%i / siblings=%i → %j  (%s)',
@@ -193,6 +221,36 @@ describe('HlmPagination', () => {
     five?.click();
     fixture.detectChanges();
     expect(fixture.componentInstance.page()).toBe(5);
+  });
+
+  it('labels the Previous/Next buttons with their visible default text', () => {
+    const { prev, next } = setup();
+    expect(prev().textContent?.trim()).toBe('Previous');
+    expect(next().textContent?.trim()).toBe('Next');
+  });
+
+  it('carries the exported BASE classes on nav, list, and ellipsis', () => {
+    const { nav } = setup();
+    // PAGINATION_BASE on the nav.
+    for (const cls of ['mx-auto', 'flex', 'w-full', 'justify-center']) {
+      expect(nav.classList.contains(cls), `nav missing \`${cls}\``).toBe(true);
+    }
+    // PAGINATION_LIST_BASE on the list.
+    const list = nav.querySelector('ul') as HTMLElement;
+    for (const cls of ['flex', 'flex-row', 'items-center', 'gap-1']) {
+      expect(list.classList.contains(cls), `list missing \`${cls}\``).toBe(
+        true,
+      );
+    }
+    // PAGINATION_ELLIPSIS_BASE on the ellipsis cell (default setup shows one).
+    const glyph = nav.querySelector('span[aria-hidden="true"]') as HTMLElement;
+    const ellipsis = glyph.closest('li') as HTMLElement;
+    for (const cls of ['h-9', 'w-9', 'items-center', 'text-ink-3']) {
+      expect(
+        ellipsis.classList.contains(cls),
+        `ellipsis missing \`${cls}\``,
+      ).toBe(true);
+    }
   });
 
   it('hides only the decorative glyph while the SR-only label announces', () => {

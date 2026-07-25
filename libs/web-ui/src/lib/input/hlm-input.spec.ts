@@ -94,6 +94,27 @@ describe('HlmInput', () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
+  // The directive can sit on any element via [hlmInput]; the typeof-select
+  // guard keeps the deferred select() from exploding on non-input hosts.
+  it('tolerates focus on a host element without a select() method', () => {
+    // Arrange
+    @Component({
+      standalone: true,
+      imports: [HlmInput],
+      template: `<div hlmInput tabindex="0">not an input</div>`,
+    })
+    class NonInputHost {}
+    const fixture = TestBed.createComponent(NonInputHost);
+    fixture.detectChanges();
+    const host = fixture.nativeElement.querySelector('div') as HTMLElement;
+    // Act / Assert — without the guard the deferred callback would call
+    // undefined() and the timer flush would throw.
+    vi.useFakeTimers();
+    host.dispatchEvent(new FocusEvent('focus'));
+    expect(() => vi.runAllTimers()).not.toThrow();
+    vi.useRealTimers();
+  });
+
   it('does not select on focus when selectAllOnFocus is false', () => {
     const fixture = TestBed.createComponent(TestHost);
     fixture.componentInstance.selectAll = false;

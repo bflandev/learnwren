@@ -90,6 +90,51 @@ function setup() {
   return { fixture, host, root };
 }
 
+// A host that binds ONLY the required [group], so every discrete-input default
+// is actually exercised (the full host above overrides them all).
+@Component({
+  standalone: true,
+  imports: [HlmDynamicField],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-dynamic-field [group]="form" />
+    <hlm-dynamic-field [group]="form" />`,
+})
+class MinimalHost {
+  // A control keyed by '' resolves the default controlName ('').
+  readonly form = new FormGroup({ '': new FormControl('seed') });
+}
+
+// Like MinimalHost but with a group that has NO control matching the default
+// controlName, so control() stays null.
+@Component({
+  standalone: true,
+  imports: [HlmDynamicField],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-dynamic-field [group]="form" />`,
+})
+class NoControlHost {
+  readonly form = new FormGroup({ name: new FormControl('') });
+}
+
+function setupMinimal() {
+  const fixture = TestBed.createComponent(MinimalHost);
+  fixture.detectChanges();
+  const root = fixture.nativeElement as HTMLElement;
+  const fields = fixture.debugElement
+    .queryAll(By.directive(HlmDynamicField))
+    .map((de) => de.componentInstance as HlmDynamicField);
+  return { fixture, root, fields };
+}
+
+function setupNoControl() {
+  const fixture = TestBed.createComponent(NoControlHost);
+  fixture.detectChanges();
+  const root = fixture.nativeElement as HTMLElement;
+  const field = fixture.debugElement.query(By.directive(HlmDynamicField))
+    .componentInstance as HlmDynamicField;
+  return { fixture, root, field };
+}
+
 describe('HlmDynamicField', () => {
   it('renders a text input bound to the control (CVA writes through)', () => {
     const { fixture, host, root } = setup();
@@ -608,6 +653,111 @@ describe('HlmDynamicField', () => {
     const input = root.querySelector('input[hlmInput]') as HTMLInputElement;
     expect(input.placeholder).toBe('Enter your name');
     expect(input.readOnly).toBe(true);
+  });
+
+  it('renders a text input with no label from the bare defaults', () => {
+    // Only [group] bound: type='text', controlName='', label/placeholder ''.
+    const { root, fields } = setupMinimal();
+    const input = root.querySelector('input[hlmInput]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.placeholder).toBe('');
+    expect(root.querySelector('label')).toBeNull();
+    expect(fields[0].controlName()).toBe('');
+    expect(fields[0].type()).toBe('text');
+    expect(fields[0].placeholder()).toBe('');
+    expect(fields[0].options()).toEqual([]);
+    expect(fields[0].trueLabel()).toBe('Yes');
+    expect(fields[0].falseLabel()).toBe('No');
+  });
+
+  it('mints unique, well-formed field ids across instances', () => {
+    const { fields } = setupMinimal();
+    const ids = fields.map(
+      (f) => (f as unknown as { fieldId(): string }).fieldId(),
+    );
+    for (const id of ids) {
+      expect(id).toMatch(/^df-field-\d+$/);
+    }
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('renders nothing and degrades safely when the control is missing', () => {
+    const { fixture, root, field } = setupNoControl();
+    expect(root.querySelector('hlm-form-field')).toBeNull();
+    const f = field as unknown as {
+      errorText(): string | null;
+      controlValue(): unknown;
+      controlDisabled(): boolean;
+      selectedLabel(): string;
+      writeBack(v: unknown): void;
+      num(k: 'min' | 'max' | 'step' | 'rows'): number | null;
+    };
+    expect(f.errorText()).toBeNull();
+    expect(f.controlValue()).toBeUndefined();
+    expect(f.controlDisabled()).toBe(false);
+    expect(f.selectedLabel()).toBe('');
+    expect(f.num('min')).toBeNull();
+    expect(() => f.writeBack('x')).not.toThrow();
+    // Destroy must not throw either (the events subscription was never made).
+    expect(() => fixture.destroy()).not.toThrow();
+  });
+
+  it('uses config options for the rendered rows when config is present', () => {
+    const { fixture, host, root } = setup();
+    host.controlName.set('color');
+    host.options.set([]);
+    host.config.set({
+      type: 'radio',
+      controlName: 'color',
+      options: [
+        { value: 'r', label: 'Red' },
+        { value: 'g', label: 'Green' },
+      ],
+    });
+    fixture.detectChanges();
+    expect(root.querySelectorAll('input[type="radio"][hlmRadio]').length).toBe(
+      2,
+    );
+  });
+
+  it('shows all options before any search query is typed', () => {
+    const { fixture, host } = setup();
+    host.controlName.set('color');
+    host.type.set('combobox');
+    host.options.set([
+      { value: 'r', label: 'Red' },
+      { value: 'g', label: 'Green' },
+      { value: 'b', label: 'Blue' },
+    ]);
+    fixture.detectChanges();
+    const dynField = fixture.debugElement.query(By.directive(HlmDynamicField))
+      .componentInstance as HlmDynamicField;
+    const filtered = (
+      dynField as unknown as {
+        filteredOptions(): readonly DynamicFieldOption[];
+      }
+    ).filteredOptions();
+    expect(filtered.length).toBe(3);
+  });
+
+  it('trims and lower-cases the search query before filtering', () => {
+    const { fixture, host } = setup();
+    host.controlName.set('color');
+    host.type.set('combobox');
+    host.options.set([
+      { value: 'r', label: 'Red' },
+      { value: 'b', label: 'Blue' },
+    ]);
+    fixture.detectChanges();
+    const dynField = fixture.debugElement.query(By.directive(HlmDynamicField))
+      .componentInstance as HlmDynamicField;
+    const f = dynField as unknown as {
+      onSearch(q: string): void;
+      filteredOptions(): readonly DynamicFieldOption[];
+    };
+    f.onSearch(' RED ');
+    fixture.detectChanges();
+    expect(f.filteredOptions().map((o) => o.label)).toEqual(['Red']);
   });
 
   it('uses default values when config props are absent (mode=date, showDays=true, etc)', () => {

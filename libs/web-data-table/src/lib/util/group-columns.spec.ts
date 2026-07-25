@@ -18,6 +18,11 @@ describe('titleCasePrefix', () => {
     expect(titleCasePrefix('asset_type')).toBe('Asset Type');
     expect(titleCasePrefix('asset-type')).toBe('Asset Type');
   });
+
+  it('drops empty tokens from leading/trailing/doubled separators', () => {
+    expect(titleCasePrefix('_foo')).toBe('Foo');
+    expect(titleCasePrefix('foo__bar_')).toBe('Foo Bar');
+  });
 });
 
 describe('groupColumnsByPrefix', () => {
@@ -60,6 +65,21 @@ describe('groupColumnsByPrefix', () => {
 
   it('returns an empty array for no columns', () => {
     expect(groupColumnsByPrefix([])).toEqual([]);
+  });
+
+  it('treats a leading-dot id (empty prefix) as general', () => {
+    const groups = groupColumnsByPrefix([{ id: '.odd', header: 'Odd' }]);
+    expect(groups.map((g) => g.key)).toEqual(['general']);
+    expect(groups[0].columns.map((c) => c.id)).toEqual(['.odd']);
+  });
+
+  it('keeps every column of a shared prefix in one bucket', () => {
+    const groups = groupColumnsByPrefix([
+      { id: 'item.a', header: 'A' },
+      { id: 'item.b', header: 'B' },
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].columns.map((c) => c.id)).toEqual(['item.a', 'item.b']);
   });
 
   it('merges flat ids into an existing dotted "general" group (no duplicate keys)', () => {

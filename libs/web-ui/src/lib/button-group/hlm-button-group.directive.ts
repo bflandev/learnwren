@@ -53,7 +53,8 @@ const buttonGroupVariants = cva(BUTTON_GROUP_BASE, {
 })
 export class HlmButtonGroup {
   public readonly orientation = input<ButtonGroupOrientation>('horizontal');
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() => {
     // Unknown values fall through to cva's defaultVariants (→ 'horizontal').

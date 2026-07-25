@@ -30,4 +30,26 @@ describe('reorderVisibleColumns', () => {
     expect(reorderVisibleColumns(full, ['a', 'b', 'c'], -1, 2)).toEqual(full);
     expect(reorderVisibleColumns(full, ['a', 'b', 'c'], 0, 9)).toEqual(full);
   });
+
+  it('guards every out-of-range index independently', () => {
+    const full = ['a', 'b', 'c'];
+    // A negative previousIndex would otherwise splice from the array end.
+    expect(reorderVisibleColumns(full, full, -1, 0)).toEqual(full);
+    // A negative currentIndex would otherwise insert before the last slot.
+    expect(reorderVisibleColumns(full, full, 0, -1)).toEqual(full);
+    // currentIndex === length would otherwise append at the end.
+    expect(reorderVisibleColumns(full, full, 0, 3)).toEqual(full);
+    // previousIndex === length is a no-op splice, rescued by the moved guard.
+    expect(reorderVisibleColumns(full, full, 3, 1)).toEqual(full);
+  });
+
+  it('does not mutate its inputs and returns a fresh array', () => {
+    const full = ['a', 'b', 'c'];
+    const center = ['a', 'b', 'c'];
+    const out = reorderVisibleColumns(full, center, 0, 1);
+    expect(out).toEqual(['b', 'a', 'c']);
+    expect(full).toEqual(['a', 'b', 'c']);
+    expect(center).toEqual(['a', 'b', 'c']);
+    expect(out).not.toBe(full);
+  });
 });

@@ -45,6 +45,24 @@ describe('HlmSpinner', () => {
     expect(host.getAttribute('aria-label')).toBe('Loading');
   });
 
+  it('announces with the default "Loading" label when none is bound', () => {
+    // Arrange / Act — a bare spinner so the component's own default applies.
+    @Component({
+      standalone: true,
+      imports: [HlmSpinner],
+      template: `<hlm-spinner />`,
+    })
+    class BareHost {}
+    const fixture = TestBed.createComponent(BareHost);
+    fixture.detectChanges();
+    const host = fixture.nativeElement.querySelector(
+      'hlm-spinner',
+    ) as HTMLElement;
+    // Assert
+    expect(host.getAttribute('aria-label')).toBe('Loading');
+    expect(host.getAttribute('role')).toBe('status');
+  });
+
   it('reflects a custom label on aria-label', () => {
     const { host } = setup('md', 'Saving changes');
     expect(host.getAttribute('aria-label')).toBe('Saving changes');

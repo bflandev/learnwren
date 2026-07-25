@@ -118,7 +118,8 @@ export class HlmSelect {
   host: { type: 'button', '[class]': 'computedClass()' },
 })
 export class HlmSelectTrigger {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(SELECT_TRIGGER_BASE, this.userClass()),
@@ -142,7 +143,8 @@ export class HlmSelectTrigger {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmSelectContent {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(SELECT_CONTENT_BASE, this.userClass()),
@@ -177,7 +179,8 @@ export class HlmSelectPortal {}
   host: { '[class]': 'computedClass()' },
 })
 export class HlmSelectList {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(SELECT_LIST_BASE, this.userClass()),
@@ -204,7 +207,8 @@ export class HlmSelectList {
   },
 })
 export class HlmSelectItem {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   // The root governs the affordance for the whole list. Optional so a bare

@@ -151,7 +151,8 @@ export class HlmPagination {
     (page) => `Go to page ${page}`,
   );
 
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   protected readonly listClass = PAGINATION_LIST_BASE;
@@ -174,6 +175,9 @@ export class HlmPagination {
 
   protected goto(target: number): void {
     const clamped = Math.min(Math.max(target, 1), this.pageCount());
+    // Stryker disable next-line ConditionalExpression: equivalent — page is a
+    // primitive signal; set() with an identical number is skipped by Object.is
+    // equality, so removing the guard produces no observable emission.
     if (clamped !== this.page()) this.page.set(clamped);
   }
 

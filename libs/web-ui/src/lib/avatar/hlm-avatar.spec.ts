@@ -99,6 +99,51 @@ describe('HlmAvatar', () => {
     expect(host.querySelector('.fallback')).toBeNull();
   });
 
+  it('defaults alt to an empty string and size to base (unbound inputs)', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmAvatar],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hlm-avatar src="https://example.test/a.png" />`,
+    })
+    class UnboundHost {}
+    const fixture = TestBed.createComponent(UnboundHost);
+    fixture.detectChanges();
+    const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    expect(img.getAttribute('alt')).toBe('');
+    const inst = fixture.debugElement.children[0]
+      .componentInstance as HlmAvatar;
+    expect(inst.size()).toBe('base');
+  });
+
+  it('resets the failed flag to literally false when the src changes', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmAvatar],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hlm-avatar [src]="src()" />`,
+    })
+    class ResetHost {
+      readonly src = signal('https://example.test/broken.png');
+    }
+    const fixture = TestBed.createComponent(ResetHost);
+    fixture.detectChanges();
+    const host = fixture.nativeElement.querySelector(
+      'hlm-avatar',
+    ) as HTMLElement;
+    host.querySelector('img')?.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+    const inst = fixture.debugElement.children[0].componentInstance as {
+      imageFailed: () => boolean;
+    };
+    expect(inst.imageFailed()).toBe(true);
+    fixture.componentInstance.src.set('https://example.test/fresh.png');
+    fixture.detectChanges();
+    expect(inst.imageFailed()).toBe(false);
+  });
+
   it('carries the cn() base classes on the host (shape, surface, fallback text)', () => {
     const { host } = setup();
     // Every avatar is circular, including the default `base` size.

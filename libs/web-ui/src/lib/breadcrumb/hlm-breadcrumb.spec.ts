@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import {
   BREADCRUMB_ELLIPSIS_BASE,
   BREADCRUMB_ITEM_BASE,
@@ -7,6 +8,7 @@ import {
   BREADCRUMB_LIST_BASE,
   BREADCRUMB_PAGE_BASE,
   BREADCRUMB_SEPARATOR_BASE,
+  HlmBreadcrumb,
   HlmBreadcrumbImports,
 } from './hlm-breadcrumb.directive';
 
@@ -117,6 +119,30 @@ describe('HlmBreadcrumb', () => {
     for (const cls of BREADCRUMB_ELLIPSIS_BASE.split(/\s+/)) {
       expect(ellipsis.classList.contains(cls)).toBe(true);
     }
+  });
+
+  it('merges a consumer class onto the root nav', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmBreadcrumbImports],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<nav hlmBreadcrumb class="custom-nav"></nav>`,
+    })
+    class NavHost {}
+    const fixture = TestBed.createComponent(NavHost);
+    fixture.detectChanges();
+    const nav = fixture.nativeElement.querySelector('nav') as HTMLElement;
+    expect(nav.classList.contains('custom-nav')).toBe(true);
+    // The static class attribute alone would satisfy the classList check even
+    // if the host [class] binding computed nothing — read the computed class
+    // itself to prove the consumer class actually flows through cn().
+    const dir = fixture.debugElement
+      .query(By.directive(HlmBreadcrumb))
+      .injector.get(HlmBreadcrumb) as unknown as {
+      computedClass: () => string;
+    };
+    expect(dir.computedClass()).toBe('custom-nav');
   });
 
   it('merges a consumer class onto the link (cn last-wins)', () => {

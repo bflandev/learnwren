@@ -127,7 +127,8 @@ export class HlmAutocomplete {}
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAutocompleteInput {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(AUTOCOMPLETE_INPUT_BASE, this.userClass()),
@@ -159,7 +160,8 @@ export class HlmAutocompletePortal {}
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAutocompleteContent {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(AUTOCOMPLETE_CONTENT_BASE, this.userClass()),
@@ -176,7 +178,8 @@ export class HlmAutocompleteContent {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAutocompleteList {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(AUTOCOMPLETE_LIST_BASE, this.userClass()),
@@ -200,7 +203,8 @@ export class HlmAutocompleteList {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAutocompleteItem {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(AUTOCOMPLETE_ITEM_BASE, this.userClass()),
@@ -217,7 +221,8 @@ export class HlmAutocompleteItem {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmAutocompleteEmpty {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(AUTOCOMPLETE_EMPTY_BASE, this.userClass()),

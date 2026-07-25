@@ -50,7 +50,8 @@ export class HlmProgress {
 
   public readonly label = input<string>('');
 
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   protected readonly indeterminate = computed(() => this.value() === null);
@@ -60,7 +61,11 @@ export class HlmProgress {
   protected readonly percent = computed(() => {
     const value = this.value();
     const max = this.max();
-    if (value === null || max <= 0) return 0;
+    // Also the TS narrowing for `value`; the template never calls percent()
+    // while indeterminate, and null would coerce to 0 anyway.
+    // Stryker disable next-line ConditionalExpression: equivalent — a null value coerces to 0 in the division below, yielding the same 0 result
+    if (value === null) return 0;
+    if (max <= 0) return 0;
     return Math.max(0, Math.min(100, (value / max) * 100));
   });
 

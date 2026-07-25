@@ -229,3 +229,120 @@ describe('DataTableFilterEditorComponent', () => {
     expect(inst.form.controls.value.value).toBeNull();
   });
 });
+
+// Mutation hardening: control defaults, derived-signal initials, and the
+// seed/reset interplay.
+describe('DataTableFilterEditorComponent (mutation hardening)', () => {
+  let fixture: ComponentFixture<DataTableFilterEditorComponent>;
+  let columns: ReturnType<typeof signal<DataTableColumn[]>>;
+
+  beforeEach(() => {
+    columns = signal<DataTableColumn[]>(COLUMNS);
+    TestBed.configureTestingModule({
+      imports: [DataTableFilterEditorComponent],
+      providers: [
+        DataTableFilterStore,
+        { provide: DataTableStateService, useValue: { columns } },
+      ],
+    });
+    fixture = TestBed.createComponent(DataTableFilterEditorComponent);
+  });
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  interface EditorInternals {
+    form: {
+      controls: {
+        field: {
+          value: string;
+          setValue(v: string): void;
+          reset(): void;
+        };
+        comparator: {
+          value: string;
+          setValue(v: string): void;
+          reset(): void;
+        };
+        value: { value: unknown; setValue(v: unknown): void };
+      };
+    };
+    fieldOptions(): readonly { value: unknown; label: string }[];
+    selectedFieldId(): string | null;
+    selectedColumn(): DataTableColumn | undefined;
+    valueType(): string;
+    valueOptions(): readonly unknown[];
+  }
+  const internals = (): EditorInternals =>
+    fixture.componentInstance as unknown as EditorInternals;
+
+  it('keeps field and comparator non-nullable across a reset', () => {
+    fixture.detectChanges();
+    const c = internals();
+    c.form.controls.field.setValue('title');
+    c.form.controls.field.reset();
+    expect(c.form.controls.field.value).toBe('');
+    c.form.controls.comparator.setValue('contains');
+    c.form.controls.comparator.reset();
+    expect(c.form.controls.comparator.value).toBe('equals');
+  });
+
+  it('exposes field options and an empty initial selection', () => {
+    fixture.detectChanges();
+    const c = internals();
+    expect(c.fieldOptions()).toEqual([
+      { value: 'title', label: 'Title' },
+      { value: 'count', label: 'Count' },
+      { value: 'when', label: 'When' },
+    ]);
+    expect(c.selectedFieldId()).toBe('');
+    expect(c.selectedColumn()).toBeUndefined();
+    expect(c.valueType()).toBe('text');
+    expect(c.valueOptions()).toEqual([]);
+  });
+
+  it('clears the value when the field changes with no editing seed', () => {
+    fixture.detectChanges();
+    const c = internals();
+    c.form.controls.value.setValue('x');
+    c.form.controls.field.setValue('title');
+    expect(c.form.controls.value.value).toBeNull();
+  });
+
+  it('does not re-seed on unrelated signal changes while editing identity is unchanged', () => {
+    fixture.componentRef.setInput('editing', {
+      field: 'count',
+      comparator: 'equals',
+      value: '42',
+    });
+    fixture.detectChanges();
+    const c = internals();
+    c.form.controls.comparator.setValue('notEquals');
+    // A columns update re-runs the seeding effect; the guard must keep the
+    // user's in-flight tweak.
+    columns.set([...COLUMNS]);
+    fixture.detectChanges();
+    expect(c.form.controls.comparator.value).toBe('notEquals');
+  });
+
+  it('keeps the seeded form when editing is cleared back to null', () => {
+    fixture.componentRef.setInput('editing', {
+      field: 'count',
+      comparator: 'equals',
+      value: '42',
+    });
+    fixture.detectChanges();
+    fixture.componentRef.setInput('editing', null);
+    expect(() => fixture.detectChanges()).not.toThrow();
+    expect(internals().form.controls.field.value).toBe('count');
+  });
+
+  it('seeds an undefined stored value (value-less comparator) as an empty string', () => {
+    fixture.componentRef.setInput('editing', {
+      field: 'title',
+      comparator: 'empty',
+      value: undefined,
+    });
+    fixture.detectChanges();
+    expect(internals().form.controls.value.value).toBe('');
+  });
+});

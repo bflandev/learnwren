@@ -43,6 +43,24 @@ describe('HlmSkeleton', () => {
     expect(el.getAttribute('aria-hidden')).toBeNull();
   });
 
+  it('is decorative when fully unbound (label default is empty)', () => {
+    @Component({
+      standalone: true,
+      imports: [HlmSkeleton],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hlm-skeleton />`,
+    })
+    class BareHost {}
+    const fixture = TestBed.createComponent(BareHost);
+    fixture.detectChanges();
+    const el = fixture.nativeElement.querySelector(
+      'hlm-skeleton',
+    ) as HTMLElement;
+    expect(el.getAttribute('aria-hidden')).toBe('true');
+    expect(el.getAttribute('role')).toBeNull();
+    expect(el.getAttribute('aria-label')).toBeNull();
+  });
+
   it('merges consumer sizing/shape classes over the base (cn last-wins)', () => {
     const { el } = setup('', 'h-4 w-32 rounded-full');
     expect(el.classList.contains('h-4')).toBe(true);

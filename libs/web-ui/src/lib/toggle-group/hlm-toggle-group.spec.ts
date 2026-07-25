@@ -8,11 +8,13 @@ import {
 import {
   HlmToggleGroup,
   HlmToggleGroupImports,
+  HlmToggleGroupItem,
   TOGGLE_GROUP_ITEM_BASE,
 } from './hlm-toggle-group.directive';
 import {
   TOGGLE_GROUP_APPEARANCES,
   TOGGLE_GROUP_ITEM_APPEARANCE_MAP,
+  toggleGroupItemVariants,
 } from './hlm-toggle-group.variants';
 
 // Mirrors the lib's other directive specs (Vitest globals + jsdom). A small host
@@ -282,5 +284,26 @@ describe('HlmToggleGroup', () => {
       outlineGroup.className.includes('[&>*:not(:first-child)]:rounded-s-none'),
     ).toBe(true);
     expect(outlineGroup.classList.contains('gap-1')).toBe(false);
+  });
+
+  it('an item falls back to outline with no root [hlmToggleGroup] at all', () => {
+    // The root inject is optional; instantiate the item with no provider so
+    // the null-root fallback path actually executes.
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    TestBed.runInInjectionContext(() => {
+      const item = new HlmToggleGroupItem();
+      const appearance = (
+        item as unknown as { effectiveAppearance(): string }
+      ).effectiveAppearance();
+      expect(appearance).toBe('outline');
+    });
+  });
+
+  it('cva defaults paint the outline recipe when no variant prop is passed', () => {
+    const classes = toggleGroupItemVariants({});
+    for (const cls of TOGGLE_GROUP_ITEM_APPEARANCE_MAP.outline.split(/\s+/)) {
+      expect(classes, `outline default ${cls}`).toContain(cls);
+    }
   });
 });

@@ -75,6 +75,7 @@ export function createSelectionFlash(
 
 function prefersMotion(): boolean {
   if (
+    // Stryker disable next-line ConditionalExpression, StringLiteral: equivalent — SSR-only clause; in every runnable environment for this browser lib (jsdom + browsers) window is defined, so the clause is constantly false and the matchMedia typeof check on the next line decides alone
     typeof window === 'undefined' ||
     typeof window.matchMedia !== 'function'
   ) {

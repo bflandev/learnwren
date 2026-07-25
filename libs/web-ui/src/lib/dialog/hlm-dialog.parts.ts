@@ -31,7 +31,8 @@ import {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmDialogHeader {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_HEADER_BASE, this.userClass()),
@@ -46,7 +47,8 @@ export class HlmDialogHeader {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmDialogFooter {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_FOOTER_BASE, this.userClass()),
@@ -64,7 +66,8 @@ export class HlmDialogFooter {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmDialogTitle {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_TITLE_BASE, this.userClass()),
@@ -80,7 +83,8 @@ export class HlmDialogTitle {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmDialogDescription {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_DESCRIPTION_BASE, this.userClass()),
@@ -98,7 +102,8 @@ export class HlmDialogDescription {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmDialogClose {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_CLOSE_BASE, this.userClass()),

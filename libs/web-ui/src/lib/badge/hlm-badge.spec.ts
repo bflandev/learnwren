@@ -45,6 +45,21 @@ function setup(
 }
 
 describe('HlmBadge', () => {
+  it("defaults the unbound variant/density inputs to the literal 'default'", () => {
+    @Component({
+      standalone: true,
+      imports: [HlmBadge],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<span hlmBadge>Badge</span>`,
+    })
+    class UnboundHost {}
+    const fixture = TestBed.createComponent(UnboundHost);
+    fixture.detectChanges();
+    const inst = fixture.debugElement.children[0].injector.get(HlmBadge);
+    expect(inst.variant()).toBe('default');
+    expect(inst.density()).toBe('default');
+  });
+
   it('carries the BASE + default variant + default density classes when no inputs are set', () => {
     const { host } = setup();
     // BASE

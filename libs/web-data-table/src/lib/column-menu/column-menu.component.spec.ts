@@ -348,3 +348,80 @@ describe('ColumnMenuComponent', () => {
     expect(editor?.textContent).toContain('Edit Filter');
   });
 });
+
+// Mutation hardening: input defaults, the multi-sort badge, and the popover
+// helpers' tolerance of an uninitialized view.
+describe('ColumnMenuComponent (mutation hardening)', () => {
+  afterEach(() => {
+    TestBed.inject(OverlayContainer).ngOnDestroy();
+    TestBed.resetTestingModule();
+  });
+
+  it('defaults columnId to empty and sortActive to false', () => {
+    const fixture = build();
+    expect(fixture.componentInstance.columnId()).toBe('');
+    expect(fixture.componentInstance.sortActive()).toBe(false);
+  });
+
+  it('defaults sortActive to false when the input is never bound', () => {
+    // build() always binds sortActive, which masks the input DEFAULT — create
+    // the component raw so the declared default itself is asserted.
+    TestBed.configureTestingModule({
+      imports: [ColumnMenuComponent],
+      providers: [
+        DataTableFilterStore,
+        {
+          provide: DataTableStateService,
+          useValue: {
+            columns: signal([{ id: 'title', header: 'Title', type: 'string' }]),
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(ColumnMenuComponent);
+    fixture.componentRef.setInput('header', 'Name');
+    expect(fixture.componentInstance.sortActive()).toBe(false);
+  });
+
+  it('multiSortBadge is null without an index and 1-based with one', () => {
+    const fixture = build();
+    const cmp = fixture.componentInstance as unknown as {
+      multiSortBadge: () => string | null;
+    };
+    expect(cmp.multiSortBadge()).toBeNull();
+    fixture.componentRef.setInput('multiSortIndex', 0);
+    expect(cmp.multiSortBadge()).toBe('1');
+    fixture.componentRef.setInput('multiSortIndex', 2);
+    expect(cmp.multiSortBadge()).toBe('3');
+  });
+
+  it('editor open/close helpers tolerate being called before the view initializes', () => {
+    // Build WITHOUT detectChanges. (Empirically the signal viewChild queries
+    // already resolve at creation, so this guards behavior, not the optional
+    // chaining — see the equivalence annotations on the helpers.)
+    TestBed.configureTestingModule({
+      imports: [ColumnMenuComponent],
+      providers: [
+        DataTableFilterStore,
+        {
+          provide: DataTableStateService,
+          useValue: {
+            columns: signal([{ id: 'title', header: 'Title', type: 'string' }]),
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(ColumnMenuComponent);
+    fixture.componentRef.setInput('header', 'Name');
+    const cmp = fixture.componentInstance as unknown as {
+      openFilterEditor(): void;
+      closeFilterEditor(): void;
+      onFilterCommitted(): void;
+    };
+    expect(() => {
+      cmp.openFilterEditor();
+      cmp.closeFilterEditor();
+      cmp.onFilterCommitted();
+    }).not.toThrow();
+  });
+});

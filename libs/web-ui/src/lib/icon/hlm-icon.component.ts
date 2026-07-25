@@ -27,7 +27,8 @@ export const ICON_BASE = 'inline-flex shrink-0 size-4';
 })
 export class HlmIcon {
   public readonly name = input.required<string>();
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   protected readonly computedClass = computed(() =>

@@ -40,6 +40,14 @@ describe('assertNever', () => {
     );
   });
 
+  it('falls back to String(value) when JSON.stringify throws', () => {
+    const circular = { a: 1 } as { a: number; self?: unknown };
+    circular.self = circular;
+    // The catch branch must still name the value, not leave it undefined.
+    expect(() => assertNever(circular as never)).toThrow('[object Object]');
+    expect(() => assertNever(10n as never)).toThrow('10');
+  });
+
   it('exhaustive switch type-checks (compile-time guarantee)', () => {
     // This function compiles only because the switch is exhaustive on
     // Shape's union members. Adding a 4th Shape member without a

@@ -1,8 +1,15 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import {
+  ApplicationRef,
+  ChangeDetectionStrategy,
+  Component,
+  ErrorHandler,
+  signal,
+} from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import {
   BrnCombobox,
+  BrnComboboxBaseToken,
   BrnComboboxContent,
   BrnComboboxItem,
   BrnComboboxList,
@@ -11,9 +18,13 @@ import {
 } from '@spartan-ng/brain/combobox';
 import {
   COMBOBOX_CONTENT_BASE,
+  COMBOBOX_EMPTY_BASE,
+  COMBOBOX_INPUT_BASE,
   COMBOBOX_ITEM_BASE,
+  COMBOBOX_ITEM_INDICATOR_BASE,
   COMBOBOX_LIST_BASE,
   COMBOBOX_TRIGGER_BASE,
+  COMBOBOX_VALUE_BASE,
   HlmCombobox,
   HlmComboboxContent,
   HlmComboboxImports,
@@ -21,7 +32,10 @@ import {
   HlmComboboxList,
   HlmComboboxTrigger,
 } from './hlm-combobox.directive';
-import { HlmComboboxChips } from './hlm-combobox-chips.component';
+import {
+  COMBOBOX_PILL_REMOVE_BASE,
+  HlmComboboxChips,
+} from './hlm-combobox-chips.component';
 
 // Spec scope: brain owns the filterable listbox a11y + the overlay popover, both
 // exercised by brain's own suite. The helm layer's contract is: (1) it composes
@@ -396,6 +410,29 @@ describe('HlmComboboxChips (standalone, object model)', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.picked().map((v) => v.id)).toEqual([2]);
   });
+
+  it('skips focus restoration cleanly when the last chip is removed', async () => {
+    // Removing the sole chip leaves the button query empty; the afterNextRender
+    // hook must land on the `?.` no-op instead of calling focus() on undefined
+    // (which would surface as a rethrown application error here).
+    const fixture = TestBed.createComponent(StandaloneChipsHost);
+    fixture.componentInstance.picked.set([{ id: 1, name: 'Alpha' }]);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const remove = root.querySelector(
+      'button[aria-label="Remove Alpha"]',
+    ) as HTMLButtonElement;
+    remove.focus();
+    remove.click();
+    fixture.detectChanges();
+    const appRef = TestBed.inject(ApplicationRef);
+    expect(() => appRef.tick()).not.toThrow();
+    await fixture.whenStable();
+    expect(
+      root.querySelectorAll('[data-testid="hlm-combobox-chip"]').length,
+    ).toBe(0);
+    expect(document.activeElement).toBe(document.body);
+  });
 });
 
 // maxVisible folds the overflow into a "+N more" badge; clearable adds a
@@ -497,6 +534,196 @@ describe('HlmComboboxChips (overflow + clearable)', () => {
 class MultiClearHost {
   readonly picked = signal<string[]>(['x', 'y']);
 }
+
+describe('HlmCombobox painted bases and defaults', () => {
+  it('paints the value / input / empty directives from their exported bases', () => {
+    const { fixture } = setup();
+    const root = fixture.nativeElement as HTMLElement;
+    const valueEl = root.querySelector('[hlmComboboxValue]') as HTMLElement;
+    const inputEl = root.querySelector('input[hlmComboboxInput]') as HTMLElement;
+    const emptyEl = root.querySelector('[hlmComboboxEmpty]') as HTMLElement;
+    for (const cls of COMBOBOX_VALUE_BASE.split(/\s+/)) {
+      expect(valueEl.classList.contains(cls), `value missing ${cls}`).toBe(
+        true,
+      );
+    }
+    for (const cls of COMBOBOX_INPUT_BASE.split(/\s+/)) {
+      expect(inputEl.classList.contains(cls), `input missing ${cls}`).toBe(
+        true,
+      );
+    }
+    for (const cls of COMBOBOX_EMPTY_BASE.split(/\s+/)) {
+      expect(emptyEl.classList.contains(cls), `empty missing ${cls}`).toBe(
+        true,
+      );
+    }
+  });
+
+  it('pins the exported class-string contracts', () => {
+    expect(COMBOBOX_ITEM_INDICATOR_BASE).toBe(
+      'inline-flex h-3.5 w-3.5 items-center justify-center text-ochre',
+    );
+    expect(COMBOBOX_PILL_REMOVE_BASE).toBe(
+      'ml-1 inline-flex h-4 w-4 items-center justify-center rounded-sm text-secondary-foreground/70 transition-transform hover:text-secondary-foreground motion-safe:hover:scale-125 focus-ring',
+    );
+  });
+
+  it('defaults the single root selectedIndicator to both (tint + check)', () => {
+    const { fixture } = setup();
+    const item = fixture.debugElement.query(By.directive(HlmComboboxItem))
+      .nativeElement as HTMLElement;
+    expect(item.getAttribute('data-select-check')).toBe('');
+    expect(item.classList.contains('aria-selected:bg-selection-bg')).toBe(true);
+  });
+
+  it('floors the panel min-width to the brain-measured trigger width', () => {
+    const { fixture } = setup();
+    const brain = fixture.debugElement
+      .query(By.directive(BrnCombobox))
+      .injector.get(BrnCombobox);
+    brain.updateInputWidth(240);
+    fixture.detectChanges();
+    const content = fixture.debugElement.query(By.directive(HlmComboboxContent))
+      .nativeElement as HTMLElement;
+    expect(content.style.minWidth).toBe('240px');
+  });
+});
+
+// Items under the MULTIPLE root: [hlmCombobox] is absent, so the item's
+// optional single-root injection is null and the multiple root governs the
+// affordance.
+@Component({
+  standalone: true,
+  imports: [HlmComboboxImports],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div [(hlmComboboxMultiple)]="picked">
+      <div hlmComboboxContent>
+        <div hlmComboboxList>
+          <div [hlmComboboxItem]="'a'">A</div>
+        </div>
+      </div>
+    </div>
+  `,
+})
+class MultiItemsHost {
+  readonly picked = signal<string[]>(['a']);
+}
+
+describe('HlmComboboxItem under a multiple root', () => {
+  it('renders and defaults to both (tint + check) from the multiple root', () => {
+    const fixture = TestBed.createComponent(MultiItemsHost);
+    expect(() => fixture.detectChanges()).not.toThrow();
+    const item = fixture.debugElement.query(By.directive(HlmComboboxItem))
+      .nativeElement as HTMLElement;
+    expect(item.getAttribute('data-select-check')).toBe('');
+    expect(item.classList.contains('aria-selected:bg-selection-bg')).toBe(true);
+  });
+});
+
+// A bare row with NEITHER hlm root: only brain's base token is provided (as a
+// stub), so both optional root injections are null and the item must fall back
+// to the default `both` affordance instead of crashing.
+describe('HlmComboboxItem without any hlm root', () => {
+  it('falls back to the default both affordance', () => {
+    const brainStub = {
+      search: signal(''),
+      collator: signal(new Intl.Collator()),
+      filter: signal(() => true),
+      itemToString: signal(undefined),
+      disabled: signal(false),
+      disabledState: signal(false),
+      keyManager: { activeItem: null },
+      value: signal(null),
+      visibleItems: signal(true),
+      isExpanded: signal(false),
+      searchInputWrapperWidth: signal(null),
+      mode: signal('combobox'),
+      hasValue: signal(false),
+      isSelected: () => false,
+      select: () => void 0,
+      open: () => void 0,
+      resetValue: () => void 0,
+      resetSearch: () => void 0,
+      selectActiveItem: () => void 0,
+      removeLastSelectedItem: () => void 0,
+      removeValue: () => void 0,
+      updateInputWidth: () => void 0,
+    };
+    @Component({
+      standalone: true,
+      imports: [HlmComboboxImports],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      providers: [{ provide: BrnComboboxBaseToken, useValue: brainStub }],
+      template: `<div [hlmComboboxItem]="'a'">A</div>`,
+    })
+    class BareItemHost {}
+    const fixture = TestBed.createComponent(BareItemHost);
+    expect(() => fixture.detectChanges()).not.toThrow();
+    const item = fixture.debugElement.query(By.directive(HlmComboboxItem))
+      .nativeElement as HTMLElement;
+    expect(item.getAttribute('data-select-check')).toBe('');
+    expect(item.classList.contains('aria-selected:bg-selection-bg')).toBe(true);
+    expect(item.className).not.toContain('Stryker');
+  });
+});
+
+describe('HlmComboboxChips focus restoration', () => {
+  it('moves focus to the new last chip after removing the last one', async () => {
+    const fixture = TestBed.createComponent(StandaloneChipsHost);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const removeLast = root.querySelector(
+      'button[aria-label="Remove Bravo"]',
+    ) as HTMLButtonElement;
+    removeLast.focus();
+    removeLast.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const remaining = root.querySelector(
+      'button[aria-label="Remove Alpha"]',
+    ) as HTMLButtonElement;
+    expect(document.activeElement).toBe(remaining);
+  });
+
+  it('tolerates the chip list emptying before the focus-restore frame (no ErrorHandler report)', async () => {
+    // The restore runs in afterNextRender, where a thrown TypeError is routed
+    // to ErrorHandler rather than propagating — a bare not.toThrow() cannot
+    // see it. Removing the SOLE chip leaves buttons empty: index -1 must fall
+    // through the `?.` instead of calling focus() on undefined.
+    const handleError = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [{ provide: ErrorHandler, useValue: { handleError } }],
+    });
+    const fixture = TestBed.createComponent(StandaloneChipsHost);
+    fixture.componentInstance.picked.set([{ id: 1, name: 'Alpha' }]);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    (
+      root.querySelector('button[aria-label="Remove Alpha"]') as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(handleError).not.toHaveBeenCalled();
+  });
+
+  it('moves focus to the next chip after removing the first one', async () => {
+    const fixture = TestBed.createComponent(StandaloneChipsHost);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const removeFirst = root.querySelector(
+      'button[aria-label="Remove Alpha"]',
+    ) as HTMLButtonElement;
+    removeFirst.focus();
+    removeFirst.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const remaining = root.querySelector(
+      'button[aria-label="Remove Bravo"]',
+    ) as HTMLButtonElement;
+    expect(document.activeElement).toBe(remaining);
+  });
+});
 
 describe('HlmComboboxChips (clearable, brain mode)', () => {
   it('clears via resetValue so brain fires its CVA onChange', () => {

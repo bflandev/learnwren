@@ -30,11 +30,15 @@ import {
   },
 })
 export class HlmSpinner {
+  // Stryker disable next-line StringLiteral: equivalent — an empty default
+  // fails the SPINNER_SIZES guard below and falls through to cva's
+  // defaultVariants, which is 'md' anyway; the rendered classes are identical.
   public readonly size = input<SpinnerSize>('md');
 
   public readonly label = input<string>('Loading');
 
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   protected readonly computedClass = computed(() => {

@@ -170,6 +170,7 @@ export class DataTableInlineEditorComponent {
     const group = this.form();
     const out: InlineEditValue[] = [];
     for (const field of this.fields()) {
+      // Stryker disable next-line ConditionalExpression: equivalent — readonly fields never receive a control, so the !control guard below skips them anyway
       if (field.readonly) continue;
       const control = group.get(this.controlNameFor(field.id));
       if (!control || !control.dirty) continue;
@@ -188,6 +189,7 @@ export class DataTableInlineEditorComponent {
   private seedValue(field: InlineEditField): unknown {
     if (field.type !== 'date') return field.value;
     if (DateTime.isDateTime(field.value)) return field.value;
+    // Stryker disable next-line ConditionalExpression,LogicalOperator: equivalent — DateTime.fromISO on a non-string or '' yields an Invalid DateTime, so every mutated path collapses to the same null via the isValid guard below
     if (typeof field.value === 'string' && field.value) {
       const parsed = DateTime.fromISO(field.value);
       return parsed.isValid ? parsed : null;
@@ -233,7 +235,8 @@ export class DataTableInlineEditorComponent {
     if (field.type === 'date') {
       const dt = DateTime.isDateTime(value)
         ? value
-        : typeof value === 'string'
+        : // Stryker disable next-line ConditionalExpression: equivalent — DateTime.fromISO on a non-string yields an Invalid DateTime, so the dt?.isValid guard falls through to the same stringification
+          typeof value === 'string'
           ? DateTime.fromISO(value)
           : null;
       if (dt?.isValid) return dt.toLocaleString(DateTime.DATETIME_MED);
@@ -269,6 +272,7 @@ export class DataTableInlineEditorComponent {
       const group = this.form();
       this.formPristine.set(group.pristine);
       const sub = group.events.subscribe((event) => {
+        // Stryker disable next-line ConditionalExpression: equivalent — other form events would only re-set the signal to the same current pristine value
         if (event instanceof PristineChangeEvent) {
           this.formPristine.set(group.pristine);
         }

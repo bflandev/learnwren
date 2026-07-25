@@ -40,6 +40,24 @@ describe('cn', () => {
     expect(cn('text-body', 'text-page-title')).toBe('text-page-title');
   });
 
+  it('collapses every registered radius role (nav-item / tooltip included)', () => {
+    expect(cn('rounded-nav-item', 'rounded-tooltip')).toBe('rounded-tooltip');
+    expect(cn('rounded-tooltip', 'rounded-nav-item')).toBe('rounded-nav-item');
+  });
+
+  it('collapses the full z-index role ladder', () => {
+    expect(cn('z-sticky', 'z-sticky-elevated')).toBe('z-sticky-elevated');
+    expect(cn('z-dropdown', 'z-popover')).toBe('z-popover');
+    expect(cn('z-dialog-backdrop', 'z-toast')).toBe('z-toast');
+  });
+
+  it('registers text-code as a type role so it never collides with text colors', () => {
+    // Unregistered, `text-code` would fall into the color group and wrongly
+    // conflict-resolve against a text color.
+    expect(cn('text-code', 'text-ink')).toBe('text-code text-ink');
+    expect(cn('text-code', 'text-body')).toBe('text-body');
+  });
+
   it('keeps non-conflicting utilities', () => {
     expect(cn('bg-ochre', 'text-ochre-ink', 'rounded-control')).toBe(
       'bg-ochre text-ochre-ink rounded-control',

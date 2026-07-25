@@ -108,7 +108,8 @@ export class HlmDialogTrigger {}
   host: { class: 'contents' },
 })
 export class HlmDialogOverlay {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_OVERLAY_BASE, this.userClass()),
@@ -126,7 +127,8 @@ export class HlmDialogOverlay {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmDialogContent {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DIALOG_CONTENT_BASE, this.userClass()),

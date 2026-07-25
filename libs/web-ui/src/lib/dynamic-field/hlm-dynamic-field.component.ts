@@ -312,7 +312,8 @@ let nextId = 0;
   `,
 })
 export class HlmDynamicField {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   // The bound reactive-forms group; the field reads/writes group.get(controlName).
@@ -326,10 +327,14 @@ export class HlmDynamicField {
   public readonly controlName = input<string>('');
   public readonly label = input<string | undefined>(undefined);
   public readonly placeholder = input<string>('');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly readonly = input(false, { transform: booleanAttribute });
   public readonly options = input<readonly DynamicFieldOption[]>([]);
   public readonly errorMessages = input<FieldErrorMessages>({});
   // Force the error to show regardless of touched/dirty (e.g. on submit).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showErrors = input(false, { transform: booleanAttribute });
 
   // Type-specific discrete inputs (each also expressible via `config`).
@@ -358,6 +363,9 @@ export class HlmDynamicField {
     // so subscriptions don't accumulate on control swap.
     effect((onCleanup) => {
       const c = this.control();
+      // Stryker disable next-line ArithmeticOperator: equivalent — tick is a
+      // pure invalidation counter; consumers only need its value to change,
+      // so decrementing invalidates exactly as incrementing does.
       const sub = c?.events.subscribe(() => this.tick.update((t) => t + 1));
       onCleanup(() => sub?.unsubscribe());
     });

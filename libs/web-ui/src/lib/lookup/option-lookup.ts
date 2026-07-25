@@ -114,6 +114,10 @@ export class OptionLookup<T> {
     const entry = this._cache.get(query);
     if (this._loading() || !entry || !entry.hasMore) return;
     this._loading.set(true);
+    // Stryker disable next-line UpdateOperator: equivalent — the seq guard
+    // only needs a value change: the loading gate means no other fetch can be
+    // in flight when loadMore bumps, and every later bump moves away from the
+    // captured value, so the increment's direction is unobservable.
     void this._fetch(query, entry.nextPage, ++this._seq);
   }
 
@@ -139,6 +143,11 @@ export class OptionLookup<T> {
     try {
       const result = await this.fetcher(query, page);
       if (seq !== this._seq) return; // a newer search/reset superseded this one
+      // Stryker disable next-line ConditionalExpression, OptionalChaining, ArrayDeclaration: equivalent —
+      // a page-0 fetch only dispatches for an uncached query (cache lookup
+      // yields undefined → []), and a page>0 fetch only dispatches from
+      // loadMore, which requires the entry to exist; both fallbacks re-derive
+      // the same prior list.
       const prior = page === 0 ? [] : (this._cache.get(query)?.items ?? []);
       const items = [...prior, ...result.items];
       this._cache.set(query, { items, hasMore: result.hasMore, nextPage: page + 1 });
@@ -158,13 +167,17 @@ export class OptionLookup<T> {
   // kept (it was just written), so a cap of 1 still serves the current query.
   private _evictStaleEntries(keep: string): void {
     while (this._cache.size > this._maxCacheEntries) {
-      const oldest = this._cache.keys().next().value as string | undefined;
-      if (oldest === undefined || oldest === keep) break;
+      // size > cap >= 0 guarantees a non-empty map, so the first key exists.
+      const oldest = this._cache.keys().next().value as string;
+      if (oldest === keep) break;
       this._cache.delete(oldest);
     }
   }
 
   private _clearTimer(): void {
+    // Stryker disable next-line ConditionalExpression: equivalent —
+    // clearTimeout(null) is a spec-level no-op and re-assigning null to an
+    // already-null timer changes nothing; the guard is a fast path.
     if (this._timer !== null) {
       clearTimeout(this._timer);
       this._timer = null;

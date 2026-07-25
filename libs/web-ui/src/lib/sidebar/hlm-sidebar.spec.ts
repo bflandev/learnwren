@@ -1,5 +1,12 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { HlmSidebar } from './hlm-sidebar.component';
+import {
+  HlmSidebarContent,
+  HlmSidebarFooter,
+  HlmSidebarHeader,
+} from './hlm-sidebar.parts';
 import { HlmSidebarImports } from './index';
 
 // A small host drives the two-way `open` model and renders an in-panel trigger.
@@ -103,6 +110,107 @@ describe('HlmSidebar', () => {
     expect(header.classList.contains('border-b')).toBe(true);
     expect(content.classList.contains('overflow-y-auto')).toBe(true);
     expect(footer.classList.contains('border-t')).toBe(true);
+  });
+
+  describe('defaults and identity (unbound host)', () => {
+    @Component({
+      standalone: true,
+      imports: [HlmSidebarImports],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `
+        <hlm-sidebar id="custom-id">A</hlm-sidebar>
+        <hlm-sidebar>B</hlm-sidebar>
+        <hlm-sidebar>C</hlm-sidebar>
+      `,
+    })
+    class BareHost {}
+
+    function bareSetup() {
+      const fixture = TestBed.createComponent(BareHost);
+      fixture.detectChanges();
+      const els = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('hlm-sidebar'),
+      ) as HTMLElement[];
+      const dirs = fixture.debugElement
+        .queryAll(By.directive(HlmSidebar))
+        .map((de) => de.componentInstance as HlmSidebar);
+      return { fixture, els, dirs };
+    }
+
+    it('prefers a consumer-provided id for aria-controls wiring', () => {
+      const { els, dirs } = bareSetup();
+      expect(dirs[0].resolvedId).toBe('custom-id');
+      expect(els[0].id).toBe('custom-id');
+    });
+
+    it('mints unique, well-formed fallback ids when none is provided', () => {
+      const { dirs } = bareSetup();
+      expect(dirs[1].resolvedId).toMatch(/^hlm-sidebar-\d+$/);
+      expect(dirs[2].resolvedId).toMatch(/^hlm-sidebar-\d+$/);
+      expect(dirs[1].resolvedId).not.toBe(dirs[2].resolvedId);
+    });
+
+    it('defaults to open, right-docked, md width, offcanvas collapse', () => {
+      const { els, dirs } = bareSetup();
+      expect(els[1].getAttribute('data-state')).toBe('open');
+      expect(els[1].classList.contains('w-72')).toBe(true);
+      expect(els[1].classList.contains('border-l')).toBe(true);
+      expect(dirs[1].side()).toBe('right');
+      expect(dirs[1].width()).toBe('md');
+      expect(dirs[1].collapsible()).toBe('offcanvas');
+    });
+  });
+
+  it('adds no stray class tokens in the collapsed state', () => {
+    const { el } = setup(false);
+    expect(el.className).not.toContain('Stryker');
+  });
+
+  it('paints the exact trigger base classes on the in-panel trigger', () => {
+    const { el } = setup(true);
+    const trigger = el.querySelector(
+      'button[data-test="collapse"]',
+    ) as HTMLButtonElement;
+    expect(trigger.className.split(/\s+/).sort()).toEqual(
+      'inline-flex items-center justify-center rounded-md text-ink-3 transition-colors hover:text-ink focus-ring'
+        .split(' ')
+        .sort(),
+    );
+  });
+
+  it('keeps the header/content open-state paint (no rail overrides leak)', () => {
+    const { el } = setup(true);
+    const header = el.querySelector('hlm-sidebar-header') as HTMLElement;
+    const content = el.querySelector('hlm-sidebar-content') as HTMLElement;
+    expect(header.classList.contains('justify-between')).toBe(true);
+    expect(header.classList.contains('p-4')).toBe(true);
+    expect(header.classList.contains('justify-center')).toBe(false);
+    expect(header.className).not.toContain('Stryker');
+    expect(content.classList.contains('p-4')).toBe(true);
+    expect(content.classList.contains('items-center')).toBe(false);
+    expect(content.className).not.toContain('Stryker');
+  });
+
+  it('renders the parts standalone (outside any sidebar) on their bases', () => {
+    @Component({
+      standalone: true,
+      imports: [HlmSidebarHeader, HlmSidebarContent, HlmSidebarFooter],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `
+        <hlm-sidebar-header>H</hlm-sidebar-header>
+        <hlm-sidebar-content>C</hlm-sidebar-content>
+        <hlm-sidebar-footer>F</hlm-sidebar-footer>
+      `,
+    })
+    class PartsHost {}
+    const fixture = TestBed.createComponent(PartsHost);
+    expect(() => fixture.detectChanges()).not.toThrow();
+    const root = fixture.nativeElement as HTMLElement;
+    const header = root.querySelector('hlm-sidebar-header') as HTMLElement;
+    const content = root.querySelector('hlm-sidebar-content') as HTMLElement;
+    expect(header.classList.contains('border-b')).toBe(true);
+    expect(header.classList.contains('justify-between')).toBe(true);
+    expect(content.classList.contains('overflow-y-auto')).toBe(true);
   });
 
   describe('collapsible="icon" (persistent rail)', () => {

@@ -150,7 +150,9 @@ export function maskForMode(
 
 /** IANA zone to interpret/emit dates in; falls back to the host's local zone. */
 export function resolveZone(zone?: string | null): string {
-  return zone && zone.length > 0 ? zone : DateTime.local().zoneName;
+  // Truthiness alone covers null/undefined/'' — a non-empty string is the only
+  // way to name a zone, so no separate length check is needed.
+  return zone ? zone : DateTime.local().zoneName;
 }
 
 /** Format a date for the trigger; '' for null/invalid so the caller can show a placeholder. */
@@ -171,6 +173,10 @@ export function parseMaskedDate(
   zone?: string | null,
 ): DateTime | null {
   const normalized = formatDateMask(masked);
+  // Stryker disable next-line ConditionalExpression: equivalent — fast path
+  // only; formatDateMask output shorter than 10 chars can never satisfy the
+  // strict MM/dd/yyyy match below (yyyy needs 4 digits), so removing the gate
+  // still yields null via the isValid check.
   if (normalized.length !== 10) return null;
   const parsed = DateTime.fromFormat(normalized, DATE_PICKER_FORMAT, {
     zone: resolveZone(zone),
@@ -198,6 +204,9 @@ export function formatValue(
   value: DateTime | null | undefined,
   mode: DatePickerMode,
   hour12: boolean,
+  // Stryker disable next-line StringLiteral: equivalent — an empty default
+  // falls through TIMEZONE_FIXED_ZONES to undefined and setZone(undefined)
+  // resolves to the same host local zone 'browser' maps to.
   timezone: TimezoneOption = 'browser',
   precision: TimePrecision = MINUTE_PRECISION,
   dateFormat: DateFormatPreset = DEFAULT_DATE_FORMAT,
@@ -219,11 +228,20 @@ export function parseValue(
   raw: string,
   mode: DatePickerMode,
   hour12: boolean,
+  // Stryker disable next-line StringLiteral: equivalent — an empty default
+  // falls through TIMEZONE_FIXED_ZONES to undefined and the fromFormat zone
+  // option then resolves to the same host local zone 'browser' maps to.
   timezone: TimezoneOption = 'browser',
   precision: TimePrecision = MINUTE_PRECISION,
   dateFormat: DateFormatPreset = DEFAULT_DATE_FORMAT,
 ): DateTime | null {
+  // Stryker disable next-line MethodExpression: equivalent — applyMask skips
+  // every non-slot character, so surrounding whitespace never reaches the
+  // normalized string; the trim only tidies the empty-input fast path.
   const trimmed = raw.trim();
+  // Stryker disable next-line ConditionalExpression: equivalent — fast path
+  // only; empty/whitespace input masks to '' and the strict fromFormat below
+  // rejects it to null anyway.
   if (trimmed.length === 0) return null;
   const normalized = applyMask(
     trimmed,
@@ -238,6 +256,9 @@ export function parseValue(
 }
 
 /** Current instant in the resolved zone — backs the "capture current time" button. */
+// Stryker disable next-line StringLiteral: equivalent — an empty default falls
+// through TIMEZONE_FIXED_ZONES to undefined and setZone(undefined) resolves to
+// the same host local zone 'browser' maps to.
 export function nowInZone(timezone: TimezoneOption = 'browser'): DateTime {
   return DateTime.now().setZone(resolveTimezone(timezone));
 }

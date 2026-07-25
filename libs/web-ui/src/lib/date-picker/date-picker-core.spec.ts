@@ -34,6 +34,13 @@ describe('resolveZone', () => {
     expect(resolveZone('America/New_York')).toBe('America/New_York');
   });
 
+  it('returns a zone that differs from the host zone verbatim (no silent fallback)', () => {
+    // A fixed-offset zone can never be the host's IANA zone name, so this
+    // catches a fallback that only "worked" because the host zone matched.
+    expect(resolveZone('UTC+3')).toBe('UTC+3');
+    expect(resolveZone('UTC+3')).not.toBe(DateTime.local().zoneName);
+  });
+
   it('falls back to the host local zone when empty/null', () => {
     expect(resolveZone()).toBe(DateTime.local().zoneName);
     expect(resolveZone('')).toBe(DateTime.local().zoneName);
@@ -86,6 +93,14 @@ describe('parseMaskedDate', () => {
     const parsed = parseMaskedDate('06/15/2025', 'America/New_York');
     expect(parsed?.zoneName).toBe('America/New_York');
   });
+
+  it('carries a non-host zone through to the parsed DateTime', () => {
+    // A fixed offset that can never be the host zone: proves the zone option
+    // actually reaches fromFormat instead of defaulting to local.
+    const parsed = parseMaskedDate('06/15/2025', 'UTC+3');
+    expect(parsed?.zoneName).toBe('UTC+3');
+    expect(parsed?.offset).toBe(180);
+  });
 });
 
 describe('clampDate', () => {
@@ -102,6 +117,15 @@ describe('clampDate', () => {
 
   it('clamps to min when below', () => {
     expect(clampDate(d(2024, 3, 1), min, max).toISODate()).toBe('2025-01-01');
+  });
+
+  it('returns the original instance (zone intact) when exactly on a bound', () => {
+    // Equal instants in different zones compare equal; the clamp must keep the
+    // caller's instance so its zone/formatting survives an inclusive bound.
+    const onMax = max.setZone('UTC+3');
+    expect(clampDate(onMax, min, max)).toBe(onMax);
+    const onMin = min.setZone('UTC+3');
+    expect(clampDate(onMin, min, max)).toBe(onMin);
   });
 
   it('treats omitted bounds as unbounded', () => {
@@ -145,6 +169,20 @@ describe('DATE_FORMAT_PRESETS', () => {
     expect(DATE_FORMAT_PRESETS.us.token).toBe('MM/dd/yyyy');
     expect(DATE_FORMAT_PRESETS.euro.token).toBe('dd/MM/yyyy');
     expect(DEFAULT_DATE_FORMAT).toBe('iso');
+  });
+});
+
+describe('MODE_FORMATS / MINUTE_PRECISION', () => {
+  it('pins the exported per-mode token table exactly', () => {
+    expect(MODE_FORMATS).toEqual({
+      date: { h12: 'MM/dd/yyyy', h24: 'MM/dd/yyyy' },
+      datetime: { h12: 'MM/dd/yyyy hh:mm a', h24: 'MM/dd/yyyy HH:mm' },
+      time: { h12: 'hh:mm a', h24: 'HH:mm' },
+    });
+  });
+
+  it('pins the backward-compatible minute-only default precision', () => {
+    expect(MINUTE_PRECISION).toEqual({ seconds: false, milliseconds: false });
   });
 });
 

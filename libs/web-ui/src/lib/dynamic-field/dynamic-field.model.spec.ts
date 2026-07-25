@@ -68,6 +68,16 @@ describe('firstErrorMessage', () => {
     }
   });
 
+  it('reads the real bound out of the max payload', () => {
+    expect(firstErrorMessage({ max: { max: 5, actual: 9 } })).toBe(
+      'Must be at most 5.',
+    );
+  });
+
+  it('degrades gracefully for a null error payload (no throw)', () => {
+    expect(firstErrorMessage({ min: null })).toBe('Must be at least .');
+  });
+
   it('returns empty string when error payload field is not a number', () => {
     // Tests the num() helper function's fallback when key is absent or non-numeric
     expect(firstErrorMessage({ min: { wrongKey: 5 } })).toBe(

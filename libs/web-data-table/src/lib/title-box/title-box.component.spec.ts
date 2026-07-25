@@ -287,3 +287,40 @@ describe('TitleBoxComponent (view menu)', () => {
     expect(wrap?.classList.contains('title-box__menu-wrap--dirty')).toBe(true);
   });
 });
+
+// Standalone (no DataTableStateService provided) — locks the optional-inject
+// fallbacks and the input defaults.
+describe('TitleBoxComponent without a DataTableStateService', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  interface BoxInternals {
+    chevronIcon: () => string;
+    showToggle: () => boolean;
+    toggleLeftSidebar: () => void;
+  }
+
+  function buildBare() {
+    TestBed.configureTestingModule({ imports: [TitleBoxComponent] });
+    const fixture = TestBed.createComponent(TitleBoxComponent);
+    fixture.detectChanges();
+    return {
+      fixture,
+      cmp: fixture.componentInstance,
+      box: fixture.componentInstance as unknown as BoxInternals,
+    };
+  }
+
+  it('constructs without a provider, hides the toggle, defaults the chevron left', () => {
+    const { box } = buildBare();
+    expect(box.showToggle()).toBe(false);
+    expect(box.chevronIcon()).toBe('lucideChevronLeft');
+    expect(() => box.toggleLeftSidebar()).not.toThrow();
+  });
+
+  it('defaults showMenu/viewKind/isDirty', () => {
+    const { cmp } = buildBare();
+    expect(cmp.showMenu()).toBe(false);
+    expect(cmp.viewKind()).toBe('system');
+    expect(cmp.isDirty()).toBe(false);
+  });
+});

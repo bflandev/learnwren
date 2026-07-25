@@ -37,7 +37,8 @@ export type HlmMenuIndicator = 'tint' | 'check' | 'both';
   },
 })
 export class HlmMenu {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   // Set once on <hlm-menu>; every checkable [hlmMenuItem] reads it via DI.

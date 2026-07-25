@@ -43,7 +43,8 @@ export const ACCENT_CHOICES: readonly AccentChoice[] = [
 const DEFAULT_ACCENT: AccentChoice = 'blue';
 
 function isAccent(v: string | null): v is AccentChoice {
-  return v != null && (ACCENT_CHOICES as readonly string[]).includes(v);
+  // includes() is null-safe (a null v simply never matches), so no null check.
+  return (ACCENT_CHOICES as readonly string[]).includes(v as string);
 }
 
 /**

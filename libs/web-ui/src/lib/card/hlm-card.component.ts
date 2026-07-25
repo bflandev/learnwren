@@ -34,7 +34,8 @@ export const ACTION_BASE =
   host: { '[class]': 'computedClass()' },
 })
 export class HlmCard {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(CARD_BASE, this.userClass()),
@@ -49,7 +50,8 @@ export class HlmCard {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmCardHeader {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(HEADER_BASE, this.userClass()),
@@ -64,7 +66,8 @@ export class HlmCardHeader {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmCardTitle {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(TITLE_BASE, this.userClass()),
@@ -79,7 +82,8 @@ export class HlmCardTitle {
   host: { 'data-slot': 'card-description', '[class]': 'computedClass()' },
 })
 export class HlmCardDescription {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(DESCRIPTION_BASE, this.userClass()),
@@ -94,7 +98,8 @@ export class HlmCardDescription {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmCardContent {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(CONTENT_BASE, this.userClass()),
@@ -109,7 +114,8 @@ export class HlmCardContent {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmCardFooter {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(FOOTER_BASE, this.userClass()),
@@ -127,7 +133,8 @@ export class HlmCardFooter {
   host: { 'data-slot': 'card-action', '[class]': 'computedClass()' },
 })
 export class HlmCardAction {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(ACTION_BASE, this.userClass()),

@@ -42,7 +42,8 @@ export class HlmResizable {
   readonly min = input<number>(0.1);
   readonly step = input<number>(0.02);
   readonly orientation = input<ResizableOrientation>('horizontal');
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   readonly userClass = input<string>('', { alias: 'class' });
 
   readonly clampedRatio = computed(() => this.clamp(this.ratio()));
@@ -72,7 +73,7 @@ export class HlmResizable {
     const rect = this.el.nativeElement.getBoundingClientRect();
     const vertical = this.orientation() === 'vertical';
     const extent = vertical ? rect.height : rect.width;
-    if (extent === 0) return;
+    // A zero extent divides to ±Infinity/NaN below; the isFinite guard bails.
     const raw = (clientPos - (vertical ? rect.top : rect.left)) / extent;
     if (!Number.isFinite(raw)) return;
     this.ratio.set(this.clamp(raw));

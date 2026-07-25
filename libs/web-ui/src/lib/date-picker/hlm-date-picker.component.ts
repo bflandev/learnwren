@@ -357,28 +357,45 @@ export const DATE_PICKER_TRIGGER_BASE =
   `,
 })
 export class HlmDatePicker {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   public readonly value = model<DateTime | null>(null);
   // Serialization for the dedicated `serializedChange` output — the donor-facing
   // contract. `native` (default) emits a JS Date (donor parity); `iso` an ISO
   // string; `luxon` the raw DateTime. `[(value)]` itself stays Luxon either way.
+  // Stryker disable next-line StringLiteral: equivalent — serializeDate treats
+  // every value other than 'iso'/'luxon' as the native Date branch, so an
+  // emptied default serializes identically.
   public readonly valueFormat = input<DateOutputFormat>('native');
   // Mirrors every committed value, serialized per `valueFormat` — wire it
   // straight into a donor-style form control: `(serializedChange)="ctrl.setValue($event)"`.
   public readonly serializedChange = output<Date | string | DateTime | null>();
   public readonly mode = input<DatePickerMode>('date');
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly hour12 = input(true, { transform: booleanAttribute });
+  // Stryker disable next-line StringLiteral: equivalent — an empty default
+  // falls through TIMEZONE_FIXED_ZONES to undefined and setZone(undefined)
+  // resolves to the same host local zone 'browser' maps to.
   public readonly timezone = input<TimezoneOption>('browser');
   public readonly min = input<DateTime | undefined>(undefined);
   public readonly max = input<DateTime | undefined>(undefined);
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly disabled = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly readonly = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly required = input(false, { transform: booleanAttribute });
   // Opt-in clear ("×") affordance. Off by default — turn it on to let an
   // optional, editable field be nulled in one click (it only renders when
   // there's a value).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly clearable = input(false, { transform: booleanAttribute });
   // '' → the placeholder is derived (see formatHint / resolvedPlaceholder); a
   // non-empty value is an explicit override shown verbatim when there's no value.
@@ -388,6 +405,8 @@ export class HlmDatePicker {
   // skeleton (__/__/____ …) on focus to guide direct entry — matching the donor app's
   // p-inputMask. Both track mode + clock + precision. Off → a static placeholder
   // and no skeleton (an explicit `placeholder` still wins either way).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly formatHint = input(true, { transform: booleanAttribute });
   // The date-half order + separator for the masked field, format hint, and
   // display/parse: `iso` (YYYY-MM-DD, default, donor parity), `us` (MM/DD/YYYY),
@@ -406,7 +425,11 @@ export class HlmDatePicker {
   // Time precision (datetime/time modes). Defaults match the donor app's datepicker,
   // which always carries seconds + milliseconds once a time half is shown.
   // Milliseconds imply seconds (a `.SSS` tail needs a `:ss` segment).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showSeconds = input(true, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showMilliseconds = input(true, {
     transform: booleanAttribute,
   });
@@ -424,6 +447,9 @@ export class HlmDatePicker {
   // changes — mirrors the model except mid-edit (value only changes on commit).
   protected readonly draft = signal('');
   // Set when the last commit rejected a non-empty entry; drives aria-invalid.
+  // Stryker disable next-line BooleanLiteral: equivalent — the reseat effect's
+  // first action is invalid.set(false) and component effects flush before the
+  // template is checked, so the seed value is never rendered.
   protected readonly invalid = signal(false);
   // Skips the serialized output's initial effect run so it fires only on real
   // value changes (any commit or programmatic/parent-push swap), never the seed.
@@ -692,6 +718,9 @@ export class HlmDatePicker {
     }
     const parsed = this.parseDraft(raw);
     if (parsed) {
+      // Stryker disable next-line BooleanLiteral: equivalent — value.set below
+      // always receives a fresh DateTime instance, which re-fires the reseat
+      // effect whose first action clears the flag before anything renders.
       this.invalid.set(false);
       this.value.set(clampDate(parsed, this.min(), this.max()));
     } else {
@@ -752,6 +781,7 @@ export class HlmDatePicker {
       );
     } else {
       this.value.set(clampDate(next, this.min(), this.max()));
+      // Stryker disable next-line OptionalChaining: equivalent — signal viewChild queries resolve at component creation (verified empirically: defined even before the first detectChanges) and <hlm-popover> is the template root, so the guard is type-level only
       this._popover()?.close();
     }
   }
@@ -764,7 +794,9 @@ export class HlmDatePicker {
   }
 
   protected setHour(value: string | null): void {
-    if (value == null || this.readonly() || this.disabled()) return;
+    // Stryker disable next-line ConditionalExpression,EqualityOperator: equivalent — a null value string reaches Number.parseInt as NaN and the guard below returns identically
+    if (value == null) return;
+    if (this.readonly() || this.disabled()) return;
     const raw = Number.parseInt(value, 10);
     if (Number.isNaN(raw)) return;
     const base = this.workingDateTime();
@@ -772,7 +804,7 @@ export class HlmDatePicker {
     if (this.hour12()) {
       const clamped = clampInt(raw, 1, 12);
       const pm = base.hour >= 12;
-      hour24 = this.to24(clamped, pm ? 'PM' : 'AM');
+      hour24 = this.to24(clamped, pm);
     } else {
       hour24 = clampInt(raw, 0, 23);
     }
@@ -784,7 +816,9 @@ export class HlmDatePicker {
   }
 
   protected setMinute(value: string | null): void {
-    if (value == null || this.readonly() || this.disabled()) return;
+    // Stryker disable next-line ConditionalExpression,EqualityOperator: equivalent — a null value string reaches Number.parseInt as NaN and the guard below returns identically
+    if (value == null) return;
+    if (this.readonly() || this.disabled()) return;
     const raw = Number.parseInt(value, 10);
     if (Number.isNaN(raw)) return;
     const minute = clampInt(raw, 0, 59);
@@ -796,7 +830,9 @@ export class HlmDatePicker {
   }
 
   protected setSecond(value: string | null): void {
-    if (value == null || this.readonly() || this.disabled()) return;
+    // Stryker disable next-line ConditionalExpression,EqualityOperator: equivalent — a null value string reaches Number.parseInt as NaN and the guard below returns identically
+    if (value == null) return;
+    if (this.readonly() || this.disabled()) return;
     const raw = Number.parseInt(value, 10);
     if (Number.isNaN(raw)) return;
     const second = clampInt(raw, 0, 59);
@@ -828,6 +864,7 @@ export class HlmDatePicker {
   protected onNow(): void {
     if (this.readonly() || this.disabled()) return;
     this.setWorking(nowInZone(this.timezone()));
+    // Stryker disable next-line OptionalChaining: equivalent — signal viewChild queries resolve at component creation (verified empirically: defined even before the first detectChanges) and <hlm-popover> is the template root, so the guard is type-level only
     if (this.mode() === 'date') this._popover()?.close();
   }
 
@@ -841,9 +878,11 @@ export class HlmDatePicker {
     this.value.set(clampDate(dt, this.min(), this.max()));
   }
 
-  private to24(hour12: number, meridiem: 'AM' | 'PM'): number {
+  // Boolean meridiem (true = PM) so the wrap is a plain arithmetic contract —
+  // no string sentinel to compare against.
+  private to24(hour12: number, pm: boolean): number {
     const h = hour12 % 12; // 12 → 0
-    return meridiem === 'PM' ? h + 12 : h;
+    return pm ? h + 12 : h;
   }
 }
 

@@ -56,6 +56,36 @@ describe('HlmButtonGroup', () => {
     expect(group.className).toContain('[&>*:not(:last-child)]:rounded-e-none');
   });
 
+  it('defaults an unbound group to horizontal (attribute + recipe)', () => {
+    const { root } = setup();
+    const unbound = root.querySelector('hlm-button-group') as HTMLElement;
+    expect(unbound.getAttribute('data-orientation')).toBe('horizontal');
+    expect(unbound.className).toContain(
+      '[&>*:not(:first-child)]:rounded-s-none',
+    );
+  });
+
+  it('falls back to the horizontal recipe for an unknown orientation', () => {
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmButtonGroupImports],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<div hlmButtonGroup [orientation]="$any('diagonal')">
+        <button>One</button>
+      </div>`,
+    })
+    class BogusHost {}
+    const fixture = TestBed.createComponent(BogusHost);
+    fixture.detectChanges();
+    const group = (fixture.nativeElement as HTMLElement).querySelector(
+      'div[hlmButtonGroup]',
+    ) as HTMLElement;
+    expect(group.className).toContain('[&>*:not(:first-child)]:rounded-s-none');
+    expect(group.className).toContain('[&>*:not(:last-child)]:rounded-e-none');
+    expect(group.classList.contains('flex-col')).toBe(false);
+  });
+
   it('swaps to the vertical recipe + data-orientation when orientation=vertical', () => {
     const { fixture, group } = setup();
     fixture.componentInstance.orientation.set('vertical');

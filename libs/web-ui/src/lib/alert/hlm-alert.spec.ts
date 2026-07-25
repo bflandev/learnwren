@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import {
   HlmAlert,
   HlmAlertDescription,
@@ -135,6 +136,54 @@ describe('HlmAlert', () => {
     close.click();
     fixture.detectChanges();
     expect(fixture.componentInstance.dismissedCount).toBe(1);
+  });
+
+  it('exposes info/inline as the public input defaults', () => {
+    // The unbound defaults are part of the public API even though the '' →
+    // normalization → cva-default chain would repaint the same classes.
+    TestBed.resetTestingModule();
+    @Component({
+      standalone: true,
+      imports: [HlmAlert],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<hlm-alert>Msg</hlm-alert>`,
+    })
+    class BareHost {}
+    const fixture = TestBed.createComponent(BareHost);
+    fixture.detectChanges();
+    const alert = fixture.debugElement.query(By.directive(HlmAlert))
+      .componentInstance as HlmAlert;
+    expect(alert.severity()).toBe('info');
+    expect(alert.appearance()).toBe('inline');
+  });
+
+  it('paints the shared grid base and no stray tokens by default', () => {
+    const { host } = setup();
+    for (const cls of ['group/alert', 'relative', 'grid', 'w-full', 'border']) {
+      expect(host.classList.contains(cls), `base ${cls}`).toBe(true);
+    }
+    expect(host.className).not.toContain('Stryker');
+  });
+
+  it('paints the close-button base classes when dismissible', () => {
+    const { host } = setup('info', 'inline', '', true);
+    const close = host.querySelector(
+      '[data-test="hlm-alert-close"]',
+    ) as HTMLElement;
+    for (const cls of [
+      'absolute',
+      'right-2',
+      'top-2',
+      'inline-flex',
+      'size-6',
+      'shrink-0',
+      'rounded-control',
+      'opacity-70',
+      'hover:opacity-100',
+      'focus-ring',
+    ]) {
+      expect(close.classList.contains(cls), `close ${cls}`).toBe(true);
+    }
   });
 
   it('keeps the variant key arrays exhaustive against the cva maps', () => {

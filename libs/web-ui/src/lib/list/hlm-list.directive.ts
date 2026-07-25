@@ -38,8 +38,11 @@ export const LIST_ITEM_BASE =
 })
 export class HlmList {
   /** Add hairline separators between rows. */
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   readonly divided = input(false, { transform: booleanAttribute });
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(LIST_BASE, this.divided() && LIST_DIVIDED, this.userClass()),
@@ -54,7 +57,8 @@ export class HlmList {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmListItem {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(LIST_ITEM_BASE, this.userClass()),

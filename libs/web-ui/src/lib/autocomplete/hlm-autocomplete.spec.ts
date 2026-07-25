@@ -12,8 +12,10 @@ import {
 import { BrnPopover } from '@spartan-ng/brain/popover';
 import {
   AUTOCOMPLETE_CONTENT_BASE,
+  AUTOCOMPLETE_EMPTY_BASE,
   AUTOCOMPLETE_INPUT_BASE,
   AUTOCOMPLETE_ITEM_BASE,
+  AUTOCOMPLETE_ITEM_INDICATOR_BASE,
   AUTOCOMPLETE_LIST_BASE,
   HlmAutocomplete,
   HlmAutocompleteContent,
@@ -122,6 +124,23 @@ describe('HlmAutocomplete', () => {
     for (const cls of AUTOCOMPLETE_ITEM_BASE.split(/\s+/)) {
       expect(item.classList.contains(cls)).toBe(true);
     }
+  });
+
+  it('paints the empty state from its exported base', () => {
+    const { root } = setup();
+    const emptyEl = root.querySelector('[hlmAutocompleteEmpty]') as HTMLElement;
+    for (const cls of AUTOCOMPLETE_EMPTY_BASE.split(/\s+/)) {
+      expect(emptyEl.classList.contains(cls), `empty missing ${cls}`).toBe(
+        true,
+      );
+    }
+  });
+
+  it('pins the exported class-string contracts', () => {
+    expect(AUTOCOMPLETE_ITEM_INDICATOR_BASE).toBe(
+      'inline-flex h-3.5 w-3.5 items-center justify-center text-ochre',
+    );
+    expect(AUTOCOMPLETE_EMPTY_BASE).toBe('py-6 text-center text-sm text-ink-3');
   });
 
   it('exposes the value model as `string | null`', () => {

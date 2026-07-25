@@ -1,8 +1,8 @@
 # Mutation Test Report — `libs/web-ui`
 
-> Generated 2026-05-29T07:15:02.553Z
+> Generated 2026-07-25T13:11:55.012Z
 
-**Headline mutation score: 87.39%** (killed=104, survived=9, no-cov=6, ignored=0). Score on covered mutants only: 92.04%. Adjusted (equivalent candidates excluded): 87.39%.
+**Headline mutation score: 100.00%** (killed=2937, survived=0, no-cov=0, ignored=517). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
 
 
 Target band: web glue/orchestration — 50–70% target.
@@ -11,111 +11,100 @@ Target band: web glue/orchestration — 50–70% target.
 
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
-| `src/lib/cover/lw-cover.component.ts` | 75.0% | 3 | 1 | 0 |
-| `src/lib/avatar/lw-avatar.component.ts` | 79.3% | 23 | 2 | 4 |
-| `src/lib/pill/lw-pill.component.ts` | 87.5% | 14 | 2 | 0 |
-| `src/lib/avatar/avatar-tone.ts` | 88.2% | 15 | 1 | 1 |
-| `src/lib/cover/cover-tone.ts` | 88.2% | 15 | 1 | 1 |
-| `src/lib/theme/theme.service.ts` | 93.8% | 30 | 2 | 0 |
-| `src/lib/progress/lw-progress.component.ts` | 100.0% | 4 | 0 | 0 |
+| `src/lib/_internal/cn.ts` | 100.0% | 190 | 0 | 0 |
+| `src/lib/_internal/selection-flash.ts` | 100.0% | 30 | 0 | 0 |
+| `src/lib/alert/hlm-alert.component.ts` | 100.0% | 24 | 0 | 0 |
+| `src/lib/alert-dialog/confirm-dialog-container.component.ts` | 100.0% | 23 | 0 | 0 |
+| `src/lib/alert-dialog/hlm-alert-dialog.component.ts` | 100.0% | 1 | 0 | 0 |
+| `src/lib/autocomplete/hlm-autocomplete.directive.ts` | 100.0% | 11 | 0 | 0 |
+| `src/lib/avatar/hlm-avatar.component.ts` | 100.0% | 16 | 0 | 0 |
+| `src/lib/avatar-tone/avatar-tone.ts` | 100.0% | 31 | 0 | 0 |
+| `src/lib/badge/hlm-badge.directive.ts` | 100.0% | 4 | 0 | 0 |
+| `src/lib/boolean-radio/hlm-boolean-radio.component.ts` | 100.0% | 9 | 0 | 0 |
+| `src/lib/breadcrumb/hlm-breadcrumb.directive.ts` | 100.0% | 13 | 0 | 0 |
+| `src/lib/button/hlm-button.directive.ts` | 100.0% | 4 | 0 | 0 |
+| `src/lib/button-group/hlm-button-group.directive.ts` | 100.0% | 8 | 0 | 0 |
+| `src/lib/calendar/hlm-calendar.component.ts` | 100.0% | 21 | 0 | 0 |
+| `src/lib/card/hlm-card.component.ts` | 100.0% | 14 | 0 | 0 |
+| `src/lib/checkbox/hlm-checkbox.directive.ts` | 100.0% | 2 | 0 | 0 |
+| `src/lib/combobox/hlm-combobox-chips.component.ts` | 100.0% | 44 | 0 | 0 |
+| `src/lib/combobox/hlm-combobox.directive.ts` | 100.0% | 60 | 0 | 0 |
+| `src/lib/cover/cover-tone.ts` | 100.0% | 14 | 0 | 0 |
+| `src/lib/date-picker/date-picker-core.ts` | 100.0% | 134 | 0 | 0 |
+| `src/lib/date-picker/hlm-date-picker.component.ts` | 100.0% | 325 | 0 | 0 |
+| `src/lib/dialog/hlm-dialog.component.ts` | 100.0% | 14 | 0 | 0 |
+| `src/lib/dialog/hlm-dialog.parts.ts` | 100.0% | 5 | 0 | 0 |
+| `src/lib/dots/hlm-dots.component.ts` | 100.0% | 3 | 0 | 0 |
+| `src/lib/duration-picker/duration-picker-core.ts` | 100.0% | 123 | 0 | 0 |
+| `src/lib/duration-picker/hlm-duration-picker.component.ts` | 100.0% | 145 | 0 | 0 |
+| `src/lib/dynamic-field/hlm-dynamic-field.component.ts` | 100.0% | 124 | 0 | 0 |
+| `src/lib/form-field/hlm-form-field.component.ts` | 100.0% | 60 | 0 | 0 |
+| `src/lib/grid-state/hlm-grid-state.component.ts` | 100.0% | 7 | 0 | 0 |
+| `src/lib/heading/hlm-heading.directive.ts` | 100.0% | 3 | 0 | 0 |
+| `src/lib/icon/hlm-icon.component.ts` | 100.0% | 2 | 0 | 0 |
+| `src/lib/input/hlm-input.directive.ts` | 100.0% | 11 | 0 | 0 |
+| `src/lib/label/hlm-label.directive.ts` | 100.0% | 6 | 0 | 0 |
+| `src/lib/list/hlm-list.directive.ts` | 100.0% | 8 | 0 | 0 |
+| `src/lib/lookup/option-lookup.ts` | 100.0% | 68 | 0 | 0 |
+| `src/lib/masked-date/hlm-masked-date.directive.ts` | 100.0% | 42 | 0 | 0 |
+| `src/lib/masked-date/masked-date-core.ts` | 100.0% | 198 | 0 | 0 |
+| `src/lib/menu/hlm-menu-item.directive.ts` | 100.0% | 43 | 0 | 0 |
+| `src/lib/menu/hlm-menu.component.ts` | 100.0% | 3 | 0 | 0 |
+| `src/lib/pagination/hlm-pagination.component.ts` | 100.0% | 74 | 0 | 0 |
+| `src/lib/panel/hlm-panel.component.ts` | 100.0% | 6 | 0 | 0 |
+| `src/lib/popover/hlm-popover.directive.ts` | 100.0% | 4 | 0 | 0 |
+| `src/lib/progress/hlm-progress.component.ts` | 100.0% | 20 | 0 | 0 |
+| `src/lib/radio/hlm-radio.directive.ts` | 100.0% | 2 | 0 | 0 |
+| `src/lib/reorderable-list/hlm-reorderable-list.component.ts` | 100.0% | 118 | 0 | 0 |
+| `src/lib/resizable/hlm-resizable.component.ts` | 100.0% | 33 | 0 | 0 |
+| `src/lib/resizable/hlm-resizable.parts.ts` | 100.0% | 64 | 0 | 0 |
+| `src/lib/select/hlm-select.directive.ts` | 100.0% | 40 | 0 | 0 |
+| `src/lib/separator/hlm-separator.component.ts` | 100.0% | 8 | 0 | 0 |
+| `src/lib/sheet/hlm-sheet.component.ts` | 100.0% | 13 | 0 | 0 |
+| `src/lib/sheet/hlm-sheet.parts.ts` | 100.0% | 3 | 0 | 0 |
+| `src/lib/sidebar/hlm-sidebar.component.ts` | 100.0% | 38 | 0 | 0 |
+| `src/lib/sidebar/hlm-sidebar.parts.ts` | 100.0% | 24 | 0 | 0 |
+| `src/lib/skeleton/hlm-skeleton.component.ts` | 100.0% | 3 | 0 | 0 |
+| `src/lib/spinner/hlm-spinner.component.ts` | 100.0% | 3 | 0 | 0 |
+| `src/lib/switch/hlm-switch.component.ts` | 100.0% | 15 | 0 | 0 |
+| `src/lib/tabs/hlm-tabs.directive.ts` | 100.0% | 31 | 0 | 0 |
+| `src/lib/tags/hlm-tags.component.ts` | 100.0% | 108 | 0 | 0 |
+| `src/lib/textarea/hlm-textarea.directive.ts` | 100.0% | 2 | 0 | 0 |
+| `src/lib/theme/theme.service.ts` | 100.0% | 25 | 0 | 0 |
+| `src/lib/toast/hlm-toast.component.ts` | 100.0% | 24 | 0 | 0 |
+| `src/lib/toast/hlm-toast.service.ts` | 100.0% | 116 | 0 | 0 |
+| `src/lib/toggle/hlm-toggle.directive.ts` | 100.0% | 2 | 0 | 0 |
+| `src/lib/toggle-group/hlm-toggle-group.directive.ts` | 100.0% | 19 | 0 | 0 |
+| `src/lib/_internal/pad.ts` | 100.0% | 4 | 0 | 0 |
+| `src/lib/accent/accent.service.ts` | 100.0% | 46 | 0 | 0 |
+| `src/lib/alert-dialog/confirm-dialog.service.ts` | 100.0% | 19 | 0 | 0 |
+| `src/lib/cover/lw-cover.component.ts` | 100.0% | 4 | 0 | 0 |
+| `src/lib/dynamic-field/dynamic-field.model.ts` | 100.0% | 42 | 0 | 0 |
+| `src/lib/footer-content/footer-content.service.ts` | 100.0% | 9 | 0 | 0 |
+| `src/lib/header-actions/header-actions.service.ts` | 100.0% | 9 | 0 | 0 |
+| `src/lib/select/hlm-select-pills.component.ts` | 100.0% | 27 | 0 | 0 |
+| `src/lib/select/hlm-select-single.directive.ts` | 100.0% | 1 | 0 | 0 |
+| `src/lib/state/assert-never.ts` | 100.0% | 4 | 0 | 0 |
+| `src/lib/state/hlm-fresh-flash.component.ts` | 100.0% | 2 | 0 | 0 |
+| `src/lib/state/hlm-skeleton-line.component.ts` | 100.0% | 2 | 0 | 0 |
+| `src/lib/state/hlm-state-pill.component.ts` | 100.0% | 40 | 0 | 0 |
+| `src/lib/textarea/hlm-autosize.directive.ts` | 100.0% | 9 | 0 | 0 |
+| `src/lib/toast/hlm-toast-container.component.ts` | 100.0% | 20 | 0 | 0 |
+| `src/lib/toast/hlm-toast.providers.ts` | 100.0% | 5 | 0 | 0 |
+| `src/lib/tooltip/hlm-tooltip.directive.ts` | 100.0% | 3 | 0 | 0 |
+| `src/lib/alert/hlm-alert.variants.ts` | 100.0% | 6 | 0 | 0 |
+| `src/lib/badge/hlm-badge.variants.ts` | 100.0% | 6 | 0 | 0 |
+| `src/lib/button/hlm-button.variants.ts` | 100.0% | 6 | 0 | 0 |
+| `src/lib/heading/hlm-heading.variants.ts` | 100.0% | 5 | 0 | 0 |
+| `src/lib/spinner/hlm-spinner.variants.ts` | 100.0% | 5 | 0 | 0 |
+| `src/lib/state/commit-state.types.ts` | 100.0% | 4 | 0 | 0 |
+| `src/lib/tabs/hlm-tabs.variants.ts` | 100.0% | 11 | 0 | 0 |
+| `src/lib/toast/hlm-toast.variants.ts` | 100.0% | 5 | 0 | 0 |
+| `src/lib/toggle-group/hlm-toggle-group.variants.ts` | 100.0% | 5 | 0 | 0 |
 
 ## Survivor clusters — gaps to close
 
-### `src/lib/avatar/lw-avatar.component.ts` — 6 surviving mutants
-
-**Cluster 1** (lines 40–47 — `deriveInitials()`): 6 mutants surviving — ConditionalExpression×1, Regex×1, StringLiteral×4
-
-Sample mutation:
-```diff
-- if (!trimmed) return '';
-+ <replaced with: false>
-```
-
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
-
-_Recommended test._ Add an assertion that pins the literal value at `lw-avatar.component.ts:40` in `deriveInitials`. If it's a log message, classify as equivalent.
-
-### `src/lib/avatar/avatar-tone.ts` — 2 surviving mutants
-
-**Cluster 2** (lines 8–11 — `for()`): 2 mutants surviving — ArithmeticOperator×1, StringLiteral×1
-
-Sample mutation:
-```diff
-- hash = (hash * 31 + id.charCodeAt(i)) | 0;
-+ <replaced with: hash * 31 - id.charCodeAt(i)>
-```
-
-_Diagnosis._ An arithmetic operator could be replaced. Pin the math with a deterministic input/output pair.
-
-_Recommended test._ Inspect `avatar-tone.ts:8` in `for` and add an assertion that distinguishes the original from the surviving mutation.
-
-### `src/lib/cover/cover-tone.ts` — 2 surviving mutants
-
-**Cluster 3** (lines 8–11 — `for()`): 2 mutants surviving — ArithmeticOperator×1, StringLiteral×1
-
-Sample mutation:
-```diff
-- hash = (hash * 31 + id.charCodeAt(i)) | 0;
-+ <replaced with: hash * 31 - id.charCodeAt(i)>
-```
-
-_Diagnosis._ An arithmetic operator could be replaced. Pin the math with a deterministic input/output pair.
-
-_Recommended test._ Inspect `cover-tone.ts:8` in `for` and add an assertion that distinguishes the original from the surviving mutation.
-
-### `src/lib/pill/lw-pill.component.ts` — 2 surviving mutants
-
-**Cluster 4** (lines 18): 1 mutant surviving — StringLiteral×1
-
-Sample mutation:
-```diff
-- readonly tone = input<LwPillTone>('default');
-+ <replaced with: "">
-```
-
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
-
-_Recommended test._ Add an assertion that pins the literal value at `lw-pill.component.ts:18`. If it's a log message, classify as equivalent.
-
-**Cluster 5** (lines 30–31): 1 mutant surviving — ConditionalExpression×1
-
-Sample mutation:
-```diff
-- default:
-+ <replaced with: default:>
-```
-
-_Diagnosis._ A ternary or conditional could be replaced and tests still pass. Cover both branches with distinct assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `lw-pill.component.ts:30` with assertions that distinguish the outcomes.
-
-### `src/lib/theme/theme.service.ts` — 2 surviving mutants
-
-**Cluster 6** (lines 29 — `readInitial()`): 2 mutants surviving — ConditionalExpression×1, StringLiteral×1
-
-Sample mutation:
-```diff
-- return stored === 'light' || stored === 'dark' ? stored : 'dark';
-+ <replaced with: false>
-```
-
-_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `theme.service.ts:29` in `readInitial` with assertions that distinguish the outcomes.
-
-### `src/lib/cover/lw-cover.component.ts` — 1 surviving mutant
-
-**Cluster 7** (lines 32): 1 mutant surviving — StringLiteral×1
-
-Sample mutation:
-```diff
-- readonly alt = input('');
-+ <replaced with: "Stryker was here!">
-```
-
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
-
-_Recommended test._ Add an assertion that pins the literal value at `lw-cover.component.ts:32`. If it's a log message, classify as equivalent.
+_No actionable survivors after filtering equivalent candidates._
 
 ## Equivalent-mutant candidates (excluded from adjusted score)
 

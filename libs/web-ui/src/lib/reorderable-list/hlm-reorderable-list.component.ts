@@ -190,6 +190,8 @@ export class HlmReorderableList<T> {
   private readonly announcer = inject(LiveAnnouncer);
 
   readonly items = input.required<readonly T[]>();
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   readonly disabled = input(false, { transform: booleanAttribute });
   /**
    * Where the grip sits. `left` (default) / `right` place a handle button at the
@@ -203,7 +205,8 @@ export class HlmReorderableList<T> {
   readonly trackBy = input<(item: T) => unknown>();
   /** Label fragment for the handle's aria-label, e.g. the row's name. */
   readonly itemLabel = input<(item: T) => string>();
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   readonly userClass = input<string>('', { alias: 'class' });
 
   readonly reordered = output<ReorderEvent<T>>();
@@ -307,11 +310,16 @@ export class HlmReorderableList<T> {
   // The element to refocus after a keyboard move: the handle button in handle
   // modes, the row itself in `item` mode (where no button exists).
   private focusAfterMove(index: number): void {
+    // Stryker disable OptionalChaining: equivalent — the keyboard path clamps
+    // `index` into [0, items.length) before scheduling this, and rows()/
+    // handles() render exactly one element per item, so `.at(index)` and
+    // `nativeElement` are always defined on every reachable path.
     const el =
       this.handlePosition() === 'item'
         ? this.rows().at(index)?.nativeElement
         : this.handles().at(index)?.nativeElement;
     el?.focus();
+    // Stryker restore OptionalChaining
   }
 
   private move(previousIndex: number, currentIndex: number): void {
@@ -322,6 +330,7 @@ export class HlmReorderableList<T> {
     // than splice out of range and emit an array with an `undefined` hole.
     if (
       previousIndex < 0 ||
+      // Stryker disable next-line EqualityOperator, ConditionalExpression: equivalent — a previousIndex at/past the end makes splice() return no element, and the moved===undefined guard below bails identically
       previousIndex >= items.length ||
       currentIndex < 0 ||
       currentIndex >= items.length
@@ -331,6 +340,7 @@ export class HlmReorderableList<T> {
     const next = [...items];
     const [moved] = next.splice(previousIndex, 1);
     // Unreachable after the bounds guard above; satisfies noUncheckedIndexedAccess.
+    // Stryker disable next-line ConditionalExpression: equivalent — the bounds guard above ensures previousIndex is a valid index, so splice() always yields an element and this branch never runs; it exists only for noUncheckedIndexedAccess
     if (moved === undefined) return;
     next.splice(currentIndex, 0, moved);
     this.reordered.emit({ previousIndex, currentIndex, items: next });

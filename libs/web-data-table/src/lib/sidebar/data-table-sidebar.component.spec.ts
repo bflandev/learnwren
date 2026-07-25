@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Component, ComponentRef, inject } from '@angular/core';
+import { Component, ComponentRef, PLATFORM_ID, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import type { DataTableView } from '../models';
@@ -325,5 +325,117 @@ describe('DataTableSidebarComponent (collapse)', () => {
   it('registers its presence with the host state on init (right)', () => {
     const { state } = setupCollapse('right');
     expect(state.sidebarPresent()).toEqual({ left: false, right: true });
+  });
+});
+
+// Mutation hardening: input defaults, resize listener lifecycle, and the
+// browser/server guards around document + localStorage access.
+describe('DataTableSidebarComponent (mutation hardening)', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', makeStorageMock());
+    localStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    TestBed.resetTestingModule();
+  });
+
+  interface SidebarInternals {
+    beginResize(event: MouseEvent): void;
+    setWidth(px: number): void;
+    width(): number;
+    visible(): boolean;
+    onUp(): void;
+  }
+
+  function make(opts: { platform?: 'browser' | 'server'; state?: boolean } = {}) {
+    TestBed.configureTestingModule({
+      imports: [DataTableSidebarComponent],
+      providers: [
+        ...(opts.state === false ? [] : [DataTableStateService]),
+        ...(opts.platform
+          ? [{ provide: PLATFORM_ID, useValue: opts.platform }]
+          : []),
+      ],
+    });
+    const fixture = TestBed.createComponent(DataTableSidebarComponent);
+    fixture.componentRef.setInput('spaceId', 'space-a');
+    fixture.detectChanges();
+    return {
+      fixture,
+      cmp: fixture.componentInstance,
+      internals: fixture.componentInstance as unknown as SidebarInternals,
+    };
+  }
+
+  it('defaults the pass-through inputs', () => {
+    const { cmp } = make();
+    expect(cmp.spaceName()).toBe('');
+    expect(cmp.views()).toEqual([]);
+    expect(cmp.side()).toBe('left');
+    expect(cmp.myViewsTitle()).toBe('My Views');
+    expect(cmp.activeViewDirty()).toBe(false);
+  });
+
+  it('is visible when no host table state is provided', () => {
+    const { internals } = make({ state: false });
+    expect(internals.visible()).toBe(true);
+  });
+
+  it('resizes while dragging and stops after mouseup detaches the listeners', () => {
+    const { internals } = make();
+    internals.beginResize(new MouseEvent('mousedown', { clientX: 100 }));
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 150 }));
+    expect(internals.width()).toBe(310); // 260 + 50
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 400 }));
+    expect(internals.width()).toBe(310);
+  });
+
+  it('detaches BOTH document listeners (mousemove and mouseup) on release', () => {
+    const { internals } = make();
+    internals.beginResize(new MouseEvent('mousedown', { clientX: 100 }));
+    const removeSpy = vi.spyOn(document, 'removeEventListener');
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    expect(removeSpy).toHaveBeenCalledWith('mousemove', expect.any(Function));
+    expect(removeSpy).toHaveBeenCalledWith('mouseup', expect.any(Function));
+    removeSpy.mockRestore();
+  });
+
+  it('stops resizing when the component is destroyed mid-drag', () => {
+    const { fixture, internals } = make();
+    internals.beginResize(new MouseEvent('mousedown', { clientX: 100 }));
+    const before = internals.width();
+    fixture.destroy();
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 400 }));
+    expect(internals.width()).toBe(before);
+  });
+
+  it('never attaches document listeners on the server platform', () => {
+    const { internals } = make({ platform: 'server' });
+    internals.beginResize(new MouseEvent('mousedown', { clientX: 100 }));
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 400 }));
+    expect(internals.width()).toBe(260);
+  });
+
+  it('never persists the width on the server platform', () => {
+    const { internals } = make({ platform: 'server' });
+    internals.setWidth(300);
+    internals.onUp();
+    expect(localStorage.getItem(WIDTH_KEY)).toBeNull();
+  });
+
+  it('ignores a stored width on the server platform', () => {
+    localStorage.setItem(WIDTH_KEY, '300');
+    const { internals } = make({ platform: 'server' });
+    expect(internals.width()).toBe(260);
+  });
+
+  it('falls back to the default width for a non-numeric stored value', () => {
+    localStorage.setItem(WIDTH_KEY, 'abc');
+    const { internals } = make();
+    expect(internals.width()).toBe(260);
   });
 });

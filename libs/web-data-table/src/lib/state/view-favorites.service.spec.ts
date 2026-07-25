@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ViewFavoritesService } from './view-favorites.service';
 
@@ -99,6 +100,46 @@ describe('ViewFavoritesService', () => {
     expect(JSON.parse(localStorage.getItem(KEY)!)).toEqual({
       'space-a': ['Archive'],
     });
+  });
+
+  it('toggling in one space preserves the other spaces', () => {
+    const svc = make();
+    svc.toggle('space-a', 'Live');
+    svc.toggle('space-b', 'Draft');
+    expect(svc.isFavorite('space-a', 'Live')).toBe(true);
+    expect(svc.isFavorite('space-b', 'Draft')).toBe(true);
+  });
+
+  it('rejects primitive, array and nested-junk payloads', () => {
+    const junk = [
+      '42',
+      '"str"',
+      '[["a"]]',
+      JSON.stringify({ a: ['x'], b: 'junk' }),
+      JSON.stringify({ a: [1, 'x'] }),
+      'null',
+    ];
+    for (const raw of junk) {
+      TestBed.resetTestingModule();
+      localStorage.setItem(KEY, raw);
+      TestBed.configureTestingModule({});
+      expect(TestBed.inject(ViewFavoritesService).favorites()).toEqual({});
+    }
+  });
+
+  it('neither reads nor writes localStorage on the server platform', () => {
+    localStorage.setItem(KEY, JSON.stringify({ 'space-a': ['Live'] }));
+    TestBed.configureTestingModule({
+      providers: [{ provide: PLATFORM_ID, useValue: 'server' }],
+    });
+    const svc = TestBed.inject(ViewFavoritesService);
+    // The stored payload is not hydrated on the server…
+    expect(svc.favorites()).toEqual({});
+    // …and toggling never touches storage.
+    svc.toggle('space-b', 'X');
+    expect(localStorage.getItem(KEY)).toBe(
+      JSON.stringify({ 'space-a': ['Live'] }),
+    );
   });
 
   it('warns and swallows when localStorage rejects a write', () => {

@@ -11,10 +11,15 @@ export interface DataTableColumnGroup {
  * `localizableSet` → "Localizable Set". Underscores/hyphens act as word
  * breaks too. (A local stand-in for the BFF's `humanizeField`, which cannot
  * cross the Nx library boundary.) */
+// Stryker disable next-line Regex: equivalent — dropping the + quantifier only
+// yields extra empty tokens, which the length filter below removes. Hoisted to
+// a statement so the disable comment attaches (it cannot inside a method chain).
+const WORD_SEPARATORS = /[_-]+/g;
+
 export function titleCasePrefix(prefix: string): string {
   return prefix
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
+    .replace(WORD_SEPARATORS, ' ')
     .split(' ')
     .filter((w) => w.length > 0)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))

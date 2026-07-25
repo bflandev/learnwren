@@ -22,6 +22,7 @@ export function resolveControl(
  * Parses an ISO string as a UTC `DateTime`, or `null` for blank/invalid input.
  */
 export function toDateTime(iso: string | null | undefined): DateTime | null {
+  // Stryker disable next-line ConditionalExpression: equivalent — fromISO('' | null | undefined) parses to an invalid DateTime, which the isValid check below also maps to null
   if (!iso) return null;
   const dt = DateTime.fromISO(iso, { zone: 'utc' });
   return dt.isValid ? dt : null;

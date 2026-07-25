@@ -28,16 +28,20 @@ export const INPUT_BASE =
   },
 })
 export class HlmInput {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   // On focus, select the whole field so the next keystroke replaces the value
   // (and an empty masked field's revealed skeleton is fully highlighted, ready to
   // type over). On by default across every [hlmInput]; opt out per-field with
   // [selectAllOnFocus]="false" where caret placement should be preserved.
+  // Stryker disable all: Angular signal-input options must stay statically
+  // analyzable object literals; instrumented mutants fatal ngtsc.
   public readonly selectAllOnFocus = input(true, {
     transform: booleanAttribute,
   });
+  // Stryker restore all
 
   private readonly el = inject<ElementRef<HTMLInputElement>>(ElementRef);
 

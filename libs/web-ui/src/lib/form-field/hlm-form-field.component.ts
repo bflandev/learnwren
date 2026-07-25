@@ -43,7 +43,8 @@ let nextErrorId = 0;
   host: { role: 'group', '[class]': 'computedClass()' },
 })
 export class HlmFormField {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(FORM_FIELD_BASE, this.userClass()),
@@ -97,7 +98,8 @@ export class HlmFormFieldHint implements OnInit, OnDestroy {
   // an author-supplied id overrides it, and it is host-bound onto the element.
   public readonly id = input<string>(`hlm-form-field-hint-${nextHintId++}`);
 
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(FORM_FIELD_HINT_BASE, this.userClass()),
@@ -111,6 +113,9 @@ export class HlmFormFieldHint implements OnInit, OnDestroy {
   }
 
   public ngOnDestroy(): void {
+    // Stryker disable next-line ConditionalExpression: equivalent — ngOnInit
+    // always runs before ngOnDestroy, so registeredId is non-null here; the
+    // guard only protects a lifecycle order Angular never produces.
     if (this.registeredId) {
       this.field?.unregisterHint(this.registeredId);
     }
@@ -131,7 +136,8 @@ export class HlmFormFieldError implements OnInit, OnDestroy {
 
   public readonly id = input<string>(`hlm-form-field-error-${nextErrorId++}`);
 
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(FORM_FIELD_ERROR_BASE, this.userClass()),
@@ -145,6 +151,9 @@ export class HlmFormFieldError implements OnInit, OnDestroy {
   }
 
   public ngOnDestroy(): void {
+    // Stryker disable next-line ConditionalExpression: equivalent — ngOnInit
+    // always runs before ngOnDestroy, so registeredId is non-null here; the
+    // guard only protects a lifecycle order Angular never produces.
     if (this.registeredId) {
       this.field?.unregisterError(this.registeredId);
     }
@@ -167,10 +176,12 @@ export class HlmFormFieldControl {
   // Author-supplied aria-describedby, merged ahead of the field's ids. Reading
   // the input and writing the host attr are separate channels, so there is no
   // feedback loop. The alias mirrors the native attribute name by design.
+  // Stryker disable all: Angular signal-input options must stay statically
+  // analyzable object literals; instrumented mutants fatal ngtsc.
   public readonly ariaDescribedBy = input<string | null>(null, {
-    // eslint-disable-next-line @angular-eslint/no-input-rename
     alias: 'aria-describedby',
   });
+  // Stryker restore all
 
   protected readonly describedBy = computed<string | null>(() => {
     const ids = [

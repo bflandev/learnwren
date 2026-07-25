@@ -22,6 +22,7 @@ export class ViewFavoritesService {
   readonly favorites: Signal<FavoritesMap> = this._favorites.asReadonly();
 
   isFavorite(spaceId: string, viewName: string): boolean {
+    // Stryker disable next-line ArrayDeclaration: equivalent — the fallback array is only probed via includes(viewName); a sentinel entry can never match a real view name
     return (this._favorites()[spaceId] ?? []).includes(viewName);
   }
 
@@ -54,6 +55,7 @@ export class ViewFavoritesService {
     if (!this.isBrowser) return {};
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
+      // Stryker disable next-line ConditionalExpression: equivalent — without the short-circuit, JSON.parse(null) parses to null (rejected by isValid) and '' throws into the catch; both still yield {}
       if (!raw) return {};
       const parsed: unknown = JSON.parse(raw);
       return this.isValid(parsed) ? parsed : {};
@@ -63,7 +65,9 @@ export class ViewFavoritesService {
   }
 
   private isValid(v: unknown): v is FavoritesMap {
-    if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+    // Stryker disable next-line ConditionalExpression: equivalent — a null that slips past this check reaches Object.values(null), which throws into readInitial's catch and yields {} either way
+    if (v === null) return false;
+    if (typeof v !== 'object' || Array.isArray(v)) return false;
     return Object.values(v as Record<string, unknown>).every(
       (val) => Array.isArray(val) && val.every((x) => typeof x === 'string'),
     );

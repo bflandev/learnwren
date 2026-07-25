@@ -24,6 +24,26 @@ class TestHost {
   disabled = false;
 }
 
+// Bare host: nothing bound, so the component's own defaults (labels, group
+// name, minted ids) are what renders — the mutation-visible surface the bound
+// TestHost hides.
+@Component({
+  standalone: true,
+  imports: [HlmBooleanRadio],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-boolean-radio />`,
+})
+class BareHost {}
+
+// Two instances side by side to pin per-instance uniqueness (uid counter).
+@Component({
+  standalone: true,
+  imports: [HlmBooleanRadio],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<hlm-boolean-radio /><hlm-boolean-radio />`,
+})
+class TwoHost {}
+
 function setup(
   opts: {
     val?: boolean | null;
@@ -86,6 +106,49 @@ describe('HlmBooleanRadio', () => {
     const { radios } = setup({ disabled: true });
     expect(radios[0].disabled).toBe(true);
     expect(radios[1].disabled).toBe(true);
+  });
+
+  it('falls back to the Yes/No default labels when none are bound', () => {
+    // Arrange / Act
+    const fixture = TestBed.createComponent(BareHost);
+    fixture.detectChanges();
+    // Assert
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Yes');
+    expect(text).toContain('No');
+  });
+
+  it('mints per-instance -true/-false ids that pair each radio with its label', () => {
+    // Arrange / Act
+    const fixture = TestBed.createComponent(BareHost);
+    fixture.detectChanges();
+    const radios = Array.from(
+      fixture.nativeElement.querySelectorAll('input[type="radio"]'),
+    ) as HTMLInputElement[];
+    const labels = Array.from(
+      fixture.nativeElement.querySelectorAll('label'),
+    ) as HTMLLabelElement[];
+    // Assert — the ids carry the counter + suffix and the labels point at them.
+    expect(radios[0].id).toMatch(/^hlm-boolean-radio-\d+-true$/);
+    expect(radios[1].id).toMatch(/^hlm-boolean-radio-\d+-false$/);
+    expect(labels[0].htmlFor).toBe(radios[0].id);
+    expect(labels[1].htmlFor).toBe(radios[1].id);
+  });
+
+  it('gives two instances distinct, well-formed group names (uid counter increments)', () => {
+    // Arrange / Act
+    const fixture = TestBed.createComponent(TwoHost);
+    fixture.detectChanges();
+    const radios = Array.from(
+      fixture.nativeElement.querySelectorAll('input[type="radio"]'),
+    ) as HTMLInputElement[];
+    // Assert — each preset groups its own pair, both names carry a
+    // non-negative counter, and the two groups never bleed into each other.
+    expect(radios[0].name).toMatch(/^hlm-boolean-radio-\d+$/);
+    expect(radios[2].name).toMatch(/^hlm-boolean-radio-\d+$/);
+    expect(radios[0].name).toBe(radios[1].name);
+    expect(radios[2].name).toBe(radios[3].name);
+    expect(radios[0].name).not.toBe(radios[2].name);
   });
 
   it('carries the wrapper BASE class on the host', () => {

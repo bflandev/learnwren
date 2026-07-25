@@ -27,6 +27,7 @@ const DEFAULT_DENSITY: DataTableDensity = 'normal';
  * inject(PLATFORM_ID)) because this service is sometimes `new`-ed outside an
  * injection context by the list's provideDataTableState fallback. */
 function readInitialDensity(): DataTableDensity | undefined {
+  // Stryker disable next-line ConditionalExpression,StringLiteral: equivalent — without the guard, touching an undeclared localStorage throws a ReferenceError into the catch below, returning undefined all the same
   if (typeof localStorage === 'undefined') return undefined;
   try {
     const raw = localStorage.getItem(DENSITY_KEY);
@@ -34,8 +35,9 @@ function readInitialDensity(): DataTableDensity | undefined {
       ? raw
       : undefined;
   } catch {
-    return undefined;
+    // fall through — unreadable storage behaves like no stored value
   }
+  return undefined;
 }
 
 /**
@@ -120,8 +122,10 @@ export class DataTableStateService {
       Object.fromEntries(Object.entries(prev).filter(([id]) => ids.has(id))),
     );
     this._columnPinning.update((prev) => ({
+      // Stryker disable ArrayDeclaration: equivalent — the ?? [] fallback is immediately filtered by ids membership, so sentinel contents can never be observed
       left: (prev.left ?? []).filter((id) => ids.has(id)),
       right: (prev.right ?? []).filter((id) => ids.has(id)),
+      // Stryker restore ArrayDeclaration
     }));
     const ordered = cols.map((c) => c.id);
     this._columnOrder.update((prev) => {
@@ -146,7 +150,8 @@ export class DataTableStateService {
             next.push(head);
             head = kept[++keptIdx];
           }
-          if (head !== undefined && head === id) {
+          // `id` is a string, so `head === id` also proves head !== undefined.
+          if (head === id) {
             next.push(head);
             keptIdx++;
           }
@@ -154,10 +159,8 @@ export class DataTableStateService {
           next.push(id);
         }
       }
-      // Flush any remaining kept ids the definition never mentioned (defensive).
-      for (let head = kept[keptIdx]; head !== undefined; head = kept[++keptIdx]) {
-        next.push(head);
-      }
+      // No trailing flush is needed: kept ⊆ ids = the set of `ordered`, so the
+      // main loop above always consumes every kept id.
       return next;
     });
     this._columnWidths.update((prev) =>
@@ -223,8 +226,10 @@ export class DataTableStateService {
 
   getPinSide(id: string): PinSide {
     const p = this._columnPinning();
+    // Stryker disable ArrayDeclaration: equivalent — fallback contents are only probed via includes(id); a sentinel entry can never match a real column id
     if ((p.left ?? []).includes(id)) return 'left';
     if ((p.right ?? []).includes(id)) return 'right';
+    // Stryker restore ArrayDeclaration
     return false;
   }
 
@@ -286,6 +291,7 @@ export class DataTableStateService {
    * Persistence is best-effort. */
   setDensity(density: DataTableDensity): void {
     this._density.set(density === DEFAULT_DENSITY ? undefined : density);
+    // Stryker disable next-line ConditionalExpression,StringLiteral: equivalent — without the guard, touching an undeclared localStorage throws a ReferenceError into the try/catch below
     if (typeof localStorage === 'undefined') return;
     try {
       if (density === DEFAULT_DENSITY) localStorage.removeItem(DENSITY_KEY);

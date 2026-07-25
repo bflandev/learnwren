@@ -2,7 +2,13 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { HlmMaskedDate } from './hlm-masked-date.directive';
-import { formatDateMask, type DateFormatPreset } from './masked-date-core';
+import {
+  applyMaskWithSkeleton,
+  firstSlotIndex,
+  formatDateMask,
+  hasMaskPayload,
+  type DateFormatPreset,
+} from './masked-date-core';
 
 // The formatting core is pure, so the bulk of the parity table is asserted
 // without a DOM; a thin host then proves the directive wires it onto the native
@@ -31,6 +37,61 @@ describe('formatDateMask', () => {
   });
 });
 
+describe('firstSlotIndex', () => {
+  it('returns 0 for a template that opens with a slot', () => {
+    expect(firstSlotIndex('9999-99-99')).toBe(0);
+    expect(firstSlotIndex('a9')).toBe(0);
+  });
+  it('skips leading literal separators to the first slot', () => {
+    expect(firstSlotIndex('--99')).toBe(2);
+  });
+  it('returns the template length when there is no slot at all', () => {
+    expect(firstSlotIndex('--')).toBe(2);
+  });
+});
+
+describe('applyMaskWithSkeleton caret', () => {
+  it('parks the caret just past the last filled slot', () => {
+    expect(applyMaskWithSkeleton('1', '99:99')).toEqual({
+      text: '1_:__',
+      caret: 1,
+    });
+  });
+  it('advances the caret over trailing separators into the next slot', () => {
+    expect(applyMaskWithSkeleton('12', '99:99')).toEqual({
+      text: '12:__',
+      caret: 3,
+    });
+  });
+  it('parks an empty entry at the first slot of a separator-led template', () => {
+    expect(applyMaskWithSkeleton('', '--99').caret).toBe(2);
+  });
+
+  it('stops the separator-skip walk at an alpha slot, not only a digit slot', () => {
+    // The post-fill walk must treat 'a' as a landing slot: with a digit-only
+    // template the `!== 'a'` clause never decides, so this is the one case
+    // that observes it.
+    expect(applyMaskWithSkeleton('12', '99-a9')).toEqual({
+      text: '12-__',
+      caret: 3,
+    });
+  });
+});
+
+describe('hasMaskPayload', () => {
+  it('accepts the alphabetic boundary characters', () => {
+    for (const c of ['a', 'z', 'A', 'Z', '5']) {
+      expect(hasMaskPayload(c), `payload char ${c}`).toBe(true);
+    }
+  });
+  it('rejects separators and near-boundary non-alphanumerics', () => {
+    // '`' and '{' sit just outside a-z; '@' and '[' just outside A-Z.
+    for (const c of ['-', '_', ' ', '/', '`', '{', '@', '[']) {
+      expect(hasMaskPayload(c), `non-payload char ${c}`).toBe(false);
+    }
+  });
+});
+
 @Component({
   standalone: true,
   imports: [HlmMaskedDate],
@@ -38,14 +99,18 @@ describe('formatDateMask', () => {
   template: `<input
     hlmMaskedDate
     [(value)]="val"
+    (valueChange)="emissions.push($event)"
     [dateFormat]="dateFormat()"
     [formatHint]="formatHint()"
+    [placeholder]="ph()"
     #m="hlmMaskedDate" />`,
 })
 class TestHost {
   val = '';
+  readonly emissions: string[] = [];
   readonly dateFormat = signal<DateFormatPreset>('iso');
   readonly formatHint = signal(true);
+  readonly ph = signal('');
 }
 
 function setup(seed = '') {
@@ -194,5 +259,124 @@ describe('HlmMaskedDate', () => {
     fixture.detectChanges();
     expect(input.value).toBe('2025-12-31');
     expect(host.val).toBe('2025-12-31');
+  });
+
+  it('shows a partial seed compact (no skeleton tail) while unfocused', () => {
+    const { fixture, input } = setup('202512');
+    fixture.detectChanges();
+    expect(input.value).toBe('2025-12');
+  });
+
+  it('prefers an explicit placeholder over the format hint', () => {
+    const { fixture, host, input } = setup();
+    host.ph.set('Date of birth');
+    fixture.detectChanges();
+    expect(input.getAttribute('placeholder')).toBe('Date of birth');
+  });
+
+  it('reports complete() false for an empty value', () => {
+    const { dir } = setup();
+    expect(dir.complete()).toBe(false);
+  });
+
+  it('ignores input events while the native input is readonly', () => {
+    const { fixture, host, input } = setup();
+    input.readOnly = true;
+    input.value = '20251231';
+    input.dispatchEvent(new Event('input'));
+    // Before CD: the handler must not have re-masked the DOM value.
+    expect(input.value).toBe('20251231');
+    fixture.detectChanges();
+    expect(host.val).toBe('');
+  });
+
+  it('does not reveal the skeleton on focus of a readonly input (pre-CD)', () => {
+    const { input } = setup();
+    input.readOnly = true;
+    input.dispatchEvent(new FocusEvent('focus'));
+    // Assert before change detection: the focus handler itself must bail.
+    expect(input.value).toBe('');
+  });
+
+  it('reveals the skeleton synchronously in the focus handler (pre-CD)', () => {
+    const { input } = setup();
+    input.dispatchEvent(new FocusEvent('focus'));
+    expect(input.value).toBe('____-__-__');
+  });
+
+  it('keeps a populated field text unchanged in the focus handler (pre-CD)', () => {
+    const { fixture, input } = setup('20251231');
+    fixture.detectChanges();
+    input.dispatchEvent(new FocusEvent('focus'));
+    expect(input.value).toBe('2025-12-31');
+  });
+
+  it('renders the skeleton tail synchronously in the input handler (pre-CD)', () => {
+    const { fixture, input } = setup();
+    input.dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    input.value = '202512' + input.value;
+    input.dispatchEvent(new Event('input'));
+    // Overwrite-in-place must paint the skeleton form before any CD pass.
+    expect(input.value).toBe('2025-12-__');
+    expect(input.selectionStart).toBe(8);
+  });
+
+  it('heals a partial without a skeleton tail when formatHint is off (pre-CD)', () => {
+    const { fixture, host, input } = setup();
+    host.formatHint.set(false);
+    fixture.detectChanges();
+    input.value = '2025';
+    input.dispatchEvent(new Event('input'));
+    expect(input.value).toBe('2025');
+    fixture.detectChanges();
+    expect(host.val).toBe('2025');
+  });
+
+  it('keeps a populated value across blur (no collapse of real payload)', () => {
+    const { fixture, host, input } = setup();
+    input.dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    input.value = '20251231' + input.value;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    input.dispatchEvent(new FocusEvent('blur'));
+    fixture.detectChanges();
+    expect(host.val).toBe('2025-12-31');
+    expect(input.value).toBe('2025-12-31');
+  });
+
+  it('emits no valueChange for an untouched focus/blur cycle', () => {
+    const { fixture, host, input } = setup();
+    host.emissions.length = 0;
+    input.dispatchEvent(new FocusEvent('focus'));
+    fixture.detectChanges();
+    input.dispatchEvent(new FocusEvent('blur'));
+    fixture.detectChanges();
+    expect(host.emissions).toEqual([]);
+  });
+});
+
+// No [placeholder] binding at all: the input's own '' default must fall through
+// to the format-hint placeholder (the fully-bound TestHost pins the default by
+// binding ph(''), which hides a mutated default).
+@Component({
+  standalone: true,
+  imports: [HlmMaskedDate],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<input hlmMaskedDate [(value)]="val" />`,
+})
+class UnboundPlaceholderHost {
+  val = '';
+}
+
+describe('HlmMaskedDate unbound placeholder default', () => {
+  it('derives the iso hint when no placeholder input is bound', () => {
+    const fixture = TestBed.createComponent(UnboundPlaceholderHost);
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector(
+      'input',
+    ) as HTMLInputElement;
+    expect(input.getAttribute('placeholder')).toBe('YYYY-MM-DD');
   });
 });

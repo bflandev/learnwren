@@ -70,7 +70,8 @@ export const TABS_CONTENT_BASE = 'mt-2 focus-ring';
 export class HlmTabs {
   public readonly appearance = input<TabsAppearance>('segment');
   public readonly size = input<TabsSize>('default');
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(TABS_BASE, this.userClass()),
@@ -99,7 +100,8 @@ export class HlmTabsList {
   protected readonly effectiveAppearance = computed<TabsAppearance>(
     () => this.appearance() ?? this.root?.appearance() ?? 'segment',
   );
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(
@@ -139,7 +141,8 @@ export class HlmTabsTrigger {
   protected readonly effectiveSize = computed<TabsSize>(
     () => this.size() ?? this.root?.size() ?? 'default',
   );
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(
@@ -167,7 +170,8 @@ export class HlmTabsTrigger {
   host: { '[class]': 'computedClass()' },
 })
 export class HlmTabsContent {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
   protected readonly computedClass = computed(() =>
     cn(TABS_CONTENT_BASE, this.userClass()),

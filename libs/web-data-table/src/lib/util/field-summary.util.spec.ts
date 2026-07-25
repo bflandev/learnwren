@@ -86,9 +86,64 @@ describe('summarizeFieldValues range', () => {
   });
 });
 
+describe('summarizeFieldValues range hardening', () => {
+  it('number: non-numeric set values are excluded from the range', () => {
+    const s = summarizeFieldValues('number', ['1', 'x', '3']);
+    expect(s).toMatchObject({ kind: 'range', min: '1', max: '3', distinct: 2 });
+  });
+
+  it('date: unparseable set values are excluded, later max still wins', () => {
+    const s = summarizeFieldValues('date', [
+      '2026-02-01T00:00:00Z',
+      'junk',
+      '2026-03-01T00:00:00Z',
+    ]);
+    expect(s).toMatchObject({
+      kind: 'range',
+      min: '2026-02-01T00:00:00Z',
+      max: '2026-03-01T00:00:00Z',
+      distinct: 2,
+    });
+  });
+
+  it('date: empty set yields blank endpoints', () => {
+    const s = summarizeFieldValues('date', [null, '']);
+    expect(s).toMatchObject({ kind: 'range', min: '', max: '', distinct: 0 });
+  });
+
+  it('date: keeps the first-seen raw form on timestamp ties', () => {
+    const s = summarizeFieldValues('date', [
+      '2026-01-01T00:00:00Z',
+      '2026-01-01T00:00:00.000Z',
+    ]);
+    expect(s).toMatchObject({
+      kind: 'range',
+      min: '2026-01-01T00:00:00Z',
+      max: '2026-01-01T00:00:00Z',
+      distinct: 2,
+    });
+  });
+});
+
+describe('summarizeFieldValues ordering hardening', () => {
+  it('categorical: count order beats label order', () => {
+    const s = summarizeFieldValues('string', ['z', 'z', 'a']);
+    if (s.kind !== 'categorical') throw new Error('expected categorical');
+    expect(s.entries).toEqual([
+      { label: 'z', count: 2 },
+      { label: 'a', count: 1 },
+    ]);
+  });
+});
+
 describe('summarizeFieldValues boolean', () => {
   it('counts real and stringified booleans', () => {
     const s = summarizeFieldValues('boolean', [true, false, true, 'true', 'false']);
     expect(s).toMatchObject({ kind: 'boolean', trueCount: 3, falseCount: 2 });
+  });
+
+  it('leaves unrecognized values out of both counts', () => {
+    const s = summarizeFieldValues('boolean', [true, 'x']);
+    expect(s).toMatchObject({ kind: 'boolean', trueCount: 1, falseCount: 0 });
   });
 });

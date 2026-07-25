@@ -1,20 +1,13 @@
-// Stryker config scoped to libs/web-ui — design-system primitives (button,
-// card, cover, icon, input, pill, progress, theme, theme-toggle, wordmark).
+// Stryker config scoped to libs/web-ui — the full hlm component library
+// (robin DS port slice B) plus the kept lw primitives (cover, wordmark,
+// theme, theme-toggle, avatar-tone).
 //
 // Excluded from mutation:
 // - test-setup.ts — vitest setup boilerplate.
 // - index.ts — barrel re-exports.
-// - button/lw-button.directive.ts — host-binding-only directive; no runtime
-//   branches mutation testing can usefully exercise (Stryker run produced
-//   1 surviving mutant on a single decorator argument).
-// - icon/lw-icon.component.ts — declarative SVG path table; the only logic
-//   is `paths[name]` lookup, so every mutant lives in the data, not in
-//   behavior. The skill's "don't measure DTOs/mappers/generated code" rule
-//   applies: the icon set is data masquerading as code.
-//
-// What remains: theme.service (state, persistence, document class toggling),
-// theme-toggle (UI wiring around theme.service), cover/card/cover/pill/
-// progress (small layout components with input branches), and wordmark.
+// - token-discipline.spec.ts imports every exported class-string const; the
+//   *_BASE/variant constants themselves stay IN scope — their StringLiteral
+//   mutants are killable by the component specs' class assertions.
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
   packageManager: 'pnpm',
@@ -26,8 +19,6 @@ export default {
     'libs/web-ui/src/lib/**/*.ts',
     '!libs/web-ui/src/lib/**/*.spec.ts',
     '!libs/web-ui/src/lib/**/*.test.ts',
-    '!libs/web-ui/src/lib/button/lw-button.directive.ts',
-    '!libs/web-ui/src/lib/icon/lw-icon.component.ts',
     '!libs/web-ui/src/index.ts',
   ],
   reporters: ['progress', 'clear-text', 'html', 'json'],

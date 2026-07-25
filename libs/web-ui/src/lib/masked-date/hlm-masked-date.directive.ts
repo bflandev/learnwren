@@ -49,6 +49,9 @@ export class HlmMaskedDate {
   // or a partial `2025-12`). The auto-generated valueChange output re-exposes each
   // masked edit. The field may show a slot skeleton while focused, but the model
   // stays the clean compact form.
+  // Stryker disable next-line StringLiteral: equivalent — a non-empty digit-free
+  // default self-heals to '' in the constructor effect on the first change-
+  // detection pass, before any consumer-observable read.
   public readonly value = model<string>('');
 
   // Date-half order + separator: `iso` (YYYY-MM-DD, default, slem parity),
@@ -59,6 +62,8 @@ export class HlmMaskedDate {
   // and reveals the slot skeleton on focus (overwrite-in-place typing). Off →
   // insert-and-heal typing with no skeleton (an explicit `placeholder` still wins
   // for the empty-field hint).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly formatHint = input(true, { transform: booleanAttribute });
 
   // '' → the placeholder is derived from the format hint; a non-empty value is an
@@ -85,6 +90,9 @@ export class HlmMaskedDate {
   // (via exportAs) to gate validity messaging.
   public readonly complete = computed(() => {
     const v = this.value();
+    // Stryker disable next-line ConditionalExpression: equivalent (the → false
+    // form) — a payload-free value fills no slot, so the skeleton fallback
+    // below also computes false; the guard is a fast path.
     if (!hasMaskPayload(v)) return false;
     return !applyMaskWithSkeleton(v, this.maskTemplate()).text.includes(
       MASK_SLOT_CHAR,
@@ -116,6 +124,10 @@ export class HlmMaskedDate {
           : compact;
       const el = this.el.nativeElement;
       // Guarded so a no-op re-render never clobbers the caret mid-type.
+      // Stryker disable next-line ConditionalExpression: equivalent under
+      // jsdom — an unconditional same-value reassignment differs only by the
+      // caret jump real browsers perform; jsdom preserves the selection on a
+      // same-value write, so no spec can observe the difference.
       if (el.value !== desired) el.value = desired;
     });
   }
@@ -158,6 +170,11 @@ export class HlmMaskedDate {
     this.focused.set(false);
     // Collapse an untouched skeleton back to empty so the format placeholder
     // returns; a populated field is left in its compact form by the effect.
+    // Stryker disable next-line ConditionalExpression, BlockStatement:
+    // equivalent (the → false / {} forms) — the compact model is an applyMask
+    // output, so a payload-free value is already '', making the collapse a
+    // signal no-op; the branch exists for future-proofing. The → true and
+    // operator forms are killed by the populated-blur spec.
     if (this.formatHint() && !hasMaskPayload(this.value())) {
       this.value.set('');
     }

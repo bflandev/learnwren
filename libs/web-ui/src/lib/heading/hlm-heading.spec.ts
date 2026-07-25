@@ -27,6 +27,20 @@ function setup(variant: unknown = undefined, cls = '') {
 }
 
 describe('HlmHeading', () => {
+  it("defaults the unbound variant input to the literal 'section-title'", () => {
+    @Component({
+      standalone: true,
+      imports: [HlmHeading],
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `<h2 hlmHeading>Title</h2>`,
+    })
+    class UnboundHost {}
+    const fixture = TestBed.createComponent(UnboundHost);
+    fixture.detectChanges();
+    const inst = fixture.debugElement.children[0].injector.get(HlmHeading);
+    expect(inst.variant()).toBe('section-title');
+  });
+
   it('applies the default section-title role on the native heading', () => {
     const { host } = setup();
     expect(host.classList.contains('text-section-title')).toBe(true);

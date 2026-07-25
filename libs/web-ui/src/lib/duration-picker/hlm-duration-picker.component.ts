@@ -205,7 +205,8 @@ export const DURATION_PICKER_TRIGGER_BASE =
   `,
 })
 export class HlmDurationPicker {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly userClass = input<string>('', { alias: 'class' });
 
   public readonly value = model<Duration | null>(null);
@@ -224,21 +225,35 @@ export class HlmDurationPicker {
   public readonly inputType = input<'field' | 'segmented'>('field');
   // Days lead the duration by default; flip off to make hours the largest unit
   // (the days segment / box is then hidden and days fold into hours).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showDays = input(true, { transform: booleanAttribute });
   // Precision below minutes. Milliseconds imply seconds (a `.SSS` tail needs a
   // `:ss` segment), normalized in `precision`.
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showSeconds = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly showMilliseconds = input(false, {
     transform: booleanAttribute,
   });
   public readonly min = input<Duration | undefined>(undefined);
   public readonly max = input<Duration | undefined>(undefined);
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly disabled = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly readonly = input(false, { transform: booleanAttribute });
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly required = input(false, { transform: booleanAttribute });
   // Opt-in clear ("×") affordance. Off by default — turn it on to let an
   // optional, editable field be nulled in one click (it only renders when
   // there's a value).
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly clearable = input(false, { transform: booleanAttribute });
   // '' → derive a hint from the active mask (e.g. `hh:mm:ss`); a non-empty value
   // overrides it.
@@ -248,12 +263,17 @@ export class HlmDurationPicker {
   // Format hint: show the expected mask as the empty-field placeholder and reveal
   // the slot skeleton (e.g. ___ __:__) on focus for overwrite-in-place entry. On
   // by default, tracking the days + precision levers. (field mode only.)
+  // Stryker disable next-line all: Angular signal-input options must stay a
+  // statically analyzable object literal; instrumented mutants fatal ngtsc.
   public readonly formatHint = input(true, { transform: booleanAttribute });
 
   // Live field text, re-synced from the value whenever it (or a lever) changes —
   // mirrors the model except mid-edit (value only changes on commit).
   protected readonly draft = signal('');
   // Set when the last commit rejected a non-empty entry; drives aria-invalid.
+  // Stryker disable next-line BooleanLiteral: equivalent — the constructor
+  // effect unconditionally resets invalid on its first flush, before the
+  // first render can bind aria-invalid, so the initial literal is unread.
   protected readonly invalid = signal(false);
   // True while the field holds focus — gates the skeleton reveal so it appears on
   // focus and collapses back to the placeholder on blur.
@@ -450,6 +470,9 @@ export class HlmDurationPicker {
     const parsed = parseDuration(raw, this.showDays(), this.precision());
     if (parsed) {
       this.value.set(clampDuration(parsed, this.min(), this.max()));
+      // Stryker disable next-line BooleanLiteral: equivalent — value.set above
+      // always receives a fresh Duration instance, which re-fires the reseat
+      // effect whose first action clears the flag before anything renders.
       this.invalid.set(false);
     } else {
       this.invalid.set(true);

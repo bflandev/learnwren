@@ -6,6 +6,7 @@ import {
   HlmDialogContent,
   HlmDialogOverlay,
   HlmDialogTrigger,
+  provideHlmDialogConfig,
 } from './hlm-dialog.component';
 import {
   HlmDialogClose,
@@ -171,6 +172,69 @@ describe('HlmDialog', () => {
     const { panel } = openDialog(true, 'mt-2');
     expect(panel?.classList.contains('mt-2')).toBe(true);
     expect(panel?.classList.contains('bg-dialog')).toBe(true);
+  });
+
+  it('paints the header/footer/title/description/close part bases', () => {
+    const { panel } = openDialog();
+    const header = panel?.querySelector('hlm-dialog-header') as HTMLElement;
+    for (const cls of ['flex', 'flex-col', 'gap-1.5', 'text-center']) {
+      expect(header.classList.contains(cls), `header ${cls}`).toBe(true);
+    }
+    const footer = panel?.querySelector('hlm-dialog-footer') as HTMLElement;
+    for (const cls of ['flex', 'flex-col-reverse', 'gap-2', 'sm:justify-end']) {
+      expect(footer.classList.contains(cls), `footer ${cls}`).toBe(true);
+    }
+    const title = panel?.querySelector('[hlmdialogtitle]') as HTMLElement;
+    for (const cls of ['text-section-title', 'leading-none', 'tracking-tight']) {
+      expect(title.classList.contains(cls), `title ${cls}`).toBe(true);
+    }
+    const desc = panel?.querySelector('[hlmdialogdescription]') as HTMLElement;
+    for (const cls of ['text-body', 'text-ink-3']) {
+      expect(desc.classList.contains(cls), `description ${cls}`).toBe(true);
+    }
+    const close = panel?.querySelector(
+      'button[data-test="close"]',
+    ) as HTMLElement;
+    for (const cls of [
+      'absolute',
+      'right-3',
+      'top-3',
+      'rounded-control',
+      'opacity-70',
+      'transition-opacity',
+      'hover:opacity-100',
+      'focus-ring',
+    ]) {
+      expect(close.classList.contains(cls), `close ${cls}`).toBe(true);
+    }
+  });
+
+  it('applies the structural overlay classes to the opened backdrop', () => {
+    openDialog();
+    // brain forwards the hlm overlay class onto the CDK backdrop element.
+    const backdrop = document.body.querySelector(
+      '.cdk-overlay-backdrop',
+    ) as HTMLElement | null;
+    expect(backdrop).toBeTruthy();
+    for (const cls of ['fixed', 'inset-0', 'z-dialog-backdrop']) {
+      expect(backdrop?.classList.contains(cls), `overlay ${cls}`).toBe(true);
+    }
+    expect(backdrop?.classList.contains('test-overlay-class')).toBe(true);
+  });
+
+  it('provideHlmDialogConfig supplies the helm backdrop defaults', () => {
+    const provider = provideHlmDialogConfig() as unknown as {
+      useValue: {
+        hasBackdrop: boolean;
+        backdropClass: string;
+        closeOnBackdropClick: boolean;
+      };
+    };
+    expect(provider.useValue).toMatchObject({
+      hasBackdrop: true,
+      backdropClass: 'lw-dialog-backdrop',
+      closeOnBackdropClick: true,
+    });
   });
 
   it('closes on backdrop click when closeOnBackdropClick is true', async () => {

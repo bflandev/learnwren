@@ -126,3 +126,15 @@ describe('ViewMenuComponent', () => {
     expect(inOverlay('[data-test="menu"]')).toBeNull();
   });
 });
+
+describe('ViewMenuComponent (input defaults)', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('defaults viewKind to system and isDirty to false', () => {
+    TestBed.configureTestingModule({ imports: [ViewMenuComponent] });
+    const fixture = TestBed.createComponent(ViewMenuComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.viewKind()).toBe('system');
+    expect(fixture.componentInstance.isDirty()).toBe(false);
+  });
+});
