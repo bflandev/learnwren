@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CourseId, LessonId, Material, MaterialId, ModuleId } from '@learnwren/shared-data-models';
 
+import { ConfirmDialogService } from '@learnwren/web-ui';
+
 import { MaterialsService } from './materials.service';
 import { MaterialsListComponent } from './materials-list.component';
 
@@ -36,12 +38,22 @@ function apiMock(over: Partial<MaterialsService> = {}): Partial<MaterialsService
   };
 }
 
+// Shared confirm dialog stub: resolves false so the queued resolution routed
+// into confirmRemoval is a guaranteed no-op; tests drive confirmRemoval
+// directly to simulate the user's choice.
+const confirmDialog = { confirm: vi.fn() };
+
 function render(
   api: Partial<MaterialsService>,
 ): { fixture: ComponentFixture<MaterialsListComponent>; ref: ComponentRef<MaterialsListComponent> } {
+  confirmDialog.confirm.mockReset();
+  confirmDialog.confirm.mockResolvedValue(false);
   TestBed.configureTestingModule({
     imports: [MaterialsListComponent],
-    providers: [{ provide: MaterialsService, useValue: api }],
+    providers: [
+      { provide: MaterialsService, useValue: api },
+      { provide: ConfirmDialogService, useValue: confirmDialog },
+    ],
   });
   const fixture = TestBed.createComponent(MaterialsListComponent);
   fixture.componentRef.setInput('courseId', 'c1' as CourseId);
@@ -240,6 +252,22 @@ describe('MaterialsListComponent', () => {
     await cmp.commitRename(mat('m1', 'Doc One'));
     expect(api.rename).toHaveBeenCalledWith('m1', 'Renamed');
     expect(cmp.materials()[0].displayName).toBe('Renamed');
+  });
+
+  it('askRemove opens the shared confirm dialog naming the material', () => {
+    const { fixture } = render(apiMock());
+    const cmp = fixture.componentInstance;
+
+    cmp.askRemove(mat('m1', 'Doc One'));
+
+    expect(confirmDialog.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        header: 'Remove material',
+        message: "Remove 'Doc One'? This cannot be undone.",
+        acceptLabel: 'Remove material',
+        variant: 'destructive',
+      }),
+    );
   });
 
   it('removes a material only after the confirm dialog is accepted', async () => {

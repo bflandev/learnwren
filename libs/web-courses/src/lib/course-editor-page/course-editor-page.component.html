@@ -18,7 +18,11 @@
   </header>
 
   @if (tree() === null) {
-    <p class="text-sm text-ink-3">Loading…</p>
+    <div class="flex flex-col gap-3">
+      <hlm-skeleton label="Loading course" class="h-16 w-full" />
+      <hlm-skeleton class="h-40 w-full" />
+      <hlm-skeleton class="h-24 w-full" />
+    </div>
   } @else {
     <div class="space-y-5">
       <lib-course-publish-bar
@@ -48,7 +52,13 @@
       <div class="flex items-center justify-between gap-4">
         <h2 class="text-lg">Modules</h2>
         @if (!addingModule()) {
-          <button lwButton data-testid="add-module" type="button" (click)="startAddModule()">
+          <button
+            hlmBtn
+            variant="secondary"
+            data-testid="add-module"
+            type="button"
+            (click)="startAddModule()"
+          >
             Add module
           </button>
         }
@@ -61,6 +71,7 @@
         >
           <label class="sr-only" for="new-module-title">Module title</label>
           <input
+            hlmInput
             id="new-module-title"
             data-testid="new-module-title"
             type="text"
@@ -69,9 +80,10 @@
             [value]="newModuleTitle()"
             (input)="newModuleTitle.set($any($event.target).value)"
           />
-          <button lwButton data-testid="add-module-confirm" type="submit">Add</button>
+          <button hlmBtn data-testid="add-module-confirm" type="submit">Add</button>
           <button
-            lwButton
+            hlmBtn
+            variant="ghost"
             data-testid="add-module-cancel"
             type="button"
             (click)="cancelAddModule()"
@@ -100,21 +112,14 @@
   }
 
   @if (error()) {
-    <p class="error mt-4 text-sm text-bad" data-testid="editor-error" role="alert">
+    <hlm-alert severity="error" class="mt-4" data-testid="editor-error">
       {{ error() }}
-    </p>
+    </hlm-alert>
   }
 
   @if (notice()) {
-    <p class="mt-4 text-sm text-good" data-testid="editor-notice" role="status">
+    <hlm-alert severity="success" class="mt-4" data-testid="editor-notice">
       {{ notice() }}
-    </p>
-  }
-
-  @if (pendingConfirm()) {
-    <lib-confirm-dialog
-      [message]="confirmMessage()"
-      (closed)="onConfirmClosed($event)"
-    ></lib-confirm-dialog>
+    </hlm-alert>
   }
 </div>

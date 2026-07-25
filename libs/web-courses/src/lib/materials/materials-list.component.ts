@@ -11,16 +11,15 @@ import type {
   ModuleId,
 } from '@learnwren/shared-data-models';
 
-import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
+import { ConfirmDialogService, HlmButton, HlmInput } from '@learnwren/web-ui';
 
-import { ConfirmDialogComponent } from '../components/confirm-dialog/confirm-dialog.component';
 import { MaterialUploadService } from './material-upload.service';
 import { MaterialsService } from './materials.service';
 
 @Component({
   selector: 'lib-materials-list',
   standalone: true,
-  imports: [FormsModule, ConfirmDialogComponent, LwButtonDirective, LwInputDirective],
+  imports: [FormsModule, HlmButton, HlmInput],
   templateUrl: './materials-list.component.html',
   providers: [MaterialUploadService],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -28,6 +27,7 @@ import { MaterialsService } from './materials.service';
 export class MaterialsListComponent {
   private readonly api = inject(MaterialsService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly confirmDialog = inject(ConfirmDialogService);
   readonly upload = inject(MaterialUploadService);
 
   readonly courseId = input.required<CourseId>();
@@ -110,8 +110,21 @@ export class MaterialsListComponent {
     }
   }
 
+  /**
+   * Record the material awaiting removal, then route the shared confirm
+   * dialog's outcome into confirmRemoval. pendingRemoval is consumed exactly
+   * once there, so a stale resolution no-ops.
+   */
   askRemove(m: Material): void {
     this.pendingRemoval.set(m);
+    void this.confirmDialog
+      .confirm({
+        header: 'Remove material',
+        message: `Remove '${m.displayName}'? This cannot be undone.`,
+        acceptLabel: 'Remove material',
+        variant: 'destructive',
+      })
+      .then((confirmed) => this.confirmRemoval(confirmed));
   }
 
   async confirmRemoval(confirmed: boolean): Promise<void> {

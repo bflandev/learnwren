@@ -6,6 +6,7 @@ import { Subject, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Course, VideoState } from '@learnwren/shared-data-models';
+import { ConfirmDialogService } from '@learnwren/web-ui';
 
 import { CourseEditorPageComponent } from './course-editor-page.component';
 import { CoursePublishBarComponent } from '../publish/course-publish-bar.component';
@@ -80,8 +81,14 @@ function internals(component: CourseEditorPageComponent): EditorInternals {
 describe('CourseEditorPageComponent', () => {
   let http: HttpTestingController;
   const notifications = { notifyModule: vi.fn() };
+  // Shared confirm dialog stub: resolves false so a stale resolution routed
+  // into onConfirmClosed is a guaranteed no-op; tests drive onConfirmClosed
+  // directly to simulate the user's choice.
+  const confirmDialog = { confirm: vi.fn() };
 
   beforeEach(() => {
+    confirmDialog.confirm.mockReset();
+    confirmDialog.confirm.mockResolvedValue(false);
     TestBed.configureTestingModule({
       imports: [CourseEditorPageComponent],
       providers: [
@@ -95,6 +102,7 @@ describe('CourseEditorPageComponent', () => {
           },
         },
         { provide: NotificationsService, useValue: notifications },
+        { provide: ConfirmDialogService, useValue: confirmDialog },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -124,17 +132,50 @@ describe('CourseEditorPageComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('M1');
   });
 
-  it('opens confirm dialog when delete module is requested', async () => {
-    const fixture = TestBed.createComponent(CourseEditorPageComponent);
-    fixture.detectChanges();
-    http.expectOne('/api/courses/cid-1').flush(buildTree());
-    await fixture.whenStable();
-    fixture.detectChanges();
+  it('opens the shared confirm dialog when delete module is requested', async () => {
+    const fixture = await initEditor();
 
     fixture.componentInstance.requestDeleteModule('mid-1');
-    fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'This will permanently remove this module',
+
+    expect(confirmDialog.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        header: 'Delete module',
+        message:
+          'This will permanently remove this module and all its lessons. This action cannot be undone.',
+        acceptLabel: 'Delete',
+        variant: 'destructive',
+      }),
+    );
+  });
+
+  it('opens the shared confirm dialog with delete-course copy when course deletion is requested', async () => {
+    const fixture = await initEditor();
+
+    fixture.componentInstance.requestDeleteCourse();
+
+    expect(confirmDialog.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        header: 'Delete course',
+        message:
+          'Permanently delete this course and all its modules and lessons. This action cannot be undone.',
+        acceptLabel: 'Delete',
+        variant: 'destructive',
+      }),
+    );
+  });
+
+  it('opens the shared confirm dialog with delete-lesson copy when lesson deletion is requested', async () => {
+    const fixture = await initEditor();
+
+    fixture.componentInstance.requestDeleteLesson({ moduleId: 'mid-1', lessonId: 'lid-1' });
+
+    expect(confirmDialog.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        header: 'Delete lesson',
+        message: 'Delete this lesson? This action cannot be undone.',
+        acceptLabel: 'Delete',
+        variant: 'destructive',
+      }),
     );
   });
 
@@ -651,38 +692,29 @@ describe('CourseEditorPageComponent', () => {
     expect(link!.getAttribute('href')).toContain('/analytics');
   });
 
-  describe('confirmMessage', () => {
-    it('is empty when nothing is pending', async () => {
-      const fixture = await initEditor();
-      expect(fixture.componentInstance.confirmMessage()).toBe('');
-    });
-
-    it('warns that deleting a course is permanent', async () => {
-      const fixture = await initEditor();
-      fixture.componentInstance.requestDeleteCourse();
-      expect(fixture.componentInstance.confirmMessage()).toContain(
-        'Permanently delete this course',
-      );
-    });
-
+  describe('confirm dialog copy', () => {
     it('explains that unpublishing returns the course to draft', async () => {
       const fixture = await initEditor();
       internals(fixture.componentInstance).requestPublishConfirm('unpublish');
-      expect(fixture.componentInstance.confirmMessage()).toContain('return to draft');
+      expect(confirmDialog.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          header: 'Unpublish course',
+          message: expect.stringContaining('return to draft'),
+          acceptLabel: 'Unpublish',
+        }),
+      );
     });
 
     it('explains that archiving hides the course from the catalogue', async () => {
       const fixture = await initEditor();
       internals(fixture.componentInstance).requestPublishConfirm('archive');
-      expect(fixture.componentInstance.confirmMessage()).toContain(
-        'hidden from the catalogue',
+      expect(confirmDialog.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          header: 'Archive course',
+          message: expect.stringContaining('hidden from the catalogue'),
+          acceptLabel: 'Archive',
+        }),
       );
-    });
-
-    it('falls back to the lesson copy for a pending lesson delete', async () => {
-      const fixture = await initEditor();
-      fixture.componentInstance.requestDeleteLesson({ moduleId: 'mid-1', lessonId: 'lid-1' });
-      expect(fixture.componentInstance.confirmMessage()).toContain('Delete this lesson');
     });
   });
 
@@ -760,6 +792,7 @@ describe('CourseEditorPageComponent', () => {
           provideRouter([]),
           { provide: ActivatedRoute, useValue: { paramMap: of(new Map()) } },
           { provide: NotificationsService, useValue: notifications },
+        { provide: ConfirmDialogService, useValue: confirmDialog },
         ],
       });
       const localHttp = TestBed.inject(HttpTestingController);
@@ -981,6 +1014,7 @@ describe('CourseEditorPageComponent', () => {
           provideRouter([]),
           { provide: ActivatedRoute, useValue: { paramMap: params$.asObservable() } },
           { provide: NotificationsService, useValue: notifications },
+        { provide: ConfirmDialogService, useValue: confirmDialog },
         ],
       });
       return { params$, http: TestBed.inject(HttpTestingController) };

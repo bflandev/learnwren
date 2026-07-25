@@ -4,7 +4,7 @@
   @if (loadError()) {
     <p data-testid="materials-load-error" class="text-sm text-bad">
       Couldn't load materials.
-      <button lwButton variant="ghost" type="button" (click)="refresh()">Retry</button>
+      <button hlmBtn variant="ghost" size="sm" type="button" (click)="refresh()">Retry</button>
     </p>
   } @else if (materials().length === 0) {
     <p data-testid="materials-empty" class="text-sm text-ink-3">No materials yet.</p>
@@ -23,7 +23,7 @@
       <li data-testid="material-row" class="flex flex-wrap items-center gap-2">
         @if (editingId() === m.id) {
           <input
-            lwInput
+            hlmInput
             data-testid="material-rename-input"
             type="text"
             class="flex-1"
@@ -43,15 +43,15 @@
             {{ m.displayName }}
           </button>
         }
-        <button lwButton variant="ghost" type="button" data-testid="material-download" (click)="download(m)">
+        <button hlmBtn variant="ghost" size="sm" type="button" data-testid="material-download" (click)="download(m)">
           Download
         </button>
         <button
-          lwButton
-          variant="ghost"
+          hlmBtn
+          variant="destructive"
+          size="sm"
           type="button"
           data-testid="material-remove"
-          class="text-bad"
           (click)="askRemove(m)"
         >
           Remove
@@ -72,7 +72,7 @@
   }
 
   <label data-testid="material-add" class="mt-2 inline-flex cursor-pointer items-center">
-    <span class="lw-btn lw-btn-ghost">Add material</span>
+    <span hlmBtn variant="ghost" size="sm">Add material</span>
     <input
       type="file"
       multiple
@@ -85,11 +85,4 @@
     PDF, DOCX, PPTX, XLSX, TXT, or ZIP, up to 50 MB each.
   </p>
 
-  @if (pendingRemoval(); as m) {
-    <lib-confirm-dialog
-      [message]="'Remove \'' + m.displayName + '\'? This cannot be undone.'"
-      confirmLabel="Remove material"
-      (closed)="confirmRemoval($event)"
-    />
-  }
 </section>

@@ -22,22 +22,22 @@ import {
   VideoUploadComponent,
 } from '@learnwren/web-video';
 
-import { LwButtonDirective, LwInputDirective } from '@learnwren/web-ui';
+import { ConfirmDialogService, HlmButton, HlmInput } from '@learnwren/web-ui';
 
 import { CaptionsPanelComponent } from '../../captions/captions-panel.component';
-import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { MaterialsListComponent } from '../../materials/materials-list.component';
 
 @Component({
   selector: 'lib-lesson-item',
   standalone: true,
-  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, CaptionsPanelComponent, ConfirmDialogComponent, LwButtonDirective, LwInputDirective],
+  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, CaptionsPanelComponent, HlmButton, HlmInput],
   templateUrl: './lesson-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LessonItemComponent {
   private readonly api = inject(VideoService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly confirmDialog = inject(ConfirmDialogService);
 
   readonly lesson = input.required<Lesson>();
   readonly courseId = input.required<CourseId>();
@@ -51,7 +51,6 @@ export class LessonItemComponent {
   readonly draftTitle = signal('');
   readonly video = signal<Video | undefined>(undefined);
   readonly captionsMeta = signal<VideoCaptionsMeta | null>(null);
-  readonly confirmingVideoRemoval = signal(false);
   readonly videoActionError = signal<string | null>(null);
 
   // Memoized by string value: same videoId on a new Lesson object reference does not re-fire the effect.
@@ -108,7 +107,14 @@ export class LessonItemComponent {
   }
 
   requestVideoRemoval(): void {
-    this.confirmingVideoRemoval.set(true);
+    void this.confirmDialog
+      .confirm({
+        header: 'Remove video',
+        message: 'Remove this video so a new one can be uploaded? This action cannot be undone.',
+        acceptLabel: 'Remove video',
+        variant: 'destructive',
+      })
+      .then((confirmed) => this.onVideoRemovalClosed(confirmed));
   }
 
   /**
@@ -117,7 +123,6 @@ export class LessonItemComponent {
    * uploader back and the instructor can re-upload.
    */
   async onVideoRemovalClosed(confirmed: boolean): Promise<void> {
-    this.confirmingVideoRemoval.set(false);
     if (!confirmed) return;
     const vid = this.lesson().videoId;
     if (!vid) return;
