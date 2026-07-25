@@ -8,11 +8,14 @@ export default [
   {
     files: ['**/*.ts'],
     rules: {
+      // Two prefixes coexist: `lw` for Learn Wren-authored primitives, `hlm`
+      // for components ported from the donor hlm/spartan lib (kept verbatim so
+      // future donor diffs stay cheap — see robin DS port slice B plan).
       '@angular-eslint/directive-selector': [
         'error',
         {
           type: 'attribute',
-          prefix: 'lw',
+          prefix: ['lw', 'hlm', 'brn'],
           style: 'camelCase',
         },
       ],
@@ -20,7 +23,7 @@ export default [
         'error',
         {
           type: 'element',
-          prefix: 'lw',
+          prefix: ['lw', 'hlm'],
           style: 'kebab-case',
         },
       ],
