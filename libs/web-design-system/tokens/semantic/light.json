@@ -9,7 +9,7 @@
     "ink-2": { "value": "oklch(38% 0.014 64)" },
     "ink-3": { "value": "oklch(52% 0.014 70)" },
     "ink-4": { "value": "oklch(64% 0.012 72)" },
-    "ochre": { "value": "oklch(64% 0.14 70)" },
+    "ochre": { "value": "oklch(54% 0.14 70)" },
     "ochre-2": { "value": "oklch(58% 0.14 65)" },
     "ochre-ink": { "value": "oklch(98% 0.01 80)" },
     "moss": { "value": "oklch(50% 0.12 145)" },

@@ -3,14 +3,12 @@ import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import * as admin from 'firebase-admin';
 
+import { ensureEmulatorAdmin } from './_helpers/emulator-admin';
+
 // Shared with apps/web-e2e/src/videos.spec.ts. A future refactor can extract
 // these into apps/web-e2e/src/_helpers.ts; intentionally duplicated for now
 // so slice D doesn't touch slice-C surface area.
-if (admin.apps.length === 0) {
-  process.env['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099';
-  process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
-  admin.initializeApp({ projectId: 'demo-learnwren' });
-}
+ensureEmulatorAdmin();
 
 const API_BASE = 'http://localhost:3333/api';
 const FIXTURE_MP4 = path.join(__dirname, 'fixtures', 'small-video.mp4');

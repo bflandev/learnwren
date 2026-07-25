@@ -1,3 +1,4 @@
+import { isDevMode } from '@angular/core';
 import { Route } from '@angular/router';
 
 import {
@@ -42,6 +43,21 @@ export const appRoutes: Route[] = [
     loadComponent: () =>
       import('./dashboard/dashboard.component').then((m) => m.DashboardComponent),
   },
+  // Dev-only design-system showcase — guard-free and unlinked from any nav.
+  // App-local component, lazily loaded: it imports every hlm component, and a
+  // lazy chunk keeps that entire surface out of the initial bundle (the shell
+  // itself only pays for the components it actually uses).
+  ...(isDevMode()
+    ? [
+        {
+          path: 'showcase',
+          loadComponent: () =>
+            import('./showcase/hlm-showcase.component').then(
+              (m) => m.HlmShowcaseComponent,
+            ),
+        },
+      ]
+    : []),
   ...catalogRoutes,
   ...coursesRoutes,
   ...adminRoutes,

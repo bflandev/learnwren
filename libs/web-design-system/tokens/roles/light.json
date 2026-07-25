@@ -1,0 +1,28 @@
+{
+  "//": "Light-theme overrides for role tokens whose value is a literal (var-ref roles in roles/shared.json re-resolve against the light core automatically and need no entry here). Contrast-tuned per the gate in contrast.spec.ts.",
+  "groups": {
+    "button": {
+      "button-primary-bg-hover": { "value": "oklch(52% 0.14 65)" },
+      "button-primary-bg-active": { "value": "oklch(52% 0.14 65)" },
+      "button-primary-border-hover": { "value": "oklch(52% 0.14 65)" },
+      "button-link-fg-hover": { "value": "oklch(52% 0.14 65)" },
+      "button-danger-bg-hover": { "value": "var(--lw-rust)" }
+    },
+    "status-foreground": {
+      "success-foreground": { "value": "oklch(36% 0.12 145)" },
+      "warning-foreground": { "value": "oklch(38% 0.13 75)" },
+      "destructive-foreground": { "value": "oklch(40% 0.18 25)" },
+      "info-foreground": { "value": "oklch(36% 0.10 145)" }
+    },
+    "badge": {
+      "badge-accent-fg": { "value": "oklch(38% 0.14 70)" },
+      "badge-category-fg": { "value": "oklch(38% 0.14 70)" }
+    },
+    "overlay": {
+      "scrim": { "value": "oklch(20% 0.01 60 / 0.4)" }
+    },
+    "misc": {
+      "ochre-soft": { "value": "oklch(90% 0.05 75)" }
+    }
+  }
+}

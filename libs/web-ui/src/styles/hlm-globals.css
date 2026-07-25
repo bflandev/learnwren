@@ -1,0 +1,294 @@
+/* Global ds-* keyframes and state classes for the hlm component library.
+ * Ported from the donor app's tailwind.css @layer app block (slice B);
+ * @apply strings are expanded to plain CSS because this file compiles as
+ * its own styles entry (no Tailwind theme context). All animations read
+ * --lw-motion-* role tokens, so the reduced-motion override in the
+ * generated tokens.css stills them automatically. Keyframes live here —
+ * not in component stylesheets — because emulated encapsulation scopes a
+ * component @keyframes name but can leave the minified animation:
+ * reference bare, stranding the animation. */
+
+/* Fresh-flash: post-save confirmation pulse on the soft-tint badge success
+ * pair, so the flash sits in the same restraint register as toasts and
+ * badges instead of pulsing at full saturation. The error severity mirrors
+ * it on the soft danger pair for a failed-write pulse. */
+@keyframes ds-fresh-flash {
+  0% {
+    background-color: var(--lw-badge-success-bg);
+    box-shadow: 0 0 0 2px var(--lw-badge-success-fg);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.ds-fresh-flash {
+  /* Rides the 700ms emphasis duration so the pulse reads as a deliberate
+   * confirmation rather than a blink; the pre-delay is owned by the
+   * consumer. Reduced-motion zeroes --lw-motion-duration-emphasis. */
+  animation: ds-fresh-flash var(--lw-motion-row-flash);
+  border-radius: var(--lw-radius-sm);
+}
+@keyframes ds-fresh-flash-error {
+  0% {
+    background-color: var(--lw-badge-danger-bg);
+    box-shadow: 0 0 0 2px var(--lw-badge-danger-fg);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.ds-fresh-flash-error {
+  animation: ds-fresh-flash-error var(--lw-motion-row-flash);
+  border-radius: var(--lw-radius-sm);
+}
+
+/* Popover surface enter (hlm-popover-content). The CDK overlay renders the
+ * content fresh on open, so this one-shot fade+scale runs on mount. */
+@keyframes ds-popover-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.ds-popover-enter {
+  animation: ds-popover-enter var(--lw-motion-popover-enter);
+}
+
+/* Dialog surface enter (hlm-dialog-content + hlm-alert-dialog). The base
+ * centres the panel with Tailwind v4's -translate-x-1/2 -translate-y-1/2,
+ * which emit the independent `translate:` CSS property — NOT `transform:`.
+ * Since translate: and transform: compose, this keyframe must animate
+ * transform with scale ONLY: baking the centring translate in here too
+ * would stack a second -50%/-50% on top of the translate: property,
+ * shoving the panel to the top-left for the animation's duration. */
+@keyframes ds-dialog-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.ds-dialog-enter {
+  animation: ds-dialog-enter var(--lw-motion-dialog-enter);
+}
+
+/* Sheet surface slide (hlm-sheet-content, via SHEET_SIDE_MAP). A sheet is
+ * an edge-anchored dialog, so it slides in from its `side`. The panel has
+ * no resting transform (it's pinned by inset), so `to { …(0) }` matches
+ * its settled position with no jump. */
+@keyframes ds-sheet-in-top {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes ds-sheet-in-bottom {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes ds-sheet-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes ds-sheet-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.ds-sheet-in-top {
+  animation: ds-sheet-in-top var(--lw-motion-drawer-slide);
+}
+.ds-sheet-in-bottom {
+  animation: ds-sheet-in-bottom var(--lw-motion-drawer-slide);
+}
+.ds-sheet-in-left {
+  animation: ds-sheet-in-left var(--lw-motion-drawer-slide);
+}
+.ds-sheet-in-right {
+  animation: ds-sheet-in-right var(--lw-motion-drawer-slide);
+}
+
+/* Sheet slide-out — opt-in exit, paired with ds-sheet-in-right. On close,
+ * brain's BrnDialog stamps data-state="closed" on the CDK overlay pane for
+ * a closeDelay window before teardown; a content panel that also carries
+ * ds-sheet-out-right slides back out to its edge during that window.
+ * `both` holds the off-screen end frame until the overlay detaches. Add
+ * sibling ds-sheet-out-<side> rules when another side needs the exit. */
+@keyframes ds-sheet-out-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+[data-state='closed'] .ds-sheet-out-right {
+  animation: ds-sheet-out-right var(--lw-motion-duration-fast)
+    var(--lw-motion-ease-emphasis) both;
+}
+
+/* Menu-item selection flash (hlm-menu-item, applied while HlmMenuItem
+ * defers CDK's auto-close). A --lw-selection-bg "this is picked" tint plus
+ * a brief ring-coloured inset pulse, confirming the chosen row before the
+ * panel tears down. Rides --lw-motion-popover-enter so it finishes in
+ * lockstep with the directive's close-deferral window. */
+@keyframes ds-menu-item-flash {
+  0% {
+    background-color: var(--lw-selection-bg);
+    box-shadow: inset 0 0 0 1px var(--lw-ring);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+}
+.ds-menu-item-flash {
+  animation: ds-menu-item-flash var(--lw-motion-popover-enter);
+}
+
+/* Skeleton shimmer — the surface ladder reads on both themes without a
+ * per-theme override. */
+@keyframes ds-skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.ds-skeleton-line {
+  background: linear-gradient(
+    90deg,
+    var(--lw-surface) 25%,
+    var(--lw-surface-hover) 50%,
+    var(--lw-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: ds-skeleton-shimmer var(--lw-motion-skeleton-shimmer-duration)
+    var(--lw-motion-ease-standard) infinite;
+  border-radius: var(--lw-radius-sm);
+}
+
+/* Skeleton block (hlm-skeleton). Same shimmer as the line above but with
+ * NO border-radius, so the consumer's rounded and size utilities own the
+ * shape. */
+.ds-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--lw-surface) 25%,
+    var(--lw-surface-hover) 50%,
+    var(--lw-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: ds-skeleton-shimmer var(--lw-motion-skeleton-shimmer-duration)
+    var(--lw-motion-ease-standard) infinite;
+}
+
+/* Dots (hlm-dots). Three pulsing dots for inline "working…" affordances.
+ * Colour rides currentColor so consumers drive it with a text-* utility
+ * (parity with hlm-spinner). The staggered delays read as a left-to-right
+ * ripple. (Donor @apply strings expanded: gap-1.5 = 6px, size-1.5 = 6px.) */
+@keyframes ds-dots-bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.5);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.ds-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ds-dots > i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: ds-dots-bounce var(--lw-motion-duration-glacial)
+    var(--lw-motion-ease-standard) infinite;
+}
+.ds-dots > i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.ds-dots > i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+/* Progress (hlm-progress). A muted pill track with an ochre fill.
+ * Determinate: the bar's width is set inline by the component and eases on
+ * the slow motion role. Indeterminate: a 42%-wide sweep rides the glacial
+ * loop across the track. (Donor @apply strings expanded: h-1.5 = 6px.) */
+@keyframes ds-progress-indeterminate {
+  0% {
+    left: -42%;
+  }
+  100% {
+    left: 102%;
+  }
+}
+.ds-progress {
+  position: relative;
+  display: block;
+  height: 6px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--lw-bg-3);
+}
+.ds-progress__bar {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--lw-ochre);
+  transition: width var(--lw-motion-duration-slow)
+    var(--lw-motion-ease-standard);
+}
+.ds-progress__indet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: block;
+  border-radius: 9999px;
+  background: var(--lw-ochre);
+  width: 42%;
+  animation: ds-progress-indeterminate var(--lw-motion-duration-glacial)
+    var(--lw-motion-ease-standard) infinite;
+}
+
+/* HlmDialog scrim. The colour lives here (not in the lib's .ts class strings)
+ * because the lib-wide token-discipline spec bans raw var() in TS —
+ * `lw-dialog-backdrop` is the brain backdropClass set by
+ * provideHlmDialogConfig(). No z-index: this CDK version hoists overlays into
+ * the native top layer, where z-index is ignored. */
+:where(.lw-dialog-backdrop) {
+  background: var(--lw-scrim);
+}

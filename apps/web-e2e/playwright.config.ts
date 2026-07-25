@@ -7,6 +7,13 @@ import { workspaceRoot } from '@nx/devkit';
 const webPort = process.env['WEB_PORT'] || '4200';
 const baseURL = process.env['BASE_URL'] || `http://localhost:${webPort}`;
 
+// Storage emulator host for public object URLs. Default matches firebase.json;
+// running the suite under `firebase emulators:exec` with a shifted-port config
+// overrides it via the standard env var (mirrors the WEB_PORT pattern above).
+const storageHost = (
+  process.env['FIREBASE_STORAGE_EMULATOR_HOST'] || 'localhost:9199'
+).replace(/^https?:\/\//, '');
+
 /**
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv
@@ -55,13 +62,12 @@ export default defineConfig({
         // LEARNWREN_COVER_STORAGE is unset, so the api uses the default
         // adapter; bucket + public base URL point at the emulator bucket.
         LEARNWREN_COVER_BUCKET: 'learnwren-e2e-covers',
-        LEARNWREN_COVER_PUBLIC_BASE_URL: 'http://localhost:9199/v0/b/learnwren-e2e-covers/o',
+        LEARNWREN_COVER_PUBLIC_BASE_URL: `http://${storageHost}/v0/b/learnwren-e2e-covers/o`,
         // Profile picture storage mirrors the cover pattern: defaults to fake
         // (in-memory) when LEARNWREN_PICTURE_STORAGE is unset, but bucket +
         // public base URL are still required at boot.
         LEARNWREN_PICTURE_BUCKET: 'learnwren-e2e-pictures',
-        LEARNWREN_PICTURE_PUBLIC_BASE_URL:
-          'http://localhost:9199/v0/b/learnwren-e2e-pictures/o',
+        LEARNWREN_PICTURE_PUBLIC_BASE_URL: `http://${storageHost}/v0/b/learnwren-e2e-pictures/o`,
         LEARNWREN_EMAIL_TRANSPORT: 'console',
         LEARNWREN_TEST_OUTBOX_ENABLED: '1',
         // All parallel workers share 127.0.0.1, so the production per-IP burst
