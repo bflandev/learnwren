@@ -248,10 +248,12 @@ test('journey 3: a student can navigate lessons and mark complete using only the
   await tabTo(page, /mark as complete/i);
   await expectVisibleFocus(page);
   await page.keyboard.press('Enter');
-  await expect(page.getByText(/completed/i).first()).toBeVisible();
+  // The real "did it work" element, not a substring match over the whole
+  // page (lesson-player-page.component.html:88).
+  await expect(page.getByTestId('completed-pill')).toBeVisible();
 });
 
-test('journey 4: an instructor can reorder modules using only the keyboard', async ({ page }) => {
+test('journey 4: an instructor can reorder modules and lessons using only the keyboard', async ({ page }) => {
   await stubAuth(page, 'instructor');
   await stubJson(page, '**/api/categories', [{ id: 'engineering', name: 'Engineering' }]);
   // GET /api/courses/:cid, not /tree — see COURSE_TREE's comment in
@@ -261,17 +263,26 @@ test('journey 4: an instructor can reorder modules using only the keyboard', asy
     eligible: false,
     reasons: [{ kind: 'COURSE_HAS_NO_MODULES' }],
   });
+  // MaterialsListComponent's constructor effect fetches this unconditionally
+  // per lesson (materials-list.component.ts:49-54) for both of m-1's lessons.
+  await stubJson(page, '**/api/courses/c-1/modules/m-1/lessons/rl-1/materials', []);
+  await stubJson(page, '**/api/courses/c-1/modules/m-1/lessons/rl-2/materials', []);
 
-  let reorderBody: unknown = null;
+  let moduleReorderBody: unknown = null;
   await page.route('**/api/courses/c-1/modules/order', async (route) => {
-    reorderBody = route.request().postDataJSON();
+    moduleReorderBody = route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  let lessonReorderBody: unknown = null;
+  await page.route('**/api/courses/c-1/modules/m-1/lessons/order', async (route) => {
+    lessonReorderBody = route.request().postDataJSON();
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
 
   await page.goto('/courses/c-1/edit');
   await expect(page.getByText('First module')).toBeVisible();
 
-  // Angular CDK's cdkDrag on this tree is pointer-only: there is no
+  // Angular CDK's cdkDrag on the module tree is pointer-only: there is no
   // cdkDragHandle, and the drag surface is a plain (non-focusable) <div>, so
   // it was never reachable by Tab and Space/Arrow never did anything — a
   // genuine keyboard trap, not a tab-budget problem. Reach the first
@@ -284,5 +295,41 @@ test('journey 4: an instructor can reorder modules using only the keyboard', asy
 
   // Prove the reorder actually persisted: the API call fired with the
   // expected payload, not merely that a button was pressed.
-  await expect.poll(() => reorderBody).toEqual({ ids: ['m-2', 'm-1'] });
+  await expect.poll(() => moduleReorderBody).toEqual({ ids: ['m-2', 'm-1'] });
+
+  // Focus must not be dumped to <body>: "First module" is now last, so its
+  // own Move-down button just became disabled and the browser would blur it
+  // by default. Its Move-up button (still enabled) must hold focus instead —
+  // a keyboard user who just acted needs to still be AT the thing they acted
+  // on, not back at the top of the page.
+  const focused = page.locator(':focus');
+  await expect(focused).toHaveAttribute('data-testid', 'module-move-up');
+  await expect(focused).toHaveAttribute('aria-label', 'Move First module up');
+  await expectVisibleFocus(page);
+
+  // The reorder must also be ANNOUNCED — a screen-reader user gets no visual
+  // cue that anything moved.
+  await expect(page.getByTestId('module-reorder-announcement')).toHaveText(
+    'First module moved to position 2 of 2',
+  );
+
+  // The identical trap existed one level down on the lesson list
+  // (lesson-list.component.html) — same fix, same proof. Same cdkDrag on a
+  // plain <li>, same "Move up"/"Move down" buttons added by this task.
+  await tabTo(page, /move first lesson down/i);
+  await expectVisibleFocus(page);
+  await page.keyboard.press('Enter');
+
+  await expect.poll(() => lessonReorderBody).toEqual({ ids: ['rl-2', 'rl-1'] });
+
+  const lessonFocused = page.locator(':focus');
+  await expect(lessonFocused).toHaveAttribute('data-testid', 'lesson-move-up');
+  await expect(lessonFocused).toHaveAttribute('aria-label', 'Move First lesson up');
+  await expectVisibleFocus(page);
+  // Scoped to m-1's own lesson list: LessonListComponent is instantiated once
+  // per module (m-2 has none, so its own empty live region also matches the
+  // bare testid — a strict-mode violation without this scope).
+  await expect(
+    page.locator('[data-module-id="m-1"]').getByTestId('lesson-reorder-announcement'),
+  ).toHaveText('First lesson moved to position 2 of 2');
 });

@@ -1,19 +1,52 @@
+<div class="sr-only" role="status" aria-live="polite" data-testid="lesson-reorder-announcement">
+  {{ announcement() }}
+</div>
 <ul
   cdkDropList
   (cdkDropListDropped)="onDrop($event)"
   data-testid="lesson-list"
   class="m-0 list-none space-y-2 p-0"
 >
-  @for (lesson of lessons(); track lesson.id) {
-    <li cdkDrag [attr.data-lesson-id]="lesson.id">
-      <lib-lesson-item
-        [lesson]="lesson"
-        [courseId]="courseId()"
-        (rename)="renameLesson.emit({ lessonId: lesson.id, title: $event })"
-        (delete)="deleteLesson.emit(lesson.id)"
-        (videoChanged)="videoChanged.emit()"
-        (videoStateChanged)="videoStateChanged.emit($event)"
-      ></lib-lesson-item>
+  @for (lesson of lessons(); track lesson.id; let i = $index) {
+    <li cdkDrag [attr.data-lesson-id]="lesson.id" class="flex items-start gap-2">
+      <!--
+        cdkDrag is pointer-only here: there is no cdkDragHandle, so it is
+        never reachable by Tab and Space/Arrow do nothing. These buttons are
+        the keyboard path — see ModuleTreeComponent's move buttons for the
+        identical pattern one level up.
+      -->
+      <div class="flex flex-col gap-1 pt-1">
+        <button
+          hlmBtn
+          variant="ghost"
+          size="sm"
+          type="button"
+          data-testid="lesson-move-up"
+          [attr.aria-label]="'Move ' + lesson.title + ' up'"
+          [disabled]="i === 0"
+          (click)="moveLesson(i, i - 1)"
+        >&uarr;</button>
+        <button
+          hlmBtn
+          variant="ghost"
+          size="sm"
+          type="button"
+          data-testid="lesson-move-down"
+          [attr.aria-label]="'Move ' + lesson.title + ' down'"
+          [disabled]="i === lessons().length - 1"
+          (click)="moveLesson(i, i + 1)"
+        >&darr;</button>
+      </div>
+      <div class="flex-1">
+        <lib-lesson-item
+          [lesson]="lesson"
+          [courseId]="courseId()"
+          (rename)="renameLesson.emit({ lessonId: lesson.id, title: $event })"
+          (delete)="deleteLesson.emit(lesson.id)"
+          (videoChanged)="videoChanged.emit()"
+          (videoStateChanged)="videoStateChanged.emit($event)"
+        ></lib-lesson-item>
+      </div>
     </li>
   } @empty {
     <li class="empty text-sm text-ink-3">No lessons yet.</li>

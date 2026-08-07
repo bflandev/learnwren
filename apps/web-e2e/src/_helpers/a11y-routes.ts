@@ -244,7 +244,12 @@ export const REORDER_COURSE_TREE = {
   modules: [
     {
       module: { id: 'm-1', courseId: 'c-1', title: 'First module', order: 0, createdAt: NOW, updatedAt: NOW },
-      lessons: [],
+      // Two lessons so keyboard journey 4/5 can also exercise the LESSON
+      // reorder buttons (LessonListComponent.moveLesson), not just modules.
+      lessons: [
+        { id: 'rl-1', moduleId: 'm-1', title: 'First lesson', order: 0, createdAt: NOW, updatedAt: NOW },
+        { id: 'rl-2', moduleId: 'm-1', title: 'Second lesson', order: 1, createdAt: NOW, updatedAt: NOW },
+      ],
     },
     {
       module: { id: 'm-2', courseId: 'c-1', title: 'Second module', order: 1, createdAt: NOW, updatedAt: NOW },
