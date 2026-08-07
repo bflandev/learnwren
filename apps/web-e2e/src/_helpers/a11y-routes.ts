@@ -23,13 +23,27 @@ export interface A11yRoute {
    * test instead of silently scanning three lines of chrome.
    */
   expectText?: string;
+  /**
+   * Use `toBeAttached()` instead of `toBeVisible()` for `expectText`. Only
+   * for content Playwright never reports as visible even when correctly
+   * rendered — namely `<option>` text inside a closed `<select>`. Still a
+   * real DOM-presence check (a fixture-shape bug throws before the option
+   * renders at all), just not a visibility one.
+   */
+  expectAttached?: boolean;
 }
 
 export const NOW = '2026-08-01T00:00:00.000Z';
 
-export const FIRST_CATEGORY = { id: 'design', name: 'Design' };
+// Shape verified against CourseCategoryDoc, libs/shared-data-models/src/lib/category.ts:8-13
+// — createdAt/updatedAt are required fields (unused by any consuming
+// template today, but included so this fixture holds the full contract).
+export const FIRST_CATEGORY = { id: 'design', name: 'Design', createdAt: NOW, updatedAt: NOW };
 
-export const CATEGORIES = [FIRST_CATEGORY, { id: 'engineering', name: 'Engineering' }];
+export const CATEGORIES = [
+  FIRST_CATEGORY,
+  { id: 'engineering', name: 'Engineering', createdAt: NOW, updatedAt: NOW },
+];
 
 // Shape verified against CourseSummary, libs/shared-data-models/src/lib/catalog.ts:11-21.
 // instructorDisplayName (not instructorName) — course-card.component.html:16,23 reads it.
@@ -300,6 +314,12 @@ export const AUTHED_ROUTES: A11yRoute[] = [
     stubs: async (page) => {
       await stubJson(page, '**/api/categories', CATEGORIES);
     },
+    // CATEGORIES renders into <option> elements (course-create-page.component.html:53-55);
+    // without this, a fixture-shape bug in CATEGORIES would go unnoticed.
+    // <option> text is never reported "visible" by Playwright even when
+    // correctly rendered, so this uses the attached-only variant.
+    expectText: FIRST_CATEGORY.name,
+    expectAttached: true,
   },
   {
     name: 'course editor',
@@ -313,6 +333,11 @@ export const AUTHED_ROUTES: A11yRoute[] = [
         eligible: false,
         reasons: [{ kind: 'COURSE_HAS_NO_MODULES' }],
       });
+      // MaterialsListComponent's constructor effect fetches this
+      // unconditionally per lesson (materials-list.component.ts:49-54) — it
+      // is not gated behind opening the lesson, so the base editor scan
+      // needs it stubbed too, or the request escapes to the dev server.
+      await stubJson(page, '**/api/courses/c-1/modules/m-1/lessons/l-1/materials', []);
     },
     expectText: 'Getting started',
   },
