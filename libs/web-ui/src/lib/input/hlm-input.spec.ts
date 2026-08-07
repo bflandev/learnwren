@@ -83,15 +83,40 @@ describe('HlmInput', () => {
   // PVED-10656: select-all-on-focus is on by default so the first keystroke
   // replaces the value (and a masked field's revealed skeleton is highlighted).
   // The select() is deferred a macrotask, driven here with fake timers.
+  //
+  // Uses host.focus() (not a synthetic FocusEvent dispatch) so
+  // document.activeElement is actually the host when the deferred callback's
+  // guard checks it — see the directive's onFocus() comment: the callback
+  // now only calls select() if this element is still the focused one, which
+  // a bare `dispatchEvent(new FocusEvent('focus'))` does not satisfy in
+  // jsdom (it fires the listener without moving activeElement).
   it('selects the whole field on focus by default', () => {
     const { host } = setup();
     host.value = 'breaking';
     const spy = vi.spyOn(host, 'select');
     vi.useFakeTimers();
-    host.dispatchEvent(new FocusEvent('focus'));
+    host.focus();
     vi.runAllTimers();
     vi.useRealTimers();
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression test for the focus-steal bug (Fix round 2, task-7-report.md):
+  // an unconditional deferred select() re-focuses its target even after the
+  // user has tabbed away, silently redirecting subsequent keystrokes into
+  // the field they just left. Simulates exactly that: focus this field
+  // (queues the deferred select()), blur it (as Tab would) BEFORE the timer
+  // fires, and assert select() is never called on the stale reference.
+  it('does not select a field that has already lost focus by the time the deferred callback runs', () => {
+    const { host } = setup();
+    host.value = 'breaking';
+    const spy = vi.spyOn(host, 'select');
+    vi.useFakeTimers();
+    host.focus();
+    host.blur();
+    vi.runAllTimers();
+    vi.useRealTimers();
+    expect(spy).not.toHaveBeenCalled();
   });
 
   // The directive can sit on any element via [hlmInput]; the typeof-select
@@ -110,7 +135,7 @@ describe('HlmInput', () => {
     // Act / Assert — without the guard the deferred callback would call
     // undefined() and the timer flush would throw.
     vi.useFakeTimers();
-    host.dispatchEvent(new FocusEvent('focus'));
+    host.focus();
     expect(() => vi.runAllTimers()).not.toThrow();
     vi.useRealTimers();
   });
@@ -122,7 +147,7 @@ describe('HlmInput', () => {
     const host = fixture.nativeElement.querySelector('input') as HTMLInputElement;
     const spy = vi.spyOn(host, 'select');
     vi.useFakeTimers();
-    host.dispatchEvent(new FocusEvent('focus'));
+    host.focus();
     vi.runAllTimers();
     vi.useRealTimers();
     expect(spy).not.toHaveBeenCalled();

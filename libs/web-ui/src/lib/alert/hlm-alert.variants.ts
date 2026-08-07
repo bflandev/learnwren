@@ -21,8 +21,9 @@ const BASE =
 // the host's `text-ink` inheritance so the title picks up the severity
 // `-foreground` token (info-900/100, success-900/100, etc.) at the AAA tier
 // already gated by contrast.spec.ts (8.28–14.68:1 across both themes). The
-// description stays `text-ink-3` so the title carries the colored
-// signal and the body stays maximally legible.
+// description uses `text-ink-2` (ink-3 fails AA against the tinted severity
+// backgrounds, see hlm-alert.component.ts) so the title still carries the
+// colored signal while the body stays legible.
 export const ALERT_SEVERITY_MAP = {
   info: 'border-moss/50 bg-moss/15 [&_[data-alert-icon]]:text-moss [&_hlm-alert-title]:text-info-foreground',
   success:

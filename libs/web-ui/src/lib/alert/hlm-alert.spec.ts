@@ -240,7 +240,7 @@ describe('HlmAlertDescription', () => {
     ) as HTMLElement;
     expect(el.textContent?.trim()).toBe('Description');
     expect(el.classList.contains('text-body')).toBe(true);
-    expect(el.classList.contains('text-ink-3')).toBe(true);
+    expect(el.classList.contains('text-ink-2')).toBe(true);
     expect(el.classList.contains('mt-2')).toBe(true);
   });
 });

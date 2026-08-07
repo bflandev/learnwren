@@ -79,7 +79,12 @@
                 [hlmSelectSingle]="reassignTo()"
                 (hlmSelectSingleChange)="onReassignChange($event)"
               >
-                <button hlmSelectTrigger type="button" data-testid="reassign-select">
+                <button
+                  hlmSelectTrigger
+                  type="button"
+                  aria-label="Reassign courses to category"
+                  data-testid="reassign-select"
+                >
                   @if (reassignToName(); as name) {
                     <span>{{ name }}</span>
                   } @else {

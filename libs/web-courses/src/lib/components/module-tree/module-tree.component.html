@@ -1,26 +1,59 @@
+<div class="sr-only" role="status" aria-live="polite" data-testid="module-reorder-announcement">
+  {{ announcement() }}
+</div>
 <div
   cdkDropList
   (cdkDropListDropped)="onDrop($event)"
   data-testid="module-tree"
   class="space-y-3"
 >
-  @for (node of nodes(); track node.module.id) {
-    <div cdkDrag [attr.data-module-id]="node.module.id">
-      <lib-module-item
-        [module]="node.module"
-        [lessons]="node.lessons"
-        [courseId]="courseId()"
-        (renameModule)="renameModule.emit({ moduleId: node.module.id, title: $event })"
-        (deleteModule)="deleteModule.emit(node.module.id)"
-        (addLesson)="addLesson.emit({ moduleId: node.module.id, title: $event })"
-        (renameLesson)="renameLesson.emit({ moduleId: node.module.id, lessonId: $event.lessonId, title: $event.title })"
-        (deleteLesson)="deleteLesson.emit({ moduleId: node.module.id, lessonId: $event })"
-        (reorderLessons)="reorderLessons.emit({ moduleId: node.module.id, lessonIds: $event })"
-        [coursePublished]="coursePublished()"
-        (notifyModule)="notifyModule.emit(node.module.id)"
-        (videoChanged)="videoChanged.emit()"
-        (videoStateChanged)="videoStateChanged.emit($event)"
-      ></lib-module-item>
+  @for (node of nodes(); track node.module.id; let i = $index) {
+    <div cdkDrag [attr.data-module-id]="node.module.id" class="flex items-start gap-2">
+      <!--
+        cdkDrag is pointer-only here: there is no cdkDragHandle and the drag
+        surface is a plain div, so it is never reachable by Tab and Space/
+        Arrow do nothing. These buttons are the keyboard path — they call the
+        same reorderModules-emitting handler the drop event calls.
+      -->
+      <div class="flex flex-col gap-1 pt-4">
+        <button
+          hlmBtn
+          variant="ghost"
+          size="sm"
+          type="button"
+          data-testid="module-move-up"
+          [attr.aria-label]="'Move ' + node.module.title + ' up'"
+          [disabled]="i === 0"
+          (click)="moveModule(i, i - 1)"
+        >&uarr;</button>
+        <button
+          hlmBtn
+          variant="ghost"
+          size="sm"
+          type="button"
+          data-testid="module-move-down"
+          [attr.aria-label]="'Move ' + node.module.title + ' down'"
+          [disabled]="i === nodes().length - 1"
+          (click)="moveModule(i, i + 1)"
+        >&darr;</button>
+      </div>
+      <div class="flex-1">
+        <lib-module-item
+          [module]="node.module"
+          [lessons]="node.lessons"
+          [courseId]="courseId()"
+          (renameModule)="renameModule.emit({ moduleId: node.module.id, title: $event })"
+          (deleteModule)="deleteModule.emit(node.module.id)"
+          (addLesson)="addLesson.emit({ moduleId: node.module.id, title: $event })"
+          (renameLesson)="renameLesson.emit({ moduleId: node.module.id, lessonId: $event.lessonId, title: $event.title })"
+          (deleteLesson)="deleteLesson.emit({ moduleId: node.module.id, lessonId: $event })"
+          (reorderLessons)="reorderLessons.emit({ moduleId: node.module.id, lessonIds: $event })"
+          [coursePublished]="coursePublished()"
+          (notifyModule)="notifyModule.emit(node.module.id)"
+          (videoChanged)="videoChanged.emit()"
+          (videoStateChanged)="videoStateChanged.emit($event)"
+        ></lib-module-item>
+      </div>
     </div>
   } @empty {
     <p class="empty text-sm text-ink-3">No modules yet. Click "Add module" to begin.</p>

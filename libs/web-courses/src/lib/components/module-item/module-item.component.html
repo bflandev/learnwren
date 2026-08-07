@@ -5,6 +5,7 @@
         hlmInput
         data-testid="module-rename-input"
         type="text"
+        aria-label="Module title"
         class="flex-1"
         [ngModel]="draftTitle()"
         (ngModelChange)="draftTitle.set($event)"
@@ -63,6 +64,7 @@
       hlmInput
       data-testid="add-lesson-input"
       type="text"
+      aria-label="New lesson title"
       class="mt-3"
       [ngModel]="newLessonTitle()"
       (ngModelChange)="newLessonTitle.set($event)"

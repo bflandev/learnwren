@@ -25,6 +25,7 @@ export const INPUT_BASE =
   host: {
     '[class]': 'computedClass()',
     '(focus)': 'onFocus()',
+    '(blur)': 'onBlur()',
   },
 })
 export class HlmInput {
@@ -49,15 +50,34 @@ export class HlmInput {
     cn(INPUT_BASE, this.userClass()),
   );
 
+  private selectTimeoutId: ReturnType<typeof setTimeout> | undefined;
+
   // Deferred to a macrotask so it runs AFTER any sibling focus handler that
   // reshapes the field (the masked-date / date-picker / duration skeleton reveal
   // and caret steering) — otherwise the select() would be clobbered by the later
   // setSelectionRange. The deferral also sidesteps browsers that drop a selection
   // set synchronously inside the focus event.
+  //
+  // GUARDED, not unconditional: `HTMLInputElement.select()` implicitly
+  // (re)focuses its target in Chromium/Firefox even if focus has since moved
+  // elsewhere. If the user tabs to the next field and starts typing before
+  // this macrotask runs, an unconditional `node.select()` steals focus back
+  // to THIS field and the next field's keystrokes land here instead — silently
+  // corrupting whatever the user just typed into the field they tabbed to.
+  // Confirmed by repro: with two adjacent hlmInput fields (e.g. login
+  // email/password), tab + immediate typing loses characters into the
+  // previous field on a real, non-negligible fraction of runs. Cleared on
+  // blur so a field the user has already left never fires this at all.
   protected onFocus(): void {
     if (!this.selectAllOnFocus()) return;
     const node = this.el.nativeElement;
     if (typeof node.select !== 'function') return;
-    setTimeout(() => node.select());
+    this.selectTimeoutId = setTimeout(() => {
+      if (document.activeElement === node) node.select();
+    });
+  }
+
+  protected onBlur(): void {
+    clearTimeout(this.selectTimeoutId);
   }
 }

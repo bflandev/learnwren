@@ -1226,8 +1226,11 @@ Target a single project by invoking Nx directly, e.g. `pnpm nx test api-courses`
 
 # What is not built
 
-Every story in the written spec (`docs/epics/`, `docs/use-cases/`) is implemented.
-The remaining gaps are deliberate scope cuts inside shipped features:
+Every story in EP-01 through EP-08 is implemented. EP-09 (non-functional
+requirements) is partly done: US-09-02 (security) and US-09-03 (accessibility)
+are shipped; **US-09-01 (performance), US-09-04 (self-hosting), and US-09-05
+(mobile responsiveness) are not built.** The remaining gaps below are
+deliberate scope cuts inside shipped features:
 
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll
   are live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than
@@ -1240,6 +1243,9 @@ The remaining gaps are deliberate scope cuts inside shipped features:
   pending applications only, and no decline reason is captured.
 - **Account self-deletion, social auth, App Check** — explicitly out of MVP scope
   (admins can delete accounts; users cannot delete their own).
+- **Screen-reader verification** — the accessibility gate is automated axe plus
+  targeted keyboard journeys. No VoiceOver/NVDA pass has been run, and "alt text
+  is present and non-empty" is verified, not "alt text is descriptive".
 
 ## Further reading
 

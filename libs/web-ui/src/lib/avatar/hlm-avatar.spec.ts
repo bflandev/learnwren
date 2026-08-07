@@ -149,7 +149,7 @@ describe('HlmAvatar', () => {
     // Every avatar is circular, including the default `base` size.
     expect(host.classList.contains('rounded-full')).toBe(true);
     expect(host.classList.contains('bg-bg-3')).toBe(true);
-    expect(host.classList.contains('text-ink-3')).toBe(true);
+    expect(host.classList.contains('text-ink-2')).toBe(true);
     // PVED-10548: the ring-1 ring-border rim was a contrast crutch for the
     // near-identical light muted/surface tones. With --lw-bg-3 pushed to a
     // ~4% L step off --lw-bg-2 (the gray.150 hover/muted tone), the bare
