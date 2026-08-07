@@ -126,6 +126,22 @@ test('journey 1: a user can sign in using only the keyboard', async ({ page }) =
   await expectVisibleFocus(page);
   await page.keyboard.type('Aa1!aaaaaaaa');
 
+  // Wait for the actual submission-eligibility condition, not a sleep: the
+  // submit button's `disabled` attribute (bound to `form.invalid`) updates
+  // via Angular's asynchronous change detection, which lags the FormControl
+  // value update (synchronous, inside the native 'input' handler) by one
+  // scheduled CD pass. Pressing Enter immediately after the last keystroke
+  // can race ahead of that pass: a browser only performs Enter-triggered
+  // implicit form submission when the form's default button is NOT
+  // disabled, so while the attribute is still stale, the keypress is a
+  // silent no-op — confirmed by repro (see task-7-report.md "Fix round 2"):
+  // the button's disabled attribute was still `true` at the instant Enter
+  // was pressed in every reproduced failure, then flipped `false` shortly
+  // after. A human typing at ordinary speed never lands in that window;
+  // this assertion (auto-retrying, no fixed delay) waits for the same
+  // condition the browser itself checks before sending Enter.
+  await expect(page.getByRole('button', { name: /sign in/i })).toBeEnabled();
+
   // Submit with Enter from within the form.
   await page.keyboard.press('Enter');
 
