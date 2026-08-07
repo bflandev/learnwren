@@ -1,0 +1,44 @@
+<header class="sticky top-0 z-10 flex items-center gap-6 border-b border-line bg-bg px-6 py-3.5">
+  <a routerLink="/catalog"><lw-wordmark [size]="20" /></a>
+  <nav class="flex gap-1">
+    <a routerLink="/catalog" hlmBtn variant="ghost">Browse courses</a>
+    @if (auth.isAuthenticated()) {
+      <a routerLink="/dashboard" hlmBtn variant="ghost">Dashboard</a>
+      @if (auth.currentUser()?.role === 'INSTRUCTOR') {
+        <a routerLink="/courses" hlmBtn variant="ghost">My Courses</a>
+      }
+      @if (auth.currentUser()?.role === 'ADMIN') {
+        <a routerLink="/admin/instructor-applications" hlmBtn variant="ghost">Admin</a>
+        <a routerLink="/admin/users" hlmBtn variant="ghost">Users</a>
+        <a routerLink="/admin/categories" hlmBtn variant="ghost">Categories</a>
+        <a routerLink="/admin/health" hlmBtn variant="ghost">Health</a>
+      }
+    }
+  </nav>
+  <span class="flex-1"></span>
+  <lib-course-search-bar />
+  <lw-theme-toggle />
+  @if (auth.isAuthenticated()) {
+    <a
+      role="img"
+      routerLink="/settings/profile"
+      class="flex items-center gap-2"
+      [attr.aria-label]="'Profile settings for ' + (auth.currentUser()?.displayName ?? '')"
+    >
+      <hlm-avatar
+        size="sm"
+        [src]="auth.currentUser()?.photoUrl"
+        [alt]="auth.currentUser()?.displayName ?? ''"
+        [attr.data-tone]="avatarTone()"
+      >
+        <span data-testid="header-avatar-initials" class="text-xs font-medium">{{
+          avatarInitials()
+        }}</span>
+      </hlm-avatar>
+      <span class="user-chip-name text-sm">{{ auth.currentUser()?.displayName }}</span>
+    </a>
+  } @else {
+    <a routerLink="/login" hlmBtn variant="ghost">Log in</a>
+    <a routerLink="/register" hlmBtn>Register</a>
+  }
+</header>
