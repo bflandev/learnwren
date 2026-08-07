@@ -19,13 +19,13 @@
        only place those live below md; the bar keeps the theme toggle and the
        avatar, the two controls a student actually reaches for on a phone. -->
   <hlm-sheet side="left" class="md:hidden">
+    <!-- aria-expanded/aria-controls are host-bound by BrnDialogTrigger; don't re-add them. -->
     <button
       hlmBtn
       variant="ghost"
       hlmSheetTrigger
       type="button"
       aria-label="Open navigation menu"
-      aria-controls="header-nav-sheet"
       data-testid="header-nav-toggle"
     >
       <hlm-icon name="lucideMenu" />
