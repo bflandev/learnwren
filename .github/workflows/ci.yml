@@ -57,6 +57,40 @@ jobs:
       - name: Run affected tasks
         run: pnpm exec nx affected -t lint test build typecheck
 
+  # Hermetic accessibility gate: axe-core WCAG 2.1 AA sweep + keyboard-only
+  # journeys, driven by its own apps/web-e2e/playwright.a11y.config.ts. It
+  # starts only the Angular dev server and stubs every /api call via
+  # page.route, so — unlike the e2e/web-e2e jobs below — it needs neither the
+  # Firebase emulators nor the api. That makes it the cheapest gate in this
+  # workflow; it runs before the emulator-backed suites so a WCAG regression
+  # fails fast without waiting on the slower jobs.
+  a11y:
+    name: Accessibility gate (WCAG 2.1 AA)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run accessibility sweep
+        run: pnpm exec nx run web-e2e:a11y
+
   e2e:
     name: api-e2e (Firebase emulators)
     runs-on: ubuntu-latest
