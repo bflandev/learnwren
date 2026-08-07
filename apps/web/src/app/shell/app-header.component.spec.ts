@@ -84,4 +84,24 @@ describe('AppHeaderComponent', () => {
     const avatar = fixture.nativeElement.querySelector('hlm-avatar');
     expect(avatar).toBeTruthy();
   });
+
+  it('renders both the hamburger toggle and the inline nav (CSS decides which shows)', async () => {
+    configureAuthTestBed(AppHeaderComponent, null);
+    const fixture = TestBed.createComponent(AppHeaderComponent);
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="header-nav-toggle"]'),
+    ).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="header-nav"]')).not.toBeNull();
+  });
+
+  it('labels the hamburger for assistive technology', async () => {
+    configureAuthTestBed(AppHeaderComponent, null);
+    const fixture = TestBed.createComponent(AppHeaderComponent);
+    fixture.detectChanges();
+    const toggle: HTMLElement = fixture.nativeElement.querySelector(
+      '[data-testid="header-nav-toggle"]',
+    );
+    expect(toggle.getAttribute('aria-label')).toBe('Open navigation menu');
+  });
 });

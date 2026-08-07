@@ -1,23 +1,60 @@
-<header class="sticky top-0 z-10 flex items-center gap-6 border-b border-line bg-bg px-6 py-3.5">
-  <a routerLink="/catalog"><lw-wordmark [size]="20" /></a>
-  <nav class="flex gap-1">
-    <a routerLink="/catalog" hlmBtn variant="ghost">Browse courses</a>
-    @if (auth.isAuthenticated()) {
-      <a routerLink="/dashboard" hlmBtn variant="ghost">Dashboard</a>
-      @if (auth.currentUser()?.role === 'INSTRUCTOR') {
-        <a routerLink="/courses" hlmBtn variant="ghost">My Courses</a>
-      }
-      @if (auth.currentUser()?.role === 'ADMIN') {
-        <a routerLink="/admin/instructor-applications" hlmBtn variant="ghost">Admin</a>
-        <a routerLink="/admin/users" hlmBtn variant="ghost">Users</a>
-        <a routerLink="/admin/categories" hlmBtn variant="ghost">Categories</a>
-        <a routerLink="/admin/health" hlmBtn variant="ghost">Health</a>
-      }
+<ng-template #navLinks>
+  <a routerLink="/catalog" hlmBtn variant="ghost">Browse courses</a>
+  @if (auth.isAuthenticated()) {
+    <a routerLink="/dashboard" hlmBtn variant="ghost">Dashboard</a>
+    @if (auth.currentUser()?.role === 'INSTRUCTOR') {
+      <a routerLink="/courses" hlmBtn variant="ghost">My Courses</a>
     }
+    @if (auth.currentUser()?.role === 'ADMIN') {
+      <a routerLink="/admin/instructor-applications" hlmBtn variant="ghost">Admin</a>
+      <a routerLink="/admin/users" hlmBtn variant="ghost">Users</a>
+      <a routerLink="/admin/categories" hlmBtn variant="ghost">Categories</a>
+      <a routerLink="/admin/health" hlmBtn variant="ghost">Health</a>
+    }
+  }
+</ng-template>
+
+<header class="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-bg px-4 py-3.5 md:gap-6 md:px-6">
+  <!-- Mobile: hamburger opens the nav + search in a sheet. The sheet is the
+       only place those live below md; the bar keeps the theme toggle and the
+       avatar, the two controls a student actually reaches for on a phone. -->
+  <hlm-sheet side="left" class="md:hidden">
+    <button
+      hlmBtn
+      variant="ghost"
+      hlmSheetTrigger
+      type="button"
+      aria-label="Open navigation menu"
+      aria-controls="header-nav-sheet"
+      data-testid="header-nav-toggle"
+    >
+      <hlm-icon name="lucideMenu" />
+    </button>
+    <hlm-sheet-overlay />
+    <hlm-sheet-content *brnSheetContent id="header-nav-sheet" data-testid="header-nav-sheet">
+      <h2 hlmSheetTitle>Menu</h2>
+      <nav class="mt-4 flex flex-col items-start gap-1">
+        <ng-container *ngTemplateOutlet="navLinks" />
+      </nav>
+      <div class="mt-4">
+        <lib-course-search-bar />
+      </div>
+    </hlm-sheet-content>
+  </hlm-sheet>
+
+  <a routerLink="/catalog"><lw-wordmark [size]="20" /></a>
+
+  <nav class="hidden gap-1 md:flex" data-testid="header-nav">
+    <ng-container *ngTemplateOutlet="navLinks" />
   </nav>
+
   <span class="flex-1"></span>
-  <lib-course-search-bar />
+
+  <div class="hidden md:block">
+    <lib-course-search-bar />
+  </div>
   <lw-theme-toggle />
+
   @if (auth.isAuthenticated()) {
     <a
       role="img"
@@ -35,7 +72,12 @@
           avatarInitials()
         }}</span>
       </hlm-avatar>
-      <span class="user-chip-name text-sm">{{ auth.currentUser()?.displayName }}</span>
+      <!-- Dropped below md: the name chip is what blows the row out at 320px,
+           and the avatar link already carries the accessible name via its
+           aria-label above. -->
+      <span class="user-chip-name hidden text-sm md:inline">{{
+        auth.currentUser()?.displayName
+      }}</span>
     </a>
   } @else {
     <a routerLink="/login" hlmBtn variant="ghost">Log in</a>
