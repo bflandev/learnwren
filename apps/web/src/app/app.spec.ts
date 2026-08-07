@@ -155,4 +155,45 @@ describe('App', () => {
     const avatar = fixture.nativeElement.querySelector('hlm-avatar');
     expect(avatar).toBeTruthy();
   });
+
+  // Both tests create App BEFORE navigating, mirroring production bootstrap
+  // order: the router-focus subscription in App's constructor (app.ts) is
+  // live before the very first route resolves, so that first NavigationEnd
+  // is the one `skip(1)` drops. Navigating before createComponent (as the
+  // other tests above do, to get RouterOutlet content on first render)
+  // would instead make the *second* navigation the subscription's first
+  // observed event — a different, unrealistic ordering.
+  it('does not move focus to #main-content on the initial route (leaves the platform default alone)', async () => {
+    configure(null);
+    const fixture = TestBed.createComponent(App);
+    // Element.focus() is a no-op on a node that isn't connected to the real
+    // document — jsdom (like every browser) only tracks `document.activeElement`
+    // for nodes actually in the tree, and Angular's TestBed doesn't attach a
+    // fixture's nativeElement there by default.
+    document.body.appendChild(fixture.nativeElement);
+    try {
+      await TestBed.inject(Router).navigateByUrl('/catalog');
+      fixture.detectChanges();
+      const main = fixture.nativeElement.querySelector('#main-content') as HTMLElement;
+      expect(document.activeElement).not.toBe(main);
+    } finally {
+      fixture.nativeElement.remove();
+    }
+  });
+
+  it('moves focus to #main-content after a subsequent client-side navigation (WCAG 2.4.3)', async () => {
+    configure(null);
+    const fixture = TestBed.createComponent(App);
+    document.body.appendChild(fixture.nativeElement);
+    try {
+      await TestBed.inject(Router).navigateByUrl('/catalog');
+      fixture.detectChanges();
+      await TestBed.inject(Router).navigateByUrl('/login');
+      fixture.detectChanges();
+      const main = fixture.nativeElement.querySelector('#main-content') as HTMLElement;
+      expect(document.activeElement).toBe(main);
+    } finally {
+      fixture.nativeElement.remove();
+    }
+  });
 });

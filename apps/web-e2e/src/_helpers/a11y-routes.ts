@@ -99,6 +99,15 @@ export const PROFILE = {
   emailVerified: true,
 };
 
+// Shape verified against EnrollmentStatusView, libs/shared-data-models/src/lib/enrollment.ts:36-39
+// — GET /api/enrollments/:courseId returns 200 with `enrollment: null` for a
+// signed-in caller who is not enrolled, never a 404. CourseEnrollmentPanelComponent
+// (libs/web-enrollment/src/lib/course-enrollment-panel/course-enrollment-panel.component.ts:90-92)
+// treats any request failure as a LOAD_ERROR state (renders "Couldn't load
+// enrollment status." + Retry), so stubbing a 404 here would never reach the
+// "Enroll" button the keyboard journey needs.
+export const ENROLLMENT_STATUS_NONE = { enrollment: null, isOwner: false };
+
 // CompletedCoursesComponent (libs/web-profile/src/lib/completed-courses/completed-courses.component.ts:24)
 // calls EnrollmentService.listMyEnrollments() -> GET /api/enrollments on every
 // /settings/profile visit; the brief's route table never stubbed it. Without
