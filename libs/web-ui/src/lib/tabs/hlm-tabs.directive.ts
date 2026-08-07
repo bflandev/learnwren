@@ -40,7 +40,7 @@ import {
 // linting them.
 export const TABS_BASE = 'flex flex-col gap-2';
 export const TABS_LIST_BASE =
-  'inline-flex min-h-10 items-center justify-center rounded-md bg-bg-3 p-1 text-ink-3';
+  'inline-flex min-h-10 items-center justify-center rounded-md bg-bg-3 p-1 text-ink-2';
 export const TABS_TRIGGER_BASE =
   'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-colors focus-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-bg data-[state=active]:text-ink data-[state=active]:shadow-raised';
 export const TABS_CONTENT_BASE = 'mt-2 focus-ring';

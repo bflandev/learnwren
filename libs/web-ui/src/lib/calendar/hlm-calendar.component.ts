@@ -35,8 +35,13 @@ export const CALENDAR_TITLE_BASE = 'text-body font-medium';
 export const CALENDAR_WEEKDAY_BASE =
   'w-9 pb-1 text-helper font-normal text-ink-3';
 export const CALENDAR_CELL_BASE = 'p-0 text-center';
+// Outside-month cells stay interactive (no `disabled`/`aria-disabled`), so
+// their dimmed look can't lean on opacity: `text-ink-3` at 50% opacity
+// measured 2.15:1 against the popover bg — well under the 4.5:1 AA text
+// floor (WCAG 2026-08-07 showcase sweep, axe color-contrast). `text-ink-2`
+// alone gives the same "quieter than the in-month days" read at ~10:1.
 export const CALENDAR_CELL_BUTTON_BASE =
-  'inline-flex size-9 items-center justify-center rounded-md text-body font-normal hover:bg-bg-3 focus-ring data-[today]:bg-bg-3 data-[selected]:bg-ochre data-[selected]:text-ochre-ink data-[selected]:hover:bg-ochre data-[outside]:text-ink-3 data-[outside]:opacity-50 data-[disabled]:pointer-events-none data-[disabled]:opacity-50';
+  'inline-flex size-9 items-center justify-center rounded-md text-body font-normal hover:bg-bg-3 focus-ring data-[today]:bg-bg-3 data-[selected]:bg-ochre data-[selected]:text-ochre-ink data-[selected]:hover:bg-ochre data-[outside]:text-ink-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-50';
 
 @Component({
   selector: 'hlm-calendar',

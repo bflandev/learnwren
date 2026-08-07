@@ -51,8 +51,12 @@ export const TABS_SIZE_MAP = {
   lg: 'h-11 text-base',
 } as const;
 
+// text-ink-2 (not ink-3): an inactive trigger inherits this color, and
+// ink-3 against the segment list's bg-bg-3 measured 4.27:1 — under the
+// 4.5:1 AA text floor (WCAG 2026-08-07 showcase sweep, axe color-contrast).
+// ink-2 clears every list background with margin to spare.
 export const tabsListVariants = cva(
-  'inline-flex items-center justify-center text-ink-3',
+  'inline-flex items-center justify-center text-ink-2',
   {
     variants: { appearance: TABS_LIST_VARIANT_MAP },
     defaultVariants: { appearance: 'segment' },

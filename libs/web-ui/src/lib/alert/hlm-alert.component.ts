@@ -24,8 +24,11 @@ import {
 // without an icon the grid is single-column and the parts simply stack as rows.
 export const ALERT_TITLE_BASE =
   'font-medium tracking-tight group-has-[[data-alert-icon]]/alert:col-start-2';
+// text-ink-2 (not ink-3): ink-3 against the tinted severity backgrounds
+// measured 3.94-4.38:1 — under the 4.5:1 AA text floor (WCAG 2026-08-07
+// showcase sweep, axe color-contrast). ink-2 clears all four severities.
 export const ALERT_DESCRIPTION_BASE =
-  'text-body text-ink-3 group-has-[[data-alert-icon]]/alert:col-start-2';
+  'text-body text-ink-2 group-has-[[data-alert-icon]]/alert:col-start-2';
 // Close affordance for the dismissible alert. Absolutely positioned in the
 // host's top-right (the host BASE is `relative`) so it stays clear of the
 // icon/title/description grid without adding a grid column. Mirrors the toast
