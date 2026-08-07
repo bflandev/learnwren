@@ -9,6 +9,12 @@
   "targets": {
     "e2e": {
       "dependsOn": ["api:build"]
+    },
+    "a11y": {
+      "executor": "@nx/playwright:playwright",
+      "options": {
+        "config": "apps/web-e2e/playwright.a11y.config.ts"
+      }
     }
   }
 }
