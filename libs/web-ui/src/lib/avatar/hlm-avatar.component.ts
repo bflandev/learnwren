@@ -18,8 +18,12 @@ import { cn } from '../_internal/cn';
 // to a ~4% L step off --lw-bg-2 (the gray.150 hover/muted tone), so the
 // bare shadcn fallback works without a ring; the design-system contrast.spec
 // 'surface separation' suite locks that gap in.
+// text-ink-2, not text-ink-3: axe's color-contrast rule caught text-ink-3's
+// initials-fallback span at 4.27:1 on bg-bg-3 (needs 4.5:1) once a route
+// exercised it at 12px (landing testimonial, US-09-03 Task 3). text-ink-2
+// clears AA on this surface; the --lw-ink-3 token itself is untouched.
 export const AVATAR_BASE =
-  'inline-flex items-center justify-center overflow-hidden bg-bg-3 text-ink-3';
+  'inline-flex items-center justify-center overflow-hidden bg-bg-3 text-ink-2';
 
 // Single source of truth for the size class map: cva builds its size string from
 // this object and `AVATAR_SIZES` derives its runtime keys from it, so the
