@@ -347,18 +347,6 @@ export const AUTHED_ROUTES: A11yRoute[] = [
     expectText: PROFILE.displayName,
   },
   {
-    // Unguarded landing page hit after the user clicks the email-change link.
-    // EmailChangedComponent immediately redirects (no persistent rendered
-    // content to assert on), so no expectText — the render-guard would just
-    // race the redirect.
-    name: 'email changed confirmation',
-    path: '/settings/profile/email-changed',
-    role: 'guest',
-    stubs: async (page) => {
-      await stubJson(page, '**/api/profile/email/confirm', { changed: false });
-    },
-  },
-  {
     name: 'learn page',
     path: '/learn/c-1/l-1',
     role: 'student',

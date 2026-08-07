@@ -25,6 +25,12 @@ const storageHost = (
  */
 export default defineConfig({
   ...nxE2EPreset(__filename, { testDir: './src' }),
+  // The hermetic a11y suite (apps/web-e2e/src/a11y/*.a11y.spec.ts) has its own
+  // config — playwright.a11y.config.ts — that starts only the Angular dev
+  // server and stubs every /api call. Without this, this emulator+api-backed
+  // config also picks up those specs via the shared testDir, running them in
+  // an environment they were never designed for and misattributing failures.
+  testIgnore: '**/a11y/**',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     baseURL,

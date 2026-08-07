@@ -62,8 +62,9 @@ jobs:
   # starts only the Angular dev server and stubs every /api call via
   # page.route, so — unlike the e2e/web-e2e jobs below — it needs neither the
   # Firebase emulators nor the api. That makes it the cheapest gate in this
-  # workflow; it runs before the emulator-backed suites so a WCAG regression
-  # fails fast without waiting on the slower jobs.
+  # workflow; it has no `needs:` on the emulator-backed jobs, so it runs in
+  # parallel with them rather than gating them — a WCAG regression shows up
+  # as red on the checks page early, but does not save the other jobs' time.
   a11y:
     name: Accessibility gate (WCAG 2.1 AA)
     runs-on: ubuntu-latest

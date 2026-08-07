@@ -74,5 +74,6 @@ test('course editor with a lesson renamed has no WCAG 2.1 AA violations', async 
   await page.goto(route.path);
   await expect(page.getByText('Getting started')).toBeVisible();
   await page.getByTestId('lesson-title').first().click();
+  await expect(page.getByTestId('lesson-rename-input')).toBeVisible();
   await scanA11y(page);
 });

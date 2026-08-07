@@ -10,11 +10,11 @@ import { expect, type Page } from '@playwright/test';
 const AA_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 export interface ScanOptions {
-  /** CSS selector to limit the scan to a subtree. */
-  include?: string;
   /**
    * Rules to switch off for this call only. Every use MUST carry a comment
    * naming why the finding is a false positive. There is no allowlist file.
+   * Deliberately pre-built and currently unused by any call site — the
+   * spec's sanctioned escape hatch, kept ready rather than re-added later.
    */
   disableRules?: string[];
 }
@@ -22,7 +22,6 @@ export interface ScanOptions {
 /** Run axe against the current page state and assert zero AA violations. */
 export async function scanA11y(page: Page, options: ScanOptions = {}): Promise<void> {
   let builder = new AxeBuilder({ page }).withTags(AA_TAGS);
-  if (options.include) builder = builder.include(options.include);
   if (options.disableRules?.length) builder = builder.disableRules(options.disableRules);
 
   const results = await builder.analyze();
