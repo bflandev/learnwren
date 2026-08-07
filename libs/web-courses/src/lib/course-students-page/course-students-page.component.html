@@ -35,7 +35,8 @@
         </hlm-card>
       } @else {
         <hlm-card>
-          <table class="w-full text-left text-sm">
+          <div class="w-full overflow-x-auto">
+            <table class="w-full text-left text-sm">
             <thead class="text-ink-3">
               <tr>
                 <th class="py-2">Name</th>
@@ -71,6 +72,7 @@
               }
             </tbody>
           </table>
+          </div>
         </hlm-card>
       }
     }
