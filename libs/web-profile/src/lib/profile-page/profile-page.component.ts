@@ -73,6 +73,10 @@ export class ProfilePageComponent implements OnInit {
 
   readonly status = signal<Status>('idle');
   readonly readonly = signal<{ email: string; role: ProfileView['role'] } | null>(null);
+  // Rendered as page-level text (not just the form's input value) so the
+  // page has a visible confirmation of whose profile is loaded, independent
+  // of the header's name chip (which is hidden below the `xl` breakpoint).
+  readonly displayName = signal<string | null>(null);
 
   readonly loadingProfile = signal(true);
   readonly profileLoadError = signal(false);
@@ -210,6 +214,7 @@ export class ProfilePageComponent implements OnInit {
       if (token !== this.loadToken) return;
       this.form.setValue({ displayName: me.displayName, biography: me.biography });
       this.readonly.set({ email: me.email, role: me.role });
+      this.displayName.set(me.displayName);
     } catch {
       if (token !== this.loadToken) return;
       this.profileLoadError.set(true);

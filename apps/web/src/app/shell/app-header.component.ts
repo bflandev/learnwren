@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { provideIcons } from '@ng-icons/core';
@@ -44,4 +44,20 @@ export class AppHeaderComponent {
   protected readonly avatarTone = computed(() =>
     avatarToneFor(this.auth.currentUser()?.uid ?? ''),
   );
+
+  // The name chip next to the avatar is structurally removed (not just
+  // CSS-hidden) below `xl`: a `display:none` node is still present in the DOM
+  // and still matches text locators, which collided with routes whose e2e
+  // render-guard text is the signed-in user's display name (e.g.
+  // /settings/profile). Mirrors the matchMedia-signal pattern already used by
+  // LessonPlayerPageComponent for its own responsive drawer/sidebar split.
+  private readonly wideQuery =
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 1280px)') : null;
+  protected readonly isWide = signal<boolean>(this.wideQuery?.matches ?? true);
+
+  constructor() {
+    const onWideChange = (e: MediaQueryListEvent): void => this.isWide.set(e.matches);
+    this.wideQuery?.addEventListener('change', onWideChange);
+    inject(DestroyRef).onDestroy(() => this.wideQuery?.removeEventListener('change', onWideChange));
+  }
 }

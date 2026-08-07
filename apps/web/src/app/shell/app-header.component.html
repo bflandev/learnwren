@@ -88,12 +88,15 @@
           avatarInitials()
         }}</span>
       </hlm-avatar>
-      <!-- Dropped below xl: the name chip is what blows the row out at
-           mobile/tablet widths, and the avatar link already carries the
-           accessible name via its aria-label above. -->
-      <span class="user-chip-name hidden text-sm xl:inline">{{
-        auth.currentUser()?.displayName
-      }}</span>
+      <!-- Removed from the DOM (not just CSS-hidden) below xl: the name chip
+           is what blows the row out at mobile/tablet widths, and the avatar
+           link already carries the accessible name via its aria-label above.
+           Structural removal (vs. `hidden xl:inline`) matters because a
+           display:none node still matches text locators -- see isWide's
+           comment in the component. -->
+      @if (isWide()) {
+        <span class="user-chip-name text-sm">{{ auth.currentUser()?.displayName }}</span>
+      }
     </a>
   } @else {
     <div class="hidden items-center gap-2 xl:flex">
