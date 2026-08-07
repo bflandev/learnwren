@@ -15,6 +15,12 @@
       "options": {
         "config": "apps/web-e2e/playwright.a11y.config.ts"
       }
+    },
+    "responsive": {
+      "executor": "@nx/playwright:playwright",
+      "options": {
+        "config": "apps/web-e2e/playwright.responsive.config.ts"
+      }
     }
   }
 }
