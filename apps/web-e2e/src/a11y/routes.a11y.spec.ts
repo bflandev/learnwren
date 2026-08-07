@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
 
 import { scanA11y } from '../_helpers/a11y-scan';
-import { stubAuth } from '../_helpers/a11y-stubs';
-import { GUEST_ROUTES, AUTHED_ROUTES, type A11yRoute } from '../_helpers/a11y-routes';
+import { stubAuth } from '../_helpers/route-stubs';
+import { GUEST_ROUTES, AUTHED_ROUTES, type RouteFixture } from '../_helpers/route-inventory';
 
-function register(route: A11yRoute): void {
+function register(route: RouteFixture): void {
   test(`${route.name} (${route.path}) has no WCAG 2.1 AA violations`, async ({ page }) => {
     await stubAuth(page, route.role);
     await route.stubs?.(page);

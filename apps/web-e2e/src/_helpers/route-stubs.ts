@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-export type A11yRole = 'guest' | 'student' | 'instructor' | 'admin';
+export type RouteRole = 'guest' | 'student' | 'instructor' | 'admin';
 
 /**
  * Both authGuard (libs/web-auth/src/lib/auth.guard.ts) and adminRoleGuard
@@ -9,7 +9,7 @@ export type A11yRole = 'guest' | 'student' | 'instructor' | 'admin';
  * endpoint therefore satisfies every guarded route at any role — no
  * emulators, no real session cookie.
  */
-const USERS: Record<Exclude<A11yRole, 'guest'>, Record<string, unknown>> = {
+const USERS: Record<Exclude<RouteRole, 'guest'>, Record<string, unknown>> = {
   student: {
     uid: 'a11y-student',
     email: 'student@example.com',
@@ -34,7 +34,7 @@ const USERS: Record<Exclude<A11yRole, 'guest'>, Record<string, unknown>> = {
 };
 
 /** Stub GET /api/auth/me for the given role. `guest` returns 401. */
-export async function stubAuth(page: Page, role: A11yRole): Promise<void> {
+export async function stubAuth(page: Page, role: RouteRole): Promise<void> {
   await page.route('**/api/auth/me', (route) => {
     if (role === 'guest') {
       void route.fulfill({
