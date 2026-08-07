@@ -215,21 +215,29 @@ test('journey 3: a student can navigate lessons and mark complete using only the
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/learn/c-1/l-1');
   // Lazy-loaded route: wait for real content before the first Tab press (see
-  // journey 1's comment for why). Not "Module 1" — at this mobile viewport
-  // the outline starts closed (`[hidden]` on the drawer `<aside>`), so
-  // anything inside it is not yet visible; the lesson <h1> lives outside the
-  // drawer and always renders.
+  // journey 1's comment for why).
   await expect(page.getByRole('heading', { name: 'Getting started', level: 1 })).toBeVisible();
 
   const drawer = page.locator('aside[aria-label="Course outline"]');
+  const toggle = page.locator('[data-testid="outline-toggle"]');
 
-  // Open the outline drawer by keyboard and navigate to the second lesson
-  // from within it — the part of "navigate lessons" the brief's original
-  // test body never actually exercised.
+  // US-09-05: the outline now starts OPEN on every viewport, including this
+  // mobile one — it's the student's course navigation, so it must be visible
+  // on first paint rather than hidden behind an unlabelled toggle. Confirm
+  // that, then exercise the close/reopen path by keyboard — the highest-risk
+  // part of this journey — before navigating to the second lesson from
+  // within the drawer.
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(drawer).toBeVisible();
+
   await tabTo(page, /outline/i);
   await expectVisibleFocus(page);
   await page.keyboard.press('Enter');
-  await expect(page.locator('[data-testid="outline-toggle"]')).toHaveAttribute('aria-expanded', 'true');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(drawer).toBeHidden();
+
+  await page.keyboard.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(drawer).toBeVisible();
 
   await tabTo(page, /going further/i);

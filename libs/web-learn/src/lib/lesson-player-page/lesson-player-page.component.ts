@@ -110,8 +110,15 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   private readonly onDesktopChange = (e: MediaQueryListEvent): void =>
     this.isDesktop.set(e.matches);
 
-  // Stryker disable next-line OptionalChaining,LogicalOperator,BooleanLiteral: desktopQuery is never null under jsdom (window defined), so the `?.`/`?? true`(`?? false`) fallback is unreachable; `x ?? true` ≡ `x && true` for the boolean `matches`
-  readonly outlineOpen = signal<boolean>(this.desktopQuery?.matches ?? true);
+  // Always starts open, on every viewport. The outline is the student's
+  // course navigation; defaulting it closed on mobile/tablet (tied to
+  // isDesktop) left it undiscoverable behind an unlabelled toggle on first
+  // load — "Course outline" gives no visual hint that it expands anything,
+  // and nothing in the initial render shows a student where they are in the
+  // course. Drawer mode still auto-closes it after picking a lesson
+  // (CourseOutlinePanelComponent.onRowClick) and on Escape, so mobile users
+  // get the space back once they've made a choice.
+  readonly outlineOpen = signal<boolean>(true);
   readonly outlineMode = computed<'sidebar' | 'drawer'>(() =>
     this.isDesktop() ? 'sidebar' : 'drawer',
   );
