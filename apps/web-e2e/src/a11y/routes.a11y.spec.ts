@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 import { scanA11y } from '../_helpers/a11y-scan';
 import { stubAuth } from '../_helpers/a11y-stubs';
@@ -11,6 +11,13 @@ function register(route: A11yRoute): void {
     await page.goto(route.path);
     // Wait for settled DOM so axe does not scan a loading skeleton.
     await page.waitForSelector(route.readySelector ?? 'h1, h2, [role="heading"]');
+    // Prove the route rendered its REAL content, not an error/empty state —
+    // a bad fixture shape throws inside the component and the page settles
+    // on an error paragraph just as fast as on real data, which would
+    // otherwise scan clean and hide the actual composition.
+    if (route.expectText) {
+      await expect(page.getByText(route.expectText)).toBeVisible();
+    }
     await scanA11y(page);
   });
 }

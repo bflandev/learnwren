@@ -13,6 +13,16 @@ export interface A11yRoute {
   stubs?: (page: Page) => Promise<void>;
   /** A selector that must be visible before scanning, so axe sees settled DOM. */
   readySelector?: string;
+  /**
+   * Text that must be visible before scanning — proof the route rendered
+   * its REAL content rather than an error/empty state (a stubbed page can
+   * "settle" on an error paragraph just as fast as on real data, and that
+   * paragraph still matches `readySelector`). Required whenever `stubs` is
+   * set: fixture-shape bugs (wrong field name, missing required field) throw
+   * inside the component and never satisfy this expectation, failing the
+   * test instead of silently scanning three lines of chrome.
+   */
+  expectText?: string;
 }
 
 export const NOW = '2026-08-01T00:00:00.000Z';
@@ -22,27 +32,45 @@ export const CATEGORIES = [
   { id: 'engineering', name: 'Engineering' },
 ];
 
+// Shape verified against CourseSummary, libs/shared-data-models/src/lib/catalog.ts:11-21.
+// instructorDisplayName (not instructorName) — course-card.component.html:16,23 reads it.
 export const COURSE_CARD = {
   id: 'c-1',
   title: 'Introduction to Wren',
   description: 'A short course used by the accessibility sweep.',
   category: 'engineering',
   difficulty: 'BEGINNER',
-  instructorName: 'Ingrid Instructor',
-  enrollmentCount: 12,
-  coverImageUrl: null,
+  instructorId: 'a11y-instructor',
+  instructorDisplayName: 'Ingrid Instructor',
   publishedAt: NOW,
 };
 
-export const CATALOG_LIST = { courses: [COURSE_CARD], total: 1, page: 1, pageSize: 12 };
+// Shape verified against CourseCatalogPage, catalog.ts:24-30 — `items`, not
+// `courses`; `totalPages` required (catalog-page.component.html:17,32 reads
+// result()!.items.length and result()!.totalPages).
+export const CATALOG_LIST = {
+  items: [COURSE_CARD],
+  page: 1,
+  pageSize: 20,
+  total: 1,
+  totalPages: 1,
+};
+
+// Shape verified against CourseCatalogDetail, catalog.ts:46-61 — modules is
+// required (course-detail-page.component.html:77 binds it straight into
+// ModuleOutlineComponent, which does `modules().length` — undefined throws).
+const FIRST_LESSON_TITLE = 'Welcome to Wren';
 
 export const COURSE_DETAIL = {
   ...COURSE_CARD,
-  instructorId: 'a11y-instructor',
   instructorBiography: 'Teaches things.',
-  moduleCount: 1,
   lessonCount: 2,
-  status: 'PUBLISHED',
+  modules: [
+    {
+      title: 'Getting started',
+      lessons: [{ id: 'lesson-1', title: FIRST_LESSON_TITLE }],
+    },
+  ],
 };
 
 export const GUEST_ROUTES: A11yRoute[] = [
@@ -60,6 +88,7 @@ export const GUEST_ROUTES: A11yRoute[] = [
       await stubJson(page, '**/api/categories', CATEGORIES);
       await stubJson(page, '**/api/catalog**', CATALOG_LIST);
     },
+    expectText: COURSE_CARD.title,
   },
   {
     name: 'search results',
@@ -68,6 +97,7 @@ export const GUEST_ROUTES: A11yRoute[] = [
     stubs: async (page) => {
       await stubJson(page, '**/api/catalog/search**', CATALOG_LIST);
     },
+    expectText: COURSE_CARD.title,
   },
   {
     name: 'course detail',
@@ -78,5 +108,6 @@ export const GUEST_ROUTES: A11yRoute[] = [
       await stubJson(page, '**/api/catalog**', CATALOG_LIST);
       await stubJson(page, '**/api/catalog/c-1', COURSE_DETAIL);
     },
+    expectText: FIRST_LESSON_TITLE,
   },
 ];
