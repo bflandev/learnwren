@@ -29,6 +29,7 @@ Everything else in the spec stands unchanged.
 - **Commit format:** `<type>: <description>` — `feat`, `fix`, `test`, `docs`, `chore`, `refactor`.
 - **Never edit** `apps/web-e2e/playwright.config.ts`. The a11y suite gets its own config.
 - **Test IDs:** existing specs use `getByTestId`. Never remove or rename an existing `data-testid` while fixing a violation — 18 specs depend on them.
+- **Fixtures are DRY:** every test fixture constant (`NOW`, `CATEGORIES`, `COURSE_CARD`, `COURSE_DETAIL`, `COURSE_TREE`, `LESSON_PAYLOAD`) is declared **once**, exported from `apps/web-e2e/src/_helpers/a11y-routes.ts`, and imported everywhere else. Never re-declare a fixture inline in a spec file.
 
 ---
 
@@ -429,14 +430,14 @@ export interface A11yRoute {
   readySelector?: string;
 }
 
-const NOW = '2026-08-01T00:00:00.000Z';
+export const NOW = '2026-08-01T00:00:00.000Z';
 
-const CATEGORIES = [
+export const CATEGORIES = [
   { id: 'design', name: 'Design' },
   { id: 'engineering', name: 'Engineering' },
 ];
 
-const COURSE_CARD = {
+export const COURSE_CARD = {
   id: 'c-1',
   title: 'Introduction to Wren',
   description: 'A short course used by the accessibility sweep.',
@@ -448,9 +449,9 @@ const COURSE_CARD = {
   publishedAt: NOW,
 };
 
-const CATALOG_LIST = { courses: [COURSE_CARD], total: 1, page: 1, pageSize: 12 };
+export const CATALOG_LIST = { courses: [COURSE_CARD], total: 1, page: 1, pageSize: 12 };
 
-const COURSE_DETAIL = {
+export const COURSE_DETAIL = {
   ...COURSE_CARD,
   instructorId: 'a11y-instructor',
   instructorBiography: 'Teaches things.',
@@ -564,7 +565,7 @@ git commit -m "fix(web): resolve WCAG 2.1 AA violations on public routes"
 Add to `apps/web-e2e/src/_helpers/a11y-routes.ts`. Endpoint paths are verified against the web libs' HTTP calls:
 
 ```ts
-const PROFILE = {
+export const PROFILE = {
   uid: 'a11y-student',
   email: 'student@example.com',
   displayName: 'Sam Student',
@@ -574,7 +575,7 @@ const PROFILE = {
   completedCourses: [],
 };
 
-const LESSON_PAYLOAD = {
+export const LESSON_PAYLOAD = {
   courseId: 'c-1',
   courseTitle: 'Introduction to Wren',
   lessonId: 'l-1',
@@ -597,7 +598,7 @@ const LESSON_PAYLOAD = {
   ],
 };
 
-const COURSE_TREE = {
+export const COURSE_TREE = {
   id: 'c-1',
   title: 'Introduction to Wren',
   description: 'A short course used by the accessibility sweep.',
@@ -901,7 +902,7 @@ axe proves elements *are* focusable; it cannot prove a journey *works*. These sp
 
 **Interfaces:**
 - Consumes: `stubAuth`, `stubJson` from Task 1; fixtures from Task 3.
-- Produces: `expectVisibleFocus(page): Promise<void>` — reused by Task 6.
+- Produces: `expectVisibleFocus(page): Promise<void>` (module-local; Task 6 appends to this same file).
 
 - [ ] **Step 1: Write the focus-visibility helper and the first two journeys**
 
@@ -918,7 +919,7 @@ import { stubAuth, stubJson } from '../_helpers/a11y-stubs';
  * that is focusable but shows no focus state passes every automated axe check
  * while failing WCAG SC 2.4.7.
  */
-export async function expectVisibleFocus(page: Page): Promise<void> {
+async function expectVisibleFocus(page: Page): Promise<void> {
   const active = page.locator(':focus-visible');
   await expect(active).toHaveCount(1);
   const hasIndicator = await active.evaluate((el) => {
