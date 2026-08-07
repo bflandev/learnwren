@@ -23,7 +23,7 @@
       </button>
     </hlm-alert>
   } @else if (applications().length === 0) {
-    <p class="mt-6 text-sm text-muted" data-testid="empty-state">No pending applications.</p>
+    <p class="mt-6 text-sm text-muted-foreground" data-testid="empty-state">No pending applications.</p>
   } @else {
     <ul class="mt-6 flex flex-col gap-4" data-testid="application-list">
       @for (app of applications(); track app.uid) {
@@ -31,9 +31,9 @@
           <div class="flex items-baseline justify-between gap-4">
             <div>
               <p class="font-medium text-ink">{{ app.displayName }}</p>
-              <p class="text-sm text-muted">{{ app.email }}</p>
+              <p class="text-sm text-muted-foreground">{{ app.email }}</p>
             </div>
-            <p class="text-xs text-muted">{{ app.createdAt | date: 'mediumDate' }}</p>
+            <p class="text-xs text-muted-foreground">{{ app.createdAt | date: 'mediumDate' }}</p>
           </div>
           <p class="mt-3 text-sm text-ink"><span class="font-medium">Statement:</span> {{ app.statement }}</p>
           <p class="mt-1 text-sm text-ink"><span class="font-medium">Expertise:</span> {{ app.expertise }}</p>

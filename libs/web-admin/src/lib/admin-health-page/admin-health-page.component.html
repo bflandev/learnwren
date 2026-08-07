@@ -55,7 +55,7 @@
           <span class="font-medium text-ink">{{ row.label }}</span>
           <span class="flex items-center gap-2">
             @if (row.detail) {
-              <span class="text-sm text-muted">{{ row.detail }}</span>
+              <span class="text-sm text-muted-foreground">{{ row.detail }}</span>
             }
             <span hlmBadge [variant]="row.status === 'UP' ? 'success' : 'destructive'">
               {{ row.status }}
@@ -68,7 +68,7 @@
     <h2 class="mt-6 text-sm font-semibold text-ink">Stats</h2>
     <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-3">
       <div class="rounded-lg border border-line p-4">
-        <p class="text-sm text-muted">Storage used</p>
+        <p class="text-sm text-muted-foreground">Storage used</p>
         <p class="text-xl font-semibold text-ink">{{ formatGb(r.stats.storageUsedBytes) }}</p>
         @if (r.stats.storageQuotaBytes) {
           <div data-testid="quota-bar" class="mt-2">
@@ -87,16 +87,16 @@
         }
       </div>
       <div class="rounded-lg border border-line p-4">
-        <p class="text-sm text-muted">Registered users</p>
+        <p class="text-sm text-muted-foreground">Registered users</p>
         <p class="text-xl font-semibold text-ink">{{ r.stats.registeredUsers }}</p>
       </div>
       <div class="rounded-lg border border-line p-4">
-        <p class="text-sm text-muted">Published courses</p>
+        <p class="text-sm text-muted-foreground">Published courses</p>
         <p class="text-xl font-semibold text-ink">{{ r.stats.publishedCourses }}</p>
       </div>
     </div>
 
-    <p class="mt-4 text-sm text-muted">
+    <p class="mt-4 text-sm text-muted-foreground">
       Pending transcode jobs: {{ r.stats.pendingTranscodeJobs }} · as of {{ r.generatedAt }}
     </p>
   }

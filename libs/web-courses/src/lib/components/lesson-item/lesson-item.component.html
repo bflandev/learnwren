@@ -5,6 +5,7 @@
         hlmInput
         data-testid="lesson-rename-input"
         type="text"
+        aria-label="Lesson title"
         class="flex-1"
         [ngModel]="draftTitle()"
         (ngModelChange)="draftTitle.set($event)"

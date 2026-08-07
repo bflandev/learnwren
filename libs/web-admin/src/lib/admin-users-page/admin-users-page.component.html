@@ -46,7 +46,7 @@
       </button>
     </hlm-alert>
   } @else if (users().length === 0) {
-    <p class="mt-6 text-sm text-muted" data-testid="empty-state">No users found.</p>
+    <p class="mt-6 text-sm text-muted-foreground" data-testid="empty-state">No users found.</p>
   } @else {
     <ul class="mt-6 flex flex-col divide-y divide-line" data-testid="user-list">
       @for (u of users(); track u.id) {
@@ -54,14 +54,14 @@
           <a [routerLink]="[u.id]" class="flex items-baseline justify-between gap-4 py-3 hover:bg-bg-2">
             <span>
               <span class="font-medium text-ink">{{ u.displayName }}</span>
-              <span class="ml-2 text-sm text-muted">{{ u.email }}</span>
+              <span class="ml-2 text-sm text-muted-foreground">{{ u.email }}</span>
             </span>
             <span class="flex items-center gap-3">
               <span hlmBadge>{{ u.role }}</span>
               @if (u.status === 'SUSPENDED') {
                 <span hlmBadge variant="warning" data-testid="status-badge">SUSPENDED</span>
               }
-              <span class="text-xs text-muted">{{ u.createdAt | date: 'mediumDate' }}</span>
+              <span class="text-xs text-muted-foreground">{{ u.createdAt | date: 'mediumDate' }}</span>
             </span>
           </a>
         </li>
