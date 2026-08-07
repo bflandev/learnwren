@@ -7,7 +7,10 @@ import {
   COURSE_CARD,
   COURSE_DETAIL,
   ENROLLMENT_STATUS_NONE,
+  LESSON_PAYLOAD_L1,
+  LESSON_PAYLOAD_L2,
   NOW,
+  REORDER_COURSE_TREE,
 } from '../_helpers/a11y-routes';
 
 /**
@@ -15,18 +18,28 @@ import {
  * indicator. The Robin design-system port touched focus rings, and a control
  * that is focusable but shows no focus state passes every automated axe check
  * while failing WCAG SC 2.4.7.
+ *
+ * Tightened for Task 6: the original check accepted `boxShadow !== 'none'` as
+ * proof of a focus ring. That is foolable by any element carrying a
+ * *persistent* shadow — a raised card, a drag-lifted handle — which paints
+ * that shadow whether or not it is focused, so the assertion could pass on
+ * zero visual change. Journey 4 focuses exactly that kind of element (module
+ * drag handles / reorder controls), so the shadow branch is dropped rather
+ * than loosened further. This app's real focus mechanism
+ * (apps/web/src/styles.scss:33-43) is a `:focus-visible { outline: 2px solid
+ * var(--lw-ochre) }` rule with no box-shadow fallback anywhere in the
+ * codebase, so requiring a real, non-zero `outline` is not just stricter —
+ * it is what the app actually does, and cannot be satisfied by a shadow that
+ * is present whether or not the element is focused.
  */
 async function expectVisibleFocus(page: Page): Promise<void> {
   const active = page.locator(':focus-visible');
   await expect(active).toHaveCount(1);
-  const hasIndicator = await active.evaluate((el) => {
+  const hasOutline = await active.evaluate((el) => {
     const s = getComputedStyle(el);
-    const ring =
-      (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0) ||
-      s.boxShadow !== 'none';
-    return ring;
+    return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0;
   });
-  expect(hasIndicator, 'focused element paints no visible focus indicator').toBe(true);
+  expect(hasOutline, 'focused element paints no visible outline').toBe(true);
 }
 
 /**
@@ -164,4 +177,112 @@ test('journey 2: a student can go from catalogue to enrolled using only the keyb
   await page.keyboard.press('Enter');
 
   await expect(page.getByRole('button', { name: /leave|start learning/i }).first()).toBeVisible();
+});
+
+test('journey 3: a student can navigate lessons and mark complete using only the keyboard', async ({ page }) => {
+  await stubAuth(page, 'student');
+  await stubJson(page, '**/api/playback/config', { impl: 'fake' });
+  await stubJson(page, '**/api/learn/courses/c-1/lessons/l-1', LESSON_PAYLOAD_L1);
+  await stubJson(page, '**/api/learn/courses/c-1/lessons/l-2', LESSON_PAYLOAD_L2);
+  await page.route('**/api/learn/courses/c-1/lessons/l-2/complete', (route) =>
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ completedAt: NOW }),
+    }),
+  );
+
+  // The outline is a sidebar (always open) at >=1024px. Playwright's default
+  // Desktop Chrome viewport is 1280px wide, which would never exercise the
+  // drawer at all. Force mobile so the toggle/close path — the highest-risk
+  // part of this journey — is actually under test.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/learn/c-1/l-1');
+  // Lazy-loaded route: wait for real content before the first Tab press (see
+  // journey 1's comment for why). Not "Module 1" — at this mobile viewport
+  // the outline starts closed (`[hidden]` on the drawer `<aside>`), so
+  // anything inside it is not yet visible; the lesson <h1> lives outside the
+  // drawer and always renders.
+  await expect(page.getByRole('heading', { name: 'Getting started', level: 1 })).toBeVisible();
+
+  const drawer = page.locator('aside[aria-label="Course outline"]');
+
+  // Open the outline drawer by keyboard and navigate to the second lesson
+  // from within it — the part of "navigate lessons" the brief's original
+  // test body never actually exercised.
+  await tabTo(page, /outline/i);
+  await expectVisibleFocus(page);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-testid="outline-toggle"]')).toHaveAttribute('aria-expanded', 'true');
+  await expect(drawer).toBeVisible();
+
+  await tabTo(page, /going further/i);
+  await expectVisibleFocus(page);
+  await page.keyboard.press('Enter');
+
+  await expect(page).toHaveURL(/\/learn\/c-1\/l-2/);
+  // Task 5's router-driven focus effect (apps/web/src/app/app.ts) moves focus
+  // to #main-content on every subsequent navigation — assert it landed
+  // there rather than assuming focus stayed wherever it last was.
+  await expect(page.locator('#main-content')).toBeFocused();
+  // Selecting a lesson from the drawer must also close it.
+  await expect(drawer).toBeHidden();
+
+  // Escape must close the drawer once focus has moved inside — an
+  // unclosable drawer is a keyboard trap. (Escape while focus stays on the
+  // toggle button wouldn't reach the drawer's own keydown.escape handler:
+  // the toggle lives outside <lib-course-outline-panel>'s DOM subtree, so
+  // the keydown event never bubbles through it. Tabbing into the drawer
+  // first is what makes this a real test of the handler rather than a
+  // vacuous `toHaveCount(0)` against a `role=dialog` this app never uses —
+  // the outline is an inline `<aside>`, not a modal.)
+  await tabTo(page, /outline/i);
+  await page.keyboard.press('Enter');
+  await expect(drawer).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expectVisibleFocus(page);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+
+  // Mark the current (second) lesson complete by keyboard.
+  await tabTo(page, /mark as complete/i);
+  await expectVisibleFocus(page);
+  await page.keyboard.press('Enter');
+  await expect(page.getByText(/completed/i).first()).toBeVisible();
+});
+
+test('journey 4: an instructor can reorder modules using only the keyboard', async ({ page }) => {
+  await stubAuth(page, 'instructor');
+  await stubJson(page, '**/api/categories', [{ id: 'engineering', name: 'Engineering' }]);
+  // GET /api/courses/:cid, not /tree — see COURSE_TREE's comment in
+  // a11y-routes.ts; `/tree` does not exist as a route.
+  await stubJson(page, '**/api/courses/c-1', REORDER_COURSE_TREE);
+  await stubJson(page, '**/api/courses/c-1/publish-eligibility', {
+    eligible: false,
+    reasons: [{ kind: 'COURSE_HAS_NO_MODULES' }],
+  });
+
+  let reorderBody: unknown = null;
+  await page.route('**/api/courses/c-1/modules/order', async (route) => {
+    reorderBody = route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.goto('/courses/c-1/edit');
+  await expect(page.getByText('First module')).toBeVisible();
+
+  // Angular CDK's cdkDrag on this tree is pointer-only: there is no
+  // cdkDragHandle, and the drag surface is a plain (non-focusable) <div>, so
+  // it was never reachable by Tab and Space/Arrow never did anything — a
+  // genuine keyboard trap, not a tab-budget problem. Reach the first
+  // module's keyboard "Move down" button instead (added for this task; it
+  // routes through the same reorderModules-emitting handler the drag drop
+  // event calls).
+  await tabTo(page, /move first module down/i);
+  await expectVisibleFocus(page);
+  await page.keyboard.press('Enter');
+
+  // Prove the reorder actually persisted: the API call fired with the
+  // expected payload, not merely that a button was pressed.
+  await expect.poll(() => reorderBody).toEqual({ ids: ['m-2', 'm-1'] });
 });

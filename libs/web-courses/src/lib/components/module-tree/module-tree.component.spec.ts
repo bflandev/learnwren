@@ -68,6 +68,49 @@ describe('ModuleTreeComponent', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it('emits reorderModules with the new id order when moveModule moves an item', () => {
+    TestBed.configureTestingModule({
+      imports: [ModuleTreeComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), VideoService],
+    });
+    const fixture = TestBed.createComponent(ModuleTreeComponent);
+    fixture.componentRef.setInput('nodes', [node('a'), node('b'), node('c')]);
+    fixture.componentRef.setInput('courseId', 'cid-1' as CourseId);
+    fixture.detectChanges();
+    const spy = vi.spyOn(fixture.componentInstance.reorderModules, 'emit');
+    fixture.componentInstance.moveModule(0, 1);
+    expect(spy).toHaveBeenCalledWith(['b', 'a', 'c']);
+  });
+
+  it('emits reorderModules when moveModule targets index 0 (a valid, not out-of-range, target)', () => {
+    TestBed.configureTestingModule({
+      imports: [ModuleTreeComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), VideoService],
+    });
+    const fixture = TestBed.createComponent(ModuleTreeComponent);
+    fixture.componentRef.setInput('nodes', [node('a'), node('b'), node('c')]);
+    fixture.componentRef.setInput('courseId', 'cid-1' as CourseId);
+    fixture.detectChanges();
+    const spy = vi.spyOn(fixture.componentInstance.reorderModules, 'emit');
+    fixture.componentInstance.moveModule(1, 0);
+    expect(spy).toHaveBeenCalledWith(['b', 'a', 'c']);
+  });
+
+  it('does NOT emit reorderModules when moveModule targets an out-of-range index', () => {
+    TestBed.configureTestingModule({
+      imports: [ModuleTreeComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), VideoService],
+    });
+    const fixture = TestBed.createComponent(ModuleTreeComponent);
+    fixture.componentRef.setInput('nodes', [node('a'), node('b')]);
+    fixture.componentRef.setInput('courseId', 'cid-1' as CourseId);
+    fixture.detectChanges();
+    const spy = vi.spyOn(fixture.componentInstance.reorderModules, 'emit');
+    fixture.componentInstance.moveModule(0, -1);
+    fixture.componentInstance.moveModule(1, 2);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it('defaults coursePublished to false when the input is not provided', () => {
     TestBed.configureTestingModule({
       imports: [ModuleTreeComponent],

@@ -8,6 +8,8 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 
 import type { CourseId, Lesson, Module, VideoState } from '@learnwren/shared-data-models';
 
+import { HlmButton } from '@learnwren/web-ui';
+
 import { ModuleItemComponent } from '../module-item/module-item.component';
 
 export interface ModuleNode {
@@ -18,7 +20,7 @@ export interface ModuleNode {
 @Component({
   selector: 'lib-module-tree',
   standalone: true,
-  imports: [CdkDropList, CdkDrag, ModuleItemComponent],
+  imports: [CdkDropList, CdkDrag, ModuleItemComponent, HlmButton],
   templateUrl: './module-tree.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -44,8 +46,25 @@ export class ModuleTreeComponent {
 
   onDrop(event: CdkDragDrop<ModuleNode[]>): void {
     if (event.previousIndex === event.currentIndex) return;
+    this.commitReorder(event.previousIndex, event.currentIndex);
+  }
+
+  /**
+   * Keyboard-operable alternative to the pointer-only `cdkDrag` handle above:
+   * `cdkDrag` never wires up Space/Arrow reordering by default, and the drag
+   * surface here is a plain (non-focusable) `<div>`, so without this pair of
+   * buttons a keyboard user has no way to reorder modules at all. Routes
+   * through the same `commitReorder` the drop handler above uses — one
+   * reorder code path, two ways to trigger it.
+   */
+  moveModule(from: number, to: number): void {
+    if (to < 0 || to >= this.nodes().length) return;
+    this.commitReorder(from, to);
+  }
+
+  private commitReorder(from: number, to: number): void {
     const next = [...this.nodes()];
-    moveItemInArray(next, event.previousIndex, event.currentIndex);
+    moveItemInArray(next, from, to);
     this.reorderModules.emit(next.map((n) => n.module.id));
   }
 }

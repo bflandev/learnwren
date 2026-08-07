@@ -194,6 +194,65 @@ export const COURSE_TREE = {
   ],
 };
 
+// Two-lesson variant of LESSON_PAYLOAD for keyboard journey 3
+// (apps/web-e2e/src/a11y/keyboard.a11y.spec.ts). LESSON_PAYLOAD's l-2 is
+// deliberately PROCESSING (see its comment) so the base a11y scan still
+// covers the "processing" badge; journey 3 needs a second lesson that is
+// actually READY and clickable, or keyboard navigation between lessons
+// never really happens — outline-panel.component.ts:37-40 bails out of
+// navigation for any row whose videoState isn't 'READY'.
+const TWO_READY_LESSONS_OUTLINE = {
+  modules: [
+    {
+      id: 'm-1',
+      title: 'Module 1',
+      lessons: [
+        { id: 'l-1', title: 'Getting started', videoState: 'READY', completedAt: null },
+        { id: 'l-2', title: 'Going further', videoState: 'READY', completedAt: null },
+      ],
+    },
+  ],
+};
+
+export const LESSON_PAYLOAD_L1 = {
+  ...LESSON_PAYLOAD,
+  outline: TWO_READY_LESSONS_OUTLINE,
+};
+
+export const LESSON_PAYLOAD_L2 = {
+  ...LESSON_PAYLOAD,
+  lesson: { ...LESSON_PAYLOAD.lesson, id: 'l-2', title: 'Going further' },
+  outline: TWO_READY_LESSONS_OUTLINE,
+};
+
+// Shape verified against CourseTree, wire.ts:11-14 / course.ts:15-27 /
+// module.ts:3-10 — a two-module course for keyboard journey 4's reorder
+// test. Distinct from COURSE_TREE above (which has one module) because the
+// reorder journey needs at least two modules to move.
+export const REORDER_COURSE_TREE = {
+  course: {
+    id: 'c-1',
+    title: 'Introduction to Wren',
+    description: 'A short course used by the accessibility sweep.',
+    category: 'engineering',
+    difficulty: 'BEGINNER',
+    instructorId: 'a11y-instructor',
+    status: 'DRAFT',
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+  modules: [
+    {
+      module: { id: 'm-1', courseId: 'c-1', title: 'First module', order: 0, createdAt: NOW, updatedAt: NOW },
+      lessons: [],
+    },
+    {
+      module: { id: 'm-2', courseId: 'c-1', title: 'Second module', order: 1, createdAt: NOW, updatedAt: NOW },
+      lessons: [],
+    },
+  ],
+};
+
 // courses-list-page and dashboard both call CoursesService.listCourses() ->
 // GET /api/courses, which returns Course[] directly (courses.service.ts:44-46)
 // — NOT `{ courses: [...] }` as the brief had it, and not the nested
