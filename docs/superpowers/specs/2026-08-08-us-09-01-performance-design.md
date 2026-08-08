@@ -59,31 +59,43 @@ API stubs are reused from `route-stubs.ts` with one addition: a fixed **150 ms**
 
 ## 5. Load-time gate
 
-**Metric.** Largest Contentful Paint, read via a `PerformanceObserver` on `largest-contentful-paint` installed through `page.addInitScript` before navigation, taking the final entry's `startTime` (relative to navigation start). LCP is chosen over the `load` event because it tracks when the user sees the page's main content, which is what "the page must load within 2 seconds" means to a student.
+**Metrics — two, not one.**
 
-**Sampling.** Each route is navigated 3 times per run in a fresh context, and the assertion is made against the **median** of the three LCP values. A real regression moves the median; a single GC pause or cold-cache outlier does not. Cost is roughly 3 × 4 = 12 throttled navigations, seconds of wall clock.
+1. **Largest Contentful Paint**, read via a `PerformanceObserver` on `largest-contentful-paint` installed through `page.addInitScript` before navigation, taking the final entry's `startTime` (relative to navigation start).
+2. **Time to content**: elapsed wall-clock time from immediately before `page.goto` until the route's `expectText` is visible inside `<main>`. Added after the first implementation pass found that LCP alone is blind to the catalogue's actual failure mode: **the catalogue's LCP candidate is its static `<h1>Course catalogue</h1>` heading, which paints before `/api/catalog` responds** — injecting a 3000 ms delay into that stub during development left the catalogue's LCP median completely unchanged (~1400 ms) because the course-card grid never produces an element large enough (and its CSS-gradient covers aren't `url()`-based, so aren't LCP-eligible at all) to overtake the already-painted heading. Time to content can only complete once the stubbed data has actually rendered, so it is the metric that can fail for a catalog-data-load regression, which is what "loads within 2 seconds" is actually meant to guard against.
+
+LCP remains for the landing page, which has no stubbed API calls at all — there is no "content becomes visible after data loads" event to time, so LCP is the only render-cost signal available. Routes with no `expectText` therefore have no time-to-content measurement (explicit skip, not a defaulted budget).
+
+Both metrics are scoped/anchored consistently: LCP's zero is the browser's navigation start (`performance.now()`-based, inside the page); time to content's zero is `Date.now()` immediately before `page.goto` (in the test process) — both mark the same instant, the start of that navigation.
+
+**Sampling.** Each route is navigated `SAMPLE_COUNT` (3) times per metric per run in a fresh context, and each metric is asserted independently against the **median** of its three values. A real regression moves the median; a single GC pause or cold-cache outlier does not.
 
 **Routes and budgets.**
 
-| Route | Path | Role | Measured median | Budget |
-| :--- | :--- | :--- | :--- | :--- |
-| Landing | `/` | guest | 1320 ms | 1850 ms (`ceil(1320 × 1.4 / 50) × 50`) |
-| Catalogue | `/catalog` | guest | 1412 ms | **2000 ms — the epic's number, hard** |
-| Course detail | `/catalog/c-1` | guest | 1544 ms | 2200 ms (`ceil(1544 × 1.4 / 50) × 50`) |
-| Learn page | `/learn/c-1/l-1` | student | 1556 ms | 2200 ms (`ceil(1556 × 1.4 / 50) × 50`) |
+| Route | Path | Role | Measured LCP median | Measured TTC median | Budget |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Landing | `/` | guest | 1316 ms | — (no `expectText`) | 1850 ms (`ceil(1316 × 1.4 / 50) × 50`) |
+| Catalogue | `/catalog` | guest | 1416 ms | 1967 ms | **2000 ms — the epic's number, hard** |
+| Course detail | `/catalog/c-1` | guest | 1548 ms | 1972 ms | 2800 ms (`ceil(1972 × 1.4 / 50) × 50`) |
+| Learn page | `/learn/c-1/l-1` | student | 1564 ms | 1965 ms | 2800 ms (`ceil(1965 × 1.4 / 50) × 50`) |
 
 Paths verified against `route-inventory.ts` at `b539346`. Note `/courses` is the *instructor* course list, not the catalogue.
 
-These four are the student journey — the routes a student actually waits on. The catalogue budget comes from the AC and is not negotiable by measurement — its measured median (1412 ms) is comfortably under it, so no optimisation work is required. The other three budgets are derived from measurement: `ceil(median × 1.4 / 50) * 50` ms.
+These four are the student journey — the routes a student actually waits on. The catalogue budget comes from the AC and is not negotiable by measurement — its measured time-to-content median (1967 ms) is under it, with real but narrow margin (~33 ms), so no optimisation work is required, but there is little slack. The other three budgets are derived from `ceil(max(median LCP, median TTC) × 1.4 / 50) * 50` ms — time to content is the higher of the two metrics for every route measured, since it includes the 150 ms stub delay plus render time that LCP alone can miss.
 
-**Measured** 2026-08-08 on a Mac mini (Apple M4, 16 GB), macOS Darwin 25.5.0, against `pnpm exec nx run web-e2e:perf` (production build, no other load on the machine). Each route was sampled 5 times per run across two runs; the table above records the higher of the two per-run medians, per the task-5 procedure. Raw samples (ms):
+**Measured** 2026-08-08 on a Mac mini (Apple M4, 16 GB), macOS Darwin 25.5.0, against `pnpm exec nx run web-e2e:perf` (production build, no other load on the machine). Each route was sampled 5 times per metric per run across two runs; the table above records the higher of the two per-run medians, per the task-5 procedure. Raw samples (ms):
 
-| Route | Run 1 samples | Run 1 median | Run 2 samples | Run 2 median | Used |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| Landing | 1368, 1296, 1300, 1304, 1308 | 1304 | 1340, 1300, 1300, 1320, 1324 | 1320 | 1320 |
-| Catalogue | 1424, 1404, 1388, 1416, 1412 | 1412 | 1412, 1400, 1408, 1412, 1412 | 1412 | 1412 |
-| Course detail | 1548, 1544, 1544, 1528, 1540 | 1544 | 1544, 1528, 1548, 1544, 1556 | 1544 | 1544 |
-| Learn page | 1576, 1560, 1532, 1556, 1544 | 1556 | 1584, 1532, 1532, 1544, 1548 | 1544 | 1556 |
+| Route | Metric | Run 1 samples | Run 1 median | Run 2 samples | Run 2 median | Used |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Landing | LCP | 1380, 1304, 1320, 1308, 1304 | 1308 | 1368, 1316, 1320, 1308, 1312 | 1316 | 1316 |
+| Catalogue | LCP | 1416, 1400, 1396, 1400, 1404 | 1400 | 1416, 1404, 1400, 1416, 1432 | 1416 | 1416 |
+| Catalogue | TTC | 1963, 1964, 1955, 1963, 1958 | 1963 | 1976, 1967, 1968, 1963, 1967 | 1967 | 1967 |
+| Course detail | LCP | 1556, 1540, 1528, 1544, 1552 | 1544 | 1552, 1544, 1544, 1548, 1548 | 1548 | 1548 |
+| Course detail | TTC | 1973, 1972, 1977, 1970, 1962 | 1972 | 1970, 1970, 1976, 1968, 1961 | 1970 | 1972 |
+| Learn page | LCP | 1572, 1568, 1548, 1564, 1540 | 1564 | 1572, 1556, 1560, 1556, 1552 | 1556 | 1564 |
+| Learn page | TTC | 1969, 1962, 1964, 1967, 1965 | 1965 | 1972, 1958, 1961, 1961, 1964 | 1961 | 1965 |
+
+**Red-proof.** Injecting a 3000 ms delay into the catalogue's `/api/categories` and `/api/catalog` stubs failed the catalogue test on time-to-content (median 4470 ms over the 2000 ms budget) while leaving LCP for that same run at ~1400 ms and the other three routes' tests passing — confirming time-to-content, not LCP, is what makes this gate sensitive to a catalog-data-load regression.
 
 Exact paths and role stubs come from the shared `route-inventory.ts` fixtures, so the perf suite and the a11y/responsive suites cannot drift apart on what a route needs.
 

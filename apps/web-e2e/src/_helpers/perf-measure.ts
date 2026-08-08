@@ -94,3 +94,40 @@ export async function measureLcp(page: Page, path: string): Promise<number> {
   }
   return lcp;
 }
+
+/**
+ * Navigate to `path` and return the elapsed time, in milliseconds, from
+ * navigation start until `expectText` is visible inside `<main>`.
+ *
+ * LCP alone can lock onto static shell markup — a heading or nav chrome
+ * that paints before any stubbed API resolves — understating how long a
+ * student actually waits for the page's real content (see the catalogue
+ * route: its LCP candidate is the `<h1>`, painted before `/api/catalog`
+ * resolves, so LCP never moves no matter how slow that call is). Time to
+ * content is the honest version of "the page must load within N seconds":
+ * it can only complete once the stubbed data has actually rendered.
+ *
+ * Scoped to `<main>` for the same reason as the a11y/responsive sweeps —
+ * the app header precedes `<main>` and could otherwise satisfy a text match
+ * on its own.
+ *
+ * The clock starts immediately before `page.goto`, the same navigation-start
+ * zero point `measureLcp`'s `entry.startTime` values are relative to (that
+ * one is `performance.now()`-based inside the page; this one is
+ * `Date.now()`-based in the test process — both anchor to this navigation's
+ * start, not to some earlier wall-clock moment).
+ */
+export async function measureTimeToContent(
+  page: Page,
+  path: string,
+  expectText: string,
+): Promise<number> {
+  const start = Date.now();
+  await page.goto(path);
+  await page
+    .locator('main')
+    .getByText(expectText)
+    .first()
+    .waitFor({ state: 'visible' });
+  return Date.now() - start;
+}
