@@ -25,6 +25,10 @@ const DESKTOP = { width: 1280, height: 800 };
 // hidden at 768px; reverted immediately after confirming red).
 const BELOW_BOUNDARY = { width: 767, height: 640 };
 const AT_BOUNDARY = { width: 768, height: 640 };
+// Fix round 2: the search bar itself has no home between md and xl (it's
+// the widest single header item, and the sheet is unreachable up here --
+// the hamburger is md:hidden). TABLET sits inside that band.
+const TABLET = { width: 900, height: 700 };
 
 test.describe('header collapse', () => {
   test('below md: hamburger is shown and the inline nav is hidden', async ({ page }) => {
@@ -125,6 +129,42 @@ test.describe('header collapse', () => {
     for (const label of ['Admin', 'Users', 'Categories', 'Health']) {
       await expect(menu.getByRole('menuitem', { name: label })).toBeVisible();
     }
+  });
+
+  test('below md: no search icon button — search lives in the sheet only', async ({ page }) => {
+    await page.setViewportSize(MOBILE);
+    await stubAuth(page, 'admin');
+    await page.goto('/catalog');
+
+    await expect(page.getByTestId('header-search-trigger')).toBeHidden();
+  });
+
+  test('md to xl: a search icon button opens the search bar in a popover', async ({ page }) => {
+    await page.setViewportSize(TABLET);
+    await stubAuth(page, 'admin');
+    await page.goto('/catalog');
+
+    const trigger = page.getByTestId('header-search-trigger');
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAccessibleName('Search courses');
+
+    await trigger.click();
+    const popover = page.getByTestId('header-search-popover');
+    await expect(popover).toBeVisible();
+    await expect(popover.locator('input[type="search"]')).toBeVisible();
+  });
+
+  test('at xl and up: the search icon button is gone, the inline search bar is back', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await stubAuth(page, 'admin');
+    await page.goto('/catalog');
+
+    await expect(page.getByTestId('header-search-trigger')).toBeHidden();
+    // The inline bar (not inside the sheet or the popover) is a real input,
+    // visible directly in the header.
+    await expect(page.locator('header lib-course-search-bar input[type="search"]')).toBeVisible();
   });
 
   test('a student does not see instructor or admin links in the sheet', async ({ page }) => {

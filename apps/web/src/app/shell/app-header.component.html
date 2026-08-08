@@ -100,6 +100,31 @@
   <div class="hidden xl:block">
     <lib-course-search-bar />
   </div>
+
+  <!-- md-xl band: the inline search bar has nowhere to live (it's the
+       widest single header item -- see the header's top comment), and the
+       sheet is unreachable up here (hamburger is md:hidden). A search icon
+       + popover keeps search reachable without pushing any role over 768px.
+       aria-expanded/aria-haspopup/aria-controls are host-bound by
+       BrnPopoverTrigger -- same "don't re-add them" rule as the sheet
+       trigger above; this repo has already been bitten once by a static
+       aria-controls a primitive silently overwrote. -->
+  <hlm-popover align="end" [sideOffset]="6" class="hidden md:block xl:hidden">
+    <button
+      type="button"
+      hlmBtn
+      variant="ghost"
+      hlmPopoverTrigger
+      aria-label="Search courses"
+      data-testid="header-search-trigger"
+    >
+      <hlm-icon name="lucideSearch" />
+    </button>
+    <hlm-popover-content *brnPopoverContent data-testid="header-search-popover" class="w-72">
+      <lib-course-search-bar />
+    </hlm-popover-content>
+  </hlm-popover>
+
   <lw-theme-toggle />
 
   @if (auth.isAuthenticated()) {

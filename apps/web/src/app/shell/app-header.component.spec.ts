@@ -110,6 +110,49 @@ describe('AppHeaderComponent', () => {
     });
   });
 
+  // Fix round 2: between md and xl the inline search bar has no room (it's
+  // the widest single header item) and the sheet is unreachable (hamburger
+  // is md:hidden), so a search icon button opens the bar in a popover
+  // instead. jsdom can't judge the md/xl breakpoints that decide whether
+  // this is visually shown, so these only assert that the trigger/panel
+  // exist with the right accessible name and content — same DOM-presence
+  // contract as the admin dropdown above.
+  describe('search popover', () => {
+    let overlayContainer: OverlayContainer;
+
+    afterEach(() => {
+      overlayContainer?.ngOnDestroy();
+    });
+
+    it('renders the search icon trigger with an accessible name', () => {
+      configureAuthTestBed(AppHeaderComponent, null);
+      overlayContainer = TestBed.inject(OverlayContainer);
+      const fixture = TestBed.createComponent(AppHeaderComponent);
+      fixture.detectChanges();
+      const trigger = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        '[data-testid="header-search-trigger"]',
+      );
+      expect(trigger).not.toBeNull();
+      expect(trigger?.getAttribute('aria-label')).toBe('Search courses');
+    });
+
+    it('opening the trigger reveals the search bar in the popover', () => {
+      configureAuthTestBed(AppHeaderComponent, null);
+      overlayContainer = TestBed.inject(OverlayContainer);
+      const fixture = TestBed.createComponent(AppHeaderComponent);
+      fixture.detectChanges();
+      const trigger = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        '[data-testid="header-search-trigger"]',
+      );
+      trigger?.click();
+      fixture.detectChanges();
+
+      const panel = overlayContainer.getContainerElement();
+      expect(panel.querySelector('[data-testid="header-search-popover"]')).not.toBeNull();
+      expect(panel.querySelector('lib-course-search-bar')).not.toBeNull();
+    });
+  });
+
   it('renders the user initials in the avatar when authenticated', async () => {
     configureAuthTestBed(AppHeaderComponent, { displayName: 'Etta Wren' });
     const fixture = TestBed.createComponent(AppHeaderComponent);

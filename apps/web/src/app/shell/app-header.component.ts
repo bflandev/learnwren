@@ -2,17 +2,21 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signa
 import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { provideIcons } from '@ng-icons/core';
-import { lucideMenu } from '@ng-icons/lucide';
+import { lucideMenu, lucideSearch } from '@ng-icons/lucide';
 
 import { AuthService } from '@learnwren/web-auth';
 import { CourseSearchBarComponent } from '@learnwren/web-catalog';
 import {
+  BrnPopoverContent,
   HlmAvatar,
   HlmButton,
   HlmIcon,
   HlmMenu,
   HlmMenuItem,
   HlmMenuTrigger,
+  HlmPopover,
+  HlmPopoverContent,
+  HlmPopoverTrigger,
   HlmSheetImports,
   LwWordmarkComponent,
   ThemeToggleComponent,
@@ -33,12 +37,16 @@ import {
     HlmMenu,
     HlmMenuItem,
     HlmMenuTrigger,
+    HlmPopover,
+    HlmPopoverTrigger,
+    HlmPopoverContent,
+    BrnPopoverContent,
     ...HlmSheetImports,
     LwWordmarkComponent,
     ThemeToggleComponent,
     CourseSearchBarComponent,
   ],
-  providers: [provideIcons({ lucideMenu })],
+  providers: [provideIcons({ lucideMenu, lucideSearch })],
   templateUrl: './app-header.component.html',
 })
 export class AppHeaderComponent {
