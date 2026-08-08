@@ -75,7 +75,7 @@ export class ProfilePageComponent implements OnInit {
   readonly readonly = signal<{ email: string; role: ProfileView['role'] } | null>(null);
   // Rendered as page-level text (not just the form's input value) so the
   // page has a visible confirmation of whose profile is loaded, independent
-  // of the header's name chip (which is hidden below the `xl` breakpoint).
+  // of the header's name chip (which is hidden below the `md` breakpoint).
   readonly displayName = signal<string | null>(null);
 
   readonly loadingProfile = signal(true);

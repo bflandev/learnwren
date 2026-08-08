@@ -10,7 +10,7 @@ import { AuthService } from '@learnwren/web-auth';
 class StubComponent {}
 
 // jsdom does not implement window.matchMedia; AppHeaderComponent uses it
-// (see its `wideQuery` field) to structurally drop the name chip below xl.
+// (see its `wideQuery` field) to structurally drop the name chip below md.
 // Polyfilled once here since both App and AppHeaderComponent specs render it.
 if (typeof window !== 'undefined' && !window.matchMedia) {
   Object.defineProperty(window, 'matchMedia', {
