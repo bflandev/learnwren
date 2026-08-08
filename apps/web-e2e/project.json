@@ -21,6 +21,13 @@
       "options": {
         "config": "apps/web-e2e/playwright.responsive.config.ts"
       }
+    },
+    "perf": {
+      "executor": "@nx/playwright:playwright",
+      "dependsOn": ["web:build"],
+      "options": {
+        "config": "apps/web-e2e/playwright.perf.config.ts"
+      }
     }
   }
 }
