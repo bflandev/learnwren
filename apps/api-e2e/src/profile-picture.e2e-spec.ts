@@ -34,10 +34,12 @@ test('UC-01-03 Slice B — profile picture PUT → GET → DELETE → GET round-
   expect(put.status()).toBe(200);
   const putBody = await put.json();
   expect(putBody.uid).toBe(session.uid);
-  // The fake adapter stores at profile-pictures/<uid>/avatar.jpg; the
-  // service builds the URL as `${publicBaseUrl}/${path}?v=<iso>`.
+  // The fake adapter stores at profile-pictures/<uid>/avatar.jpg; the service
+  // builds the URL as
+  // `${publicBaseUrl}/${encodeURIComponent(path)}?alt=media&v=<iso>`, so the
+  // path separators arrive %2F-encoded.
   expect(putBody.photoUrl).toMatch(
-    new RegExp(`profile-pictures/${session.uid}/avatar\\.jpg\\?v=`),
+    new RegExp(`profile-pictures%2F${session.uid}%2Favatar\\.jpg\\?alt=media&v=`),
   );
 
   // GET — reflects the new photoUrl.

@@ -590,10 +590,10 @@ describe('LessonPlayerPageComponent initial state defaults', () => {
     expect(fixture.componentInstance.outlineMode()).toBe('drawer');
   });
 
-  it('outlineOpen() defaults to false in drawer mode (matchMedia matches=false)', () => {
+  it('outlineOpen() defaults to true in drawer mode (matchMedia matches=false) -- the outline is discoverable on first load on every viewport', () => {
     configure();
     const { fixture } = create();
-    expect(fixture.componentInstance.outlineOpen()).toBe(false);
+    expect(fixture.componentInstance.outlineOpen()).toBe(true);
   });
 
   it('outlineMode() reacts to a viewport breakpoint change (not stuck at first render)', () => {
@@ -1441,7 +1441,7 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       }
     });
 
-    it('isDesktop drives outlineMode="sidebar" and outlineOpen=true when matchMedia matches:true (kills isDesktop/outlineOpen init mutants)', () => {
+    it('isDesktop drives outlineMode="sidebar" when matchMedia matches:true (kills isDesktop init mutant); outlineOpen starts true regardless', () => {
       const mm = withControllableMatchMedia(true);
       try {
         configure();
@@ -1453,13 +1453,13 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       }
     });
 
-    it('outlineMode="drawer" and outlineOpen=false when matchMedia matches:false', () => {
+    it('outlineMode="drawer" when matchMedia matches:false; outlineOpen still starts true (kills outlineOpen init mutant)', () => {
       const mm = withControllableMatchMedia(false);
       try {
         configure();
         const fixture = createNoInit();
         expect(fixture.componentInstance.outlineMode()).toBe('drawer');
-        expect(fixture.componentInstance.outlineOpen()).toBe(false);
+        expect(fixture.componentInstance.outlineOpen()).toBe(true);
       } finally {
         mm.restore();
       }

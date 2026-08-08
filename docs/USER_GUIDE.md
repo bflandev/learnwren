@@ -58,6 +58,8 @@ This guide covers **every feature wired up today**, in three parts:
 | Administration | User directory, role management, suspend / delete (US-08-01) | Built (2026-06-03 / 06-09) |
 | Administration | Course category management (US-08-02) | Built (2026-07-10) |
 | Administration | Platform health dashboard (US-08-04) | Built (2026-07-17) |
+| Non-functional | Accessibility: axe-core sweep + keyboard journeys (US-09-03) | Built (2026-08-07) |
+| Non-functional | Mobile responsiveness: header collapse + overflow gate (US-09-05) | Built (2026-08-07) |
 
 ---
 
@@ -137,6 +139,20 @@ teaching. **Administrators** covers platform administration. URLs below use the 
 dev address; on a deployed instance substitute its domain.
 
 ## 2.1 Everyone: accounts and profiles
+
+### The header at different screen widths
+
+The app header is responsive (US-09-05, 2026-08-07). At and above `md` (768 px)
+it is an inline bar: wordmark, nav links, search, theme toggle, and avatar. An
+ADMIN's four admin-only links (Admin, Users, Categories, Health) sit behind an
+**Admin menu** dropdown in that inline bar rather than as four separate links —
+they need too much horizontal room otherwise. The inline search bar itself only
+shows at `xl` (1280 px) and up; between `md` and `xl` a magnifier-icon button
+opens it in a popover. Below `md` the header collapses to a hamburger button
+that opens a slide-out sheet holding the nav links (admin links flat, not
+menu'd), the search bar, and — for guests — the Log in / Register buttons. The
+theme toggle and avatar always stay visible in the bar; the display-name text
+next to the avatar hides below `md`.
 
 ### Creating an account
 
@@ -1227,9 +1243,9 @@ Target a single project by invoking Nx directly, e.g. `pnpm nx test api-courses`
 # What is not built
 
 Every story in EP-01 through EP-08 is implemented. EP-09 (non-functional
-requirements) is partly done: US-09-02 (security) and US-09-03 (accessibility)
-are shipped; **US-09-01 (performance), US-09-04 (self-hosting), and US-09-05
-(mobile responsiveness) are not built.** The remaining gaps below are
+requirements) is partly done: US-09-02 (security), US-09-03 (accessibility),
+and US-09-05 (mobile responsiveness) are shipped; **US-09-01 (performance) and
+US-09-04 (self-hosting) are not built.** The remaining gaps below are
 deliberate scope cuts inside shipped features:
 
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll
@@ -1246,6 +1262,13 @@ deliberate scope cuts inside shipped features:
 - **Screen-reader verification** — the accessibility gate is automated axe plus
   targeted keyboard journeys. No VoiceOver/NVDA pass has been run, and "alt text
   is present and non-empty" is verified, not "alt text is descriptive".
+- **Touch-target sizing and visual sanity** — the responsive gate proves no
+  horizontal scrolling from 320 px to 2560 px; it does not prove a page looks
+  good or that every tap target is comfortably sized. Those were checked
+  manually at 320 px (`docs/superpowers/plans/2026-08-07-us-09-05-manual-verification.md`),
+  not gated in CI. Custom swipe-to-seek / pinch-to-zoom on the video player was
+  deliberately not built — the native `<video controls>` player's own touch
+  affordances satisfy the acceptance criterion without risking the WCAG gate.
 
 ## Further reading
 

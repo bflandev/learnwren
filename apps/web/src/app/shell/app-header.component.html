@@ -1,0 +1,162 @@
+<!-- `collapseAdmin` (passed only by the inline md+ <nav>, below) groups the
+     four admin-only links behind one dropdown trigger -- at 768px an admin's
+     inline nav still overflowed by 85px even with the search bar moved out
+     (measured: guest/student/instructor fit at 768 without it; admin alone
+     needed this). The sheet gets `collapseAdmin` unset (falsy) and keeps the
+     links flat -- no width pressure there, and one fewer tap on mobile. -->
+<ng-template #navLinks let-collapseAdmin="collapseAdmin">
+  <a routerLink="/catalog" hlmBtn variant="ghost">Browse courses</a>
+  @if (auth.isAuthenticated()) {
+    <a routerLink="/dashboard" hlmBtn variant="ghost">Dashboard</a>
+    @if (auth.currentUser()?.role === 'INSTRUCTOR') {
+      <a routerLink="/courses" hlmBtn variant="ghost">My Courses</a>
+    }
+    @if (auth.currentUser()?.role === 'ADMIN') {
+      @if (collapseAdmin) {
+        <button
+          hlmBtn
+          variant="ghost"
+          type="button"
+          [hlmMenuTriggerFor]="adminMenu"
+          data-testid="header-admin-menu-trigger"
+        >
+          Admin menu
+        </button>
+        <ng-template #adminMenu>
+          <hlm-menu data-testid="header-admin-menu">
+            <a hlmMenuItem routerLink="/admin/instructor-applications">Admin</a>
+            <a hlmMenuItem routerLink="/admin/users">Users</a>
+            <a hlmMenuItem routerLink="/admin/categories">Categories</a>
+            <a hlmMenuItem routerLink="/admin/health">Health</a>
+          </hlm-menu>
+        </ng-template>
+      } @else {
+        <a routerLink="/admin/instructor-applications" hlmBtn variant="ghost">Admin</a>
+        <a routerLink="/admin/users" hlmBtn variant="ghost">Users</a>
+        <a routerLink="/admin/categories" hlmBtn variant="ghost">Categories</a>
+        <a routerLink="/admin/health" hlmBtn variant="ghost">Health</a>
+      }
+    }
+  }
+</ng-template>
+
+<!-- Guest-only auth CTAs, shared between the header bar (md+) and the sheet
+     (below md) so there is one copy of the markup, not two. -->
+<ng-template #guestActions>
+  <a routerLink="/login" hlmBtn variant="ghost">Log in</a>
+  <a routerLink="/register" hlmBtn>Register</a>
+</ng-template>
+
+<header
+  class="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-bg px-4 py-3.5 md:gap-6 md:px-6"
+>
+  <!-- Global Constraint of this slice: the collapse boundary is `md` (768px)
+       for every role, matching the sweep's 768px case and design doc §5.1
+       ("at and above md the layout is unchanged"). The nav links (a fixed
+       cost per role) live in the header bar from md up; the search bar is
+       the one exception -- it's the single widest item, so it stays out of
+       the header bar until `xl` (kept reachable below md via the sheet, see
+       the per-role 768px measurements in task-6-report.md fix-round-1 for
+       why this alone was enough for guest/student/instructor but not
+       admin). Below md: hamburger opens the nav + search (+ guest auth
+       CTAs) in a sheet. -->
+  <hlm-sheet side="left" class="md:hidden">
+    <!-- aria-expanded/aria-controls are host-bound by BrnDialogTrigger; don't re-add them. -->
+    <button
+      hlmBtn
+      variant="ghost"
+      hlmSheetTrigger
+      type="button"
+      aria-label="Open navigation menu"
+      data-testid="header-nav-toggle"
+    >
+      <hlm-icon name="lucideMenu" />
+    </button>
+    <hlm-sheet-overlay />
+    <hlm-sheet-content *brnSheetContent data-testid="header-nav-sheet">
+      <h2 hlmSheetTitle>Menu</h2>
+      <nav class="mt-4 flex flex-col items-start gap-1">
+        <ng-container *ngTemplateOutlet="navLinks" />
+      </nav>
+      <div class="mt-4">
+        <lib-course-search-bar />
+      </div>
+      @if (!auth.isAuthenticated()) {
+        <div class="mt-4 flex items-center gap-2">
+          <ng-container *ngTemplateOutlet="guestActions" />
+        </div>
+      }
+    </hlm-sheet-content>
+  </hlm-sheet>
+
+  <a routerLink="/catalog"><lw-wordmark [size]="20" /></a>
+
+  <nav class="hidden gap-1 md:flex" data-testid="header-nav">
+    <ng-container *ngTemplateOutlet="navLinks; context: { collapseAdmin: true }" />
+  </nav>
+
+  <span class="flex-1"></span>
+
+  <div class="hidden xl:block">
+    <lib-course-search-bar />
+  </div>
+
+  <!-- md-xl band: the inline search bar has nowhere to live (it's the
+       widest single header item -- see the header's top comment), and the
+       sheet is unreachable up here (hamburger is md:hidden). A search icon
+       + popover keeps search reachable without pushing any role over 768px.
+       aria-expanded/aria-haspopup/aria-controls are host-bound by
+       BrnPopoverTrigger -- same "don't re-add them" rule as the sheet
+       trigger above; this repo has already been bitten once by a static
+       aria-controls a primitive silently overwrote. -->
+  <hlm-popover align="end" [sideOffset]="6" class="hidden md:block xl:hidden">
+    <button
+      type="button"
+      hlmBtn
+      variant="ghost"
+      hlmPopoverTrigger
+      aria-label="Search courses"
+      data-testid="header-search-trigger"
+    >
+      <hlm-icon name="lucideSearch" />
+    </button>
+    <hlm-popover-content *brnPopoverContent data-testid="header-search-popover" class="w-72">
+      <lib-course-search-bar />
+    </hlm-popover-content>
+  </hlm-popover>
+
+  <lw-theme-toggle />
+
+  @if (auth.isAuthenticated()) {
+    <a
+      role="img"
+      routerLink="/settings/profile"
+      class="flex items-center gap-2"
+      [attr.aria-label]="'Profile settings for ' + (auth.currentUser()?.displayName ?? '')"
+    >
+      <hlm-avatar
+        size="sm"
+        [src]="auth.currentUser()?.photoUrl"
+        [alt]="auth.currentUser()?.displayName ?? ''"
+        [attr.data-tone]="avatarTone()"
+      >
+        <span data-testid="header-avatar-initials" class="text-xs font-medium">{{
+          avatarInitials()
+        }}</span>
+      </hlm-avatar>
+      <!-- Removed from the DOM (not just CSS-hidden) below md: the name chip
+           is what blows the row out at mobile widths, and the avatar link
+           already carries the accessible name via its aria-label above.
+           Structural removal (vs. `hidden md:inline`) matters because a
+           display:none node still matches text locators -- see isWide's
+           comment in the component. -->
+      @if (isWide()) {
+        <span class="user-chip-name text-sm">{{ auth.currentUser()?.displayName }}</span>
+      }
+    </a>
+  } @else {
+    <div class="hidden items-center gap-2 md:flex">
+      <ng-container *ngTemplateOutlet="guestActions" />
+    </div>
+  }
+</header>

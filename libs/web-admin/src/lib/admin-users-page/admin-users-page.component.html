@@ -51,7 +51,10 @@
     <ul class="mt-6 flex flex-col divide-y divide-line" data-testid="user-list">
       @for (u of users(); track u.id) {
         <li data-testid="user-row" [attr.data-uid]="u.id">
-          <a [routerLink]="[u.id]" class="flex items-baseline justify-between gap-4 py-3 hover:bg-bg-2">
+          <a
+            [routerLink]="[u.id]"
+            class="flex flex-col items-start gap-1 py-3 hover:bg-bg-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+          >
             <span>
               <span class="font-medium text-ink">{{ u.displayName }}</span>
               <span class="ml-2 text-sm text-muted-foreground">{{ u.email }}</span>

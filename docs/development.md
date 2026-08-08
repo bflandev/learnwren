@@ -101,6 +101,8 @@ All scripts run from the repo root and delegate to Nx.
 | `pnpm test` | Run all unit tests (Vitest). |
 | `pnpm lint` / `pnpm typecheck` | Lint / type-check all projects. |
 | `pnpm e2e` | Run the Playwright suites (`web-e2e`, then `api-e2e`). |
+| `pnpm exec nx run web-e2e:a11y` | Hermetic WCAG 2.1 AA sweep (axe-core + keyboard journeys, US-09-03). Needs neither the emulators nor the api. |
+| `pnpm exec nx run web-e2e:responsive` | Hermetic 320/768/1280/2560px horizontal-overflow sweep + header collapse specs (US-09-05). Needs neither the emulators nor the api. |
 | `pnpm affected` | Lint + test + build + typecheck for projects affected by the branch. |
 | `pnpm crap` / `pnpm mutate` | Regenerate the CRAP-score and mutation reports (see `docs/quality/`). |
 | `pnpm tools:promote-to-instructor <email>` | Promote a verified user to the `INSTRUCTOR` role (emulator by default — see below). |
@@ -154,6 +156,22 @@ so no GCP credentials are needed. (The video / playback / publish tests were
 previously `test.fixme`-quarantined; those were all restored in 2026-05 and no
 `test.fixme` remain.) CI runs this suite on every push and PR
 (`.github/workflows/ci.yml`, the `e2e` job — which uses the one-shot form above).
+
+### Hermetic `web-e2e` gates: a11y and responsive
+
+`web-e2e:a11y` and `web-e2e:responsive` are separate Playwright configs
+(`playwright.a11y.config.ts`, `playwright.responsive.config.ts`) that start
+only the Angular dev server and stub every `/api` call via `page.route`
+against a shared route inventory (`apps/web-e2e/src/_helpers/route-inventory.ts`).
+Neither needs the Firebase emulators or the `api` — run them directly:
+
+```bash
+pnpm exec nx run web-e2e:a11y
+pnpm exec nx run web-e2e:responsive
+```
+
+Both run as their own CI jobs (`a11y`, `responsive` in `.github/workflows/ci.yml`)
+in parallel with the emulator-backed jobs, not gating them.
 
 ## CI mutation gate
 

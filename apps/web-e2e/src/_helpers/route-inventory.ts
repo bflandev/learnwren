@@ -1,14 +1,14 @@
 import type { Page } from '@playwright/test';
 
-import { stubJson, type A11yRole } from './a11y-stubs';
+import { stubJson, type RouteRole } from './route-stubs';
 
-export interface A11yRoute {
+export interface RouteFixture {
   /** Human label used as the test title. */
   name: string;
   /** Path to navigate to. */
   path: string;
   /** Role to stub for GET /api/auth/me. */
-  role: A11yRole;
+  role: RouteRole;
   /** Stub the page's data calls. Register broad globs BEFORE specific paths. */
   stubs?: (page: Page) => Promise<void>;
   /** A selector that must be visible before scanning, so axe sees settled DOM. */
@@ -276,7 +276,7 @@ export const COURSE_LIST_ITEM = {
 
 export const COURSE_LIST = [COURSE_LIST_ITEM];
 
-export const GUEST_ROUTES: A11yRoute[] = [
+export const GUEST_ROUTES: RouteFixture[] = [
   { name: 'landing', path: '/', role: 'guest' },
   { name: 'login', path: '/login', role: 'guest' },
   { name: 'register', path: '/register', role: 'guest' },
@@ -315,7 +315,7 @@ export const GUEST_ROUTES: A11yRoute[] = [
   },
 ];
 
-export const AUTHED_ROUTES: A11yRoute[] = [
+export const AUTHED_ROUTES: RouteFixture[] = [
   {
     // DashboardComponent (apps/web/src/app/dashboard/dashboard.component.ts) only
     // fetches courses when the caller is an instructor; as a student it renders

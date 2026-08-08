@@ -28,8 +28,11 @@ test('instructor uploads, replaces, then removes a cover image', async ({ reques
   });
   expect(upload.status()).toBe(200);
   const uploadBody = await upload.json();
+  // The service %2F-encodes the object path and appends `alt=media` so the URL
+  // resolves against the Firebase Storage REST endpoint (see
+  // cover-image.service.ts) — assert that exact shape, not the decoded one.
   expect(uploadBody.coverImageUrl).toMatch(
-    new RegExp(`course-covers/${course.id}/cover\\.jpg\\?v=`),
+    new RegExp(`course-covers%2F${course.id}%2Fcover\\.jpg\\?alt=media&v=`),
   );
   expect(uploadBody.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 

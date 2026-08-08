@@ -71,6 +71,6 @@ Non-functional requirements define the quality attributes of the system. In Agil
 **Acceptance Criteria (Conditions of Satisfaction):**
 
 - All pages are responsive and render correctly on screen widths from 320 px (small mobile) to 2560 px (large desktop).
-- The video player is touch-friendly and supports swipe-to-seek and pinch-to-zoom on mobile devices.
+- The video player is touch-friendly on mobile devices. **Amended 2026-08-07:** this is satisfied by the native `<video controls>` player, which provides a touch scrubber, tap-to-play, and fullscreen with pinch-zoom on iOS and Android. Custom swipe-to-seek and pinch-to-zoom handlers were considered and declined: layering custom gestures over the native controls would forfeit the keyboard operability and screen-reader labelling those controls provide for free, putting the WCAG 2.1 AA gate landed in US-09-03 at risk. See `docs/superpowers/specs/2026-08-07-us-09-05-mobile-responsiveness-design.md` §6.
 - Navigation menus collapse into a hamburger menu on small screens.
 - Text is legible without horizontal scrolling on any supported screen width.
