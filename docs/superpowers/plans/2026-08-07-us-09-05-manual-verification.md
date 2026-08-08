@@ -21,10 +21,23 @@ neither was committed. Screenshots were written to
 `.superpowers/sdd/2026-08-07-us-09-05-mobile-responsiveness/screens/` (also
 not committed).
 
-All 22 routes in the inventory (9 guest, 13 authenticated across
-student/instructor/admin) loaded successfully at 320×640 with their real
-stubbed content (not an error state — same `expectText` guard the gate
-uses).
+All 23 routes in the inventory (9 guest, 14 authenticated across
+student/instructor/admin) are covered by the automated overflow and a11y
+gates at 320×640 (and three other widths) with their real stubbed content
+(the same `expectText` guard the gate uses). This record's own throwaway
+scripts were tallied at the time as "22 (9 guest, 13 authenticated)" — one
+short of the actual `GUEST_ROUTES`/`AUTHED_ROUTES` count in
+`route-inventory.ts`. The scripts were never committed, so the exact route
+they skipped can't be replayed; the most likely candidate is **admin user
+detail** (`/admin/users/u1`) — the only authenticated route this record's
+prose never names even in passing (contrast "admin user directory", which
+gets its own touch-target row below). Rather than leave that open, it and
+every other route in the inventory are re-verified by the automated
+overflow gate (`nx run web-e2e:responsive`) and a11y gate (`nx run
+web-e2e:a11y`) on every CI run, both of which drive `/admin/users/u1` at
+320/768/1280/2560px and pass — so nothing here is unverified going forward,
+even though this specific manual pass's coverage of it can't be confirmed
+after the fact.
 
 Chromium's built-in `<video controls>` chrome was used to check the player.
 It renders desktop-style controls, not iOS/Android native controls, which is
@@ -116,7 +129,9 @@ retired.
 **Method**: for every route in the inventory, at 320×640, every
 `button, a, input, select, textarea, [role="button"], [tabindex]` was
 measured via `getBoundingClientRect()` (Playwright `boundingBox()`). 181
-elements across the 22 routes had width or height under 44 px. Of those, 23
+elements — across the routes the throwaway script actually drove, believed
+to be all or nearly all of the 23-route inventory (see the route-count note
+above) — had width or height under 44 px. Of those, 23
 were the "Skip to content" skip-link (offscreen until keyboard-focused, by
 design — not a real tap target at rest) and 4 were `sr-only` `<input
 type="file">` elements that exist only to be triggered by a visible,
