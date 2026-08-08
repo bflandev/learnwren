@@ -68,9 +68,11 @@ API stubs are reused from `route-stubs.ts` with one addition: a fixed **150 ms**
 | Route | Path | Role | Budget |
 | :--- | :--- | :--- | :--- |
 | Landing | `/` | guest | baseline × 1.4 |
-| Catalogue | `/courses` | guest | **2000 ms — the epic's number, hard** |
-| Course detail | `/courses/:id` | guest | baseline × 1.4 |
-| Learn page | `/learn/:courseId/:lessonId` | student | baseline × 1.4 |
+| Catalogue | `/catalog` | guest | **2000 ms — the epic's number, hard** |
+| Course detail | `/catalog/c-1` | guest | baseline × 1.4 |
+| Learn page | `/learn/c-1/l-1` | student | baseline × 1.4 |
+
+Paths verified against `route-inventory.ts` at `b539346`. Note `/courses` is the *instructor* course list, not the catalogue.
 
 These four are the student journey — the routes a student actually waits on. The catalogue budget comes from the AC and is not negotiable by measurement. The other three budgets are derived: during implementation, each route is measured 5 times on a quiet local machine, the median recorded, and the budget set to `ceil(median × 1.4 / 50) * 50` ms. **The measured baselines and resulting budgets are written back into this spec before the slice lands**, so the numbers in the repo have a recorded provenance rather than appearing as magic constants.
 
@@ -80,9 +82,27 @@ Exact paths and role stubs come from the shared `route-inventory.ts` fixtures, s
 
 **The fixture.** A 2-second AES-128 HLS asset generated once with local `ffmpeg` and committed under `apps/web-e2e/src/fixtures/hls/`: a variant playlist, the AES key file, and one or two `.ts` segments — on the order of 100 KB total. The generating command is recorded in a `README.md` beside the fixture so it can be regenerated deterministically. **CI does not need ffmpeg**; it consumes the committed bytes.
 
-**Serving it.** `src/_helpers/hls-fixture.ts` registers `page.route` handlers that fulfil the playlist, key, and segment requests from disk with the correct content types, and stubs the playback-manifest endpoint so the player is pointed at the fixture playlist. Chromium runs hls.js (native HLS is a Safari/iOS path and is out of scope for this Chromium-only gate).
+**Serving it.** `src/_helpers/hls-fixture.ts` registers `page.route` handlers from disk, mirroring the four real endpoints the player actually walks (verified against `playback.controller.ts` and `manifest.rewriter.ts` at `b539346`):
 
-**The measurement.** Navigate to the lesson page, wait for the player to mount, start the clock, click play, and stop the clock at the first `timeupdate` event where `video.currentTime > 0` — i.e. a frame has actually been decoded and presented, not merely that the manifest parsed. Budget **3000 ms**, hard, from the AC. Median of 3, same as §5.
+| Request | Fulfilled with | Content-Type |
+| :--- | :--- | :--- |
+| `**/api/playback/manifest/v-1` | master playlist, variant URI pointing at the rendition path below | `application/vnd.apple.mpegurl` |
+| `**/api/playback/manifest/v-1/rendition/720p` | rendition playlist; `#EXT-X-KEY` URI `/api/playback/keys/v-1`, segment URIs `/perf-fixture/seg*.ts` | `application/vnd.apple.mpegurl` |
+| `**/api/playback/keys/v-1` | the 16-byte AES key | `application/octet-stream` |
+| `**/perf-fixture/*.ts` | the segment bytes | `video/mp2t` |
+
+Segment URIs are a synthetic in-page path rather than the absolute signed GCS URLs production emits, because a signed URL is unstubbable-by-design; the shape the *player* sees — "playlist hands me URLs, I fetch them" — is identical.
+
+Two prerequisites the fixture also needs:
+
+- `GET /api/playback/config` must be stubbed `{ fakePlayback: false }`. In fake mode `VideoPlayerComponent` shows a dev placeholder and never mounts hls.js (`video-player.component.html:14-21`), so the gate would measure nothing.
+- The learn-page lesson fixture needs a **new** `LESSON_PAYLOAD_READY` export in `route-inventory.ts` with `videoId: 'v-1'` and `videoState: 'READY'`. The existing `LESSON_PAYLOAD` has both `null` deliberately, which renders the "processing" state and no player at all.
+
+Chromium runs hls.js (native HLS is a Safari/iOS path, out of scope for this Chromium-only gate).
+
+**The measurement.** Navigate to the lesson page, wait for `[data-testid="video-player"]` to attach, start the clock, invoke `play()` on the video element, and stop the clock at the first `timeupdate` where `currentTime > 0` — i.e. a frame has actually been decoded and presented, not merely that the manifest parsed. Budget **3000 ms**, hard, from the AC. Median of 3, same as §5.
+
+The player uses native `<video controls>` (`video-player.component.html:2-8`), whose buttons live in the browser's shadow UI and are not reliably clickable from Playwright. Calling `play()` is the honest equivalent of the user's click: it starts the same clock at the same point in the pipeline. The spec records this substitution in a comment so no reader mistakes it for a real pointer event.
 
 This is the first thing in the repo that proves video playback starts at all, which is worth more than the timing number it asserts.
 
