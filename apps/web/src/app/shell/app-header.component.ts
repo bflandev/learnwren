@@ -10,6 +10,9 @@ import {
   HlmAvatar,
   HlmButton,
   HlmIcon,
+  HlmMenu,
+  HlmMenuItem,
+  HlmMenuTrigger,
   HlmSheetImports,
   LwWordmarkComponent,
   ThemeToggleComponent,
@@ -27,6 +30,9 @@ import {
     HlmAvatar,
     HlmButton,
     HlmIcon,
+    HlmMenu,
+    HlmMenuItem,
+    HlmMenuTrigger,
     ...HlmSheetImports,
     LwWordmarkComponent,
     ThemeToggleComponent,
@@ -46,13 +52,15 @@ export class AppHeaderComponent {
   );
 
   // The name chip next to the avatar is structurally removed (not just
-  // CSS-hidden) below `xl`: a `display:none` node is still present in the DOM
+  // CSS-hidden) below `md`: a `display:none` node is still present in the DOM
   // and still matches text locators, which collided with routes whose e2e
   // render-guard text is the signed-in user's display name (e.g.
-  // /settings/profile). Mirrors the matchMedia-signal pattern already used by
+  // /settings/profile). Threshold matches the header's collapse boundary
+  // (`md`, 768px -- a Global Constraint of this slice; see the header's own
+  // comment). Mirrors the matchMedia-signal pattern already used by
   // LessonPlayerPageComponent for its own responsive drawer/sidebar split.
   private readonly wideQuery =
-    typeof window !== 'undefined' ? window.matchMedia('(min-width: 1280px)') : null;
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)') : null;
   protected readonly isWide = signal<boolean>(this.wideQuery?.matches ?? true);
 
   constructor() {
