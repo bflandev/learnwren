@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 
+import { STUB_DELAY_MS } from './perf-measure';
 import { stubJson, type RouteRole } from './route-stubs';
 
 export interface RouteFixture {
@@ -573,5 +574,73 @@ export const AUTHED_ROUTES: RouteFixture[] = [
       });
     },
     expectText: '12 jobs pending.',
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Performance suite (US-09-01). See
+// docs/superpowers/specs/2026-08-08-us-09-01-performance-design.md.
+// ---------------------------------------------------------------------------
+
+/**
+ * LESSON_PAYLOAD deliberately has videoId/videoState null so the a11y sweep
+ * covers the "processing" state. The perf suite needs the opposite: a lesson
+ * whose video is READY, so VideoPlayerComponent actually mounts and there is
+ * something to time.
+ */
+export const LESSON_PAYLOAD_READY = {
+  ...LESSON_PAYLOAD,
+  lesson: { ...LESSON_PAYLOAD.lesson, videoId: 'v-1', videoState: 'READY' },
+};
+
+/**
+ * The four student-journey routes the load-time gate measures. Deliberately
+ * NOT the full 23-route inventory the a11y and responsive sweeps use: 23
+ * throttled median-of-3 navigations is slow, and each one is a flake
+ * surface. These four are the routes a student actually waits on.
+ *
+ * Stubs mirror the same routes' entries in GUEST_ROUTES/AUTHED_ROUTES but
+ * pass STUB_DELAY_MS. Broad globs FIRST, specific paths LAST — Playwright
+ * matches handlers in reverse registration order.
+ */
+export const PERF_ROUTES: RouteFixture[] = [
+  { name: 'landing', path: '/', role: 'guest' },
+  {
+    name: 'catalogue',
+    path: '/catalog',
+    role: 'guest',
+    stubs: async (page) => {
+      await stubJson(page, '**/api/categories', CATEGORIES, 200, STUB_DELAY_MS);
+      await stubJson(page, '**/api/catalog**', CATALOG_LIST, 200, STUB_DELAY_MS);
+    },
+    expectText: COURSE_CARD.title,
+  },
+  {
+    name: 'course detail',
+    path: '/catalog/c-1',
+    role: 'guest',
+    stubs: async (page) => {
+      await stubJson(page, '**/api/catalog**', CATALOG_LIST, 200, STUB_DELAY_MS);
+      await stubJson(page, '**/api/catalog/c-1', COURSE_DETAIL, 200, STUB_DELAY_MS);
+    },
+    expectText: 'Welcome to Wren',
+  },
+  {
+    name: 'learn page',
+    path: '/learn/c-1/l-1',
+    role: 'student',
+    stubs: async (page) => {
+      await stubJson(page, '**/api/playback/config', { fakePlayback: false }, 200, STUB_DELAY_MS);
+      await stubJson(
+        page,
+        '**/api/learn/courses/c-1/lessons/l-1',
+        LESSON_PAYLOAD,
+        200,
+        STUB_DELAY_MS,
+      );
+    },
+    // Not the lesson title — it renders in both the <h1> and the matching
+    // outline row, which is a Playwright strict-mode violation.
+    expectText: 'Module 1',
   },
 ];

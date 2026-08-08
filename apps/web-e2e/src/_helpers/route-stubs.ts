@@ -52,15 +52,26 @@ export async function stubAuth(page: Page, role: RouteRole): Promise<void> {
   });
 }
 
-/** Fulfil a URL glob with a JSON body. */
+/**
+ * Fulfil a URL glob with a JSON body.
+ *
+ * `delayMs` exists for the performance suite: an instantly-fulfilled stub
+ * makes the client render against an impossibly fast server, which flatters
+ * the LCP measurement. The a11y and responsive sweeps pass nothing and keep
+ * the old instant behaviour — they measure DOM, not time.
+ */
 export async function stubJson(
   page: Page,
   urlGlob: string,
   body: unknown,
   status = 200,
+  delayMs = 0,
 ): Promise<void> {
-  await page.route(urlGlob, (route) => {
-    void route.fulfill({
+  await page.route(urlGlob, async (route) => {
+    if (delayMs > 0) {
+      await new Promise((done) => setTimeout(done, delayMs));
+    }
+    await route.fulfill({
       status,
       contentType: 'application/json',
       body: JSON.stringify(body),
