@@ -65,16 +65,25 @@ API stubs are reused from `route-stubs.ts` with one addition: a fixed **150 ms**
 
 **Routes and budgets.**
 
-| Route | Path | Role | Budget |
-| :--- | :--- | :--- | :--- |
-| Landing | `/` | guest | baseline × 1.4 |
-| Catalogue | `/catalog` | guest | **2000 ms — the epic's number, hard** |
-| Course detail | `/catalog/c-1` | guest | baseline × 1.4 |
-| Learn page | `/learn/c-1/l-1` | student | baseline × 1.4 |
+| Route | Path | Role | Measured median | Budget |
+| :--- | :--- | :--- | :--- | :--- |
+| Landing | `/` | guest | 1320 ms | 1850 ms (`ceil(1320 × 1.4 / 50) × 50`) |
+| Catalogue | `/catalog` | guest | 1412 ms | **2000 ms — the epic's number, hard** |
+| Course detail | `/catalog/c-1` | guest | 1544 ms | 2200 ms (`ceil(1544 × 1.4 / 50) × 50`) |
+| Learn page | `/learn/c-1/l-1` | student | 1556 ms | 2200 ms (`ceil(1556 × 1.4 / 50) × 50`) |
 
 Paths verified against `route-inventory.ts` at `b539346`. Note `/courses` is the *instructor* course list, not the catalogue.
 
-These four are the student journey — the routes a student actually waits on. The catalogue budget comes from the AC and is not negotiable by measurement. The other three budgets are derived: during implementation, each route is measured 5 times on a quiet local machine, the median recorded, and the budget set to `ceil(median × 1.4 / 50) * 50` ms. **The measured baselines and resulting budgets are written back into this spec before the slice lands**, so the numbers in the repo have a recorded provenance rather than appearing as magic constants.
+These four are the student journey — the routes a student actually waits on. The catalogue budget comes from the AC and is not negotiable by measurement — its measured median (1412 ms) is comfortably under it, so no optimisation work is required. The other three budgets are derived from measurement: `ceil(median × 1.4 / 50) * 50` ms.
+
+**Measured** 2026-08-08 on a Mac mini (Apple M4, 16 GB), macOS Darwin 25.5.0, against `pnpm exec nx run web-e2e:perf` (production build, no other load on the machine). Each route was sampled 5 times per run across two runs; the table above records the higher of the two per-run medians, per the task-5 procedure. Raw samples (ms):
+
+| Route | Run 1 samples | Run 1 median | Run 2 samples | Run 2 median | Used |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Landing | 1368, 1296, 1300, 1304, 1308 | 1304 | 1340, 1300, 1300, 1320, 1324 | 1320 | 1320 |
+| Catalogue | 1424, 1404, 1388, 1416, 1412 | 1412 | 1412, 1400, 1408, 1412, 1412 | 1412 | 1412 |
+| Course detail | 1548, 1544, 1544, 1528, 1540 | 1544 | 1544, 1528, 1548, 1544, 1556 | 1544 | 1544 |
+| Learn page | 1576, 1560, 1532, 1556, 1544 | 1556 | 1584, 1532, 1532, 1544, 1548 | 1544 | 1556 |
 
 Exact paths and role stubs come from the shared `route-inventory.ts` fixtures, so the perf suite and the a11y/responsive suites cannot drift apart on what a route needs.
 
