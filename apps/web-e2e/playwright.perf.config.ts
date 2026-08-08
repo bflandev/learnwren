@@ -42,7 +42,15 @@ export default defineConfig({
     {
       command: `pnpm exec tsx ${cliEntry} ${buildOutput} ${webPort}`,
       url: baseURL,
-      reuseExistingServer: !process.env['CI'],
+      // Unlike the a11y/responsive configs, never reuse an existing server
+      // here, even locally. Those suites check UI correctness, where a
+      // server left over from an earlier run is stale-but-correct. This
+      // suite measures timing against dist/apps/web/browser: a stale server
+      // on port 4310 would keep serving an old bundle after a rebuild and
+      // the gate would report green numbers for a build that no longer
+      // exists. Restarting a static server costs milliseconds, so there is
+      // no cost to paying for correctness here.
+      reuseExistingServer: false,
       cwd: workspaceRoot,
       timeout: 30_000,
     },
