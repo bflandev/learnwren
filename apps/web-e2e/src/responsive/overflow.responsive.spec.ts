@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { GUEST_ROUTES, AUTHED_ROUTES, type RouteFixture } from '../_helpers/route-inventory';
 import { stubAuth } from '../_helpers/route-stubs';
+import { expectNoHorizontalOverflow } from '../_helpers/overflow';
 
 /**
  * US-09-05: "Text is legible without horizontal scrolling on any supported
@@ -22,28 +23,6 @@ export const VIEWPORTS = [
   { name: '2560 (large desktop)', width: 2560, height: 1440 },
 ] as const;
 
-/**
- * The one honestly machine-verifiable claim in US-09-05. Everything else in
- * the story ("renders correctly", "touch-friendly") is subjective; gating on
- * a proxy for it would overstate what CI proves. See the spec, §4.5.
- */
-async function expectNoHorizontalOverflow(
-  page: import('@playwright/test').Page,
-  label: string,
-): Promise<void> {
-  const overflow = await page.evaluate(() => {
-    const el = document.documentElement;
-    return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
-  });
-
-  expect(
-    overflow.scrollWidth,
-    `${label}: page scrolls horizontally — content is ${
-      overflow.scrollWidth - overflow.clientWidth
-    }px wider than the ${overflow.clientWidth}px viewport`,
-  ).toBeLessThanOrEqual(overflow.clientWidth);
-}
-
 function register(route: RouteFixture): void {
   test.describe(`${route.name} (${route.path})`, () => {
     for (const viewport of VIEWPORTS) {
@@ -62,7 +41,14 @@ function register(route: RouteFixture): void {
         // turns into a silently-passing test. Same contract as the a11y
         // sweep; see RouteFixture.expectText in _helpers/route-inventory.ts.
         if (route.expectText) {
-          const locator = page.getByText(route.expectText);
+          // Scoped to <main>, not the whole page: <app-header> precedes
+          // <main> in app.html, and some routes' expectText also appears in
+          // the header (e.g. /settings/profile's display name duplicates the
+          // header's name chip at >=md), which would otherwise let the
+          // header satisfy this guard even if the page body itself errored
+          // out — making the overflow assertion below vacuous at any width
+          // where the header chip is visible.
+          const locator = page.locator('main').getByText(route.expectText);
           if (route.expectAttached) {
             await expect(locator.first()).toBeAttached();
           } else {

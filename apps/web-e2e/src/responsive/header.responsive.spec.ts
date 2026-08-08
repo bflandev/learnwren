@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { stubAuth } from '../_helpers/route-stubs';
+import { expectNoHorizontalOverflow } from '../_helpers/overflow';
 
 /**
  * US-09-05: "Navigation menus collapse into a hamburger menu on small
@@ -89,6 +90,11 @@ test.describe('header collapse', () => {
     // Search moves into the sheet, where it gets full width instead of the
     // ~120px it would be crushed to in a 320px header bar.
     await expect(sheet.locator('lib-course-search-bar')).toBeVisible();
+    // The sheet itself (w-3/4 max-w-sm) is the newest mobile surface and had
+    // no width assertion — it carries lib-course-search-bar, which has its
+    // own fixed w-44 sm:w-60 sizing that could push the sheet's content
+    // wider than its container.
+    await expectNoHorizontalOverflow(page, 'header nav sheet @ 320px');
   });
 
   test('the toggle reports its state and returns focus on close', async ({ page }) => {

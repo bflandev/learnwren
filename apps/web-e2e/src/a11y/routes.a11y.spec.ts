@@ -1,8 +1,15 @@
 import { expect, test } from '@playwright/test';
 
 import { scanA11y } from '../_helpers/a11y-scan';
-import { stubAuth } from '../_helpers/route-stubs';
-import { GUEST_ROUTES, AUTHED_ROUTES, type RouteFixture } from '../_helpers/route-inventory';
+import { stubAuth, stubJson } from '../_helpers/route-stubs';
+import {
+  GUEST_ROUTES,
+  AUTHED_ROUTES,
+  CATEGORIES,
+  CATALOG_LIST,
+  COURSE_CARD,
+  type RouteFixture,
+} from '../_helpers/route-inventory';
 
 function register(route: RouteFixture): void {
   test(`${route.name} (${route.path}) has no WCAG 2.1 AA violations`, async ({ page }) => {
@@ -16,10 +23,13 @@ function register(route: RouteFixture): void {
     // on an error paragraph just as fast as on real data, which would
     // otherwise scan clean and hide the actual composition.
     if (route.expectText) {
-      // .first(): some routes' expectText also appears in the header (e.g.
-      // /settings/profile's display name duplicates the header's name chip
-      // at >=1280px), which would otherwise trip Playwright's strict mode.
-      const locator = page.getByText(route.expectText).first();
+      // Scoped to <main>, not the whole page: <app-header> precedes <main>
+      // in app.html, and some routes' expectText also appears in the
+      // header (e.g. /settings/profile's display name duplicates the
+      // header's name chip at >=md), which would otherwise let the header
+      // satisfy this guard even if the page body itself errored out.
+      // .first() still covers text that legitimately repeats within <main>.
+      const locator = page.locator('main').getByText(route.expectText).first();
       if (route.expectAttached) {
         await expect(locator).toBeAttached();
       } else {
@@ -78,5 +88,46 @@ test('course editor with a lesson renamed has no WCAG 2.1 AA violations', async 
   await expect(page.getByText('Getting started')).toBeVisible();
   await page.getByTestId('lesson-title').first().click();
   await expect(page.getByTestId('lesson-rename-input')).toBeVisible();
+  await scanA11y(page);
+});
+
+/**
+ * US-09-05 added two interactive surfaces to the header — the below-`md`
+ * nav sheet and the `md`-to-`xl` search popover — and both are structural
+ * directives (`*brnSheetContent` / `*brnPopoverContent`): their DOM does not
+ * exist until opened, so the base per-route scans above (run at 1280px, plus
+ * one at 390px for the learn-page drawer) never see either one. Mirrors the
+ * "learn page with the outline drawer closed" pattern above: force the
+ * viewport that makes the surface reachable, open it, scan.
+ *
+ * Admin is the richest nav (adds the four admin-only links, grouped behind
+ * `hlm-menu` at md+ but flat inside the sheet), so it is the role driven
+ * here, matching header.responsive.spec.ts's choice for the same reason.
+ */
+test('header nav sheet has no WCAG 2.1 AA violations', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await stubAuth(page, 'admin');
+  await stubJson(page, '**/api/categories', CATEGORIES);
+  await stubJson(page, '**/api/catalog**', CATALOG_LIST);
+  await page.goto('/catalog');
+  await expect(page.getByText(COURSE_CARD.title)).toBeVisible();
+
+  await page.getByTestId('header-nav-toggle').click();
+  await expect(page.getByTestId('header-nav-sheet')).toBeVisible();
+  await scanA11y(page);
+});
+
+test('header search popover has no WCAG 2.1 AA violations', async ({ page }) => {
+  // Between `md` (768) and `xl` (1280) — the one band where the popover
+  // trigger is visible (below md it's the sheet; at xl+ it's the inline bar).
+  await page.setViewportSize({ width: 900, height: 700 });
+  await stubAuth(page, 'admin');
+  await stubJson(page, '**/api/categories', CATEGORIES);
+  await stubJson(page, '**/api/catalog**', CATALOG_LIST);
+  await page.goto('/catalog');
+  await expect(page.getByText(COURSE_CARD.title)).toBeVisible();
+
+  await page.getByTestId('header-search-trigger').click();
+  await expect(page.getByTestId('header-search-popover')).toBeVisible();
   await scanA11y(page);
 });
