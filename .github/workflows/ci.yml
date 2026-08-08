@@ -92,6 +92,45 @@ jobs:
       - name: Run accessibility sweep
         run: pnpm exec nx run web-e2e:a11y
 
+  # Hermetic responsive gate (US-09-05): asserts no horizontal overflow at
+  # 320/768/1280/2560px across the shared route inventory (103 tests: 23
+  # routes x 4 widths, plus header specs including a 767/768 boundary pair).
+  # Driven by its own apps/web-e2e/playwright.responsive.config.ts. Like the
+  # a11y job it starts only the Angular dev server and stubs every /api
+  # call, so it needs neither the Firebase emulators nor the api, and runs
+  # in parallel with the emulator-backed jobs rather than gating them.
+  #
+  # What this gate does NOT prove: "no horizontal overflow" is not "renders
+  # correctly". A page can pass here and still be cramped or awkward to use
+  # on a phone. Touch-target sizing and general visual sanity are verified
+  # manually — see docs/superpowers/plans/2026-08-07-us-09-05-manual-verification.md.
+  responsive:
+    name: Responsive gate (320px–2560px)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run responsive sweep
+        run: pnpm exec nx run web-e2e:responsive
+
   e2e:
     name: api-e2e (Firebase emulators)
     runs-on: ubuntu-latest

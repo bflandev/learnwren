@@ -71,12 +71,12 @@ Purely mechanical. Do it first so every later task imports the final names and n
   - `apps/web-e2e/src/_helpers/route-inventory.ts` exporting `interface RouteFixture { name: string; path: string; role: RouteRole; stubs?: (page: Page) => Promise<void>; readySelector?: string; expectText?: string; expectAttached?: boolean }`, plus `GUEST_ROUTES: RouteFixture[]`, `AUTHED_ROUTES: RouteFixture[]`, and the fixture constants `NOW`, `FIRST_CATEGORY`, `CATEGORIES`, `COURSE_CARD`, `CATALOG_LIST`, `COURSE_LIST_ITEM`, `COURSE_LIST` (all names unchanged).
   - `apps/web-e2e/src/_helpers/route-stubs.ts` exporting `type RouteRole = 'guest' | 'student' | 'instructor' | 'admin'`, `stubAuth(page: Page, role: RouteRole): Promise<void>`, `stubJson(...)` (signature unchanged).
 
-- [ ] **Step 1: Confirm the a11y suite is green before touching anything**
+- [x] **Step 1: Confirm the a11y suite is green before touching anything**
 
 Run: `pnpm exec nx run web-e2e:a11y`
 Expected: PASS. If it is already red, stop and report — do not start a rename on a red suite.
 
-- [ ] **Step 2: Find every consumer**
+- [x] **Step 2: Find every consumer**
 
 ```bash
 grep -rn "a11y-routes\|a11y-stubs\|A11yRoute\|A11yRole" apps/web-e2e/src
@@ -84,14 +84,14 @@ grep -rn "a11y-routes\|a11y-stubs\|A11yRoute\|A11yRole" apps/web-e2e/src
 
 Expected hits: `routes.a11y.spec.ts` (imports `GUEST_ROUTES`, `AUTHED_ROUTES`, `type A11yRoute`), `keyboard.a11y.spec.ts` (imports fixtures and `stubAuth`), and the two comment references inside `keyboard.a11y.spec.ts` at roughly lines 116 and 276 that name `a11y-routes.ts` in prose. Update the prose references too — a comment pointing at a file that no longer exists is a small lie that costs the next reader real time.
 
-- [ ] **Step 3: Rename the files with git so history follows**
+- [x] **Step 3: Rename the files with git so history follows**
 
 ```bash
 git mv apps/web-e2e/src/_helpers/a11y-routes.ts apps/web-e2e/src/_helpers/route-inventory.ts
 git mv apps/web-e2e/src/_helpers/a11y-stubs.ts apps/web-e2e/src/_helpers/route-stubs.ts
 ```
 
-- [ ] **Step 4: Rename the types and fix imports**
+- [x] **Step 4: Rename the types and fix imports**
 
 In `route-stubs.ts`, rename the exported type and every internal use:
 
@@ -139,7 +139,7 @@ In `keyboard.a11y.spec.ts`, change the `'../_helpers/a11y-routes'` import path t
 
 Do **not** change any fixture value, route path, `expectText`, or stub glob. This task changes names only.
 
-- [ ] **Step 5: Verify nothing dangles**
+- [x] **Step 5: Verify nothing dangles**
 
 ```bash
 grep -rn "a11y-routes\|a11y-stubs\|A11yRoute\|A11yRole" apps/web-e2e/src
@@ -147,12 +147,12 @@ grep -rn "a11y-routes\|a11y-stubs\|A11yRoute\|A11yRole" apps/web-e2e/src
 
 Expected: no output.
 
-- [ ] **Step 6: Run the a11y suite to prove the rename is behaviour-neutral**
+- [x] **Step 6: Run the a11y suite to prove the rename is behaviour-neutral**
 
 Run: `pnpm exec nx run web-e2e:a11y`
 Expected: PASS — the same tests, the same count as Step 1. A changed test count means an import broke and a spec silently stopped registering; investigate before continuing.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web-e2e/src/_helpers/route-inventory.ts \
@@ -175,7 +175,7 @@ git commit -m "refactor(web-e2e): rename a11y route helpers to shared route-inve
 - Consumes: `GUEST_ROUTES`, `AUTHED_ROUTES`, `RouteFixture` from `_helpers/route-inventory`; `stubAuth` from `_helpers/route-stubs` (Task 1).
 - Produces: `pnpm exec nx run web-e2e:responsive`, and the exported constant `VIEWPORTS` in `overflow.responsive.spec.ts` — reused by Task 4's header spec.
 
-- [ ] **Step 1: Write the config**
+- [x] **Step 1: Write the config**
 
 Create `apps/web-e2e/playwright.responsive.config.ts`:
 
@@ -229,7 +229,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 2: Write the failing sweep**
+- [x] **Step 2: Write the failing sweep**
 
 Create `apps/web-e2e/src/responsive/overflow.responsive.spec.ts`:
 
@@ -321,7 +321,7 @@ test.describe('authenticated routes', () => {
 });
 ```
 
-- [ ] **Step 3: Add the Nx target**
+- [x] **Step 3: Add the Nx target**
 
 Modify `apps/web-e2e/project.json` — add `responsive` alongside `a11y`:
 
@@ -354,7 +354,7 @@ Modify `apps/web-e2e/project.json` — add `responsive` alongside `a11y`:
 }
 ```
 
-- [ ] **Step 4: Run the sweep and capture the RED output**
+- [x] **Step 4: Run the sweep and capture the RED output**
 
 Run: `pnpm exec nx run web-e2e:responsive`
 
@@ -364,7 +364,7 @@ Expected: **FAIL.** The header does not collapse (`apps/web/src/app/app.html:8` 
 
 If the sweep passes entirely at this point, stop and investigate before continuing: the most likely cause is that `expectText` guards are failing silently or the routes are rendering error states, not that the header is fine.
 
-- [ ] **Step 5: Commit the red gate**
+- [x] **Step 5: Commit the red gate**
 
 ```bash
 git add apps/web-e2e/playwright.responsive.config.ts \
@@ -395,7 +395,7 @@ Pure refactor. Landing it separately from the collapse means a reviewer can reje
 - Consumes: nothing from earlier tasks.
 - Produces: `AppHeaderComponent` (selector `app-header`, standalone, `OnPush`, no inputs, no outputs — it reads `AuthService` itself). Task 4 modifies it.
 
-- [ ] **Step 1: Write the header component's failing spec**
+- [x] **Step 1: Write the header component's failing spec**
 
 Create `apps/web/src/app/shell/app-header.component.spec.ts`. These assertions are moved from `app.spec.ts` — read that file first and mirror its existing `TestBed` setup and auth-stubbing helper rather than inventing a new one.
 
@@ -446,12 +446,12 @@ describe('AppHeaderComponent', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `pnpm exec nx test web -- app-header`
 Expected: FAIL — `Cannot find module './app-header.component'`.
 
-- [ ] **Step 3: Create the component**
+- [x] **Step 3: Create the component**
 
 Create `apps/web/src/app/shell/app-header.component.ts`:
 
@@ -498,7 +498,7 @@ export class AppHeaderComponent {
 
 Create `apps/web/src/app/shell/app-header.component.html` by moving lines 8–51 of `apps/web/src/app/app.html` verbatim — the whole `<header>` element, unchanged. Do not adjust classes in this task.
 
-- [ ] **Step 4: Rewire the root**
+- [x] **Step 4: Rewire the root**
 
 In `apps/web/src/app/app.html`, replace the `<header>...</header>` block (currently lines 8–51) with a single element, leaving the `@if (showHeader())` wrapper, the skip link, and both `<main>` branches exactly as they are:
 
@@ -515,7 +515,7 @@ In `apps/web/src/app/app.ts`: add `AppHeaderComponent` to `imports`; remove `Rou
 
 Leave the constructor's focus-management block and `showHeader` untouched. That block carries a long comment explaining a real WCAG 2.4.3 fix and a subtle `afterNextRender` race; it belongs to the root, not the header.
 
-- [ ] **Step 5: Move the header assertions out of `app.spec.ts`**
+- [x] **Step 5: Move the header assertions out of `app.spec.ts`**
 
 Delete from `apps/web/src/app/app.spec.ts` the tests now living in the header spec (`shows the header for a guest...`'s search-bar assertion, the Log in/Register test, both My Courses tests, both Admin tests, the initials test, the profile-link test, and the `hlm-avatar` binding test).
 
@@ -530,7 +530,7 @@ it('shows the header for a guest on a non-auth route', async () => {
 });
 ```
 
-- [ ] **Step 6: Run the unit tests and the typecheck**
+- [x] **Step 6: Run the unit tests and the typecheck**
 
 Run: `pnpm exec nx test web`
 Expected: PASS.
@@ -538,7 +538,7 @@ Expected: PASS.
 Run: `pnpm exec nx typecheck web`
 Expected: PASS. Run this explicitly — `vitest` does not typecheck, so a leftover unused import or a stale reference in `app.ts` will pass the test run and fail the build.
 
-- [ ] **Step 7: Prove the refactor is behaviour-neutral**
+- [x] **Step 7: Prove the refactor is behaviour-neutral**
 
 Run: `pnpm exec nx run web-e2e:a11y`
 Expected: PASS.
@@ -546,7 +546,7 @@ Expected: PASS.
 Run: `pnpm exec nx run web-e2e:responsive`
 Expected: FAIL, with **exactly the same failure list as Task 2 Step 4**. A pure extraction must not change the failure set. If it shrank or grew, the move was not verbatim — go find what changed.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/web/src/app/shell/app-header.component.ts \
@@ -581,7 +581,7 @@ Target layout below `md`:
    sheet: nav links (role-filtered) + search bar
 ```
 
-- [ ] **Step 1: Write the failing e2e header spec**
+- [x] **Step 1: Write the failing e2e header spec**
 
 Create `apps/web-e2e/src/responsive/header.responsive.spec.ts`:
 
@@ -675,12 +675,12 @@ test.describe('header collapse', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `pnpm exec nx run web-e2e:responsive -- header.responsive`
 Expected: FAIL — no element carries `data-testid="header-nav-toggle"`.
 
-- [ ] **Step 3: Implement the collapse**
+- [x] **Step 3: Implement the collapse**
 
 Update `apps/web/src/app/shell/app-header.component.ts` — add the sheet imports and the hamburger icon:
 
@@ -831,7 +831,7 @@ Rewrite `apps/web/src/app/shell/app-header.component.html`. The nav link list ap
 
 **On focus return:** likewise check whether the sheet restores focus to its trigger on close. If it does not, wire it explicitly — the Step 1 test asserts it, and the a11y gate will independently catch a regression here.
 
-- [ ] **Step 4: Add unit tests for the collapsed structure**
+- [x] **Step 4: Add unit tests for the collapsed structure**
 
 Append to `apps/web/src/app/shell/app-header.component.spec.ts`:
 
@@ -857,7 +857,7 @@ it('labels the hamburger for assistive technology', async () => {
 
 Both toggle and nav are always in the DOM — visibility is a Tailwind `md:` concern, so jsdom cannot judge it. Breakpoint behaviour is proven by the Playwright specs in Step 1, which run in a real browser at real widths. Do not try to assert `hidden`/`md:flex` classes in a unit test; that asserts the implementation, not the behaviour.
 
-- [ ] **Step 5: Run everything**
+- [x] **Step 5: Run everything**
 
 Run: `pnpm exec nx test web`
 Expected: PASS.
@@ -874,7 +874,7 @@ Expected: the overflow sweep's 320 px header failures are **gone**. Other routes
 Run: `pnpm exec nx run web-e2e:a11y`
 Expected: PASS. This is the gate most at risk from this task — if the sheet traps focus badly or the hamburger lacks a name, it fails here.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/app/shell/app-header.component.ts \
@@ -898,13 +898,13 @@ git commit -m "feat(web): collapse the header to a hamburger sheet below md"
 
 Both are `<table class="w-full ...">` directly inside an `hlm-card` with no wrapper, so at 320 px the page body scrolls instead of the table.
 
-- [ ] **Step 1: Confirm the sweep currently fails on these routes**
+- [x] **Step 1: Confirm the sweep currently fails on these routes**
 
 Run: `pnpm exec nx run web-e2e:responsive -- overflow.responsive`
 
 Expected: the `student roster (/courses/c-1/students)` and `course analytics (/courses/c-1/analytics)` cases fail at 320 px. If they do **not**, stop: either the fixtures render an empty state (the roster shows "No students enrolled yet." when `rows()` is empty, which has no table at all), or the tables already fit. Check the fixture data in `_helpers/route-inventory.ts` before adding a fix for a problem that is not there.
 
-- [ ] **Step 2: Wrap the roster table**
+- [x] **Step 2: Wrap the roster table**
 
 In `course-students-page.component.html`, wrap the `<table>` — keeping every column. Dropping columns at narrow widths loses data; a scrollable table is the honest tradeoff.
 
@@ -918,7 +918,7 @@ In `course-students-page.component.html`, wrap the `<table>` — keeping every c
 </hlm-card>
 ```
 
-- [ ] **Step 3: Wrap the analytics table**
+- [x] **Step 3: Wrap the analytics table**
 
 In `course-analytics-page.component.html`, apply the same wrapper around the `<table class="mt-2 w-full text-left text-sm">`. Move the `mt-2` onto the wrapping `div` so the spacing still applies outside the scroll container:
 
@@ -930,7 +930,7 @@ In `course-analytics-page.component.html`, apply the same wrapper around the `<t
 </div>
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `pnpm exec nx run web-e2e:responsive -- overflow.responsive`
 Expected: both routes now PASS at every width.
@@ -941,7 +941,7 @@ Expected: PASS. If a test asserts on the DOM path from `hlm-card` to `table`, th
 Run: `pnpm exec nx run web-e2e:a11y`
 Expected: PASS. A scrollable region can need a keyboard-reachable affordance; if axe flags it, give the wrapper `tabindex="0"` and an `aria-label` rather than removing the wrapper.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add libs/web-courses/src/lib/course-students-page/course-students-page.component.html \
@@ -961,13 +961,13 @@ This task has no pre-written fix list on purpose. Tasks 4 and 5 address the defe
 - Consumes: the failure list recorded in Task 2 Step 4, minus what Tasks 4 and 5 fixed.
 - Produces: a green `nx run web-e2e:responsive`.
 
-- [ ] **Step 1: Get the current failure list**
+- [x] **Step 1: Get the current failure list**
 
 Run: `pnpm exec nx run web-e2e:responsive`
 
 Write down every remaining `route @ width` and its overflow in px. If the list is empty, skip to Step 5 and commit nothing — that is a legitimate outcome and better than inventing work.
 
-- [ ] **Step 2: For each failing route, find the overflowing element**
+- [x] **Step 2: For each failing route, find the overflowing element**
 
 Do not guess from reading the template. Run the app and measure. With `pnpm start:web` running, open the failing route at 320 px in the browser and evaluate:
 
@@ -983,7 +983,7 @@ Do not guess from reading the template. Run the app and measure. With `pnpm star
   }));
 ```
 
-- [ ] **Step 3: Apply the narrowest fix that holds**
+- [x] **Step 3: Apply the narrowest fix that holds**
 
 In order of preference:
 
@@ -994,13 +994,13 @@ In order of preference:
 
 Do not fix an overflow by setting `overflow-x: hidden` on the body or a page container. That makes the test pass while making the content unreachable — a worse outcome than the scroll bar, and invisible to the gate afterwards.
 
-- [ ] **Step 4: Re-run after each route's fix**
+- [x] **Step 4: Re-run after each route's fix**
 
 Run: `pnpm exec nx run web-e2e:responsive`
 
 Fix one route at a time and re-run. Commit per route or per small group, so a bad fix is easy to isolate.
 
-- [ ] **Step 5: Full verification**
+- [x] **Step 5: Full verification**
 
 Run: `pnpm exec nx run web-e2e:responsive`
 Expected: PASS, all routes, all four widths.
@@ -1011,7 +1011,7 @@ Expected: PASS.
 Run: `pnpm exec nx run-many -t test lint typecheck`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 # Add each modified template explicitly — never `git add -A`, the worktree's
@@ -1029,7 +1029,7 @@ The gate proves no horizontal scroll. It does not prove the page is usable. This
 **Files:**
 - Create: `docs/superpowers/plans/2026-08-07-us-09-05-manual-verification.md`
 
-- [ ] **Step 1: Walk the core journeys at 320 px**
+- [x] **Step 1: Walk the core journeys at 320 px**
 
 With `pnpm emulators` and `pnpm start` running, open the app in a browser at a 320 px viewport (device emulation, iPhone SE profile) and walk:
 
@@ -1038,19 +1038,19 @@ With `pnpm emulators` and `pnpm start` running, open the app in a browser at a 3
 3. Signed in as an instructor: course editor → add a module and a lesson → open the roster and the analytics tables.
 4. Signed in as an admin: each of the four admin pages, and the hamburger sheet with all seven links.
 
-- [ ] **Step 2: Check the player specifically**
+- [x] **Step 2: Check the player specifically**
 
 US-09-05's touch criterion is met by native `<video controls>` (spec §6). Confirm on a real touch device or emulation that the scrubber is draggable, tap-to-play works, and fullscreen engages. Note anything that does not.
 
-- [ ] **Step 3: Note touch-target sizes**
+- [x] **Step 3: Note touch-target sizes**
 
 WCAG 2.5.5 (44×44 px) is Level AAA and deliberately outside the AA gate, so this is observation, not a gate. Note any control that is uncomfortably small — the hamburger, the theme toggle, the avatar, table sort buttons, player controls.
 
-- [ ] **Step 4: Write it down**
+- [x] **Step 4: Write it down**
 
 Record findings in `docs/superpowers/plans/2026-08-07-us-09-05-manual-verification.md`: what was walked, what passed, what is ugly-but-passing, and anything deferred with a reason. "Ugly but passing" entries are real findings — write them down rather than quietly deciding they do not count.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-08-07-us-09-05-manual-verification.md
@@ -1070,7 +1070,7 @@ Last, so `main` never carries a red gate.
 - Modify: `docs/USER_GUIDE.md`
 - Modify: `docs/development.md`
 
-- [ ] **Step 1: Amend the gesture acceptance criterion**
+- [x] **Step 1: Amend the gesture acceptance criterion**
 
 In `docs/epics/09-non-functional-requirements.md`, under US-09-05, replace:
 
@@ -1086,7 +1086,7 @@ with:
 
 Preserve the file's `> [!NOTE] DOCUMENT STATUS: DRAFT` banner.
 
-- [ ] **Step 2: Add the CI job**
+- [x] **Step 2: Add the CI job**
 
 In `.github/workflows/ci.yml`, add after the `a11y` job (clone its shape — same runner, same setup steps, same 10-minute timeout):
 
@@ -1131,7 +1131,7 @@ In `.github/workflows/ci.yml`, add after the `a11y` job (clone its shape — sam
         run: pnpm exec nx run web-e2e:responsive
 ```
 
-- [ ] **Step 3: Update `README.md`**
+- [x] **Step 3: Update `README.md`**
 
 Add a bullet to the project-status block, next to the existing EP-09 US-09-03 entry:
 
@@ -1141,11 +1141,11 @@ Add a bullet to the project-status block, next to the existing EP-09 US-09-03 en
 
 Also update the `libs`/layout notes if the header extraction warrants a mention under `apps/web`.
 
-- [ ] **Step 4: Update `docs/USER_GUIDE.md` and `docs/development.md`**
+- [x] **Step 4: Update `docs/USER_GUIDE.md` and `docs/development.md`**
 
 `USER_GUIDE.md` is the authoritative feature matrix — add the mobile-header behaviour. `development.md` documents the scripts — add `nx run web-e2e:responsive` alongside the existing `nx run web-e2e:a11y` entry, noting it needs neither the emulators nor the api.
 
-- [ ] **Step 5: Full verification before merge**
+- [x] **Step 5: Full verification before merge**
 
 ```bash
 pnpm exec nx run-many -t lint test build typecheck
@@ -1155,7 +1155,7 @@ pnpm exec nx run web-e2e:responsive
 
 Expected: all PASS. Report the real output — if something fails, say so with the output rather than reporting the slice complete.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/epics/09-non-functional-requirements.md \

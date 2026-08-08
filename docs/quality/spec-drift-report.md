@@ -18,6 +18,24 @@ Extensions against the code, and classifies every divergence as:
 
 `README.md` is treated as the authoritative record of what is actually wired up.
 
+## Scope note: EP-09 (2026-08-07)
+
+This report's scope has grown ad hoc rather than following a single rule. Its
+core method compares `docs/use-cases/` against the code, and use-case files
+exist only for EP-01 through EP-06 — those six rows carry a use-case count.
+EP-08 was added as an epic-level row in the 2026-07-17 update despite having no
+use-case file, which is why its "Use cases" cell reads `—`; it is tracked at
+the user-story level instead.
+
+EP-09 (Non-Functional Requirements) is outside that scope as it currently
+stands. Its drift, where it exists, is recorded directly in
+`docs/epics/09-non-functional-requirements.md` instead. US-09-05's gesture
+acceptance criterion was amended in place there on 2026-08-07 (native
+`<video controls>` satisfies "touch-friendly"; custom swipe-to-seek /
+pinch-to-zoom was evaluated and declined) — see that file and
+`docs/superpowers/specs/2026-08-07-us-09-05-mobile-responsiveness-design.md`
+§6. No entry is added below for it.
+
 ## Executive summary
 
 Drift is **substantial but concentrated in the spec, not the code.** The use-case
