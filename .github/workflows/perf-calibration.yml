@@ -1,0 +1,49 @@
+# TEMPORARY WORKFLOW — delete once CI-hardware perf numbers are recorded.
+#
+# WHY: the load-time perf budgets (apps/web-e2e/src/perf/load-time.perf.spec.ts)
+# were derived on an idle M4 Mac mini but are enforced on GitHub-hosted CI
+# runners, which are slower and noisier. Before finalising the budgets we need
+# real medians measured on that hardware. This workflow exists solely to
+# produce those numbers via manual dispatch; it is not a gate and must never
+# run automatically. Delete this file once the calibration numbers are in
+# hand and the budgets (if needed) have been adjusted.
+name: Perf calibration (temporary)
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: Measure perf suite on CI hardware
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      # continue-on-error: a route being over budget on CI hardware is
+      # exactly what we're here to measure, not a reason to fail the run —
+      # this step's job is to produce numbers, not to gate anything. Read
+      # the "[perf] ..." lines in the step log for the medians.
+      - name: Measure perf suite (budget failures do not fail this workflow)
+        continue-on-error: true
+        run: pnpm exec nx run web-e2e:perf

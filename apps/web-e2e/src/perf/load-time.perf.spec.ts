@@ -82,6 +82,15 @@ for (const route of PERF_ROUTES) {
       }
     }
     const observedLcp = Math.round(median(lcpSamples));
+    // Log every run, pass or fail: today this only prints on assertion
+    // failure, so a passing run gives no idea how much budget margin is
+    // left. One grep-able line per route per metric lets CI calibration
+    // (and future budget tuning) read medians straight out of the logs
+    // without needing a failing run first.
+    console.log(
+      `[perf] ${route.name} LCP samples=[${lcpSamples.map(Math.round).join(',')}]ms ` +
+        `median=${observedLcp}ms budget=${budget}ms`,
+    );
     expect(
       observedLcp,
       `${route.name} LCP median ${observedLcp}ms over budget ${budget}ms ` +
@@ -99,6 +108,11 @@ for (const route of PERF_ROUTES) {
       ttcSamples.push(await measureTimeToContent(page, route.path, route.expectText));
     }
     const observedTtc = Math.round(median(ttcSamples));
+    // Same rationale as the LCP log line above.
+    console.log(
+      `[perf] ${route.name} TTC samples=[${ttcSamples.map(Math.round).join(',')}]ms ` +
+        `median=${observedTtc}ms budget=${budget}ms`,
+    );
     expect(
       observedTtc,
       `${route.name} time-to-content median ${observedTtc}ms over budget ${budget}ms ` +
