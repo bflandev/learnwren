@@ -96,11 +96,36 @@ export async function startStaticServer(
       res.end('Not found');
       return;
     }
+    // LOAD-BEARING OMISSION: no Last-Modified, no ETag, no Cache-Control.
+    // Without validators or a freshness lifetime the browser cannot reuse a
+    // cached response, so every perf navigation refetches the whole bundle —
+    // which is exactly the "cold first visit, every sample" model all four
+    // load-time budgets were calibrated against (spec §5). Adding cache
+    // headers here would silently make every sample a warm load, drop the
+    // medians, and invalidate those budgets with no test going red. Do not
+    // add them.
     res.writeHead(200, { 'Content-Type': contentTypeFor(filePath) });
     createReadStream(filePath).pipe(res);
   });
 
-  await new Promise<void>((done) => server.listen(port, done));
+  // Without an 'error' listener a failed listen (EADDRINUSE from an orphaned
+  // server on this port — the perf config uses reuseExistingServer: false, so
+  // that is the likely first failure) never settles this promise: node's
+  // uncaught-exception handler kills the process before the CLI's .catch can
+  // print anything. Reject with the port named instead.
+  await new Promise<void>((done, fail) => {
+    server.once('error', (err: NodeJS.ErrnoException) =>
+      fail(
+        new Error(
+          `Static server failed to listen on port ${port}` +
+            (err.code === 'EADDRINUSE'
+              ? ' — something else is already bound to it (an orphaned server from an earlier run?).'
+              : `: ${err.message}`),
+        ),
+      ),
+    );
+    server.listen(port, done);
+  });
 
   return {
     url: `http://localhost:${port}`,

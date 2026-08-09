@@ -24,9 +24,9 @@ import {
  * Two metrics, both measured and logged on the median of SAMPLE_COUNT
  * navigations, but not always both GATED — see GATED_METRICS below:
  *
- * - Largest Contentful Paint: the only paint-cost signal on the landing
- *   page, which has no stubbed data at all — nothing "loads", so there is
- *   no content visibility to time.
+ * - Largest Contentful Paint: the paint-cost signal, and the only GATED
+ *   metric on the landing page — that route has no stubbed data, so its
+ *   time-to-content measures render alone and carries no budget of its own.
  * - Time to content (elapsed time until the route's `expectText` is visible
  *   inside `<main>`): added because LCP alone can lock onto static shell
  *   markup that paints before any stubbed API resolves. The catalogue's
@@ -35,8 +35,10 @@ import {
  *   this gate's development. Time to content is what "loads within N
  *   seconds" means to a student.
  *
- * Routes with no `expectText` (landing) have no time-to-content measurement
- * — there is nothing whose visibility marks "the real content arrived".
+ * EVERY route carries an `expectText`, so every one of these tests has a
+ * render guard. Without one a route that rendered nothing but the app
+ * header would still produce an LCP and pass its budget — a broken page
+ * reading as a performance result.
  *
  * Scope is honest and narrow: this measures client render cost and bundle
  * weight (LCP) plus stubbed-API-to-visible-content latency (time to
@@ -137,8 +139,9 @@ for (const route of PERF_ROUTES) {
       ).toBeLessThanOrEqual(budget);
     }
 
-    // No expectText (landing) means no stubbed content to wait on — LCP
-    // above is the only signal for this route.
+    // Every PERF_ROUTES entry has an expectText today; the guard keeps the
+    // type narrowing honest and would skip TTC for any future entry added
+    // without one.
     if (!route.expectText) {
       return;
     }

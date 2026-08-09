@@ -60,6 +60,33 @@ export async function applyBroadbandThrottle(page: Page): Promise<void> {
 }
 
 /**
+ * Pages whose init script has already been installed.
+ *
+ * `addInitScript` ACCUMULATES: every call adds another script that runs on
+ * every subsequent navigation of that page. Calling it once per sample would
+ * leave three PerformanceObservers running on the third LCP navigation — and
+ * every later `measureTimeToContent` navigation would run all three too, for
+ * no reason. Install exactly once per page. A WeakSet keeps the once-per-page
+ * bookkeeping here rather than making every caller remember a setup step.
+ */
+const pagesWithLcpObserver = new WeakSet<Page>();
+
+async function installLcpObserver(page: Page): Promise<void> {
+  if (pagesWithLcpObserver.has(page)) {
+    return;
+  }
+  pagesWithLcpObserver.add(page);
+  await page.addInitScript(() => {
+    (window as unknown as { __lcp: number }).__lcp = 0;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        (window as unknown as { __lcp: number }).__lcp = entry.startTime;
+      }
+    }).observe({ type: 'largest-contentful-paint', buffered: true });
+  });
+}
+
+/**
  * Navigate to `path` and return Largest Contentful Paint in milliseconds,
  * relative to navigation start.
  *
@@ -69,14 +96,7 @@ export async function applyBroadbandThrottle(page: Page): Promise<void> {
  * addInitScript so it is running before the first paint.
  */
 export async function measureLcp(page: Page, path: string): Promise<number> {
-  await page.addInitScript(() => {
-    (window as unknown as { __lcp: number }).__lcp = 0;
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-        (window as unknown as { __lcp: number }).__lcp = entry.startTime;
-      }
-    }).observe({ type: 'largest-contentful-paint', buffered: true });
-  });
+  await installLcpObserver(page);
 
   await page.goto(path);
   // LCP is only final once the page stops loading new candidates; network

@@ -604,7 +604,19 @@ export const LESSON_PAYLOAD_READY = {
  * matches handlers in reverse registration order.
  */
 export const PERF_ROUTES: RouteFixture[] = [
-  { name: 'landing', path: '/', role: 'guest' },
+  {
+    name: 'landing',
+    path: '/',
+    role: 'guest',
+    // The hero <h1> (HERO_CONTENT.title in
+    // libs/web-landing/src/lib/landing-content.ts), rendered inside <main>
+    // by LandingHeroComponent. The landing page has no stubbed data, so
+    // without this guard the test would happily pass on an app header over
+    // an empty body. Deliberately not the footer tagline, which is the
+    // different string "Slow lessons for small communities." — this
+    // substring therefore matches the hero alone.
+    expectText: 'Slow lessons, made for small communities.',
+  },
   {
     name: 'catalogue',
     path: '/catalog',

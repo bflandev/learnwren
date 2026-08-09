@@ -17,6 +17,8 @@ import type { Page } from '@playwright/test';
  */
 const FIXTURE_DIR = join(__dirname, '..', 'fixtures', 'hls');
 const M3U8 = 'application/vnd.apple.mpegurl';
+/** The only segment filenames the rendition playlist ever references. */
+const SEGMENT_NAME = /^seg\d+\.ts$/;
 
 function read(name: string): Buffer {
   return readFileSync(join(FIXTURE_DIR, name));
@@ -42,12 +44,32 @@ export async function stubHlsFixture(page: Page, videoId: string): Promise<void>
       body: read('key.bin'),
     }),
   );
-  await page.route('**/perf-fixture/*.ts', (route) => {
-    const name = route.request().url().split('/').pop()!;
-    route.fulfill({
-      status: 200,
-      contentType: 'video/mp2t',
-      body: read(`${name}.bin`),
-    });
+  await page.route('**/perf-fixture/*.ts', async (route) => {
+    const name = route.request().url().split('/').pop() ?? '';
+    // The name comes off a URL and is handed straight to readFileSync, so it
+    // is validated against an explicit allowlist pattern rather than trusted:
+    // segment files are seg0.ts, seg1.ts, … and nothing else. A name that
+    // fails the pattern, or a segment the fixture directory does not have,
+    // gets a 404 — a legible "the playlist asked for a segment we don't ship"
+    // rather than a filesystem read outside the fixture directory or an
+    // unhandled rejection inside a route handler.
+    if (!SEGMENT_NAME.test(name)) {
+      await route.fulfill({ status: 404, body: `unexpected segment name "${name}"` });
+      return;
+    }
+    try {
+      await route.fulfill({
+        status: 200,
+        contentType: 'video/mp2t',
+        body: read(`${name}.bin`),
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      await route
+        .fulfill({ status: 404, body: `missing fixture segment "${name}.bin": ${reason}` })
+        .catch(() => {
+          // The page or context closed mid-flight; nothing left to answer.
+        });
+    }
   });
 }

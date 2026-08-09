@@ -30,6 +30,18 @@ const cliEntry = join(workspaceRoot, 'apps/web-e2e/src/_helpers/static-server.cl
 export default defineConfig({
   ...nxE2EPreset(__filename, { testDir: './src/perf' }),
   retries: 0,
+  // Playwright's 30s default is not enough headroom for these tests, and the
+  // failure it produces is the wrong one. A load-time test performs six
+  // throttled navigations (3 LCP + 3 time-to-content) over a modelled 10 Mbps
+  // / 40 ms link, each settling on networkidle; the video test performs three
+  // navigations each allowing up to FIRST_FRAME_TIMEOUT_MS (20s) for a decode.
+  // A GENUINE regression makes every sample slower, so with the default the
+  // suite would report "Test timeout of 30000ms exceeded" instead of the
+  // budget message that names the route, the median, and the samples. This
+  // ceiling is deliberately far above any plausible measurement so the budget
+  // assertion is always what fails — the test still goes red on a real
+  // regression, just legibly.
+  timeout: 180_000,
   // Timing tests must not run concurrently: parallel workers contend for CPU
   // and network, which is exactly the noise the median is meant to exclude.
   workers: 1,

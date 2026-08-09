@@ -71,12 +71,32 @@ export async function stubJson(
     if (delayMs > 0) {
       await new Promise((done) => setTimeout(done, delayMs));
     }
-    await route.fulfill({
-      status,
-      contentType: 'application/json',
-      body: JSON.stringify(body),
-    });
+    try {
+      await route.fulfill({
+        status,
+        contentType: 'application/json',
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      // With delayMs > 0 there can be several fulfils in flight when a page
+      // or context closes — during teardown of an already-failing run, when
+      // the real failure most needs to stay legible. A close makes the
+      // pending fulfil reject with nothing left to answer, so swallow only
+      // that; anything else is a genuine stub bug and must still surface.
+      if (!isTargetClosedError(error)) {
+        throw error;
+      }
+    }
   });
+}
+
+/** True for Playwright's "the page/context went away" rejection, only. */
+function isTargetClosedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('Target page, context or browser has been closed') ||
+    message.includes('Target closed')
+  );
 }
 
 // Playwright gotcha, load-bearing: route handlers match in REVERSE
