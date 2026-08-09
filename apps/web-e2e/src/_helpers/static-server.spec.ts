@@ -1,11 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 
-import { contentTypeFor, resolveRequestPath } from './static-server';
+import { contentTypeFor, decodeRequestPath, isApiRequest, resolveRequestPath } from './static-server';
 
 const ROOT = '/tmp/build-output';
 
-describe('resolveRequestPath', () => {
+describe('decodeRequestPath', () => {
+  it('strips a query string', () => {
+    expect(decodeRequestPath('/main-ABC.js?v=2')).toBe('/main-ABC.js');
+  });
+
+  it('percent-decodes the path', () => {
+    expect(decodeRequestPath('/%2e%2e/%2e%2e/etc/passwd')).toBe('/../../etc/passwd');
+  });
+
+  it('percent-decodes a disguised /api path', () => {
+    expect(decodeRequestPath('/%61pi/catalog')).toBe('/api/catalog');
+  });
+
+  it('returns null for malformed percent-encoding', () => {
+    expect(decodeRequestPath('/%zz/catalog')).toBeNull();
+  });
+});
+
+describe('resolveRequestPath (given an already-decoded path)', () => {
   it('resolves a real asset path under the root', () => {
     expect(resolveRequestPath(ROOT, '/main-ABC123.js')).toBe(join(ROOT, 'main-ABC123.js'));
   });
@@ -18,16 +36,60 @@ describe('resolveRequestPath', () => {
     expect(resolveRequestPath(ROOT, '/')).toBe(join(ROOT, 'index.html'));
   });
 
-  it('strips a query string before resolving', () => {
-    expect(resolveRequestPath(ROOT, '/main-ABC.js?v=2')).toBe(join(ROOT, 'main-ABC.js'));
-  });
-
   it('returns null for a traversal attempt that escapes the root', () => {
     expect(resolveRequestPath(ROOT, '/../../etc/passwd')).toBeNull();
   });
 
-  it('returns null for an encoded traversal attempt', () => {
-    expect(resolveRequestPath(ROOT, '/%2e%2e/%2e%2e/etc/passwd')).toBeNull();
+  it('returns null for a decoded traversal attempt', () => {
+    const decoded = decodeRequestPath('/%2e%2e/%2e%2e/etc/passwd');
+    expect(decoded).not.toBeNull();
+    expect(resolveRequestPath(ROOT, decoded as string)).toBeNull();
+  });
+});
+
+describe('isApiRequest (given an already-decoded path)', () => {
+  it('is true for a path beginning with /api/', () => {
+    expect(isApiRequest('/api/catalog')).toBe(true);
+  });
+
+  it('is true for an api path without a leading slash', () => {
+    expect(isApiRequest('api/catalog')).toBe(true);
+  });
+
+  it('is false for a real asset path', () => {
+    expect(isApiRequest('/main-ABC123.js')).toBe(false);
+  });
+
+  it('is false for an extensionless SPA route', () => {
+    expect(isApiRequest('/catalog/c-1')).toBe(false);
+  });
+
+  it('is false for a path that merely contains "api" mid-segment', () => {
+    expect(isApiRequest('/apiary/thing')).toBe(false);
+  });
+});
+
+describe('decodeRequestPath + isApiRequest pipeline (regression: percent-encoded bypass)', () => {
+  it('catches a fully percent-encoded /api path, e.g. /%61pi/catalog', () => {
+    const decoded = decodeRequestPath('/%61pi/catalog');
+    expect(decoded).not.toBeNull();
+    expect(isApiRequest(decoded as string)).toBe(true);
+  });
+
+  it('catches a partially percent-encoded /api path, e.g. /ap%69/catalog', () => {
+    const decoded = decodeRequestPath('/ap%69/catalog');
+    expect(decoded).not.toBeNull();
+    expect(isApiRequest(decoded as string)).toBe(true);
+  });
+
+  it('still ignores /apiary once decoded (not an /api path)', () => {
+    const decoded = decodeRequestPath('/apiary/thing');
+    expect(decoded).not.toBeNull();
+    expect(isApiRequest(decoded as string)).toBe(false);
+  });
+
+  it('malformed encoding never reaches isApiRequest — the decode fails first', () => {
+    expect(decodeRequestPath('/%zz/catalog')).toBeNull();
   });
 });
 

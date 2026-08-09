@@ -35,6 +35,13 @@ import {
  * or segment fetch latency: those already happened off-clock. Do not
  * "fix" this by disabling autoStartLoad; that would model something the
  * product does not do.
+ *
+ * RESOLUTION OF THE TIMER ITSELF — the clock stops on the first `timeupdate`
+ * with `currentTime > 0`, and the HTML spec caps `timeupdate` at roughly
+ * 4 Hz. That gives the published median a 0-250ms positive bias; it is not
+ * a decode measurement precise to the millisecond, though a real decode
+ * regression still shifts it. `requestVideoFrameCallback` is the exact fix
+ * if that precision is ever needed (see spec §10).
  */
 const BUDGET_MS = 3000;
 const VIDEO_ID = 'v-1';

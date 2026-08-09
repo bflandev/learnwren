@@ -96,6 +96,10 @@ for (const route of PERF_ROUTES) {
       budget,
       `no budget defined for route "${route.name}" — every PERF_ROUTES entry needs one`,
     ).toBeGreaterThan(0);
+    expect(
+      gatedMetrics.length,
+      `every PERF_ROUTES entry must gate at least one metric — "${route.name}" gates none`,
+    ).toBeGreaterThan(0);
 
     await applyBroadbandThrottle(page);
     await stubAuth(page, route.role);

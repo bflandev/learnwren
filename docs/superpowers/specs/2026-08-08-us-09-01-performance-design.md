@@ -207,6 +207,8 @@ The gate proves client render cost and bundle weight under a modelled 10 Mbps / 
 
 The video-start gate carries a narrower scope than its passing number suggests. Because hls.js's `autoStartLoad: true` begins fetching and decrypting the manifest, key, and segment on page mount — before this spec's clock starts inside `player.evaluate()` — the ~260 ms median measures MSE append, decode, and first paint on a segment that has almost certainly already been fetched and decrypted off-clock. It does not measure, and cannot catch a regression in, manifest/key/segment fetch latency. §6 records this in detail. A reader should not conclude from the 260 ms/3000 ms margin that the full playback pipeline has enormous headroom; only the decode-and-paint tail of it does.
 
+The timer itself has a resolution limit worth naming: it resolves on the first `timeupdate` event with `currentTime > 0`, and the HTML spec caps `timeupdate` firing at roughly 4 Hz. So the published ~260 ms median carries a 0–250 ms positive bias and is not a decode measurement precise to the millisecond. This does not make the gate blind — a real decode regression still shows up as a shift in the median — but a reader should not treat small movements within that ~250 ms band as significant. If decode timing precision ever matters, `requestVideoFrameCallback` is the exact replacement: it fires once per presented frame rather than at a capped polling rate.
+
 ## 11. Risks
 
 | Risk | Mitigation |

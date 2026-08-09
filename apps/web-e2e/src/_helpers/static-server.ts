@@ -39,8 +39,57 @@ export function contentTypeFor(filePath: string): string {
   return CONTENT_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream';
 }
 
+const API_PATH_REGEX = /^\/?api\//;
+
 /**
- * Map a request path to a file inside `rootDir`, or null if it escapes.
+ * Strip the query string and percent-decode a raw request path. Returns null
+ * for malformed percent-encoding (a `decodeURIComponent` throw) — that input
+ * is not a path we are willing to guess at.
+ *
+ * This is the ONE decode site for the whole request. `isApiRequest` and
+ * `resolveRequestPath` both consume its output rather than decoding
+ * independently: decoding twice is exactly how a request like
+ * `/%61pi/catalog` used to slip past an `isApiRequest` check written against
+ * the raw path (it fails a literal `api/` regex) and then decode to
+ * `api/catalog` inside `resolveRequestPath` — reaching the SPA-shell
+ * fallback under a different name than the one it was blocked by.
+ */
+export function decodeRequestPath(urlPath: string): string | null {
+  const withoutQuery = urlPath.split('?')[0] ?? '/';
+  try {
+    return decodeURIComponent(withoutQuery);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True for a decoded request path beginning with `api/` (leading slash
+ * optional). Expects its input already decoded via `decodeRequestPath` —
+ * see that function's doc for why decoding happens exactly once.
+ *
+ * The perf suite is hermetic — every real API call the app makes is
+ * intercepted by a Playwright route stub before it reaches the network. So
+ * any `/api/...` request that lands on THIS static server is by definition
+ * an unstubbed call: a route added to `PERF_ROUTES` without its matching
+ * stub, or a stub URL pattern that doesn't match what the app actually
+ * requests. Without this check that request falls through to the
+ * extensionless-path branch below and gets `index.html` back at HTTP 200 —
+ * a test-authoring bug disguised as a successful page load, surfacing later
+ * as a client-side JSON parse error instead of a legible 404. Kept separate
+ * from `resolveRequestPath` (rather than folded into it) so that function's
+ * `string | null` contract keeps its single meaning: null means "escapes
+ * the root". Overloading null to also mean "blocked API path" would make
+ * both cases indistinguishable to the caller.
+ */
+export function isApiRequest(decodedPath: string): boolean {
+  return API_PATH_REGEX.test(decodedPath);
+}
+
+/**
+ * Map an already-decoded request path to a file inside `rootDir`, or null if
+ * it escapes. Expects its input already decoded via `decodeRequestPath` (see
+ * that function's doc) — this function does no decoding of its own.
  *
  * Extensionless paths fall back to index.html so Angular's client-side
  * routes (/catalog/c-1, /learn/c-1/l-1) resolve — without this every perf
@@ -54,18 +103,9 @@ export function contentTypeFor(filePath: string): string {
  * rooted, so a resolve-then-compare check never sees an escape — the
  * traversal silently lands inside `root` instead of being rejected.
  */
-export function resolveRequestPath(rootDir: string, urlPath: string): string | null {
-  const withoutQuery = urlPath.split('?')[0] ?? '/';
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(withoutQuery);
-  } catch {
-    // Malformed percent-encoding is not a path we are willing to guess at.
-    return null;
-  }
-
+export function resolveRequestPath(rootDir: string, decodedPath: string): string | null {
   const root = resolve(rootDir);
-  const relativePath = normalize(decoded.replace(/^\/+/, ''));
+  const relativePath = normalize(decodedPath.replace(/^\/+/, ''));
   if (relativePath === PARENT_SEGMENT || relativePath.startsWith(PARENT_SEGMENT + sep)) {
     return null;
   }
@@ -90,7 +130,20 @@ export async function startStaticServer(
   }
 
   const server: Server = createServer((req, res) => {
-    const filePath = resolveRequestPath(root, req.url ?? '/');
+    const decodedPath = decodeRequestPath(req.url ?? '/');
+    if (decodedPath === null) {
+      // Malformed percent-encoding fails safe as a plain 404, same as an
+      // escape attempt below — never reaches the filesystem.
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+      return;
+    }
+    if (isApiRequest(decodedPath)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found: unstubbed /api request reached the static server');
+      return;
+    }
+    const filePath = resolveRequestPath(root, decodedPath);
     if (!filePath || !existsSync(filePath) || !statSync(filePath).isFile()) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Not found');
