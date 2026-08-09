@@ -125,6 +125,8 @@ Chromium runs hls.js (native HLS is a Safari/iOS path, out of scope for this Chr
 
 The player uses native `<video controls>` (`video-player.component.html:2-8`), whose buttons live in the browser's shadow UI and are not reliably clickable from Playwright. Calling `play()` is the honest equivalent of the user's click: it starts the same clock at the same point in the pipeline. The spec records this substitution in a comment so no reader mistakes it for a real pointer event.
 
+**What the timer actually brackets.** `VideoPlayerComponent.ngAfterViewInit` mounts hls.js on page load, and hls.js's default `autoStartLoad: true` starts fetching and decrypting the manifest, key, and segment immediately — before the clock in this spec ever starts. The clock starts inside `player.evaluate()`, which runs only after `page.goto`, the `toBeAttached()` wait, and the two zero-count guard assertions have all resolved; by then the ~24 KB fixture segment has almost certainly already been fetched and decrypted off-clock. The measured ~260 ms median is therefore "MSE append + decode + first paint on an already-buffered segment", not "click-to-first-frame from a cold page load". This is a defensible reading of the AC — a real user clicks play on a page that has already been sitting there loading, not at the instant of navigation — and it matches production's own hls.js configuration, so `autoStartLoad` is intentionally left enabled rather than disabled to widen the measured window. The consequence, stated plainly: **this gate cannot detect a regression in manifest, key, or segment fetch latency** — those already happened before the clock started. It detects regressions in MSE append/decode/paint cost only. See §10.
+
 This is the first thing in the repo that proves video playback starts at all, which is worth more than the timing number it asserts.
 
 ## 7. Deferred criteria, on the record
@@ -174,6 +176,8 @@ Unit-testable pieces — the median helper and the static server's path resoluti
 ## 10. Honest scope
 
 The gate proves client render cost and bundle weight under a modelled 10 Mbps / 40 ms broadband link, on Chromium, on CI hardware, against stubbed API responses with a fixed 150 ms delay. It does not prove real-world API latency, CDN or cold-start behaviour, performance on other browsers or on real mobile hardware, or anything at all about concurrency. Two of the story's four acceptance criteria remain formally deferred (§7). This is a regression gate, not a performance certification.
+
+The video-start gate carries a narrower scope than its passing number suggests. Because hls.js's `autoStartLoad: true` begins fetching and decrypting the manifest, key, and segment on page mount — before this spec's clock starts inside `player.evaluate()` — the ~260 ms median measures MSE append, decode, and first paint on a segment that has almost certainly already been fetched and decrypted off-clock. It does not measure, and cannot catch a regression in, manifest/key/segment fetch latency. §6 records this in detail. A reader should not conclude from the 260 ms/3000 ms margin that the full playback pipeline has enormous headroom; only the decode-and-paint tail of it does.
 
 ## 11. Risks
 

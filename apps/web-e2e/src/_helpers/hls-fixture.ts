@@ -23,8 +23,12 @@ function read(name: string): Buffer {
 }
 
 export async function stubHlsFixture(page: Page, videoId: string): Promise<void> {
-  // Broad glob FIRST, specific paths LAST — Playwright matches route
-  // handlers in REVERSE registration order.
+  // Registration order is defensive, not load-bearing here: none of these
+  // four patterns is a prefix of another (the master pattern has no
+  // trailing wildcard, so it can't match the rendition URL below), so
+  // Playwright's reverse-registration-order matching never has to choose
+  // between them. Kept broad-to-specific anyway as the convention this repo
+  // otherwise relies on.
   await page.route(`**/api/playback/manifest/${videoId}`, (route) =>
     route.fulfill({ status: 200, contentType: M3U8, body: read('master.m3u8') }),
   );

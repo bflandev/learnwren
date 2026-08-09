@@ -18,9 +18,30 @@ import {
  * ALL. videos.spec.ts:257-258 records that the fake playback seam returns
  * gs-stub:// segment URIs hls.js cannot fetch, so until now no CI run had
  * ever decoded a frame.
+ *
+ * SCOPE OF THE TIMER — read before trusting the margin below the budget:
+ * `VideoPlayerComponent.ngAfterViewInit` mounts hls.js on page load, and
+ * hls.js's default `autoStartLoad: true` starts fetching and decrypting the
+ * manifest, key, and segment immediately — before this test's clock starts.
+ * The clock below only starts inside `player.evaluate()`, which runs after
+ * `page.goto`, `toBeAttached()`, and the two zero-count assertions have all
+ * resolved; by then the ~24 KB fixture segment has almost certainly already
+ * been fetched and decrypted. So the measured number is "MSE append +
+ * decode + first paint on an already-buffered segment", not "click to
+ * first frame from a cold page". That is a faithful reading of the AC — a
+ * real user clicks play on a page that has been sitting there loading, not
+ * at the instant of navigation — and it matches production's own hls.js
+ * config. But it means this gate CANNOT see a regression in manifest, key,
+ * or segment fetch latency: those already happened off-clock. Do not
+ * "fix" this by disabling autoStartLoad; that would model something the
+ * product does not do.
  */
 const BUDGET_MS = 3000;
 const VIDEO_ID = 'v-1';
+// Fails the evaluate() call with a legible message well before Playwright's
+// own 30s test timeout would, so a broken decrypt path reads as "no frame
+// decoded" instead of an opaque "Test timeout of 30000ms exceeded."
+const FIRST_FRAME_TIMEOUT_MS = 20_000;
 
 test(`playback begins within ${BUDGET_MS}ms of play()`, async ({ page }) => {
   await applyBroadbandThrottle(page);
@@ -62,7 +83,7 @@ test(`playback begins within ${BUDGET_MS}ms of play()`, async ({ page }) => {
     // the call from being rejected while still timing the real pipeline —
     // a muted programmatic start reaches the same first-frame event as an
     // audible one.
-    const elapsed = await player.evaluate(async (el) => {
+    const elapsed = await player.evaluate(async (el, deadlineMs) => {
       const video = el as HTMLVideoElement;
       video.muted = true;
       const started = performance.now();
@@ -75,9 +96,15 @@ test(`playback begins within ${BUDGET_MS}ms of play()`, async ({ page }) => {
         };
         video.addEventListener('timeupdate', onTimeUpdate);
       });
+      const deadline = new Promise<never>((_resolve, reject) => {
+        setTimeout(
+          () => reject(new Error(`no frame decoded within ${deadlineMs}ms; check the HLS fixture handlers`)),
+          deadlineMs,
+        );
+      });
       await video.play();
-      return firstFrame;
-    });
+      return Promise.race([firstFrame, deadline]);
+    }, FIRST_FRAME_TIMEOUT_MS);
 
     samples.push(elapsed);
   }
