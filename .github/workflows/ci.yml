@@ -131,6 +131,42 @@ jobs:
       - name: Run responsive sweep
         run: pnpm exec nx run web-e2e:responsive
 
+  # ---------------------------------------------------------------------------
+  # Performance gate
+  #
+  # WHY this job exists: catches LCP/load-time and video-start-latency
+  # regressions on the production bundle. Hermetic like the responsive gate —
+  # every /api call is stubbed via page.route and the HLS fixture is committed
+  # bytes, so it needs neither the Firebase emulators nor the api nor ffmpeg.
+  # The web-e2e:perf target declares dependsOn: ["web:build"], so Nx produces
+  # the production bundle itself; no explicit build step here.
+  perf:
+    name: Performance gate (LCP + video start)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run performance gate
+        run: pnpm exec nx run web-e2e:perf
+
   e2e:
     name: api-e2e (Firebase emulators)
     runs-on: ubuntu-latest
