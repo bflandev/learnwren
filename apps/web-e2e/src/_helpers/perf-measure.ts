@@ -124,10 +124,23 @@ export async function measureTimeToContent(
 ): Promise<number> {
   const start = Date.now();
   await page.goto(path);
-  await page
-    .locator('main')
-    .getByText(expectText)
-    .first()
-    .waitFor({ state: 'visible' });
+  try {
+    await page
+      .locator('main')
+      .getByText(expectText)
+      .first()
+      .waitFor({ state: 'visible' });
+  } catch (error) {
+    // Default is a bare 30s timeout with no hint of what was expected —
+    // name the route and the text so a fixture-shape regression explains
+    // itself instead of reading as a generic hang. Timeout itself is
+    // untouched; this only rewraps the failure.
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Timed out waiting for "${expectText}" to become visible in <main> on ` +
+        `"${path}" — the route probably rendered an error or empty state ` +
+        `instead of the stubbed content. ${reason}`,
+    );
+  }
   return Date.now() - start;
 }

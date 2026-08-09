@@ -68,6 +68,18 @@ for (const route of PERF_ROUTES) {
     const lcpSamples: number[] = [];
     for (let i = 0; i < SAMPLE_COUNT; i++) {
       lcpSamples.push(await measureLcp(page, route.path));
+
+      // Prove the route rendered its REAL content, not an error or empty
+      // state. A stubbed page settles on an error paragraph just as fast as
+      // on real data — faster, in fact — so without this guard a
+      // fixture-shape bug reads as a performance WIN. Same contract as the
+      // a11y and responsive sweeps; scoped to <main> because the header
+      // precedes it and can otherwise satisfy the check on its own.
+      if (route.expectText) {
+        await expect(
+          page.locator('main').getByText(route.expectText).first(),
+        ).toBeVisible();
+      }
     }
     const observedLcp = Math.round(median(lcpSamples));
     expect(
