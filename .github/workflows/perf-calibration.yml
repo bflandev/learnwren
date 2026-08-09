@@ -4,13 +4,21 @@
 # were derived on an idle M4 Mac mini but are enforced on GitHub-hosted CI
 # runners, which are slower and noisier. Before finalising the budgets we need
 # real medians measured on that hardware. This workflow exists solely to
-# produce those numbers via manual dispatch; it is not a gate and must never
-# run automatically. Delete this file once the calibration numbers are in
-# hand and the budgets (if needed) have been adjusted.
+# produce those numbers; it is not a gate.
+#
+# TRIGGER: push, scoped to this branch only — not workflow_dispatch. GitHub
+# only allows dispatching a workflow_dispatch workflow once the file exists
+# on the repository's default branch, and this file is deliberately NOT
+# going onto main (it's throwaway). A branch-scoped push trigger fires from
+# the branch itself without that requirement. The tradeoff: this job runs on
+# EVERY push to this branch until the file is deleted, not just on demand.
+# That's acceptable for a short calibration window, and is one more reason
+# this file must not survive past this slice.
 name: Perf calibration (temporary)
 
 on:
-  workflow_dispatch: {}
+  push:
+    branches: [feat/us-09-01-performance]
 
 permissions:
   contents: read
