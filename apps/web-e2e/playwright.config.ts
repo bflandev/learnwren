@@ -25,12 +25,21 @@ const storageHost = (
  */
 export default defineConfig({
   ...nxE2EPreset(__filename, { testDir: './src' }),
-  // The hermetic a11y suite (apps/web-e2e/src/a11y/*.a11y.spec.ts) has its own
-  // config — playwright.a11y.config.ts — that starts only the Angular dev
-  // server and stubs every /api call. Without this, this emulator+api-backed
-  // config also picks up those specs via the shared testDir, running them in
-  // an environment they were never designed for and misattributing failures.
-  testIgnore: '**/a11y/**',
+  // Everything under ./src that is NOT a plain emulator-backed e2e spec must
+  // be excluded here, because testDir is the whole of ./src:
+  //
+  // - a11y/, responsive/, perf/ are hermetic suites with their own configs
+  //   (playwright.{a11y,responsive,perf}.config.ts). Running them here would
+  //   put them in an environment they were never designed for. The perf suite
+  //   is the sharpest case: its own config serves the PRODUCTION build via a
+  //   static server, so collecting it here would time the unminified dev
+  //   bundle and either red-build on the budgets or — worse — pass and be
+  //   believed.
+  // - _helpers/ holds vitest unit specs (*.spec.ts) that match Playwright's
+  //   default testMatch. Playwright cannot require('vitest') from CJS, so a
+  //   single one of them aborts collection for the WHOLE suite: zero tests,
+  //   exit 1.
+  testIgnore: ['**/a11y/**', '**/responsive/**', '**/perf/**', '**/_helpers/**'],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     baseURL,

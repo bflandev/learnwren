@@ -59,22 +59,69 @@ API stubs are reused from `route-stubs.ts` with one addition: a fixed **150 ms**
 
 ## 5. Load-time gate
 
-**Metric.** Largest Contentful Paint, read via a `PerformanceObserver` on `largest-contentful-paint` installed through `page.addInitScript` before navigation, taking the final entry's `startTime` (relative to navigation start). LCP is chosen over the `load` event because it tracks when the user sees the page's main content, which is what "the page must load within 2 seconds" means to a student.
+**Metrics — two, not one.**
 
-**Sampling.** Each route is navigated 3 times per run in a fresh context, and the assertion is made against the **median** of the three LCP values. A real regression moves the median; a single GC pause or cold-cache outlier does not. Cost is roughly 3 × 4 = 12 throttled navigations, seconds of wall clock.
+1. **Largest Contentful Paint**, read via a `PerformanceObserver` on `largest-contentful-paint` installed through `page.addInitScript` before navigation, taking the final entry's `startTime` (relative to navigation start).
+2. **Time to content**: elapsed wall-clock time from immediately before `page.goto` until the route's `expectText` is visible inside `<main>`. Added after the first implementation pass found that LCP alone is blind to the catalogue's actual failure mode: **the catalogue's LCP candidate is its static `<h1>Course catalogue</h1>` heading, which paints before `/api/catalog` responds** — injecting a 3000 ms delay into that stub during development left the catalogue's LCP median completely unchanged (~1400 ms) because the course-card grid never produces an element large enough (and its CSS-gradient covers aren't `url()`-based, so aren't LCP-eligible at all) to overtake the already-painted heading. Time to content can only complete once the stubbed data has actually rendered, so it is the metric that can fail for a catalog-data-load regression, which is what "loads within 2 seconds" is actually meant to guard against.
 
-**Routes and budgets.**
+LCP remains the gated metric for the landing page, which has no stubbed API calls at all — there is no "content becomes visible after data loads" event to time, so LCP is the only meaningful render-cost signal there and landing's budget is derived from LCP alone. Landing still carries an `expectText` (its hero `<h1>`) so that its test has the same render guard as every other route: without one, a landing page that rendered nothing but the app header would still produce an LCP and pass its budget. Its time to content is therefore measured and logged too, but not gated.
 
-| Route | Path | Role | Budget |
-| :--- | :--- | :--- | :--- |
-| Landing | `/` | guest | baseline × 1.4 |
-| Catalogue | `/catalog` | guest | **2000 ms — the epic's number, hard** |
-| Course detail | `/catalog/c-1` | guest | baseline × 1.4 |
-| Learn page | `/learn/c-1/l-1` | student | baseline × 1.4 |
+Both metrics are scoped/anchored consistently: LCP's zero is the browser's navigation start (`performance.now()`-based, inside the page); time to content's zero is `Date.now()` immediately before `page.goto` (in the test process) — both mark the same instant, the start of that navigation.
+
+**Sampling.** Each route is navigated `SAMPLE_COUNT` (3) times per metric per run in a fresh context, and each metric is asserted independently against the **median** of its three values. A real regression moves the median; a single GC pause or cold-cache outlier does not.
+
+**Calibration hardware.** Budgets below are calibrated against a **GitHub Actions runner**, not a local developer machine. A first pass measured budgets on a local Mac mini (Apple M4); CI calibration on the actual runner this gate executes against in production found every route's medians 10-100ms higher than local, and the catalogue's time-to-content specifically cleared its hard 2000ms budget by only 11ms locally-derived vs the number now recorded below. Runner hardware is slower and noisier than a quiet local machine, and it is the *only* hardware this gate actually needs to be correct on — a gate calibrated to pass comfortably on a fast Mac and then run for real on a shared CI runner is calibrated against the wrong machine. The numbers below are the CI runner's.
+
+**Routes, budgets, and which metrics gate.**
+
+| Route | Path | Role | Measured LCP median | Measured TTC median | Budget | LCP gated? | TTC gated? |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Landing | `/` | guest | 1336 ms | measured, not gated (no stubbed data to wait on) | 1900 ms (`ceil(1336 × 1.4 / 50) × 50`, LCP only) | yes | no |
+| Catalogue | `/catalog` | guest | 1424 ms | 1989 ms | **2000 ms — the epic's number, hard** | yes | **no — see below** |
+| Course detail | `/catalog/c-1` | guest | 1556 ms | 1984 ms | 2800 ms (`ceil(1984 × 1.4 / 50) × 50`) | yes | yes |
+| Learn page | `/learn/c-1/l-1` | student | 1576 ms | 1973 ms | 2800 ms (`ceil(1973 × 1.4 / 50) × 50`) | yes | yes |
 
 Paths verified against `route-inventory.ts` at `b539346`. Note `/courses` is the *instructor* course list, not the catalogue.
 
-These four are the student journey — the routes a student actually waits on. The catalogue budget comes from the AC and is not negotiable by measurement. The other three budgets are derived: during implementation, each route is measured 5 times on a quiet local machine, the median recorded, and the budget set to `ceil(median × 1.4 / 50) * 50` ms. **The measured baselines and resulting budgets are written back into this spec before the slice lands**, so the numbers in the repo have a recorded provenance rather than appearing as magic constants.
+These four are the student journey — the routes a student actually waits on. The other three budgets are derived from `ceil(max(median LCP, median TTC) × 1.4 / 50) * 50` ms — except landing, which gates LCP only and so derives its budget from LCP alone — time to content is the higher of the two metrics for every route measured, since it includes the 150 ms stub delay plus render time that LCP alone can miss. (Landing's local-measurement budget, 1850ms, was recalculated to 1900ms against the CI number above; course detail and learn page's budgets were unchanged by the recalculation — both round to 2800ms under either machine's numbers.)
+
+**The catalogue's time-to-content is measured and logged on every run, but not gated — this is a deliberate, documented exception, not a dropped assertion.** CI calibration found the catalogue's TTC median at **1989 ms against its hard 2000 ms acceptance-criterion budget: an 11 ms margin.** That is not headroom, it is a coin flip against ordinary runner jitter — gating it would red-build the suite on noise, not on regressions. Compounding this: the other two routes' TTC medians (1984 ms, 1973 ms) sit in the same ~1980 ms band regardless of what each route's stubbed payload actually is, and the samples do not trend down across repeated navigations within a run. That pattern means the ~1980 ms figure is dominated by **cold production-bundle download over the modelled 10 Mbps link plus Angular bootstrap** — a cost paid by every route alike — not by anything catalogue-specific that this gate could usefully catch. Gating a number that doesn't move for the reason the AC cares about would not be testing the AC; it would be testing bundle size with unacceptable flakiness attached.
+
+**This is a real, currently-unmet acceptance criterion, not a resolved one.** The product's catalogue does not reliably clear "loads within 2 seconds" on cold load against modelled broadband — 1989ms against 2000ms leaves no real margin. That finding is recorded in `docs/epics/09-non-functional-requirements.md` and `README.md` (Task 8) as needing bundle-weight optimisation outside this slice, the same way US-09-05 recorded its own deferred criterion. Explicitly rejected as fixes here: widening the 2000ms budget, switching to a warm-cache measurement model (which would hide the real cold-load cost this AC is about), or gating TTC at 2000ms and accepting the resulting flakiness. The catalogue's LCP budget stays gated and hard — with the render-content guard now the *only* assertion protecting that test from a fixture-shape regression reading as a pass, so it is retained unconditionally regardless of which metrics a route gates.
+
+**Raw CI samples** (GitHub Actions runner, 2026-08-08, via the branch-scoped calibration workflow, production build):
+
+| Route | Metric | Median (ms) |
+| :--- | :--- | :--- |
+| Landing | LCP | 1336 |
+| Catalogue | LCP | 1424 |
+| Catalogue | TTC | 1989 |
+| Course detail | LCP | 1556 |
+| Course detail | TTC | 1984 |
+| Learn page | LCP | 1576 |
+| Learn page | TTC | 1973 |
+
+(Per-sample raw values are not retained by the calibration workflow's summary output — only medians.)
+
+**Local measurements that preceded the CI calibration** (Mac mini, Apple M4, 16 GB, macOS Darwin 25.5.0; `NX_DAEMON=false pnpm exec nx run web-e2e:perf` against the production build on an otherwise-quiet machine, 5 samples per route, two full runs). These are recorded here because they are what the budget formula was first derived against, and because their agreement with the CI numbers above is the evidence that the harness measures the product rather than the machine:
+
+| Route | Metric | Run 1 samples (ms) | Run 1 median | Run 2 samples (ms) | Run 2 median |
+| :--- | :--- | :--- | ---: | :--- | ---: |
+| Landing | LCP | 1380, 1304, 1320, 1308, 1304 | 1308 | 1368, 1316, 1320, 1308, 1312 | 1316 |
+| Catalogue | LCP | 1416, 1400, 1396, 1400, 1404 | 1400 | 1416, 1404, 1400, 1416, 1432 | 1416 |
+| Catalogue | TTC | 1963, 1964, 1955, 1963, 1958 | 1963 | 1976, 1967, 1968, 1963, 1967 | 1967 |
+| Course detail | LCP | 1556, 1540, 1528, 1544, 1552 | 1544 | 1552, 1544, 1544, 1548, 1548 | 1548 |
+| Course detail | TTC | 1973, 1972, 1977, 1970, 1962 | 1972 | 1970, 1970, 1976, 1968, 1961 | 1970 |
+| Learn page | LCP | 1572, 1568, 1548, 1564, 1540 | 1564 | 1572, 1556, 1560, 1556, 1552 | 1556 |
+| Learn page | TTC | 1969, 1962, 1964, 1967, 1965 | 1965 | 1972, 1958, 1961, 1961, 1964 | 1961 |
+
+(No landing TTC row: landing had no `expectText` at the time of these runs. It was given one later so its test would carry a render guard like every other route; its time to content measures ~1370 ms locally and is logged but not gated.)
+
+The two runs agreed to within 1% on every metric and route (largest spread: course detail TTC, 1972 vs 1970), so no third run was taken. Note the local catalogue TTC medians — 1963 ms and 1967 ms — cleared the hard 2000 ms budget by ~35 ms, which is why the metric was originally gated; the CI runner's 1989 ms is what closed that margin and forced the ruling above. That divergence is the whole argument for calibrating on the hardware CI actually gates on.
+
+**Harness soundness.** Two manipulations confirmed the harness measures what it claims before any budget was trusted. Injecting a 3000 ms — then a 10000 ms — delay into the catalogue's stubs left its LCP median flat at ~1400 ms, which is what exposed the LCP-locks-onto-the-`<h1>` blind spot and led to time-to-content being added as a second metric at all. The same 3000 ms delay injected into the *course detail* stubs moved that route's LCP median 1:1 with the delay (samples 4416, 4392, 4380 ms against its then-2200 ms budget), proving the throttle, stub delay, LCP observer, median, and budget assertion all work end to end and that the catalogue's flat LCP was a real property of that page, not a broken measurement.
+
+**Red-proof.** Injecting a 3000 ms delay into the catalogue's `/api/categories` and `/api/catalog` stubs failed the catalogue test on time-to-content (median 4470 ms, back when that metric was still gated) while leaving LCP for that same run at ~1400 ms and the other three routes' tests passing — confirming time-to-content, not LCP, is what makes this gate sensitive to a catalog-data-load regression. That result is precisely why the catalogue's TTC not clearing its own budget by only 11ms in real CI is a genuine, actionable finding rather than an artifact of a badly-designed check.
 
 Exact paths and role stubs come from the shared `route-inventory.ts` fixtures, so the perf suite and the a11y/responsive suites cannot drift apart on what a route needs.
 
@@ -103,6 +150,8 @@ Chromium runs hls.js (native HLS is a Safari/iOS path, out of scope for this Chr
 **The measurement.** Navigate to the lesson page, wait for `[data-testid="video-player"]` to attach, start the clock, invoke `play()` on the video element, and stop the clock at the first `timeupdate` where `currentTime > 0` — i.e. a frame has actually been decoded and presented, not merely that the manifest parsed. Budget **3000 ms**, hard, from the AC. Median of 3, same as §5.
 
 The player uses native `<video controls>` (`video-player.component.html:2-8`), whose buttons live in the browser's shadow UI and are not reliably clickable from Playwright. Calling `play()` is the honest equivalent of the user's click: it starts the same clock at the same point in the pipeline. The spec records this substitution in a comment so no reader mistakes it for a real pointer event.
+
+**What the timer actually brackets.** `VideoPlayerComponent.ngAfterViewInit` mounts hls.js on page load, and hls.js's default `autoStartLoad: true` starts fetching and decrypting the manifest, key, and segment immediately — before the clock in this spec ever starts. The clock starts inside `player.evaluate()`, which runs only after `page.goto`, the `toBeAttached()` wait, and the two zero-count guard assertions have all resolved; by then the ~24 KB fixture segment has almost certainly already been fetched and decrypted off-clock. The measured ~260 ms median is therefore "MSE append + decode + first paint on an already-buffered segment", not "click-to-first-frame from a cold page load". This is a defensible reading of the AC — a real user clicks play on a page that has already been sitting there loading, not at the instant of navigation — and it matches production's own hls.js configuration, so `autoStartLoad` is intentionally left enabled rather than disabled to widen the measured window. The consequence, stated plainly: **this gate cannot detect a regression in manifest, key, or segment fetch latency** — those already happened before the clock started. It detects regressions in MSE append/decode/paint cost only. See §10.
 
 This is the first thing in the repo that proves video playback starts at all, which is worth more than the timing number it asserts.
 
@@ -153,6 +202,12 @@ Unit-testable pieces — the median helper and the static server's path resoluti
 ## 10. Honest scope
 
 The gate proves client render cost and bundle weight under a modelled 10 Mbps / 40 ms broadband link, on Chromium, on CI hardware, against stubbed API responses with a fixed 150 ms delay. It does not prove real-world API latency, CDN or cold-start behaviour, performance on other browsers or on real mobile hardware, or anything at all about concurrency. Two of the story's four acceptance criteria remain formally deferred (§7). This is a regression gate, not a performance certification.
+
+**The gate does not enforce the catalogue's time-to-content**, and by extension does not fully enforce "the course catalogue page must load within 2 seconds" end to end. The catalogue's time-to-content is measured and logged every run (median 1989ms against the 2000ms AC on CI hardware — see §5) but is not asserted, because that margin is statistically indistinguishable from runner noise. Only the catalogue's LCP is gated. The AC is formally recorded as unmet, pending bundle-weight work, in `docs/epics/09-non-functional-requirements.md` and `README.md` — not silently narrowed here.
+
+The video-start gate carries a narrower scope than its passing number suggests. Because hls.js's `autoStartLoad: true` begins fetching and decrypting the manifest, key, and segment on page mount — before this spec's clock starts inside `player.evaluate()` — the ~260 ms median measures MSE append, decode, and first paint on a segment that has almost certainly already been fetched and decrypted off-clock. It does not measure, and cannot catch a regression in, manifest/key/segment fetch latency. §6 records this in detail. A reader should not conclude from the 260 ms/3000 ms margin that the full playback pipeline has enormous headroom; only the decode-and-paint tail of it does.
+
+The timer itself has a resolution limit worth naming: it resolves on the first `timeupdate` event with `currentTime > 0`, and the HTML spec caps `timeupdate` firing at roughly 4 Hz. So the published ~260 ms median carries a 0–250 ms positive bias and is not a decode measurement precise to the millisecond. This does not make the gate blind — a real decode regression still shows up as a shift in the median — but a reader should not treat small movements within that ~250 ms band as significant. If decode timing precision ever matters, `requestVideoFrameCallback` is the exact replacement: it fires once per presented frame rather than at a capped polling rate.
 
 ## 11. Risks
 

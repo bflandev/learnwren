@@ -1,0 +1,71 @@
+import { defineConfig, devices } from '@playwright/test';
+import { nxE2EPreset } from '@nx/playwright/preset';
+import { workspaceRoot } from '@nx/devkit';
+import { join } from 'node:path';
+
+/**
+ * Standalone config for the performance suite (US-09-01).
+ *
+ * Differs from playwright.a11y.config.ts and playwright.responsive.config.ts
+ * in one way that matters: it serves the PRODUCTION BUILD through a static
+ * server rather than running `nx serve web`. Dev-server bundles are
+ * unminified, untree-shaken, and run dev-mode change detection, so an LCP
+ * measured against them describes the dev server and not the product.
+ * `web-e2e:perf` declares dependsOn: ["web:build"] so the bundle exists.
+ *
+ * Like the other two suites it is hermetic — every /api call is stubbed via
+ * page.route — so it needs neither the NestJS api nor the Firebase emulators.
+ *
+ * RETRIES ARE DISABLED HERE, unlike the other two suites. A perf budget that
+ * passes on the third attempt has not been met; retrying a timing assertion
+ * launders a real regression into a green checkmark. Flakiness is instead
+ * absorbed by the median-of-3 sampling INSIDE each test (see
+ * _helpers/perf-measure.ts), which is a statistic rather than a do-over.
+ */
+const webPort = Number(process.env['PERF_WEB_PORT'] || 4310);
+const baseURL = process.env['BASE_URL'] || `http://localhost:${webPort}`;
+const buildOutput = join(workspaceRoot, 'dist/apps/web/browser');
+const cliEntry = join(workspaceRoot, 'apps/web-e2e/src/_helpers/static-server.cli.ts');
+
+export default defineConfig({
+  ...nxE2EPreset(__filename, { testDir: './src/perf' }),
+  retries: 0,
+  // Playwright's 30s default is not enough headroom for these tests, and the
+  // failure it produces is the wrong one. A load-time test performs six
+  // throttled navigations (3 LCP + 3 time-to-content) over a modelled 10 Mbps
+  // / 40 ms link, each settling on networkidle; the video test performs three
+  // navigations each allowing up to FIRST_FRAME_TIMEOUT_MS (20s) for a decode.
+  // A GENUINE regression makes every sample slower, so with the default the
+  // suite would report "Test timeout of 30000ms exceeded" instead of the
+  // budget message that names the route, the median, and the samples. This
+  // ceiling is deliberately far above any plausible measurement so the budget
+  // assertion is always what fails — the test still goes red on a real
+  // regression, just legibly.
+  timeout: 180_000,
+  // Timing tests must not run concurrently: parallel workers contend for CPU
+  // and network, which is exactly the noise the median is meant to exclude.
+  workers: 1,
+  fullyParallel: false,
+  use: {
+    baseURL,
+    trace: 'on-first-retry',
+  },
+  webServer: [
+    {
+      command: `pnpm exec tsx ${cliEntry} ${buildOutput} ${webPort}`,
+      url: baseURL,
+      // Unlike the a11y/responsive configs, never reuse an existing server
+      // here, even locally. Those suites check UI correctness, where a
+      // server left over from an earlier run is stale-but-correct. This
+      // suite measures timing against dist/apps/web/browser: a stale server
+      // on port 4310 would keep serving an old bundle after a rebuild and
+      // the gate would report green numbers for a build that no longer
+      // exists. Restarting a static server costs milliseconds, so there is
+      // no cost to paying for correctness here.
+      reuseExistingServer: false,
+      cwd: workspaceRoot,
+      timeout: 30_000,
+    },
+  ],
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+});

@@ -1,0 +1,4 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=640x360
+/api/playback/manifest/v-1/rendition/720p
