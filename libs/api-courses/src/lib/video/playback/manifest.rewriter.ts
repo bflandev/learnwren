@@ -79,7 +79,7 @@ export type SegmentSigner = (filename: string) => Promise<string>;
  * it is rejected. Defense in depth: the playlist body is trusted (GCP output
  * bucket) today, but the signer mints credentialed read URLs.
  */
-const SAFE_SEGMENT_NAME = /^[A-Za-z0-9._-]+\.(ts|m4s|mp4)$/;
+export const SAFE_SEGMENT_NAME = /^[A-Za-z0-9._-]+\.(ts|m4s|mp4)$/;
 
 function assertSafeSegmentName(name: string): void {
   if (!SAFE_SEGMENT_NAME.test(name)) {

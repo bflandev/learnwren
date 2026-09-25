@@ -1,4 +1,7 @@
 import { execFile as nodeExecFile } from 'node:child_process';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { Inject, Injectable } from '@nestjs/common';
@@ -6,7 +9,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-firebase';
 import type { ISODateString } from '@learnwren/shared-data-models';
 
-import { hlsVariantPlaylistName, MUX_KEY_PREFIX } from './hls-naming';
+import { hlsStreamInf, hlsVariantPlaylistName, MUX_KEY_PREFIX } from './hls-naming';
 import { VIDEO_CONFIG, type VideoConfig } from './video.config';
 
 const promisifiedExecFile = promisify(nodeExecFile);
@@ -19,10 +22,10 @@ const promisifiedExecFile = promisify(nodeExecFile);
  * broke real playback while a hand-invented fake layout masked it.
  */
 const FAKE_RENDITIONS: ReadonlyArray<{ name: string; streamInf: string }> = [
-  { name: '1080p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080' },
-  { name: '720p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720' },
-  { name: '480p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480' },
-  { name: '360p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360' },
+  { name: '1080p', streamInf: hlsStreamInf('1080p', 5_000_000) },
+  { name: '720p', streamInf: hlsStreamInf('720p', 3_000_000) },
+  { name: '480p', streamInf: hlsStreamInf('480p', 1_500_000) },
+  { name: '360p', streamInf: hlsStreamInf('360p', 800_000) },
 ];
 
 let ffprobeBinaryPath: string;
@@ -69,6 +72,9 @@ export interface VideoStoragePort {
   probeSource(input: { bucket: string; path: string }): Promise<SourceProbe>;
   readManifestObject(input: { bucket: string; path: string }): Promise<string>;
   signObjectUrl(input: { bucket: string; path: string; ttlSec: number }): Promise<string>;
+  downloadObject(input: { bucket: string; path: string; destination: string }): Promise<void>;
+  uploadFile(input: { localPath: string; bucket: string; path: string; contentType: string }): Promise<void>;
+  openObjectReadStream(input: { bucket: string; path: string }): NodeJS.ReadableStream;
 }
 
 @Injectable()
@@ -147,6 +153,20 @@ export class VideoStorageAdapter implements VideoStoragePort {
     if (this.cfg.sourceProbeImpl === 'fake') {
       return { height: 240, durationSec: 1 };
     }
+    if (this.cfg.sourceProbeImpl === 'local') {
+      // Self-hosted: no signing credentials, so probe a downloaded copy.
+      // ponytail: the ffmpeg transcoder downloads the source again for
+      // encoding; one extra download per upload is accepted over sharing a
+      // temp file across two adapters.
+      const dir = await mkdtemp(join(tmpdir(), 'lw-probe-'));
+      const destination = join(dir, 'source');
+      try {
+        await this.downloadObject({ ...input, destination });
+        return await this.runFfprobe(destination);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
     const [signedUrl] = await this.fileRef(input).getSignedUrl({
       action: 'read',
       expires: Date.now() + 60_000,
@@ -197,6 +217,27 @@ export class VideoStorageAdapter implements VideoStoragePort {
       expires: Date.now() + input.ttlSec * 1000,
     });
     return url;
+  }
+
+  async downloadObject(input: { bucket: string; path: string; destination: string }): Promise<void> {
+    await this.fileRef(input).download({ destination: input.destination });
+  }
+
+  async uploadFile(input: {
+    localPath: string;
+    bucket: string;
+    path: string;
+    contentType: string;
+  }): Promise<void> {
+    await this.storage.bucket(input.bucket).upload(input.localPath, {
+      destination: input.path,
+      contentType: input.contentType,
+      resumable: false,
+    });
+  }
+
+  openObjectReadStream(input: { bucket: string; path: string }): NodeJS.ReadableStream {
+    return this.fileRef(input).createReadStream();
   }
 
   private fileRef(input: { bucket: string; path: string }) {

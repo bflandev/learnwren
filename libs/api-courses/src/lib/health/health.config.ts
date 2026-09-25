@@ -1,4 +1,4 @@
-import { readVideoConfigFromEnv } from '../video/video.config';
+import { readVideoConfigFromEnv, type TranscoderImpl } from '../video/video.config';
 
 export const HEALTH_CONFIG = Symbol.for('learnwren.api-health.config');
 
@@ -8,7 +8,7 @@ export interface HealthConfig {
   sourceBucket: string;
   outputBucket: string;
   storageImpl: 'real' | 'fake';
-  transcoderImpl: 'gcp' | 'fake';
+  transcoderImpl: TranscoderImpl;
   /** Absent when LEARNWREN_STORAGE_QUOTA_GB is not configured. */
   storageQuotaBytes?: number;
 }

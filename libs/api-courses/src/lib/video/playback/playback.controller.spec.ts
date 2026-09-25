@@ -10,6 +10,8 @@ import { CaptionsNotFoundException } from '../errors/video.exception';
 import { EnrollmentOrOwnerGuard } from './enrollment-or-owner.guard';
 import { KeyService } from './key.service';
 import { ManifestService } from './manifest.service';
+import { VideoStorageAdapter } from '../video-storage.adapter';
+import { VIDEO_CONFIG } from '../video.config';
 import { PlaybackController } from './playback.controller';
 
 const VIDEO: Video = {
@@ -49,6 +51,8 @@ async function buildController(
       { provide: ManifestService, useValue: manifestSvc },
       { provide: KeyService, useValue: keySvc },
       { provide: CaptionsService, useValue: captionsSvc },
+      { provide: VideoStorageAdapter, useValue: {} },
+      { provide: VIDEO_CONFIG, useValue: { playbackSignedUrlTtlSec: 14400 } },
       { provide: FIRESTORE, useValue: {} },
       { provide: FIREBASE_AUTH, useValue: {} },
     ],
@@ -153,5 +157,90 @@ describe('PlaybackController.captions', () => {
     await expect(
       ctrl.captions(VIDEO, makeRes() as unknown as import('express').Response),
     ).rejects.toBeInstanceOf(CaptionsNotFoundException);
+  });
+});
+
+describe('PlaybackController.segment (US-09-04 Slice B)', () => {
+  function makeStreamRes() {
+    const res = makeRes();
+    return { ...res, headersSent: false, destroy: vi.fn() };
+  }
+
+  async function build(storage: Partial<VideoStorageAdapter>) {
+    const mod = await Test.createTestingModule({
+      controllers: [PlaybackController],
+      providers: [
+        { provide: ManifestService, useValue: {} },
+        { provide: KeyService, useValue: {} },
+        { provide: CaptionsService, useValue: {} },
+        { provide: VideoStorageAdapter, useValue: storage },
+        { provide: VIDEO_CONFIG, useValue: { playbackSignedUrlTtlSec: 14400 } },
+        { provide: FIRESTORE, useValue: {} },
+        { provide: FIREBASE_AUTH, useValue: {} },
+      ],
+    })
+      .overrideGuard(FirebaseSessionGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(EnrollmentOrOwnerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+    return mod.get(PlaybackController);
+  }
+
+  it('rejects an unsafe segment name before touching storage', async () => {
+    const storage = { headObject: vi.fn(), openObjectReadStream: vi.fn() };
+    const ctrl = await build(storage);
+    for (const bad of ['../key.bin', 'a/b.ts', 'x.m3u8', 'seg.ts?x=1']) {
+      await expect(
+        ctrl.segment(VIDEO, bad, makeStreamRes() as unknown as import('express').Response),
+      ).rejects.toMatchObject({ code: 'SEGMENT_NOT_FOUND' });
+    }
+    expect(storage.headObject).not.toHaveBeenCalled();
+  });
+
+  it('404s when the object is missing', async () => {
+    const storage = { headObject: vi.fn(async () => null), openObjectReadStream: vi.fn() };
+    const ctrl = await build(storage);
+    await expect(
+      ctrl.segment(VIDEO, 'hls_720p0000000001.ts', makeStreamRes() as unknown as import('express').Response),
+    ).rejects.toMatchObject({ code: 'SEGMENT_NOT_FOUND', details: { segment: 'hls_720p0000000001.ts' } });
+    expect(storage.headObject).toHaveBeenCalledWith({ bucket: 'out', path: 'videos/v1/hls/hls_720p0000000001.ts' });
+  });
+
+  it('streams the segment beside the manifest with MPEG-TS and a private immutable cache header', async () => {
+    const stream = { pipe: vi.fn(), on: vi.fn() };
+    const storage = {
+      headObject: vi.fn(async () => ({ size: 10 })),
+      openObjectReadStream: vi.fn(() => stream),
+    };
+    const ctrl = await build(storage);
+    const res = makeStreamRes();
+    await ctrl.segment(VIDEO, 'hls_720p0000000001.ts', res as unknown as import('express').Response);
+    expect(storage.openObjectReadStream).toHaveBeenCalledWith({
+      bucket: 'out',
+      path: 'videos/v1/hls/hls_720p0000000001.ts',
+    });
+    expect(res.headers['content-type']).toBe('video/mp2t');
+    expect(res.headers['cache-control']).toBe('private, max-age=14400, immutable');
+    expect(stream.pipe).toHaveBeenCalledWith(res);
+  });
+
+  it('destroys the response when the stream fails mid-flight', async () => {
+    let onError: ((e: Error) => void) | undefined;
+    const stream = {
+      pipe: vi.fn(),
+      on: vi.fn((ev: string, cb: (e: Error) => void) => {
+        if (ev === 'error') onError = cb;
+      }),
+    };
+    const storage = {
+      headObject: vi.fn(async () => ({ size: 10 })),
+      openObjectReadStream: vi.fn(() => stream),
+    };
+    const ctrl = await build(storage);
+    const res = makeStreamRes();
+    await ctrl.segment(VIDEO, 'hls_720p0000000001.ts', res as unknown as import('express').Response);
+    onError!(new Error('boom'));
+    expect(res.destroy).toHaveBeenCalled();
   });
 });

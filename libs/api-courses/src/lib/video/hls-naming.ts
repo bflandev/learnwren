@@ -27,3 +27,22 @@ export function hlsMuxKey(rendition: string): string {
 export function hlsVariantPlaylistName(rendition: string): string {
   return `${hlsMuxKey(rendition)}.m3u8`;
 }
+
+/** 16:9 frame size per ladder rendition, as GCP writes into RESOLUTION=. */
+export const RENDITION_RESOLUTIONS: Readonly<Record<string, { width: number; height: number }>> = {
+  '1080p': { width: 1920, height: 1080 },
+  '720p': { width: 1280, height: 720 },
+  '480p': { width: 854, height: 480 },
+  '360p': { width: 640, height: 360 },
+};
+
+/**
+ * The master-playlist `#EXT-X-STREAM-INF` line for a rendition. One helper so
+ * the fake storage adapter and the ffmpeg transcoder emit exactly what the
+ * GCP Transcoder does and the rewriter keeps parsing all three.
+ */
+export function hlsStreamInf(rendition: string, bandwidthBps: number): string {
+  const res = RENDITION_RESOLUTIONS[rendition];
+  if (!res) throw new Error(`no resolution known for rendition "${rendition}"`);
+  return `#EXT-X-STREAM-INF:BANDWIDTH=${bandwidthBps},RESOLUTION=${res.width}x${res.height}`;
+}

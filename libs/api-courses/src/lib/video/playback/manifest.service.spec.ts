@@ -114,3 +114,24 @@ describe('ManifestService.fetchRendition', () => {
     await expect(svc.fetchRendition(VIDEO, '720p')).rejects.toThrow(/rendition gone/);
   });
 });
+
+describe('ManifestService.fetchRendition — proxied segment delivery (US-09-04 Slice B)', () => {
+  it('mints same-origin /api/playback/segment URLs and never signs', async () => {
+    const storage = makeStorage(async () => RENDITION_720);
+    const svc = new ManifestService(storage, {
+      ...CFG,
+      segmentDelivery: 'proxy',
+    } as VideoConfig);
+    const body = await svc.fetchRendition(VIDEO, '720p');
+    expect(body).toContain('/api/playback/segment/v1/segment_001.ts');
+    expect(body).not.toContain('signed://');
+    expect(storage.signObjectUrl).not.toHaveBeenCalled();
+  });
+
+  it('keeps signing when delivery is signed', async () => {
+    const storage = makeStorage(async () => RENDITION_720);
+    const svc = new ManifestService(storage, { ...CFG, segmentDelivery: 'signed' } as VideoConfig);
+    const body = await svc.fetchRendition(VIDEO, '720p');
+    expect(body).toContain('signed://out/videos/v1/hls/segment_001.ts');
+  });
+});
