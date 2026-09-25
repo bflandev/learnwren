@@ -57,10 +57,11 @@ Non-functional requirements define the quality attributes of the system. In Agil
 **Acceptance Criteria (Conditions of Satisfaction):**
 
 - All source code is published under an OSI-approved open-source licence (e.g., AGPL-3.0 or MIT).
-- The platform can be deployed using Docker Compose with a single command.
-- A comprehensive `README` and deployment guide are provided, covering prerequisites, configuration, and first-run setup.
+- The platform can be deployed using Docker Compose with a single command. *(Met 2026-09-25: `docker compose up -d`.)*
+- A comprehensive `README` and deployment guide are provided, covering prerequisites, configuration, and first-run setup. *(Met 2026-09-25: `docs/self-hosting.md`.)*
 - The platform does not require any proprietary third-party services to function. All required services (database, object storage, video transcoding, DRM) must have a self-hosted option.
-- Configuration is managed via environment variables, with a documented `.env.example` file.
+  **Amended 2026-09-25 (Slice A):** partially met. The Docker Compose stack runs with no cloud account or credentials, but it does so by packaging the platform's emulator mode: Firebase Auth, Firestore and Storage run in the Firebase Emulator Suite (a development tool with no authentication and single-process durability), and video transcoding and playback storage run the in-memory fakes, so uploaded videos are never transcoded or played back. A real self-hosted option for transcoding (ffmpeg AES-128 HLS), object storage, auth and the data store is Slice B and needs a `TECHNICAL_ARCHITECTURE.md` update first. See `docs/superpowers/specs/2026-09-25-us-09-04-self-hosting-design.md` §4.
+- Configuration is managed via environment variables, with a documented `.env.example` file. *(Met 2026-09-25.)*
 
 ---
 

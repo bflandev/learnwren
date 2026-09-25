@@ -61,6 +61,7 @@ This guide covers **every feature wired up today**, in three parts:
 | Non-functional | Accessibility: axe-core sweep + keyboard journeys (US-09-03) | Built (2026-08-07) |
 | Non-functional | Mobile responsiveness: header collapse + overflow gate (US-09-05) | Built (2026-08-07) |
 | Non-functional | Performance: landing/catalogue/course-detail/learn-page load time + video click-to-play gate (US-09-01) | Partly built (2026-08-08) — catalogue's 2-second load target not yet met; see README |
+| Non-functional | Self-hosting: single-command Docker Compose stack, `.env.example`, deployment guide (US-09-04) | Partly built (2026-09-25) — emulator mode packaged; real self-hosted video pipeline deferred; see [`self-hosting.md`](./self-hosting.md) |
 
 ---
 
@@ -128,7 +129,9 @@ LEARNWREN_FIREBASE_TARGET=production pnpm secrets:run -- pnpm start
 Each app logs a single `[learnwren] Firebase target = production` warning at boot.
 Hot-reloading the variable is not supported — restart the process to switch modes.
 
-To deploy your own production instance, see [`docs/deployment.md`](./deployment.md).
+To deploy your own production instance on Firebase, see [`docs/deployment.md`](./deployment.md).
+To run the whole stack on your own machine with Docker Compose and no cloud account,
+see [`docs/self-hosting.md`](./self-hosting.md).
 
 ---
 
