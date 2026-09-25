@@ -1,14 +1,18 @@
 import { existsSync } from 'node:fs';
+import { basename } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { VideoId, VideoKeyId } from '@learnwren/shared-data-models';
 
 import type { VideoStoragePort } from '../video-storage.adapter';
 import {
+  DEFAULT_RETRY_DELAYS_MS,
   FfmpegTranscoderAdapter,
+  spawnRunner,
   type FfmpegRunner,
   type TranscodeEventSink,
 } from './ffmpeg-transcoder.adapter';
@@ -33,13 +37,14 @@ interface Call { binary: string; args: string[]; cwd: string }
  * A runner that behaves like ffprobe (JSON on stdout) and like ffmpeg (writes
  * the playlist + two segments named by its own args into cwd).
  */
-function fakeRunner(opts: { fail?: boolean; hang?: boolean } = {}): { runner: FfmpegRunner; calls: Call[]; killed: number } {
+function fakeRunner(opts: { fail?: boolean; hang?: boolean; probe?: string; onFfmpeg?: (n: number) => Promise<void> } = {}): { runner: FfmpegRunner; calls: Call[]; killed: number } {
   const calls: Call[] = [];
   const state = { killed: 0 };
   const runner: FfmpegRunner = (binary, args, { cwd }) => {
+    const ffmpegIndex = calls.filter((c) => !c.binary.endsWith('ffprobe')).length;
     calls.push({ binary, args, cwd });
     if (binary.endsWith('ffprobe')) {
-      return { done: Promise.resolve({ stdout: PROBE_JSON }), kill: () => undefined };
+      return { done: Promise.resolve({ stdout: opts.probe ?? PROBE_JSON }), kill: () => undefined };
     }
     if (opts.hang) {
       let reject!: (e: Error) => void;
@@ -52,13 +57,14 @@ function fakeRunner(opts: { fail?: boolean; hang?: boolean } = {}): { runner: Ff
     const segPattern = args[args.indexOf('-hls_segment_filename') + 1]!;
     const playlist = args.at(-1)!;
     const done = (async () => {
+      await opts.onFfmpeg?.(ffmpegIndex);
       const seg = (n: number) => segPattern.replace('%010d', String(n).padStart(10, '0'));
       await writeFile(join(cwd, playlist), `#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n${seg(0)}\n${seg(1)}\n`);
       await writeFile(join(cwd, seg(0)), 'ts0');
       await writeFile(join(cwd, seg(1)), 'ts1');
       return { stdout: '' };
     })();
-    return { done, kill: () => undefined };
+    return { done, kill: () => { state.killed++; } };
   };
   return { runner, calls, get killed() { return state.killed; } };
 }
@@ -120,7 +126,23 @@ describe('FfmpegTranscoderAdapter.submitJob', () => {
     expect(a[a.indexOf('-hls_segment_filename') + 1]).toBe('hls_720p%010d.ts');
     expect(a[a.indexOf('-vf') + 1]).toBe('scale=-2:720');
     expect(a[a.indexOf('-b:v') + 1]).toBe('3000000');
-    expect(a).toEqual(expect.arrayContaining(['-hls_time', '6', '-hls_playlist_type', 'vod', '-c:v', 'libx264', '-g', '60', '-sc_threshold', '0']));
+    expect(a).toEqual([
+      '-y', '-hide_banner', '-loglevel', 'error',
+      '-i', 'source.mp4',
+      '-vf', 'scale=-2:720',
+      '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p',
+      '-b:v', '3000000', '-maxrate', '3000000', '-bufsize', '6000000',
+      '-r', '30', '-g', '60', '-keyint_min', '60', '-sc_threshold', '0',
+      '-c:a', 'aac', '-b:a', '128k',
+      '-f', 'hls', '-hls_time', '6', '-hls_playlist_type', 'vod',
+      '-hls_flags', 'independent_segments',
+      '-hls_key_info_file', 'key.info',
+      '-hls_segment_filename', 'hls_720p%010d.ts',
+      'hls_720p.m3u8',
+    ]);
+    const probe = calls.find((c) => c.binary === '/bin/ffprobe')!;
+    expect(probe.args).toEqual(['-v', 'error', '-print_format', 'json', '-show_format', 'source.mp4']);
+    expect(basename(probe.cwd)).toMatch(/^lw-ffmpeg-/);
     // Every run works in the same temp dir, on the downloaded source.
     expect(new Set(calls.map((c) => c.cwd)).size).toBe(1);
     expect(a[a.indexOf('-i') + 1]).toBe('source.mp4');
@@ -265,5 +287,147 @@ describe('FfmpegTranscoderAdapter.parseEvent', () => {
   it('rejects: there is no push channel', async () => {
     const { adapter } = make();
     await expect(adapter.parseEvent({})).rejects.toThrow(/no push channel/);
+  });
+});
+
+describe('FfmpegTranscoderAdapter — edge paths', () => {
+  it('starts with an empty master body and resolves whenDone for unknown jobs', async () => {
+    const { adapter } = make();
+    expect(adapter.__lastMasterBody()).toBe('');
+    await expect(adapter.whenDone('unknown')).resolves.toBeUndefined();
+  });
+
+  it('names the rendition floor in the refusal message', async () => {
+    const { adapter } = make();
+    await expect(adapter.submitJob(input(200))).rejects.toThrow(/\(360px\)\./);
+  });
+
+  it('fails the job on a non-gs:// source URI, including one with a leading prefix', async () => {
+    for (const sourceUri of ['s3://src/videos/v1/source.mp4', 'xgs://src/videos/v1/source.mp4']) {
+      const { adapter, sink } = make();
+      const { jobName } = await adapter.submitJob({ ...input(360), sourceUri });
+      await adapter.whenDone(jobName);
+      expect(sink).toHaveBeenCalledWith(expect.objectContaining({ type: 'JOB_FAILED', reason: `not a gs:// URI: ${sourceUri}` }));
+    }
+  });
+
+  it('falls back to a .bin source name when the object has no extension', async () => {
+    const { adapter, calls } = make();
+    const { jobName } = await adapter.submitJob({ ...input(360), sourceUri: 'gs://src/videos/v1/source' });
+    await adapter.whenDone(jobName);
+    const a = calls.find((c) => c.binary === '/bin/ffmpeg')!.args;
+    expect(a[a.indexOf('-i') + 1]).toBe('source.bin');
+  });
+
+  it('reports durationSec 0 when ffprobe returns no format block', async () => {
+    const { adapter, sink } = make(fakeRunner({ probe: '{}' }));
+    const { jobName } = await adapter.submitJob(input(360));
+    await adapter.whenDone(jobName);
+    expect(sink).toHaveBeenCalledWith(expect.objectContaining({ type: 'JOB_SUCCEEDED', durationSec: 0 }));
+  });
+
+  it('cancelling right after submit (no child yet) is safe and delivers nothing', async () => {
+    const { adapter, sink } = make();
+    const { jobName } = await adapter.submitJob(input(360));
+    await adapter.cancelJob(jobName);
+    await adapter.whenDone(jobName);
+    expect(sink).not.toHaveBeenCalled();
+  });
+
+  it('cancelling between renditions stops the loop before the next encode', async () => {
+    const ref: { adapter?: FfmpegTranscoderAdapter; job: string } = { job: '' };
+    const bits = fakeRunner({ onFfmpeg: async (n) => { if (n === 0) await ref.adapter!.cancelJob(ref.job); } });
+    const made = make(bits);
+    ref.adapter = made.adapter;
+    const { jobName } = await made.adapter.submitJob(input(480)); // 480p + 360p
+    ref.job = jobName;
+    await made.adapter.whenDone(jobName);
+    expect(bits.calls.filter((c) => c.binary === '/bin/ffmpeg')).toHaveLength(1);
+    expect(made.storage.uploads).toHaveLength(0);
+    expect(made.sink).not.toHaveBeenCalled();
+  });
+
+  it('cancelling during the last encode skips the upload', async () => {
+    const ref: { adapter?: FfmpegTranscoderAdapter; job: string } = { job: '' };
+    const bits = fakeRunner({ onFfmpeg: async () => { await ref.adapter!.cancelJob(ref.job); } });
+    const made = make(bits);
+    ref.adapter = made.adapter;
+    const { jobName } = await made.adapter.submitJob(input(360));
+    ref.job = jobName;
+    await made.adapter.whenDone(jobName);
+    expect(made.storage.uploads).toHaveLength(0);
+    expect(made.sink).not.toHaveBeenCalled();
+  });
+
+  it('does not kill anything when cancelled after the job finished', async () => {
+    const bits = fakeRunner();
+    const { adapter } = make(bits);
+    const { jobName } = await adapter.submitJob(input(360));
+    await adapter.whenDone(jobName);
+    await adapter.cancelJob(jobName);
+    expect(bits.killed).toBe(0);
+  });
+
+  it('treats a missing reason as retryable', async () => {
+    const sink = vi.fn<TranscodeEventSink>().mockResolvedValueOnce({ acted: false }).mockResolvedValueOnce({ acted: true });
+    const { adapter } = make(fakeRunner(), sink, [0]);
+    const { jobName } = await adapter.submitJob(input(360));
+    await adapter.whenDone(jobName);
+    expect(sink).toHaveBeenCalledTimes(2);
+  });
+
+  it('logs each delivery outcome so an operator can see a stuck video', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    try {
+      const sink = vi.fn<TranscodeEventSink>()
+        .mockRejectedValueOnce(new Error('hiccup'))
+        .mockResolvedValue({ acted: false, reason: 'JOB_NAME_MISMATCH' });
+      const { adapter } = make(fakeRunner(), sink, [0]);
+      const { jobName } = await adapter.submitJob(input(360));
+      await adapter.whenDone(jobName);
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/JOB_SUCCEEDED for v1 sink threw: hiccup/));
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/not applied \(JOB_NAME_MISMATCH\); redelivering/));
+      expect(error).toHaveBeenCalledWith(expect.stringMatching(/Giving up on JOB_SUCCEEDED for v1/));
+
+      const storage = fakeStorage();
+      const noSink = new FfmpegTranscoderAdapter({ storage, runner: fakeRunner().runner, ffmpegPath: '/bin/ffmpeg', ffprobePath: '/bin/ffprobe', retryDelaysMs: [] });
+      const h = await noSink.submitJob(input(360));
+      await noSink.whenDone(h.jobName);
+      expect(error).toHaveBeenCalledWith(expect.stringMatching(/No event sink; dropping JOB_SUCCEEDED for v1/));
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+
+  it('defaults to about a minute of redelivery', () => {
+    expect(DEFAULT_RETRY_DELAYS_MS).toHaveLength(6);
+    expect(DEFAULT_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0)).toBe(60000);
+  });
+});
+
+describe('spawnRunner', () => {
+  const node = process.execPath;
+
+  it('resolves with stdout on exit 0', async () => {
+    const { done } = spawnRunner(node, ['-e', "process.stdout.write('hi')"], { cwd: process.cwd() });
+    await expect(done).resolves.toEqual({ stdout: 'hi' });
+  });
+
+  it('rejects with the exit code and the tail of stderr on failure', async () => {
+    const { done } = spawnRunner(node, ['-e', "process.stderr.write('  bad thing  '); process.exit(3)"], { cwd: process.cwd() });
+    await expect(done).rejects.toThrow(`${node} exited with 3: bad thing`);
+  });
+
+  it('rejects with ENOENT for a missing binary', async () => {
+    const { done } = spawnRunner('/nonexistent/ffmpeg-xyz', [], { cwd: process.cwd() });
+    await expect(done).rejects.toThrow(/ENOENT/);
+  });
+
+  it('kill() ends the child with SIGKILL', async () => {
+    const { done, kill } = spawnRunner(node, ['-e', 'setInterval(() => {}, 1000)'], { cwd: process.cwd() });
+    setTimeout(kill, 100);
+    await expect(done).rejects.toThrow(/exited with SIGKILL/);
   });
 });

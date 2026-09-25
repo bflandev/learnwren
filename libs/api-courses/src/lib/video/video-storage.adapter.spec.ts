@@ -477,6 +477,8 @@ describe('VideoStorageAdapter — self-hosted seams (US-09-04 Slice B)', () => {
     const file = {
       download: vi.fn(async (opts: { destination: string }) => {
         seen.destination = opts.destination;
+        const { writeFileSync } = await import('node:fs');
+        writeFileSync(opts.destination, 'mp4');
         return [];
       }),
       getSignedUrl: vi.fn(),
@@ -496,7 +498,11 @@ describe('VideoStorageAdapter — self-hosted seams (US-09-04 Slice B)', () => {
     expect(seen.destination).toBeTruthy();
     expect(runner.mock.calls[0]![1].at(-1)).toBe(seen.destination);
     const { existsSync } = await import('node:fs');
+    const { basename, dirname } = await import('node:path');
+    expect(basename(seen.destination!)).toBe('source');
+    expect(basename(dirname(seen.destination!))).toMatch(/^lw-probe-/);
     expect(existsSync(seen.destination!)).toBe(false);
+    expect(existsSync(dirname(seen.destination!))).toBe(false);
   });
 
   it('downloadObject streams an object to a local destination', async () => {

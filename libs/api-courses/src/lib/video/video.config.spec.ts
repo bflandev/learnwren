@@ -340,3 +340,19 @@ describe('readVideoConfigFromEnv — ffmpeg transcoder (US-09-04 Slice B)', () =
     expect(cfg.segmentDelivery).toBe('proxy');
   });
 });
+
+describe('readVideoConfigFromEnv — production default transcoder', () => {
+  it('defaults to gcp in production when LEARNWREN_VIDEO_TRANSCODER is unset', () => {
+    const cfg = readVideoConfigFromEnv({
+      NODE_ENV: 'production',
+      LEARNWREN_VIDEO_SOURCE_BUCKET: 's',
+      LEARNWREN_VIDEO_OUTPUT_BUCKET: 'o',
+      LEARNWREN_GCP_PROJECT_ID: 'p',
+      LEARNWREN_TRANSCODER_LOCATION: 'l',
+      LEARNWREN_TRANSCODER_TOPIC: 't',
+      LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE: 'a',
+      LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL: 'e',
+    });
+    expect(cfg.transcoderImpl).toBe('gcp');
+  });
+});

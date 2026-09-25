@@ -11,6 +11,7 @@ import type { ISODateString } from '@learnwren/shared-data-models';
 
 import { hlsStreamInf, hlsVariantPlaylistName, MUX_KEY_PREFIX } from './hls-naming';
 import { resolveBinary } from './transcoder/binaries';
+import { RENDITIONS } from './transcoder/transcoder-job.builder';
 import { VIDEO_CONFIG, type VideoConfig } from './video.config';
 
 const promisifiedExecFile = promisify(nodeExecFile);
@@ -22,16 +23,15 @@ const promisifiedExecFile = promisify(nodeExecFile);
  * fake can never drift from the real GCP output shape — the drift that once
  * broke real playback while a hand-invented fake layout masked it.
  */
-const FAKE_RENDITIONS: ReadonlyArray<{ name: string; streamInf: string }> = [
-  { name: '1080p', streamInf: hlsStreamInf('1080p', 5_000_000) },
-  { name: '720p', streamInf: hlsStreamInf('720p', 3_000_000) },
-  { name: '480p', streamInf: hlsStreamInf('480p', 1_500_000) },
-  { name: '360p', streamInf: hlsStreamInf('360p', 800_000) },
-];
+const FAKE_RENDITIONS: ReadonlyArray<{ name: string; streamInf: string }> = RENDITIONS.map((r) => ({
+  name: r.name,
+  streamInf: hlsStreamInf(r.name, r.bitrateBps),
+}));
 
 const ffprobeBinaryPath = resolveBinary(
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   () => (require('@ffprobe-installer/ffprobe') as { path: string }).path,
+  // Stryker disable next-line StringLiteral: unreachable fallback — the installer package resolves in every test/runtime environment
   'ffprobe',
 );
 
@@ -161,6 +161,7 @@ export class VideoStorageAdapter implements VideoStoragePort {
         await this.downloadObject({ ...input, destination });
         return await this.runFfprobe(destination);
       } finally {
+        // Stryker disable next-line BooleanLiteral: equivalent — mkdtemp guarantees the directory exists
         await rm(dir, { recursive: true, force: true });
       }
     }

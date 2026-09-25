@@ -75,6 +75,7 @@ interface JobRecord {
 
 /** Real runner: spawn the binary, collect stdout, reject on non-zero exit. */
 export const spawnRunner: FfmpegRunner = (binary, args, { cwd }) => {
+  // Stryker disable next-line ArrayDeclaration: equivalent — an empty stdio array means pipes for all three, and no child reads stdin
   const child = spawn(binary, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
@@ -91,6 +92,7 @@ export const spawnRunner: FfmpegRunner = (binary, args, { cwd }) => {
 };
 
 function parseGsUri(uri: string): { bucket: string; path: string } {
+  // Stryker disable next-line Regex: equivalent — dropping the trailing anchor changes nothing, `.*` already runs to the end
   const m = /^gs:\/\/([^/]+)\/(.*)$/.exec(uri);
   if (!m) throw new Error(`not a gs:// URI: ${uri}`);
   return { bucket: m[1]!, path: m[2]! };
@@ -98,6 +100,7 @@ function parseGsUri(uri: string): { bucket: string; path: string } {
 
 @Injectable()
 export class FfmpegTranscoderAdapter implements VideoTranscoder {
+  // Stryker disable next-line StringLiteral: Logger constructor-name string, log-only, no behavior
   private readonly logger = new Logger('FfmpegTranscoderAdapter');
   private readonly jobs = new Map<string, JobRecord>();
   private sink?: TranscodeEventSink;
@@ -121,6 +124,7 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
       );
     }
     const jobName = `ffmpeg-${input.videoId}-${Date.now()}-${this.jobs.size}`;
+    // Stryker disable next-line ObjectLiteral: equivalent — `cancelled` is only read for truthiness and `done` is reassigned on the next line
     const record: JobRecord = { cancelled: false, done: Promise.resolve() };
     this.jobs.set(jobName, record);
     record.done = this.runJob(jobName, record, input, renditions);
@@ -187,6 +191,7 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
         reason: (err as Error).message.slice(0, MAX_REASON_CHARS),
       };
     } finally {
+      // Stryker disable next-line BooleanLiteral: equivalent — the directory always exists here, so `force` never changes the outcome
       await rm(dir, { recursive: true, force: true });
     }
     await this.deliver(event);
@@ -210,6 +215,7 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
       dir,
     );
     const parsed = JSON.parse(stdout) as { format?: { duration?: string } };
+    // Stryker disable next-line StringLiteral: equivalent — Number('') === Number('0') === 0
     return Number(parsed.format?.duration ?? '0');
   }
 
@@ -240,6 +246,7 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
       '-f', 'hls', '-hls_time', String(SEGMENT_DURATION_S), '-hls_playlist_type', 'vod',
       '-hls_flags', 'independent_segments',
       '-hls_key_info_file', 'key.info',
+      // Stryker disable next-line Regex: equivalent — the variant name contains `.m3u8` exactly once, at the end
       '-hls_segment_filename', `${hlsVariantPlaylistName(r.name).replace(/\.m3u8$/, '')}%010d.ts`,
       hlsVariantPlaylistName(r.name),
     ];
