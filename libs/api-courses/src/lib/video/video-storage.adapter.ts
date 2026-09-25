@@ -29,7 +29,11 @@ const FAKE_RENDITIONS: ReadonlyArray<{ name: string; streamInf: string }> = [
   { name: '360p', streamInf: hlsStreamInf('360p', 800_000) },
 ];
 
-const ffprobeBinaryPath = resolveBinary('@ffprobe-installer/ffprobe', 'ffprobe');
+const ffprobeBinaryPath = resolveBinary(
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  () => (require('@ffprobe-installer/ffprobe') as { path: string }).path,
+  'ffprobe',
+);
 
 export interface ResumableSession {
   uri: string;

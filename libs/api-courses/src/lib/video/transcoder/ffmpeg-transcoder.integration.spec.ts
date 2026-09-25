@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Runs the REAL bundled ffmpeg/ffprobe against a generated 2-second 360p test
  * pattern, with a local-filesystem stand-in for object storage. Proves the
@@ -18,8 +19,8 @@ import { resolveBinary } from './binaries';
 import { FfmpegTranscoderAdapter, spawnRunner } from './ffmpeg-transcoder.adapter';
 
 const pExecFile = promisify(execFile);
-const ffmpegPath = resolveBinary('@ffmpeg-installer/ffmpeg', 'ffmpeg');
-const ffprobePath = resolveBinary('@ffprobe-installer/ffprobe', 'ffprobe');
+const ffmpegPath = resolveBinary(() => (require('@ffmpeg-installer/ffmpeg') as { path: string }).path, 'ffmpeg');
+const ffprobePath = resolveBinary(() => (require('@ffprobe-installer/ffprobe') as { path: string }).path, 'ffprobe');
 
 let root: string;
 let objects: string; // local "bucket" root: <objects>/<bucket>/<path>

@@ -20,10 +20,14 @@ export function ensureExecutable(path: string): string {
   return path;
 }
 
-export function resolveBinary(pkg: string, fallback: string): string {
+/**
+ * `load` must contain a literal `require('<pkg>')`: webpack resolves literal
+ * requires when bundling the api and cannot resolve a variable one, which
+ * would silently fall back to the bare command at runtime.
+ */
+export function resolveBinary(load: () => string, fallback: string): string {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return ensureExecutable((require(pkg) as { path: string }).path);
+    return ensureExecutable(load());
   } catch {
     return fallback;
   }

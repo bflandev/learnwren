@@ -39,8 +39,16 @@ function makeTranscoder(cfg: VideoConfig, storage: VideoStorageAdapter): VideoTr
     return new FfmpegTranscoderAdapter({
       storage,
       runner: spawnRunner,
-      ffmpegPath: resolveBinary('@ffmpeg-installer/ffmpeg', 'ffmpeg'),
-      ffprobePath: resolveBinary('@ffprobe-installer/ffprobe', 'ffprobe'),
+      ffmpegPath: resolveBinary(
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        () => (require('@ffmpeg-installer/ffmpeg') as { path: string }).path,
+        'ffmpeg',
+      ),
+      ffprobePath: resolveBinary(
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        () => (require('@ffprobe-installer/ffprobe') as { path: string }).path,
+        'ffprobe',
+      ),
     });
   }
   return new GcpTranscoderAdapter({

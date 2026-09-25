@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { accessSync, constants, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -26,12 +27,12 @@ describe('ensureExecutable', () => {
 
 describe('resolveBinary', () => {
   it('resolves the installer package path and makes it executable', () => {
-    const p = resolveBinary('@ffprobe-installer/ffprobe', 'ffprobe');
+    const p = resolveBinary(() => (require('@ffprobe-installer/ffprobe') as { path: string }).path, 'ffprobe');
     expect(p).toMatch(/ffprobe$/);
     expect(() => accessSync(p, constants.X_OK)).not.toThrow();
   });
 
   it('falls back to the bare command name when the package is absent', () => {
-    expect(resolveBinary('@nope/nothing-here', 'ffmpeg')).toBe('ffmpeg');
+    expect(resolveBinary(() => { throw new Error('absent'); }, 'ffmpeg')).toBe('ffmpeg');
   });
 });

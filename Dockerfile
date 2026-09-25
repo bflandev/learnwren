@@ -23,7 +23,10 @@ COPY --from=builder /src/dist/apps/api ./
 # The Nx build emits a package.json listing only the runtime dependencies the
 # bundle needs (firebase-admin, sharp, ffprobe, ...). npm (not pnpm) so the
 # native prebuilds resolve without the root's onlyBuiltDependencies policy.
-RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
+RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force \
+  # @ffprobe-installer ships its binary without the execute bit; the api runs
+  # as `node` and cannot repair a root-owned file at runtime.
+  && chmod -R a+rX node_modules/@ffprobe-installer node_modules/@ffmpeg-installer
 ENV PORT=3333
 EXPOSE 3333
 USER node
