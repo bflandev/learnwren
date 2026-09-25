@@ -38,6 +38,11 @@ When `NODE_ENV=production` the api requires real `LEARNWREN_VIDEO_*` buckets and
 a real transcoder — the `fake` transcoder and `fake` playback storage are
 rejected.
 
+Real video locally, without GCP: `LEARNWREN_VIDEO_TRANSCODER=ffmpeg pnpm start:api`
+encodes uploads in-process with the bundled ffmpeg and serves segments through
+`/api` (the same mode the Docker Compose stack uses — see `self-hosting.md`).
+The dev-only fake-transcoder endpoints are not registered in this mode.
+
 Notable environment variables:
 
 - `LEARNWREN_MATERIALS_BUCKET` — Cloud Storage bucket for lesson materials
