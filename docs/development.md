@@ -4,7 +4,8 @@ Local development reference for Learn Wren. For the feature set and the HTTP API
 surface, see [`../README.md`](../README.md) and [`USER_GUIDE.md`](./USER_GUIDE.md).
 For product specs see [`epics/`](./epics/), for design specs
 [`superpowers/specs/`](./superpowers/specs/), and for the secrets contract
-[`secrets.md`](./secrets.md).
+[`secrets.md`](./secrets.md). To run the built platform with Docker Compose
+instead of the dev servers, see [`self-hosting.md`](./self-hosting.md).
 
 ## Prerequisites
 

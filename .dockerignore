@@ -1,0 +1,17 @@
+.git
+node_modules
+dist
+.nx
+.angular
+coverage
+reports
+.stryker-tmp
+*.log
+.env
+.env.*
+!.env.example
+.firebase
+.claude
+.worktrees
+docs
+*.png

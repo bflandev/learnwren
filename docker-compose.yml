@@ -1,0 +1,67 @@
+# Learn Wren self-hosting stack (US-09-04). One command: `docker compose up -d`.
+# Settings come from .env — copy .env.example to .env first. Every value has a
+# working default for a single machine; see docs/self-hosting.md.
+
+services:
+  emulators:
+    build:
+      context: .
+      target: emulators
+    # Loopback-only by default: the Emulator UI, Firestore and Auth ports have
+    # no authentication. The Storage port must be reachable from the browser
+    # (video uploads go there directly), so it has its own bind setting.
+    ports:
+      - "${LEARNWREN_ADMIN_BIND:-127.0.0.1}:4000:4000"
+      - "${LEARNWREN_ADMIN_BIND:-127.0.0.1}:8080:8080"
+      - "${LEARNWREN_ADMIN_BIND:-127.0.0.1}:9099:9099"
+      - "${LEARNWREN_STORAGE_BIND:-127.0.0.1}:9199:9199"
+    volumes:
+      - emulator-data:/data
+    # Data is exported to the volume on shutdown; give the JVM time to flush.
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      target: api
+    # Shares the emulators' network namespace so the api reaches them on
+    # 127.0.0.1 (its built-in default) and, more importantly, so the resumable
+    # upload URLs it mints for the browser carry a host the browser can reach.
+    network_mode: "service:emulators"
+    depends_on:
+      emulators:
+        condition: service_healthy
+    environment:
+      LEARNWREN_PUBLIC_URL: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}"
+      LEARNWREN_CORS_ORIGINS: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}"
+      FIREBASE_STORAGE_EMULATOR_HOST: "${LEARNWREN_HOST:-localhost}:9199"
+      LEARNWREN_EMAIL_TRANSPORT: "${LEARNWREN_EMAIL_TRANSPORT:-console}"
+      LEARNWREN_EMAIL_FROM: "${LEARNWREN_EMAIL_FROM:-noreply@learnwren.local}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      LEARNWREN_STORAGE_QUOTA_GB: "${LEARNWREN_STORAGE_QUOTA_GB:-}"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "${LEARNWREN_WEB_PORT:-8000}:80"
+    environment:
+      LEARNWREN_STORAGE_ORIGIN: "http://${LEARNWREN_HOST:-localhost}:9199"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  emulator-data:
