@@ -10,6 +10,7 @@ import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-fir
 import type { ISODateString } from '@learnwren/shared-data-models';
 
 import { hlsStreamInf, hlsVariantPlaylistName, MUX_KEY_PREFIX } from './hls-naming';
+import { resolveBinary } from './transcoder/binaries';
 import { VIDEO_CONFIG, type VideoConfig } from './video.config';
 
 const promisifiedExecFile = promisify(nodeExecFile);
@@ -28,15 +29,7 @@ const FAKE_RENDITIONS: ReadonlyArray<{ name: string; streamInf: string }> = [
   { name: '360p', streamInf: hlsStreamInf('360p', 800_000) },
 ];
 
-let ffprobeBinaryPath: string;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ffprobeBinaryPath = require('@ffprobe-installer/ffprobe').path;
-  // Stryker disable next-line BlockStatement: module-load fallback — `@ffprobe-installer/ffprobe` resolves in every test/runtime environment, so this catch is unreachable; exercising it would require mocking the module loader at import time.
-} catch {
-  // Stryker disable next-line StringLiteral: unreachable module-load fallback (see above); the 'ffprobe' default is never assigned because the require above always succeeds.
-  ffprobeBinaryPath = 'ffprobe';
-}
+const ffprobeBinaryPath = resolveBinary('@ffprobe-installer/ffprobe', 'ffprobe');
 
 export interface ResumableSession {
   uri: string;

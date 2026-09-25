@@ -14,6 +14,7 @@ import { ManifestService } from './playback/manifest.service';
 import { PlaybackConfigController } from './playback/playback-config.controller';
 import { PlaybackController } from './playback/playback.controller';
 import { FakeTranscoderAdapter } from './transcoder/fake-transcoder.adapter';
+import { resolveBinary } from './transcoder/binaries';
 import { FfmpegEventBridge } from './transcoder/ffmpeg-event.bridge';
 import { FfmpegTranscoderAdapter, spawnRunner } from './transcoder/ffmpeg-transcoder.adapter';
 import {
@@ -32,23 +33,14 @@ import { FakeTranscoderController } from './webhook/fake-transcoder.controller';
 import { ID_TOKEN_VERIFIER, PubSubPushGuard } from './webhook/pubsub-push.guard';
 import { TranscoderEventsController } from './webhook/transcoder-events.controller';
 
-function binaryPath(pkg: string, fallback: string): string {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return (require(pkg) as { path: string }).path;
-  } catch {
-    return fallback;
-  }
-}
-
 function makeTranscoder(cfg: VideoConfig, storage: VideoStorageAdapter): VideoTranscoder {
   if (cfg.transcoderImpl === 'fake') return new FakeTranscoderAdapter();
   if (cfg.transcoderImpl === 'ffmpeg') {
     return new FfmpegTranscoderAdapter({
       storage,
       runner: spawnRunner,
-      ffmpegPath: binaryPath('@ffmpeg-installer/ffmpeg', 'ffmpeg'),
-      ffprobePath: binaryPath('@ffprobe-installer/ffprobe', 'ffprobe'),
+      ffmpegPath: resolveBinary('@ffmpeg-installer/ffmpeg', 'ffmpeg'),
+      ffprobePath: resolveBinary('@ffprobe-installer/ffprobe', 'ffprobe'),
     });
   }
   return new GcpTranscoderAdapter({

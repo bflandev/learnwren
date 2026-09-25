@@ -14,13 +14,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { VideoId, VideoKeyId } from '@learnwren/shared-data-models';
 
 import type { VideoStoragePort } from '../video-storage.adapter';
+import { resolveBinary } from './binaries';
 import { FfmpegTranscoderAdapter, spawnRunner } from './ffmpeg-transcoder.adapter';
 
 const pExecFile = promisify(execFile);
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ffmpegPath: string = require('@ffmpeg-installer/ffmpeg').path;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ffprobePath: string = require('@ffprobe-installer/ffprobe').path;
+const ffmpegPath = resolveBinary('@ffmpeg-installer/ffmpeg', 'ffmpeg');
+const ffprobePath = resolveBinary('@ffprobe-installer/ffprobe', 'ffprobe');
 
 let root: string;
 let objects: string; // local "bucket" root: <objects>/<bucket>/<path>
