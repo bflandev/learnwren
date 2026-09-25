@@ -7,6 +7,19 @@
 
 Target band: core domain logic — 75–85% target.
 
+## Scoped run — US-09-04 Slice B (2026-09-25)
+
+Stryker scoped with `--mutate` to the files the slice added or changed
+(`video/transcoder/ffmpeg-transcoder.adapter.ts`, `ffmpeg-event.bridge.ts`,
+`binaries.ts`, `hls-naming.ts`, `video.config.ts`, `playback/manifest.service.ts`,
+`playback/playback.controller.ts`, `video-storage.adapter.ts`): **100%** on
+every file (575 mutants; 3 marked equivalent in-line with `Stryker disable`
+comments — an empty `stdio` array, a regex `$` anchor on a greedy `.*`, and a
+non-terminal fallback reason). The first pass scored 90.76%; the 56 survivors
+were killed by tests for the spawn runner, cancellation between pipeline
+steps, `gs://` parsing, delivery logging, and the local probe's temp-file
+lifecycle. The full-lib table below predates this slice.
+
 ## Per-file scores
 
 | File | Score | Killed | Survived | No-Coverage |

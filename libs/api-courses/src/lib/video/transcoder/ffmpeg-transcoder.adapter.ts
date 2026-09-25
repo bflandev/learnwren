@@ -282,6 +282,7 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
     for (let attempt = 0; ; attempt++) {
       try {
         const outcome = await this.sink(event);
+        // Stryker disable next-line StringLiteral: equivalent — any fallback that is not a terminal reason behaves the same
         if (outcome.acted || TERMINAL_REASONS.has(outcome.reason ?? '')) return;
         this.logger.warn(`${event.type} for ${event.videoId} not applied (${outcome.reason}); redelivering`);
       } catch (err) {

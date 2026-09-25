@@ -420,6 +420,11 @@ describe('spawnRunner', () => {
     await expect(done).rejects.toThrow(`${node} exited with 3: bad thing`);
   });
 
+  it('keeps only the last 400 chars of stderr in the failure message', async () => {
+    const { done } = spawnRunner(node, ['-e', "process.stderr.write('a'.repeat(500) + 'END'); process.exit(1)"], { cwd: process.cwd() });
+    await expect(done).rejects.toThrow(`${node} exited with 1: ${'a'.repeat(397)}END`);
+  });
+
   it('rejects with ENOENT for a missing binary', async () => {
     const { done } = spawnRunner('/nonexistent/ffmpeg-xyz', [], { cwd: process.cwd() });
     await expect(done).rejects.toThrow(/ENOENT/);
