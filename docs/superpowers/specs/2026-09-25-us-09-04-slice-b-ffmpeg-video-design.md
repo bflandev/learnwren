@@ -7,7 +7,7 @@
 **Date:** 2026-09-25
 **Story:** [US-09-04](../../epics/09-non-functional-requirements.md#us-09-04-open-source-and-self-hosting) (EP-09, Non-Functional Requirements)
 **Builds on:** [Slice A](./2026-09-25-us-09-04-self-hosting-design.md) (Docker Compose packaging of emulator mode)
-**Status:** Design approved 2026-09-25; scope chosen by the user as "video only".
+**Status:** Shipped 2026-09-25; scope chosen by the user as "video only".
 
 ---
 
@@ -196,3 +196,30 @@ marked `ponytail:` in code.)
 - **Stack:** Compose re-verified end to end — upload the e2e fixture's larger
   sibling (a generated 360p clip), watch the state reach `READY` without the
   dev endpoint, and play it in headless Chromium.
+
+## 6. Verification record (2026-09-25)
+
+- Unit: 103 tests across the transcoder and storage adapter files; 461 in the
+  video folder; affected lint/test/typecheck/build green for 22 projects.
+- Integration: the real bundled ffmpeg transcodes a generated 360p clip and
+  ffprobe decrypts the output with the key on disk.
+- api-e2e: 222 tests on one-shot emulators (fake mode unchanged).
+- Docker stack, scripted: register → verify/promote → course/module/lesson →
+  4 s 640×360 upload to the Storage emulator → `upload-complete` →
+  `READY` with no dev endpoint → master manifest with proxied rendition URL
+  → rendition with `#EXT-X-KEY` and proxied segment URLs → segment `200
+  video/mp2t`, `private, max-age=14400, immutable`, 264 KB → path-traversal
+  attempt `404` → key `200`, 16 bytes → hls.js on the lesson editor page in
+  Chrome played to 3.45 s with a decoded 640×360 frame and no page errors.
+
+Found and fixed on the way:
+
+- `@ffprobe-installer/ffprobe` ships its binary without the execute bit on
+  macOS arm64 and linux-arm64 (`spawn … EACCES`). `transcoder/binaries.ts`
+  repairs the mode at resolution, and the api image fixes it at build time
+  because the runtime user cannot chmod root-owned files.
+- Webpack cannot resolve a `require` with a variable argument; the helper
+  therefore takes a literal-require closure, or the bundle silently falls
+  back to the bare command name.
+- nginx appended its SPA `no-store` header to proxied `/api` responses; the
+  cache map now emits nothing for `/api/` so the api owns that header.
