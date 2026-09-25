@@ -105,11 +105,11 @@ describe('readVideoConfigFromEnv — slice B fields', () => {
   });
 
   it('rejects an unrecognised LEARNWREN_VIDEO_TRANSCODER value', () => {
-    // Anything other than "gcp" / "fake" must be rejected with a clear message.
+    // Anything other than "gcp" / "fake" / "ffmpeg" must be rejected with a clear message.
     const env = baseEnv();
     env.LEARNWREN_VIDEO_TRANSCODER = 'bogus';
     expect(() => readVideoConfigFromEnv(env)).toThrow(
-      /LEARNWREN_VIDEO_TRANSCODER must be "gcp" or "fake", got "bogus"/,
+      /LEARNWREN_VIDEO_TRANSCODER must be "gcp", "fake" or "ffmpeg", got "bogus"/,
     );
   });
 
@@ -288,5 +288,71 @@ describe('readVideoConfigFromEnv — playback storage flag', () => {
       LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE: 'true',
     };
     expect(() => readVideoConfigFromEnv(env)).toThrow(/LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE/);
+  });
+});
+
+describe('readVideoConfigFromEnv — ffmpeg transcoder (US-09-04 Slice B)', () => {
+  const ffmpegEnv = (): NodeJS.ProcessEnv => ({ LEARNWREN_VIDEO_TRANSCODER: 'ffmpeg' });
+
+  it('accepts "ffmpeg" and derives local probe, real playback storage, proxied segments', () => {
+    const cfg = readVideoConfigFromEnv(ffmpegEnv());
+    expect(cfg.transcoderImpl).toBe('ffmpeg');
+    expect(cfg.sourceProbeImpl).toBe('local');
+    expect(cfg.playbackStorageImpl).toBe('real');
+    expect(cfg.segmentDelivery).toBe('proxy');
+    expect(cfg.gcpProjectId).toBeUndefined();
+  });
+
+  it('derives signed segment delivery for gcp and fake', () => {
+    expect(readVideoConfigFromEnv({ LEARNWREN_VIDEO_TRANSCODER: 'fake' }).segmentDelivery).toBe('signed');
+    const gcp = readVideoConfigFromEnv({
+      LEARNWREN_VIDEO_TRANSCODER: 'gcp',
+      LEARNWREN_GCP_PROJECT_ID: 'p',
+      LEARNWREN_TRANSCODER_LOCATION: 'l',
+      LEARNWREN_TRANSCODER_TOPIC: 't',
+      LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE: 'a',
+      LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL: 'e',
+    });
+    expect(gcp.segmentDelivery).toBe('signed');
+    expect(gcp.sourceProbeImpl).toBe('fake');
+  });
+
+  it('rejects the playback-storage fake together with ffmpeg', () => {
+    expect(() =>
+      readVideoConfigFromEnv({ ...ffmpegEnv(), LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE: 'true' }),
+    ).toThrow(/LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE.*ffmpeg/);
+  });
+
+  it('rejects the source-probe fake together with ffmpeg', () => {
+    expect(() =>
+      readVideoConfigFromEnv({ ...ffmpegEnv(), LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE: 'true' }),
+    ).toThrow(/LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE.*ffmpeg/);
+  });
+
+  it('accepts ffmpeg in production with real buckets', () => {
+    const cfg = readVideoConfigFromEnv({
+      ...ffmpegEnv(),
+      NODE_ENV: 'production',
+      LEARNWREN_VIDEO_SOURCE_BUCKET: 's',
+      LEARNWREN_VIDEO_OUTPUT_BUCKET: 'o',
+    });
+    expect(cfg.transcoderImpl).toBe('ffmpeg');
+    expect(cfg.segmentDelivery).toBe('proxy');
+  });
+});
+
+describe('readVideoConfigFromEnv — production default transcoder', () => {
+  it('defaults to gcp in production when LEARNWREN_VIDEO_TRANSCODER is unset', () => {
+    const cfg = readVideoConfigFromEnv({
+      NODE_ENV: 'production',
+      LEARNWREN_VIDEO_SOURCE_BUCKET: 's',
+      LEARNWREN_VIDEO_OUTPUT_BUCKET: 'o',
+      LEARNWREN_GCP_PROJECT_ID: 'p',
+      LEARNWREN_TRANSCODER_LOCATION: 'l',
+      LEARNWREN_TRANSCODER_TOPIC: 't',
+      LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE: 'a',
+      LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL: 'e',
+    });
+    expect(cfg.transcoderImpl).toBe('gcp');
   });
 });

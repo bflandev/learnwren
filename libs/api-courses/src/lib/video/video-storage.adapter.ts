@@ -1,4 +1,7 @@
 import { execFile as nodeExecFile } from 'node:child_process';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { Inject, Injectable } from '@nestjs/common';
@@ -6,7 +9,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-firebase';
 import type { ISODateString } from '@learnwren/shared-data-models';
 
-import { hlsVariantPlaylistName, MUX_KEY_PREFIX } from './hls-naming';
+import { hlsStreamInf, hlsVariantPlaylistName, MUX_KEY_PREFIX } from './hls-naming';
+import { resolveBinary } from './transcoder/binaries';
+import { RENDITIONS } from './transcoder/transcoder-job.builder';
 import { VIDEO_CONFIG, type VideoConfig } from './video.config';
 
 const promisifiedExecFile = promisify(nodeExecFile);
@@ -18,22 +23,17 @@ const promisifiedExecFile = promisify(nodeExecFile);
  * fake can never drift from the real GCP output shape — the drift that once
  * broke real playback while a hand-invented fake layout masked it.
  */
-const FAKE_RENDITIONS: ReadonlyArray<{ name: string; streamInf: string }> = [
-  { name: '1080p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080' },
-  { name: '720p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720' },
-  { name: '480p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480' },
-  { name: '360p', streamInf: '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360' },
-];
+const FAKE_RENDITIONS: ReadonlyArray<{ name: string; streamInf: string }> = RENDITIONS.map((r) => ({
+  name: r.name,
+  streamInf: hlsStreamInf(r.name, r.bitrateBps),
+}));
 
-let ffprobeBinaryPath: string;
-try {
+const ffprobeBinaryPath = resolveBinary(
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ffprobeBinaryPath = require('@ffprobe-installer/ffprobe').path;
-  // Stryker disable next-line BlockStatement: module-load fallback — `@ffprobe-installer/ffprobe` resolves in every test/runtime environment, so this catch is unreachable; exercising it would require mocking the module loader at import time.
-} catch {
-  // Stryker disable next-line StringLiteral: unreachable module-load fallback (see above); the 'ffprobe' default is never assigned because the require above always succeeds.
-  ffprobeBinaryPath = 'ffprobe';
-}
+  () => (require('@ffprobe-installer/ffprobe') as { path: string }).path,
+  // Stryker disable next-line StringLiteral: unreachable fallback — the installer package resolves in every test/runtime environment
+  'ffprobe',
+);
 
 export interface ResumableSession {
   uri: string;
@@ -69,6 +69,9 @@ export interface VideoStoragePort {
   probeSource(input: { bucket: string; path: string }): Promise<SourceProbe>;
   readManifestObject(input: { bucket: string; path: string }): Promise<string>;
   signObjectUrl(input: { bucket: string; path: string; ttlSec: number }): Promise<string>;
+  downloadObject(input: { bucket: string; path: string; destination: string }): Promise<void>;
+  uploadFile(input: { localPath: string; bucket: string; path: string; contentType: string }): Promise<void>;
+  openObjectReadStream(input: { bucket: string; path: string }): NodeJS.ReadableStream;
 }
 
 @Injectable()
@@ -147,6 +150,21 @@ export class VideoStorageAdapter implements VideoStoragePort {
     if (this.cfg.sourceProbeImpl === 'fake') {
       return { height: 240, durationSec: 1 };
     }
+    if (this.cfg.sourceProbeImpl === 'local') {
+      // Self-hosted: no signing credentials, so probe a downloaded copy.
+      // ponytail: the ffmpeg transcoder downloads the source again for
+      // encoding; one extra download per upload is accepted over sharing a
+      // temp file across two adapters.
+      const dir = await mkdtemp(join(tmpdir(), 'lw-probe-'));
+      const destination = join(dir, 'source');
+      try {
+        await this.downloadObject({ ...input, destination });
+        return await this.runFfprobe(destination);
+      } finally {
+        // Stryker disable next-line BooleanLiteral: equivalent — mkdtemp guarantees the directory exists
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
     const [signedUrl] = await this.fileRef(input).getSignedUrl({
       action: 'read',
       expires: Date.now() + 60_000,
@@ -197,6 +215,27 @@ export class VideoStorageAdapter implements VideoStoragePort {
       expires: Date.now() + input.ttlSec * 1000,
     });
     return url;
+  }
+
+  async downloadObject(input: { bucket: string; path: string; destination: string }): Promise<void> {
+    await this.fileRef(input).download({ destination: input.destination });
+  }
+
+  async uploadFile(input: {
+    localPath: string;
+    bucket: string;
+    path: string;
+    contentType: string;
+  }): Promise<void> {
+    await this.storage.bucket(input.bucket).upload(input.localPath, {
+      destination: input.path,
+      contentType: input.contentType,
+      resumable: false,
+    });
+  }
+
+  openObjectReadStream(input: { bucket: string; path: string }): NodeJS.ReadableStream {
+    return this.fileRef(input).createReadStream();
   }
 
   private fileRef(input: { bucket: string; path: string }) {

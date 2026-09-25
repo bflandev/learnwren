@@ -468,3 +468,70 @@ describe('VideoStorageAdapter — playback storage fake mode', () => {
     ).rejects.toThrow(/unknown manifest path/);
   });
 });
+
+describe('VideoStorageAdapter — self-hosted seams (US-09-04 Slice B)', () => {
+  const localCfg = { playbackStorageImpl: 'real', sourceProbeImpl: 'local' } as VideoConfig;
+
+  it('probeSource in local mode downloads to a temp file, probes the path, and cleans up', async () => {
+    const seen: { destination?: string } = {};
+    const file = {
+      download: vi.fn(async (opts: { destination: string }) => {
+        seen.destination = opts.destination;
+        const { writeFileSync } = await import('node:fs');
+        writeFileSync(opts.destination, 'mp4');
+        return [];
+      }),
+      getSignedUrl: vi.fn(),
+    };
+    const runner = vi.fn(async () => ({
+      stdout: JSON.stringify({
+        streams: [{ codec_type: 'video', height: 360 }],
+        format: { duration: '2.0' },
+      }),
+    }));
+    const bucket = { file: () => file };
+    const adapter = new VideoStorageAdapter({ bucket: () => bucket } as never, localCfg);
+    adapter.__setRunner(runner as never);
+    const probe = await adapter.probeSource({ bucket: 'b', path: 'videos/v/source.mp4' });
+    expect(probe).toEqual({ height: 360, durationSec: 2 });
+    expect(file.getSignedUrl).not.toHaveBeenCalled();
+    expect(seen.destination).toBeTruthy();
+    expect(runner.mock.calls[0]![1].at(-1)).toBe(seen.destination);
+    const { existsSync } = await import('node:fs');
+    const { basename, dirname } = await import('node:path');
+    expect(basename(seen.destination!)).toBe('source');
+    expect(basename(dirname(seen.destination!))).toMatch(/^lw-probe-/);
+    expect(existsSync(seen.destination!)).toBe(false);
+    expect(existsSync(dirname(seen.destination!))).toBe(false);
+  });
+
+  it('downloadObject streams an object to a local destination', async () => {
+    const file = { download: vi.fn(async () => []) };
+    const adapter = new VideoStorageAdapter({ bucket: () => ({ file: () => file }) } as never, localCfg);
+    await adapter.downloadObject({ bucket: 'b', path: 'p', destination: '/tmp/x' });
+    expect(file.download).toHaveBeenCalledWith({ destination: '/tmp/x' });
+  });
+
+  it('uploadFile uploads a local file to the object path with its content type', async () => {
+    const upload = vi.fn(async () => []);
+    const adapter = new VideoStorageAdapter({ bucket: () => ({ upload }) } as never, localCfg);
+    await adapter.uploadFile({
+      localPath: '/tmp/hls_360p.m3u8',
+      bucket: 'out',
+      path: 'videos/v/hls/hls_360p.m3u8',
+      contentType: 'application/vnd.apple.mpegurl',
+    });
+    expect(upload).toHaveBeenCalledWith('/tmp/hls_360p.m3u8', {
+      destination: 'videos/v/hls/hls_360p.m3u8',
+      contentType: 'application/vnd.apple.mpegurl',
+      resumable: false,
+    });
+  });
+
+  it('openObjectReadStream returns the object read stream', () => {
+    const stream = { pipe: vi.fn() };
+    const file = { createReadStream: vi.fn(() => stream) };
+    const adapter = new VideoStorageAdapter({ bucket: () => ({ file: () => file }) } as never, localCfg);
+    expect(adapter.openObjectReadStream({ bucket: 'b', path: 'p' })).toBe(stream);
+  });
+});

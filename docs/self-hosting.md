@@ -4,11 +4,11 @@ Run your own Learn Wren with Docker Compose. One command brings up the whole
 stack on a single machine; no cloud account, no credentials.
 
 **Read the [limits](#what-this-does-and-does-not-give-you) before relying on
-it.** This slice packages the platform's *emulator mode*: data lives in the
-Firebase Emulator Suite, and the video pipeline runs its in-memory fakes. That
-is the same mode every developer and every CI run uses, and it is complete for
-everything except real video transcoding and playback. Replacing the emulators
-and fakes with production-grade self-hosted services is the next slice of
+it.** The stack packages the platform's *emulator mode* for auth and data
+(the Firebase Emulator Suite) and runs a real, in-process ffmpeg video
+pipeline: uploads are transcoded to AES-128 HLS and play back through the
+api with no cloud service involved. Replacing the emulators with
+production-grade self-hosted auth and data stores is the remaining part of
 US-09-04.
 
 ## Prerequisites
@@ -62,8 +62,9 @@ browser point at a host the browser can reach.
    works the same way; instructors can also apply in-app and an admin approves
    them under **Admin**.
 
-Everything in [`USER_GUIDE.md`](./USER_GUIDE.md) Part 2 then applies, with
-the video exception described below.
+Everything in [`USER_GUIDE.md`](./USER_GUIDE.md) Part 2 then applies,
+including video: upload a lesson video, wait for *Transcoding* to become
+*Ready* (about real-time for the first encode on a small server), and play it.
 
 ## Configuration
 
@@ -109,14 +110,16 @@ stack; the 60-second grace period covers the export.
 
 ## What this does and does not give you
 
-Everything in the user guide works in this stack except real video playback:
+Everything in the user guide works in this stack. Know these limits:
 
-- **Video.** Uploads succeed and land in the Storage emulator. Transcoding and
-  AES-128 HLS packaging need the GCP Transcoder, and this stack runs the
-  in-memory fake instead: a lesson video stays in *Transcoding* until the
-  dev-only completion endpoint is called (see the API reference in the user
-  guide), and playback then serves a stub manifest, not the uploaded file. A
-  self-hosted transcoder (ffmpeg) and object store are the next slice.
+- **Video encoding runs inside the api container**, one rendition at a time
+  (up to four, never upscaling). A ten-minute 1080p upload takes several
+  minutes of CPU on a small server, and the api answers other requests more
+  slowly meanwhile. If the api container restarts mid-encode, that video
+  stays in *Transcoding*; delete it from the lesson and upload again.
+- **Segments stream through the api.** Every six-second segment request is
+  re-authorised against the student's enrolment, which costs a Firestore
+  read; fine for a class, not for a public video site.
 - **Durability.** The Emulator Suite is a development tool. It runs in one
   process, keeps Firestore in memory between exports, has no authentication,
   and is not built for concurrent production load. Treat this as a

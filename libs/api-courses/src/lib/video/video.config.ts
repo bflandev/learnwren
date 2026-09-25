@@ -1,6 +1,14 @@
 export const VIDEO_CONFIG = Symbol.for('learnwren.api-video.config');
 
-export type TranscoderImpl = 'gcp' | 'fake';
+export type TranscoderImpl = 'gcp' | 'fake' | 'ffmpeg';
+
+/**
+ * How the playback layer hands segments to the browser. `signed` mints GCS v4
+ * signed URLs (needs cloud credentials); `proxy` routes them through
+ * `/api/playback/segment/...` so a self-hosted stack with no signing
+ * credentials can play. Derived from the transcoder choice, not its own env.
+ */
+export type SegmentDelivery = 'signed' | 'proxy';
 
 export interface VideoConfig {
   sourceBucket: string;
@@ -10,7 +18,9 @@ export interface VideoConfig {
   playbackSignedUrlTtlSec: number;
   transcoderImpl: TranscoderImpl;
   playbackStorageImpl: 'real' | 'fake';
-  sourceProbeImpl: 'real' | 'fake';
+  // `local` downloads the source to a temp file and probes the path (self-host).
+  sourceProbeImpl: 'real' | 'fake' | 'local';
+  segmentDelivery: SegmentDelivery;
   // Present only when transcoderImpl === 'gcp':
   gcpProjectId?: string;
   transcoderLocation?: string;
@@ -93,10 +103,25 @@ export function readVideoConfigFromEnv(env: NodeJS.ProcessEnv): VideoConfig {
   }
 
   const implRaw = env['LEARNWREN_VIDEO_TRANSCODER'] ?? (isProduction ? 'gcp' : 'fake');
-  if (implRaw !== 'gcp' && implRaw !== 'fake') {
+  if (implRaw !== 'gcp' && implRaw !== 'fake' && implRaw !== 'ffmpeg') {
     throw new Error(
-      `LEARNWREN_VIDEO_TRANSCODER must be "gcp" or "fake", got "${implRaw}".`,
+      `LEARNWREN_VIDEO_TRANSCODER must be "gcp", "fake" or "ffmpeg", got "${implRaw}".`,
     );
+  }
+  // The self-hosted ffmpeg pipeline has no signing credentials and encodes
+  // from a local file, so it fixes the probe and delivery modes itself and
+  // refuses the in-memory fakes, which would silently hide a broken pipeline.
+  if (implRaw === 'ffmpeg') {
+    if (playbackFakeRaw === 'true') {
+      throw new Error(
+        'LEARNWREN_VIDEO_STORAGE_PLAYBACK_FAKE=true is rejected with LEARNWREN_VIDEO_TRANSCODER=ffmpeg.',
+      );
+    }
+    if (sourceProbeFakeRaw === 'true') {
+      throw new Error(
+        'LEARNWREN_VIDEO_STORAGE_SOURCE_PROBE_FAKE=true is rejected with LEARNWREN_VIDEO_TRANSCODER=ffmpeg.',
+      );
+    }
   }
   if (implRaw === 'fake' && isProduction) {
     throw new Error(
@@ -111,11 +136,12 @@ export function readVideoConfigFromEnv(env: NodeJS.ProcessEnv): VideoConfig {
     pollIntervalMs,
     playbackSignedUrlTtlSec,
     transcoderImpl: implRaw,
-    playbackStorageImpl,
-    sourceProbeImpl,
+    playbackStorageImpl: implRaw === 'ffmpeg' ? 'real' : playbackStorageImpl,
+    sourceProbeImpl: implRaw === 'ffmpeg' ? 'local' : sourceProbeImpl,
+    segmentDelivery: implRaw === 'ffmpeg' ? 'proxy' : 'signed',
   };
 
-  if (implRaw === 'fake') return base;
+  if (implRaw !== 'gcp') return base;
 
   return {
     ...base,

@@ -35,12 +35,16 @@ export class ManifestService {
       bucket: video.output!.bucket,
       path: renditionPath,
     });
+    // Proxied delivery (self-hosted, no signing credentials): the segment
+    // route re-authorises through the same guards as this manifest.
     const signSegment = (filename: string) =>
-      this.storage.signObjectUrl({
-        bucket: video.output!.bucket,
-        path: `${baseDir}/${filename}`,
-        ttlSec: this.cfg.playbackSignedUrlTtlSec,
-      });
+      this.cfg.segmentDelivery === 'proxy'
+        ? Promise.resolve(`/api/playback/segment/${video.id}/${filename}`)
+        : this.storage.signObjectUrl({
+            bucket: video.output!.bucket,
+            path: `${baseDir}/${filename}`,
+            ttlSec: this.cfg.playbackSignedUrlTtlSec,
+          });
     return rewriteRendition(body, video.id, signSegment);
   }
 }

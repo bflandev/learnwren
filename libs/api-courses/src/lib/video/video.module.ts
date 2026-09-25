@@ -14,6 +14,9 @@ import { ManifestService } from './playback/manifest.service';
 import { PlaybackConfigController } from './playback/playback-config.controller';
 import { PlaybackController } from './playback/playback.controller';
 import { FakeTranscoderAdapter } from './transcoder/fake-transcoder.adapter';
+import { resolveBinary } from './transcoder/binaries';
+import { FfmpegEventBridge } from './transcoder/ffmpeg-event.bridge';
+import { FfmpegTranscoderAdapter, spawnRunner } from './transcoder/ffmpeg-transcoder.adapter';
 import {
   GcpTranscoderAdapter,
   type TranscoderClient,
@@ -30,8 +33,24 @@ import { FakeTranscoderController } from './webhook/fake-transcoder.controller';
 import { ID_TOKEN_VERIFIER, PubSubPushGuard } from './webhook/pubsub-push.guard';
 import { TranscoderEventsController } from './webhook/transcoder-events.controller';
 
-function makeTranscoder(cfg: VideoConfig): VideoTranscoder {
+function makeTranscoder(cfg: VideoConfig, storage: VideoStorageAdapter): VideoTranscoder {
   if (cfg.transcoderImpl === 'fake') return new FakeTranscoderAdapter();
+  if (cfg.transcoderImpl === 'ffmpeg') {
+    return new FfmpegTranscoderAdapter({
+      storage,
+      runner: spawnRunner,
+      ffmpegPath: resolveBinary(
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        () => (require('@ffmpeg-installer/ffmpeg') as { path: string }).path,
+        'ffmpeg',
+      ),
+      ffprobePath: resolveBinary(
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        () => (require('@ffprobe-installer/ffprobe') as { path: string }).path,
+        'ffprobe',
+      ),
+    });
+  }
   return new GcpTranscoderAdapter({
     client: new TranscoderServiceClient() as unknown as TranscoderClient,
     projectId: cfg.gcpProjectId!,
@@ -83,9 +102,10 @@ const controllers = [
     { provide: VIDEO_CONFIG, useFactory: () => readVideoConfigFromEnv(process.env) },
     {
       provide: VIDEO_TRANSCODER,
-      inject: [VIDEO_CONFIG],
-      useFactory: (cfg: VideoConfig) => makeTranscoder(cfg),
+      inject: [VIDEO_CONFIG, VideoStorageAdapter],
+      useFactory: (cfg: VideoConfig, storage: VideoStorageAdapter) => makeTranscoder(cfg, storage),
     },
+    FfmpegEventBridge,
     {
       provide: ID_TOKEN_VERIFIER,
       useFactory: () => new OAuth2Client(),

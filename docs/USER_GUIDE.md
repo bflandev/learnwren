@@ -61,7 +61,7 @@ This guide covers **every feature wired up today**, in three parts:
 | Non-functional | Accessibility: axe-core sweep + keyboard journeys (US-09-03) | Built (2026-08-07) |
 | Non-functional | Mobile responsiveness: header collapse + overflow gate (US-09-05) | Built (2026-08-07) |
 | Non-functional | Performance: landing/catalogue/course-detail/learn-page load time + video click-to-play gate (US-09-01) | Partly built (2026-08-08) — catalogue's 2-second load target not yet met; see README |
-| Non-functional | Self-hosting: single-command Docker Compose stack, `.env.example`, deployment guide (US-09-04) | Partly built (2026-09-25) — emulator mode packaged; real self-hosted video pipeline deferred; see [`self-hosting.md`](./self-hosting.md) |
+| Non-functional | Self-hosting: single-command Docker Compose stack, `.env.example`, deployment guide, real ffmpeg video pipeline (US-09-04) | Partly built (2026-09-25) — Slices A+B; auth and data still on the Firebase emulators; see [`self-hosting.md`](./self-hosting.md) |
 
 ---
 
@@ -1068,6 +1068,7 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
 | `POST` | `/api/internal/transcoder-events` | Receives transcoder job events. Guarded by `PubSubPushGuard` (verifies the Pub/Sub push token). |
+| `GET` | `/api/playback/segment/:vid/:name` | Stream one HLS segment (self-hosted `ffmpeg` mode only; same guards as the manifest). |
 | `POST` | `/api/internal/fake-transcoder/complete/:vid` | **Dev only** — synthesise a `SUCCEEDED` job event. |
 | `POST` | `/api/internal/fake-transcoder/fail/:vid` | **Dev only** — synthesise a `FAILED` job event (body `{ reason? }`). |
 

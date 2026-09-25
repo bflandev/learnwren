@@ -47,9 +47,10 @@ LEARNWREN_VIDEO_STUCK_THRESHOLD_MINUTES=30
 # bucket (see docs/operations/transcoder-pubsub-setup.md).
 LEARNWREN_VIDEO_OUTPUT_BUCKET=op://learnwren/dev/LEARNWREN_VIDEO_OUTPUT_BUCKET
 
-# Transcoder selection: 'gcp' (real GCP Transcoder API) or 'fake' (in-memory
-# adapter for CI and local dev). The env validator rejects 'fake' when
-# NODE_ENV=production.
+# Transcoder selection: 'gcp' (real GCP Transcoder API), 'fake' (in-memory
+# adapter for CI and local dev) or 'ffmpeg' (self-hosted: encodes in-process,
+# serves segments through /api; needs no cloud credentials). The env
+# validator rejects 'fake' when NODE_ENV=production.
 LEARNWREN_VIDEO_TRANSCODER=fake
 
 # Only required when LEARNWREN_VIDEO_TRANSCODER=gcp:

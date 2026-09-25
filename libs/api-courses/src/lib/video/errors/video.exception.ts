@@ -137,6 +137,12 @@ export class ManifestParseFailedException extends VideoException {
   }
 }
 
+export class SegmentNotFoundException extends VideoException {
+  constructor(segment: string) {
+    super('SEGMENT_NOT_FOUND', `Segment "${segment}" is not available.`, 404, { segment });
+  }
+}
+
 export class InvalidCaptionFileException extends VideoException {
   constructor() {
     super('INVALID_CAPTION_FILE', 'Captions must be a valid WebVTT (.vtt) file.', 400);
