@@ -1,6 +1,19 @@
 # Learn Wren self-hosting stack (US-09-04). One command: `docker compose up -d`.
 # Settings come from .env — copy .env.example to .env first. Every value has a
 # working default for a single machine; see docs/self-hosting.md.
+#
+#   web        nginx: the Angular build, /api → api, /media → object store (public images)
+#   api        NestJS, ffmpeg video pipeline, S3 object storage
+#   minio      S3-compatible object store (never published to the host)
+#   minio-init one-shot: creates the buckets, public-read on covers/pictures
+#   emulators  Firebase Auth + Firestore emulators (the remaining Firebase pieces)
+
+x-buckets: &buckets
+  LEARNWREN_VIDEO_SOURCE_BUCKET: learnwren-source
+  LEARNWREN_VIDEO_OUTPUT_BUCKET: learnwren-output
+  LEARNWREN_MATERIALS_BUCKET: learnwren-materials
+  LEARNWREN_COVER_BUCKET: learnwren-covers
+  LEARNWREN_PICTURE_BUCKET: learnwren-pictures
 
 services:
   emulators:
@@ -8,13 +21,11 @@ services:
       context: .
       target: emulators
     # Loopback-only by default: the Emulator UI, Firestore and Auth ports have
-    # no authentication. The Storage port must be reachable from the browser
-    # (video uploads go there directly), so it has its own bind setting.
+    # no authentication.
     ports:
       - "${LEARNWREN_ADMIN_BIND:-127.0.0.1}:4000:4000"
       - "${LEARNWREN_ADMIN_BIND:-127.0.0.1}:8080:8080"
       - "${LEARNWREN_ADMIN_BIND:-127.0.0.1}:9099:9099"
-      - "${LEARNWREN_STORAGE_BIND:-127.0.0.1}:9199:9199"
     volumes:
       - emulator-data:/data
     # Data is exported to the volume on shutdown; give the JVM time to flush.
@@ -27,24 +38,82 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "${LEARNWREN_S3_ACCESS_KEY:-learnwren}"
+      MINIO_ROOT_PASSWORD: "${LEARNWREN_S3_SECRET_KEY:-learnwren-change-me}"
+    volumes:
+      - minio-data:/data
+    # The S3 API port is deliberately NOT published: browsers reach files only
+    # through the web container (/media for public images, /api for the rest).
+    # The admin console can be bound to loopback for inspection.
+    ports:
+      - "${LEARNWREN_MINIO_CONSOLE_BIND:-127.0.0.1}:${LEARNWREN_MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      <<: *buckets
+      S3_KEY: "${LEARNWREN_S3_ACCESS_KEY:-learnwren}"
+      S3_SECRET: "${LEARNWREN_S3_SECRET_KEY:-learnwren-change-me}"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$S3_KEY" "$$S3_SECRET"
+        for b in "$$LEARNWREN_VIDEO_SOURCE_BUCKET" "$$LEARNWREN_VIDEO_OUTPUT_BUCKET" "$$LEARNWREN_MATERIALS_BUCKET" "$$LEARNWREN_COVER_BUCKET" "$$LEARNWREN_PICTURE_BUCKET"; do
+          mc mb --ignore-existing "local/$$b"
+        done
+        # Covers and profile pictures are public reads (served via nginx /media).
+        mc anonymous set download "local/$$LEARNWREN_COVER_BUCKET"
+        mc anonymous set download "local/$$LEARNWREN_PICTURE_BUCKET"
+        echo "buckets ready"
+    restart: "no"
+
   api:
     build:
       context: .
       target: api
-    # Shares the emulators' network namespace so the api reaches them on
-    # 127.0.0.1 (its built-in default) and, more importantly, so the resumable
-    # upload URLs it mints for the browser carry a host the browser can reach.
+    # Shares the emulators' network namespace so the api reaches Auth and
+    # Firestore on 127.0.0.1 (its built-in default). It still resolves the
+    # other services (minio) by name on the compose network.
     network_mode: "service:emulators"
     depends_on:
       emulators:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
+      <<: *buckets
       LEARNWREN_PUBLIC_URL: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}"
       LEARNWREN_CORS_ORIGINS: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}"
-      FIREBASE_STORAGE_EMULATOR_HOST: "${LEARNWREN_HOST:-localhost}:9199"
       # Real video: ffmpeg transcodes in-process and segments are served
       # through /api (no signing credentials needed). See docs/self-hosting.md.
       LEARNWREN_VIDEO_TRANSCODER: ffmpeg
+      # Object storage: S3-compatible MinIO, reached only from inside the stack.
+      LEARNWREN_OBJECT_STORAGE: s3
+      LEARNWREN_S3_ENDPOINT: http://minio:9000
+      LEARNWREN_S3_ACCESS_KEY: "${LEARNWREN_S3_ACCESS_KEY:-learnwren}"
+      LEARNWREN_S3_SECRET_KEY: "${LEARNWREN_S3_SECRET_KEY:-learnwren-change-me}"
+      # 'firebase' is the historical name for "the real store" (here: S3);
+      # outside production the covers/pictures/materials default to in-memory fakes.
+      LEARNWREN_COVER_STORAGE: firebase
+      LEARNWREN_PICTURE_STORAGE: firebase
+      LEARNWREN_MATERIALS_STORAGE_FAKE: "false"
+      LEARNWREN_COVER_PUBLIC_BASE_URL: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}/media/learnwren-covers"
+      LEARNWREN_PICTURE_PUBLIC_BASE_URL: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}/media/learnwren-pictures"
       LEARNWREN_EMAIL_TRANSPORT: "${LEARNWREN_EMAIL_TRANSPORT:-console}"
       LEARNWREN_EMAIL_FROM: "${LEARNWREN_EMAIL_FROM:-noreply@learnwren.local}"
       SMTP_HOST: "${SMTP_HOST:-}"
@@ -60,11 +129,10 @@ services:
       target: web
     ports:
       - "${LEARNWREN_WEB_PORT:-8000}:80"
-    environment:
-      LEARNWREN_STORAGE_ORIGIN: "http://${LEARNWREN_HOST:-localhost}:9199"
     depends_on:
       - api
     restart: unless-stopped
 
 volumes:
   emulator-data:
+  minio-data:

@@ -5,7 +5,7 @@
 #   builder   — installs the workspace and builds web + api once
 #   api       — NestJS api in listen mode (node dist/apps/api/main.js)
 #   web       — nginx serving the Angular build, proxying /api to the api
-#   emulators — Firebase Emulator Suite (Auth, Firestore, Storage, UI)
+#   emulators — Firebase Emulator Suite (Auth, Firestore, UI); files live in MinIO
 
 # ---------------------------------------------------------------------------
 FROM node:22-bookworm-slim AS builder
@@ -51,13 +51,12 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
   && npm cache clean --force \
   # Pre-download the emulator jars so first `compose up` works offline.
   && firebase setup:emulators:firestore \
-  && firebase setup:emulators:storage \
   && firebase setup:emulators:ui
 WORKDIR /app
 COPY docker/firebase.json ./firebase.json
-COPY firestore.rules firestore.indexes.json storage.rules ./
+COPY firestore.rules firestore.indexes.json ./
 COPY docker/emulators-entrypoint.sh /usr/local/bin/emulators-entrypoint
 RUN chmod +x /usr/local/bin/emulators-entrypoint
 VOLUME /data
-EXPOSE 4000 8080 9099 9199
+EXPOSE 4000 8080 9099
 ENTRYPOINT ["emulators-entrypoint"]
