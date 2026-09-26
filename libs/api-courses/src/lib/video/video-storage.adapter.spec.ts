@@ -217,7 +217,7 @@ describe('VideoStorageAdapter playback reads', () => {
   it('fake: a variant playlist carries an AES-128 key line and two flat segments named after the mux key', async () => {
     const { adapter } = make(fakeCfg);
     const body = await adapter.readManifestObject({ bucket: 'out', path: `videos/v/hls/${hlsVariantPlaylistName('720p')}` });
-    expect(body).toContain('#EXT-X-TARGETDURATION:6');
+    expect(body.startsWith('#EXTM3U\n#EXT-X-VERSION:6\n#EXT-X-TARGETDURATION:6\n')).toBe(true);
     expect(body).toContain('#EXT-X-KEY:METHOD=AES-128,URI="https://example.invalid/k",IV=0xABCDEF0123456789ABCDEF0123456789');
     expect(body.endsWith('#EXTINF:6.000,\nhls_720p0000000000.ts\n#EXTINF:6.000,\nhls_720p0000000001.ts\n#EXT-X-ENDLIST\n')).toBe(true);
   });
@@ -226,6 +226,8 @@ describe('VideoStorageAdapter playback reads', () => {
     const { adapter } = make(fakeCfg);
     await expect(adapter.readManifestObject({ bucket: 'out', path: 'videos/v/hls/other.txt' })).rejects.toThrow(/unknown manifest path/);
     await expect(adapter.readManifestObject({ bucket: 'out', path: 'videos/v/hls/weird.m3u8' })).rejects.toThrow(/unknown manifest path/);
+    // A mux-key prefix on a non-playlist extension is not a variant playlist.
+    await expect(adapter.readManifestObject({ bucket: 'out', path: 'videos/v/hls/hls_720p0000000000.ts' })).rejects.toThrow(/unknown manifest path/);
   });
 
   it('fake: signObjectUrl returns a gs-stub URL carrying bucket, path and TTL', async () => {

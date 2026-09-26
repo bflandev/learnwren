@@ -251,6 +251,7 @@ export class S3ObjectStorage implements ObjectStorage {
       const res = await this.client.send(
         new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: token }),
       );
+      // Stryker disable next-line ArrayDeclaration: equivalent — a placeholder element has neither Key nor Size, so both consumers ignore it
       yield res.Contents ?? [];
       token = res.IsTruncated ? res.NextContinuationToken : undefined;
     } while (token);
