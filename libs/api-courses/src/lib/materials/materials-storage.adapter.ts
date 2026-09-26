@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-firebase';
+import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 import type { ISODateString } from '@learnwren/shared-data-models';
 
 import { MATERIALS_CONFIG, type MaterialsConfig } from './materials.config';
@@ -38,23 +38,30 @@ export interface MaterialsStoragePort {
   deleteObject(input: { bucket: string; path: string }): Promise<void>;
 }
 
-/** Strip characters that would break an HTTP Content-Disposition header value. */
+/** Routes the browser uses when the api proxies material bytes (fake and S3 modes). */
+export const MATERIAL_UPLOAD_PROXY_PATH = '/api/internal/uploads/materials';
+export const MATERIAL_DOWNLOAD_PROXY_PATH = '/api/internal/downloads/materials';
+
 function sanitizeFilename(name: string): string {
-  // eslint-disable-next-line no-control-regex
   return name.replace(/["\\\r\n]/g, '_');
 }
 
-/** GCS errors expose a numeric `code`; 404 is the canonical "object missing" signal. */
-function isNotFound(err: unknown): boolean {
-  return (err as { code?: number }).code === 404;
-}
-
+/**
+ * Lesson materials through the ObjectStorage port. GCS mints signed URLs the
+ * browser uses directly; the in-memory fake and S3 mode both hand the browser
+ * api routes instead (see MaterialsProxyController), so an S3 store never
+ * needs to be reachable from outside.
+ */
 @Injectable()
 export class MaterialsStorageAdapter implements MaterialsStoragePort {
   constructor(
-    @Inject(FIREBASE_STORAGE) private readonly storage: FirebaseStorageHandle,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(MATERIALS_CONFIG) private readonly cfg: MaterialsConfig,
   ) {}
+
+  private get proxied(): boolean {
+    return this.cfg.storageImpl === 'fake' || this.storage.kind === 's3';
+  }
 
   async signUploadUrl(input: {
     bucket: string;
@@ -63,31 +70,19 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort {
     materialId: string;
   }): Promise<SignedUploadUrl> {
     const expiresMs = Date.now() + this.cfg.uploadUrlTtlSec * 1000;
-    if (this.cfg.storageImpl === 'fake') {
-      return this.fakeSigned('uploadUrl', input.materialId, expiresMs);
-    }
-    const [url] = await this.fileRef(input).getSignedUrl({
-      version: 'v4',
-      action: 'write',
-      contentType: input.contentType,
-      expires: expiresMs,
-    });
-    return { uploadUrl: url, expiresAt: new Date(expiresMs).toISOString() as ISODateString };
+    const uploadUrl = this.proxied
+      ? `${MATERIAL_UPLOAD_PROXY_PATH}/${input.materialId}`
+      : await this.storage.signWriteUrl({
+          bucket: input.bucket,
+          path: input.path,
+          contentType: input.contentType,
+          ttlSec: this.cfg.uploadUrlTtlSec,
+        });
+    return { uploadUrl, expiresAt: new Date(expiresMs).toISOString() as ISODateString };
   }
 
-  async headObject(input: {
-    bucket: string;
-    path: string;
-  }): Promise<MaterialObjectMetadata | null> {
-    try {
-      const [meta] = await this.fileRef(input).getMetadata();
-      // Stryker disable next-line ConditionalExpression: equivalent — for a numeric meta.size, Number(n) === n, so forcing the string branch (Number(...)) produces the identical value; the two branches are observationally the same for every number input.
-      const size = typeof meta.size === 'string' ? Number(meta.size) : (meta.size as number);
-      return { size };
-    } catch (err) {
-      if (isNotFound(err)) return null;
-      throw err;
-    }
+  headObject(input: { bucket: string; path: string }): Promise<MaterialObjectMetadata | null> {
+    return this.storage.headObject(input);
   }
 
   async signDownloadUrl(input: {
@@ -99,45 +94,19 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort {
     ttlSec: number;
   }): Promise<SignedDownloadUrl> {
     const expiresMs = Date.now() + input.ttlSec * 1000;
-    if (this.cfg.storageImpl === 'fake') {
-      return this.fakeSigned('downloadUrl', input.materialId, expiresMs);
-    }
-    const [url] = await this.fileRef(input).getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: expiresMs,
-      responseDisposition: `attachment; filename="${sanitizeFilename(input.filename)}"`,
-      responseType: input.contentType,
-    });
-    return { downloadUrl: url, expiresAt: new Date(expiresMs).toISOString() as ISODateString };
+    const downloadUrl = this.proxied
+      ? `${MATERIAL_DOWNLOAD_PROXY_PATH}/${input.materialId}`
+      : await this.storage.signReadUrl({
+          bucket: input.bucket,
+          path: input.path,
+          ttlSec: input.ttlSec,
+          responseDisposition: `attachment; filename="${sanitizeFilename(input.filename)}"`,
+          responseType: input.contentType,
+        });
+    return { downloadUrl, expiresAt: new Date(expiresMs).toISOString() as ISODateString };
   }
 
-  async deleteObject(input: { bucket: string; path: string }): Promise<void> {
-    try {
-      await this.fileRef(input).delete();
-    } catch (err) {
-      if (isNotFound(err)) return;
-      throw err;
-    }
-  }
-
-  private fileRef(input: { bucket: string; path: string }) {
-    return this.storage.bucket(input.bucket).file(input.path);
-  }
-
-  /**
-   * Fake-mode signed-URL response: hands back a local API path the dev server
-   * proxies through the internal fake-materials route. The key name is
-   * parameterised so the same helper serves both upload and download flows.
-   */
-  private fakeSigned<K extends 'uploadUrl' | 'downloadUrl'>(
-    key: K,
-    materialId: string,
-    expiresMs: number,
-  ): { [P in K]: string } & { expiresAt: ISODateString } {
-    return {
-      [key]: `/api/internal/fake-materials/${materialId}`,
-      expiresAt: new Date(expiresMs).toISOString() as ISODateString,
-    } as { [P in K]: string } & { expiresAt: ISODateString };
+  deleteObject(input: { bucket: string; path: string }): Promise<void> {
+    return this.storage.deleteObject(input);
   }
 }

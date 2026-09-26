@@ -39,7 +39,7 @@ function makeFile(name: string, size = 100): File {
 function setup(over: { put?: number; api?: Partial<MaterialsService> } = {}) {
   const api: Partial<MaterialsService> = {
     createUploadUrl: vi.fn().mockReturnValue(
-      of({ materialId: 'mat1', uploadUrl: '/api/internal/fake-materials/mat1', expiresAt: 'T' }),
+      of({ materialId: 'mat1', uploadUrl: '/api/internal/uploads/materials/mat1', expiresAt: 'T' }),
     ),
     complete: vi.fn().mockReturnValue(of({})),
     remove: vi.fn().mockReturnValue(of(undefined)),
@@ -137,7 +137,7 @@ describe('MaterialUploadService', () => {
           provide: MaterialsService,
           useValue: {
             createUploadUrl: vi.fn().mockReturnValue(
-              of({ materialId: 'm', uploadUrl: '/api/internal/fake-materials/m', expiresAt: 'T' }),
+              of({ materialId: 'm', uploadUrl: '/api/internal/uploads/materials/m', expiresAt: 'T' }),
             ),
             complete: vi.fn().mockReturnValue(of({})),
             remove: vi.fn().mockReturnValue(of(undefined)),
@@ -182,7 +182,7 @@ describe('MaterialUploadService', () => {
           provide: MaterialsService,
           useValue: {
             createUploadUrl: vi.fn().mockReturnValue(
-              of({ materialId: 'm', uploadUrl: '/api/internal/fake-materials/m', expiresAt: 'T' }),
+              of({ materialId: 'm', uploadUrl: '/api/internal/uploads/materials/m', expiresAt: 'T' }),
             ),
             complete: vi.fn().mockReturnValue(of({})),
             remove: vi.fn().mockReturnValue(of(undefined)),
@@ -400,7 +400,7 @@ describe('MaterialUploadService', () => {
           provide: MaterialsService,
           useValue: {
             createUploadUrl: vi.fn().mockReturnValue(
-              of({ materialId: 'm', uploadUrl: '/api/internal/fake-materials/m', expiresAt: 'T' }),
+              of({ materialId: 'm', uploadUrl: '/api/internal/uploads/materials/m', expiresAt: 'T' }),
             ),
             complete: vi.fn().mockReturnValue(of({})),
             remove: vi.fn().mockReturnValue(of(undefined)),

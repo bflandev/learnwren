@@ -49,7 +49,8 @@ Notable environment variables:
   (EP-04). Outside production it defaults to `learnwren-dev-materials` and
   needs no provisioning. In emulator/dev mode the materials storage runs in
   `fake` mode: signed upload/download URLs are replaced by internal passthrough
-  endpoints (`/api/internal/fake-materials/:matId`) so no GCP credentials are
+  endpoints (`/api/internal/uploads/materials/:matId` and
+  `/api/internal/downloads/materials/:matId`) so no GCP credentials are
   required.
 
 ## Run (emulator mode)

@@ -25,5 +25,10 @@
     "src/**/*.test.jsx",
     "src/**/*.spec.jsx",
     "src/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../api-object-storage/tsconfig.lib.json"
+    }
   ]
 }

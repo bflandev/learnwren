@@ -6,12 +6,13 @@ import { promisify } from 'node:util';
 
 import { Inject, Injectable } from '@nestjs/common';
 
-import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-firebase';
+import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 import type { ISODateString } from '@learnwren/shared-data-models';
 
 import { hlsStreamInf, hlsVariantPlaylistName, MUX_KEY_PREFIX } from './hls-naming';
 import { resolveBinary } from './transcoder/binaries';
 import { RENDITIONS } from './transcoder/transcoder-job.builder';
+import { VideoUploadSessions } from './upload/video-upload-sessions';
 import { VIDEO_CONFIG, type VideoConfig } from './video.config';
 
 const promisifiedExecFile = promisify(nodeExecFile);
@@ -51,10 +52,8 @@ export interface SourceProbe {
 
 export type FfprobeRunner = (binary: string, args: string[]) => Promise<{ stdout: string }>;
 
-/** GCS errors expose a numeric `code`; 404 is the canonical "object missing" signal. */
-function isNotFound(err: unknown): boolean {
-  return (err as { code?: number }).code === 404;
-}
+/** Route the browser PUTs chunks to when the api proxies video uploads (S3 mode). */
+export const VIDEO_UPLOAD_PROXY_PATH = '/api/internal/uploads/videos';
 
 export interface VideoStoragePort {
   createResumableSession(input: {
@@ -80,8 +79,9 @@ export class VideoStorageAdapter implements VideoStoragePort {
   private runner: FfprobeRunner = (binary, args) => promisifiedExecFile(binary, args);
 
   constructor(
-    @Inject(FIREBASE_STORAGE) private readonly storage: FirebaseStorageHandle,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(VIDEO_CONFIG) private readonly cfg: VideoConfig,
+    private readonly sessions: VideoUploadSessions,
   ) {}
 
   /** Test hook — never called in production code paths. */
@@ -95,48 +95,43 @@ export class VideoStorageAdapter implements VideoStoragePort {
     contentType: string;
     videoId: string;
   }): Promise<ResumableSession> {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString() as ISODateString;
+    if (this.storage.kind === 's3') {
+      // The store is not exposed to browsers: the api carries the chunks
+      // (VideoUploadProxyController) and needs to know the target up front.
+      this.sessions.open(input.videoId, {
+        bucket: input.bucket,
+        path: input.path,
+        contentType: input.contentType,
+      });
+      return { uri: `${VIDEO_UPLOAD_PROXY_PATH}/${input.videoId}`, expiresAt };
+    }
     // CORS origin on the GCS resumable upload session: scope to the
     // application's own origin so a leaked upload URI cannot be exercised
     // from a third-party domain via a browser. Falls back to the SPA's local
     // dev URL when the env var is unset (dev-only configuration).
     const origin = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
-    const [uri] = await this.fileRef(input).createResumableUpload({
-      metadata: {
-        contentType: input.contentType,
-        metadata: { videoId: input.videoId },
-      },
+    const uri = await this.storage.createResumableUpload({
+      bucket: input.bucket,
+      path: input.path,
+      contentType: input.contentType,
+      metadata: { videoId: input.videoId },
       origin,
     });
-    return {
-      uri,
-      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString() as ISODateString,
-    };
+    return { uri, expiresAt };
   }
 
-  async headObject(input: { bucket: string; path: string }): Promise<ObjectMetadata | null> {
-    try {
-      const [meta] = await this.fileRef(input).getMetadata();
-      // Stryker disable next-line ConditionalExpression: equivalent — for number inputs Number(n)===n, so forcing the string branch is observably identical
-      const size = typeof meta.size === 'string' ? Number(meta.size) : (meta.size as number);
-      return { size };
-    } catch (err) {
-      if (isNotFound(err)) return null;
-      throw err;
-    }
+  headObject(input: { bucket: string; path: string }): Promise<ObjectMetadata | null> {
+    return this.storage.headObject(input);
   }
 
-  async deleteObject(input: { bucket: string; path: string }): Promise<void> {
-    try {
-      await this.fileRef(input).delete();
-    } catch (err) {
-      if (isNotFound(err)) return;
-      throw err;
-    }
+  deleteObject(input: { bucket: string; path: string }): Promise<void> {
+    return this.storage.deleteObject(input);
   }
 
   async deletePrefix(input: { bucket: string; prefix: string }): Promise<void> {
     try {
-      await this.storage.bucket(input.bucket).deleteFiles({ prefix: input.prefix });
+      await this.storage.deletePrefix(input);
     } catch {
       // best-effort; caller logs
     }
@@ -165,11 +160,7 @@ export class VideoStorageAdapter implements VideoStoragePort {
         await rm(dir, { recursive: true, force: true });
       }
     }
-    const [signedUrl] = await this.fileRef(input).getSignedUrl({
-      action: 'read',
-      expires: Date.now() + 60_000,
-      version: 'v4',
-    });
+    const signedUrl = await this.storage.signReadUrl({ ...input, ttlSec: 60 });
     return this.runFfprobe(signedUrl);
   }
 
@@ -201,7 +192,7 @@ export class VideoStorageAdapter implements VideoStoragePort {
     if (this.cfg.playbackStorageImpl === 'fake') {
       return this.fakeReadManifest(input.path);
     }
-    const [buf] = await this.fileRef(input).download();
+    const buf = await this.storage.getObject(input);
     return buf.toString('utf-8');
   }
 
@@ -209,37 +200,19 @@ export class VideoStorageAdapter implements VideoStoragePort {
     if (this.cfg.playbackStorageImpl === 'fake') {
       return `gs-stub://${input.bucket}/${input.path}?ttl=${input.ttlSec}`;
     }
-    const [url] = await this.fileRef(input).getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + input.ttlSec * 1000,
-    });
-    return url;
+    return this.storage.signReadUrl(input);
   }
 
-  async downloadObject(input: { bucket: string; path: string; destination: string }): Promise<void> {
-    await this.fileRef(input).download({ destination: input.destination });
+  downloadObject(input: { bucket: string; path: string; destination: string }): Promise<void> {
+    return this.storage.downloadToFile(input);
   }
 
-  async uploadFile(input: {
-    localPath: string;
-    bucket: string;
-    path: string;
-    contentType: string;
-  }): Promise<void> {
-    await this.storage.bucket(input.bucket).upload(input.localPath, {
-      destination: input.path,
-      contentType: input.contentType,
-      resumable: false,
-    });
+  uploadFile(input: { localPath: string; bucket: string; path: string; contentType: string }): Promise<void> {
+    return this.storage.putFile(input);
   }
 
   openObjectReadStream(input: { bucket: string; path: string }): NodeJS.ReadableStream {
-    return this.fileRef(input).createReadStream();
-  }
-
-  private fileRef(input: { bucket: string; path: string }) {
-    return this.storage.bucket(input.bucket).file(input.path);
+    return this.storage.openReadStream(input);
   }
 
   // Mirror the REAL GCP Transcoder HLS layout: a master `manifest.m3u8` whose
