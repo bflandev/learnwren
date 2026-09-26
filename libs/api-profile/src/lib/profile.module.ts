@@ -5,7 +5,7 @@ import { AuthModule } from '@learnwren/api-auth';
 import { PICTURE_CONFIG, readPictureConfigFromEnv, type PictureConfig } from './picture/picture.config';
 import {
   PICTURE_STORAGE,
-  FirebasePictureStorageAdapter,
+  PictureStorageAdapter,
 } from './picture/picture-storage.adapter';
 import { FakePictureStorageAdapter } from './picture/fake-picture-storage.adapter';
 import { PictureExceptionFilter } from './picture/picture.exception-filter';
@@ -56,13 +56,15 @@ import { ProfileService } from './profile.service';
     AdminUserDeleteService,
     AdminUsersRepository,
     AdminUsersExceptionFilter,
-    FirebasePictureStorageAdapter,
+    PictureStorageAdapter,
     { provide: PICTURE_CONFIG, useFactory: () => readPictureConfigFromEnv(process.env) },
     {
       provide: PICTURE_STORAGE,
-      inject: [PICTURE_CONFIG, FirebasePictureStorageAdapter],
-      useFactory: (cfg: PictureConfig, firebase: FirebasePictureStorageAdapter) =>
-        cfg.impl === 'firebase' ? firebase : new FakePictureStorageAdapter(),
+      inject: [PICTURE_CONFIG, PictureStorageAdapter],
+      // impl 'firebase' is the historical env value for the real object store
+      // (GCS or S3, per LEARNWREN_OBJECT_STORAGE); 'fake' is in-memory.
+      useFactory: (cfg: PictureConfig, real: PictureStorageAdapter) =>
+        cfg.impl === 'firebase' ? real : new FakePictureStorageAdapter(),
     },
   ],
 })

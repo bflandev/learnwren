@@ -1,537 +1,238 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { type FirebaseStorageHandle } from '@learnwren/api-firebase';
+import type { ObjectStorage } from '@learnwren/api-object-storage';
 
 import { hlsVariantPlaylistName } from './hls-naming';
+import { VideoUploadSessions } from './upload/video-upload-sessions';
 import { type VideoConfig } from './video.config';
 import { VideoStorageAdapter } from './video-storage.adapter';
 
 const realCfg = { playbackStorageImpl: 'real', sourceProbeImpl: 'real' } as VideoConfig;
+const fakeCfg = { playbackStorageImpl: 'fake', sourceProbeImpl: 'fake' } as VideoConfig;
+const localCfg = { playbackStorageImpl: 'real', sourceProbeImpl: 'local' } as VideoConfig;
 
-function makeAdapterWithRunner(runner: ReturnType<typeof vi.fn>, file: object): VideoStorageAdapter {
-  const bucket = { file: () => file, deleteFiles: vi.fn(async () => [[]]) };
-  const storage = { bucket: () => bucket };
-  const adapter = new VideoStorageAdapter(storage as never, realCfg);
-  adapter.__setRunner(runner as never);
-  return adapter;
+const PROBE_JSON = JSON.stringify({
+  streams: [{ codec_type: 'audio' }, { codec_type: 'video', height: 720, width: 1280 }],
+  format: { duration: '42.50' },
+});
+
+function makeStorage(kind: 'gcs' | 's3' = 'gcs') {
+  return {
+    kind,
+    createResumableUpload: vi.fn(async () => 'https://resumable.example/session'),
+    headObject: vi.fn(async () => ({ size: 10 })),
+    deleteObject: vi.fn(async () => undefined),
+    deletePrefix: vi.fn(async () => undefined),
+    signReadUrl: vi.fn(async () => 'https://signed.example/path'),
+    getObject: vi.fn(async () => Buffer.from('#EXTM3U\nreal')),
+    downloadToFile: vi.fn(async ({ destination }: { destination: string }) => {
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(destination, 'mp4');
+    }),
+    putFile: vi.fn(async () => undefined),
+    openReadStream: vi.fn(() => ({ pipe: vi.fn() })),
+    ensureBucket: vi.fn(async () => undefined),
+  };
 }
 
-describe('VideoStorageAdapter.probeSource', () => {
-  it('returns height and durationSec parsed from ffprobe output', async () => {
-    const runner = vi.fn(async () => ({
-      stdout: JSON.stringify({
-        streams: [
-          { codec_type: 'video', height: 720, width: 1280 },
-          { codec_type: 'audio' },
-        ],
-        format: { duration: '42.50' },
-      }),
-    }));
-    const file = { getSignedUrl: vi.fn(async () => ['https://signed.example/path']) };
-    const adapter = makeAdapterWithRunner(runner, file);
-    const before = Date.now();
-    const result = await adapter.probeSource({ bucket: 'b', path: 'videos/v/source.mp4' });
-    const after = Date.now();
-    expect(result.height).toBe(720);
-    expect(result.durationSec).toBe(42.5);
-    // Pin the v4 read sign with a ~60s TTL (not action-only).
-    expect(file.getSignedUrl).toHaveBeenCalledOnce();
-    const signArgs = file.getSignedUrl.mock.calls[0]![0] as {
-      action: string;
-      version: string;
-      expires: number;
-    };
-    expect(signArgs.action).toBe('read');
-    expect(signArgs.version).toBe('v4');
-    expect(signArgs.expires).toBeGreaterThanOrEqual(before + 60_000);
-    expect(signArgs.expires).toBeLessThanOrEqual(after + 60_000);
-    // Pin the exact ffprobe arg vector: the JSON/stream/format flags drive the
-    // parse below, and the signed URL must be the final positional arg. (The
-    // binary path is the @ffprobe-installer resolution, so assert only args.)
-    expect(runner).toHaveBeenCalledOnce();
-    // Pin the resolved ffprobe binary path as the first positional arg. The
-    // module-level try block resolves @ffprobe-installer; if that block were
-    // emptied the binary would be undefined. It must be a non-empty string
-    // ending in "ffprobe".
-    const binaryArg = runner.mock.calls[0]![0] as string;
-    expect(binaryArg).toBeTruthy();
-    expect(binaryArg).toMatch(/ffprobe$/);
-    expect(runner.mock.calls[0]![1]).toEqual([
-      '-v', 'error',
-      '-print_format', 'json',
-      '-show_streams',
-      '-show_format',
-      'https://signed.example/path',
-    ]);
-  });
+function make(cfg: VideoConfig = realCfg, kind: 'gcs' | 's3' = 'gcs', runner = vi.fn(async () => ({ stdout: PROBE_JSON }))) {
+  const storage = makeStorage(kind);
+  const sessions = new VideoUploadSessions();
+  const adapter = new VideoStorageAdapter(storage as unknown as ObjectStorage, cfg, sessions);
+  adapter.__setRunner(runner as never);
+  return { adapter, storage, sessions, runner };
+}
 
-  it('selects the video stream even when it is not first in the list', async () => {
-    // Kills the find-predicate mutant: with `s.codec_type === 'video'` forced
-    // true, find() would return the leading audio stream (no height) and the
-    // probe would throw instead of reporting 480.
-    const runner = vi.fn(async () => ({
-      stdout: JSON.stringify({
-        streams: [
-          { codec_type: 'audio' },
-          { codec_type: 'video', height: 480 },
-        ],
-        format: { duration: '5' },
-      }),
-    }));
-    const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
-    const adapter = makeAdapterWithRunner(runner, file);
-    const result = await adapter.probeSource({ bucket: 'b', path: 'p' });
-    expect(result.height).toBe(480);
-  });
-
-  it('defaults durationSec to 0 when ffprobe reports no format block', async () => {
-    // Kills the `parsed.format?.duration` optional-chaining mutant and the
-    // `?? '0'` fallback: with no `format`, durationSec must be 0, not a throw.
-    const runner = vi.fn(async () => ({
-      stdout: JSON.stringify({ streams: [{ codec_type: 'video', height: 720 }] }),
-    }));
-    const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
-    const adapter = makeAdapterWithRunner(runner, file);
-    const result = await adapter.probeSource({ bucket: 'b', path: 'p' });
-    expect(result).toEqual({ height: 720, durationSec: 0 });
-  });
-
-  it('throws when no video stream is present', async () => {
-    const runner = vi.fn(async () => ({
-      stdout: JSON.stringify({ streams: [{ codec_type: 'audio' }], format: { duration: '1' } }),
-    }));
-    const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
-    const adapter = makeAdapterWithRunner(runner, file);
-    await expect(adapter.probeSource({ bucket: 'b', path: 'p' })).rejects.toThrow(/no video stream/i);
-  });
-
-  it('throws when the streams array is absent entirely', async () => {
-    // Kills the `parsed.streams?.find` optional-chaining mutant: removing `?.`
-    // would surface a TypeError; with it, we get our own "no video stream".
-    const runner = vi.fn(async () => ({ stdout: JSON.stringify({ format: { duration: '1' } }) }));
-    const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
-    const adapter = makeAdapterWithRunner(runner, file);
-    await expect(adapter.probeSource({ bucket: 'b', path: 'p' })).rejects.toThrow(/no video stream/i);
-  });
-
-  it('throws when the matched video stream has a non-numeric height', async () => {
-    // Kills the `typeof videoStream.height !== 'number'` half of the guard:
-    // forcing the whole condition false would return a bogus height instead.
-    const runner = vi.fn(async () => ({
-      stdout: JSON.stringify({
-        streams: [{ codec_type: 'video', height: '720' }],
-        format: { duration: '1' },
-      }),
-    }));
-    const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
-    const adapter = makeAdapterWithRunner(runner, file);
-    await expect(adapter.probeSource({ bucket: 'b', path: 'p' })).rejects.toThrow(/no video stream/i);
-  });
-
-  it('throws when the runner rejects', async () => {
-    const runner = vi.fn(async () => { throw new Error('ffprobe exited with code 1'); });
-    const file = { getSignedUrl: vi.fn(async () => ['https://x']) };
-    const adapter = makeAdapterWithRunner(runner, file);
-    await expect(adapter.probeSource({ bucket: 'b', path: 'p' })).rejects.toThrow(/ffprobe/);
-  });
-
-  it('returns the static fake probe without signing or running ffprobe when sourceProbeImpl is "fake"', async () => {
-    // The credential-free seam: in emulator/dev mode v4 signing throws because
-    // there are no Application Default Credentials. Returning a static probe
-    // (height: 240, durationSec: 1) lets the upload pipeline complete without
-    // touching ffprobe or the signed-URL machinery at all.
-    const runner = vi.fn();
-    const getSignedUrl = vi.fn();
-    const fileSpy = vi.fn(() => ({ getSignedUrl }));
-    const bucketSpy = vi.fn(() => ({ file: fileSpy, deleteFiles: vi.fn(async () => [[]]) }));
-    const storage = { bucket: bucketSpy };
-    const fakeCfg = { playbackStorageImpl: 'real', sourceProbeImpl: 'fake' } as VideoConfig;
-    const adapter = new VideoStorageAdapter(storage as never, fakeCfg);
-    adapter.__setRunner(runner as never);
-
-    const result = await adapter.probeSource({ bucket: 'b', path: 'videos/v/source.mp4' });
-
-    expect(result).toEqual({ height: 240, durationSec: 1 });
-    expect(bucketSpy).not.toHaveBeenCalled();
-    expect(fileSpy).not.toHaveBeenCalled();
-    expect(getSignedUrl).not.toHaveBeenCalled();
-    expect(runner).not.toHaveBeenCalled();
-  });
-});
+const ref = { bucket: 'b', path: 'videos/v/source.mp4' };
 
 describe('VideoStorageAdapter.createResumableSession', () => {
-  function makeAdapter(createResumableUpload: ReturnType<typeof vi.fn>) {
-    const fileSpy = vi.fn(() => ({ createResumableUpload }));
-    const bucketSpy = vi.fn(() => ({ file: fileSpy }));
-    const storage = { bucket: bucketSpy } as unknown as FirebaseStorageHandle;
-    return { adapter: new VideoStorageAdapter(storage, realCfg), bucketSpy, fileSpy };
-  }
-
-  it('creates the upload with content-type + videoId metadata scoped to the app origin', async () => {
-    const createResumableUpload = vi.fn(async () => ['https://resumable.example/session']);
-    const { adapter, bucketSpy, fileSpy } = makeAdapter(createResumableUpload);
-    const prev = process.env['LEARNWREN_PUBLIC_URL'];
-    process.env['LEARNWREN_PUBLIC_URL'] = 'https://app.learnwren.example';
-    try {
-      const before = Date.now();
-      const session = await adapter.createResumableSession({
-        bucket: 'uploads',
-        path: 'videos/v1/source.mp4',
-        contentType: 'video/mp4',
-        videoId: 'v1',
-      });
-      const after = Date.now();
-
-      expect(session.uri).toBe('https://resumable.example/session');
-      expect(bucketSpy).toHaveBeenCalledWith('uploads');
-      expect(fileSpy).toHaveBeenCalledWith('videos/v1/source.mp4');
-      // CORS origin pinned to the configured app URL; metadata carries both the
-      // content-type and the videoId tag the transcoder webhook keys off.
-      expect(createResumableUpload).toHaveBeenCalledWith({
-        metadata: {
-          contentType: 'video/mp4',
-          metadata: { videoId: 'v1' },
-        },
-        origin: 'https://app.learnwren.example',
-      });
-      // expiresAt is now + 7 days, as an ISO string.
-      const expMs = Date.parse(session.expiresAt);
-      expect(expMs).toBeGreaterThanOrEqual(before + 7 * 24 * 3600 * 1000);
-      expect(expMs).toBeLessThanOrEqual(after + 7 * 24 * 3600 * 1000);
-    } finally {
-      if (prev === undefined) delete process.env['LEARNWREN_PUBLIC_URL'];
-      else process.env['LEARNWREN_PUBLIC_URL'] = prev;
-    }
-  });
-
-  it('falls back to the local dev origin when LEARNWREN_PUBLIC_URL is unset', async () => {
-    const createResumableUpload = vi.fn(async () => ['uri']);
-    const { adapter } = makeAdapter(createResumableUpload);
-    const prev = process.env['LEARNWREN_PUBLIC_URL'];
-    delete process.env['LEARNWREN_PUBLIC_URL'];
-    try {
-      await adapter.createResumableSession({
-        bucket: 'b',
-        path: 'p',
-        contentType: 'video/mp4',
-        videoId: 'v1',
-      });
-      expect(createResumableUpload).toHaveBeenCalledWith(
-        expect.objectContaining({ origin: 'http://localhost:4200' }),
-      );
-    } finally {
-      if (prev !== undefined) process.env['LEARNWREN_PUBLIC_URL'] = prev;
-    }
-  });
-});
-
-describe('VideoStorageAdapter.headObject', () => {
-  function makeAdapter(getMetadata: ReturnType<typeof vi.fn>): VideoStorageAdapter {
-    const file = { getMetadata };
-    const storage = { bucket: () => ({ file: () => file }) } as unknown as FirebaseStorageHandle;
-    return new VideoStorageAdapter(storage, realCfg);
-  }
-
-  it('parses a string size into a number', async () => {
-    const getMetadata = vi.fn().mockResolvedValue([{ size: '12345' }]);
-    const result = await makeAdapter(getMetadata).headObject({ bucket: 'b', path: 'p' });
-    expect(result).toEqual({ size: 12345 });
-  });
-
-  it('returns a numeric size unchanged', async () => {
-    const getMetadata = vi.fn().mockResolvedValue([{ size: 999 }]);
-    const result = await makeAdapter(getMetadata).headObject({ bucket: 'b', path: 'p' });
-    expect(result).toEqual({ size: 999 });
-  });
-
-  it('returns null on 404 ("not found") errors', async () => {
-    const notFound = Object.assign(new Error('No such object'), { code: 404 });
-    const getMetadata = vi.fn().mockRejectedValue(notFound);
-    const result = await makeAdapter(getMetadata).headObject({ bucket: 'b', path: 'p' });
-    expect(result).toBeNull();
-  });
-
-  it('rethrows non-404 storage errors', async () => {
-    const boom = Object.assign(new Error('rate-limited'), { code: 429 });
-    const getMetadata = vi.fn().mockRejectedValue(boom);
-    await expect(makeAdapter(getMetadata).headObject({ bucket: 'b', path: 'p' })).rejects.toThrow(
-      /rate-limited/,
-    );
-  });
-});
-
-describe('VideoStorageAdapter.deleteObject', () => {
-  function makeAdapter(del: ReturnType<typeof vi.fn>): VideoStorageAdapter {
-    const file = { delete: del };
-    const storage = { bucket: () => ({ file: () => file }) } as unknown as FirebaseStorageHandle;
-    return new VideoStorageAdapter(storage, realCfg);
-  }
-
-  it('resolves on a successful delete', async () => {
-    const del = vi.fn().mockResolvedValue(undefined);
-    await expect(makeAdapter(del).deleteObject({ bucket: 'b', path: 'p' })).resolves.toBeUndefined();
-    expect(del).toHaveBeenCalledOnce();
-  });
-
-  it('returns silently when the object is already gone (404)', async () => {
-    const notFound = Object.assign(new Error('No such object'), { code: 404 });
-    const del = vi.fn().mockRejectedValue(notFound);
-    await expect(makeAdapter(del).deleteObject({ bucket: 'b', path: 'p' })).resolves.toBeUndefined();
-  });
-
-  it('rethrows non-404 delete errors', async () => {
-    const boom = Object.assign(new Error('forbidden'), { code: 403 });
-    const del = vi.fn().mockRejectedValue(boom);
-    await expect(makeAdapter(del).deleteObject({ bucket: 'b', path: 'p' })).rejects.toThrow(
-      /forbidden/,
-    );
-  });
-});
-
-describe('VideoStorageAdapter.deletePrefix', () => {
-  it('calls bucket.deleteFiles with the prefix', async () => {
-    const deleteFiles = vi.fn(async () => [[]]);
-    const bucket = { deleteFiles };
-    const storage = { bucket: () => bucket };
-    const adapter = new VideoStorageAdapter(storage as never, realCfg);
-    await adapter.deletePrefix({ bucket: 'b', prefix: 'videos/v1/' });
-    expect(deleteFiles).toHaveBeenCalledWith({ prefix: 'videos/v1/' });
-  });
-
-  it('swallows errors (best-effort)', async () => {
-    const bucket = { deleteFiles: vi.fn(async () => { throw new Error('rate-limited'); }) };
-    const storage = { bucket: () => bucket };
-    const adapter = new VideoStorageAdapter(storage as never, realCfg);
-    await expect(adapter.deletePrefix({ bucket: 'b', prefix: 'p/' })).resolves.toBeUndefined();
-  });
-});
-
-describe('VideoStorageAdapter.readManifestObject', () => {
-  it('downloads the object body as a UTF-8 string', async () => {
-    const download = vi.fn().mockResolvedValue([Buffer.from('#EXTM3U\nbody\n', 'utf-8')]);
-    const storage = {
-      bucket: (_b: string) => ({ file: (_p: string) => ({ download }) }),
-    } as unknown as FirebaseStorageHandle;
-    const adapter = new VideoStorageAdapter(storage, realCfg);
-    const body = await adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/manifest.m3u8' });
-    expect(body).toBe('#EXTM3U\nbody\n');
-    expect(download).toHaveBeenCalledOnce();
-  });
-
-  it('propagates errors from the storage layer', async () => {
-    const err = new Error('boom');
-    const download = vi.fn().mockRejectedValue(err);
-    const storage = {
-      bucket: () => ({ file: () => ({ download }) }),
-    } as unknown as FirebaseStorageHandle;
-    const adapter = new VideoStorageAdapter(storage, realCfg);
-    await expect(adapter.readManifestObject({ bucket: 'b', path: 'p' })).rejects.toThrow(/boom/);
-  });
-});
-
-describe('VideoStorageAdapter.signObjectUrl', () => {
-  it('mints a v4 read URL with the provided TTL', async () => {
-    const getSignedUrl = vi.fn().mockResolvedValue(['https://signed/url']);
-    const storage = {
-      bucket: () => ({ file: () => ({ getSignedUrl }) }),
-    } as unknown as FirebaseStorageHandle;
-    const adapter = new VideoStorageAdapter(storage, realCfg);
+  it('gcs: asks the store for a resumable session scoped to the public origin, expiring in 7 days', async () => {
     const before = Date.now();
-    const url = await adapter.signObjectUrl({ bucket: 'b', path: 'videos/v1/hls/1080p/seg.ts', ttlSec: 14400 });
-    const after = Date.now();
-    expect(url).toBe('https://signed/url');
-    expect(getSignedUrl).toHaveBeenCalledOnce();
-    const args = getSignedUrl.mock.calls[0]![0] as { version: string; action: string; expires: number };
-    expect(args.version).toBe('v4');
-    expect(args.action).toBe('read');
-    expect(args.expires).toBeGreaterThanOrEqual(before + 14400 * 1000);
-    expect(args.expires).toBeLessThanOrEqual(after + 14400 * 1000);
-  });
-
-  it('passes the bucket and path through to the storage client', async () => {
-    const fileSpy = vi.fn(() => ({ getSignedUrl: vi.fn().mockResolvedValue(['u']) }));
-    const bucketSpy = vi.fn(() => ({ file: fileSpy }));
-    const storage = { bucket: bucketSpy } as unknown as FirebaseStorageHandle;
-    const adapter = new VideoStorageAdapter(storage, realCfg);
-    await adapter.signObjectUrl({ bucket: 'my-bucket', path: 'a/b/c.ts', ttlSec: 60 });
-    expect(bucketSpy).toHaveBeenCalledWith('my-bucket');
-    expect(fileSpy).toHaveBeenCalledWith('a/b/c.ts');
-  });
-});
-
-describe('VideoStorageAdapter — playback storage fake mode', () => {
-  it('readManifestObject returns a deterministic master m3u8 when cfg.playbackStorageImpl=fake', async () => {
-    const fakeStorage = { bucket: () => ({ file: () => ({ /* unused */ }) }) } as unknown as FirebaseStorageHandle;
-    const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
-    const adapter = new VideoStorageAdapter(fakeStorage, cfg);
-    const body = await adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/manifest.m3u8' });
-    // Pin the exact master playlist — every variant line and the newline join
-    // matter to the downstream manifest rewriter, so assert byte-for-byte.
-    expect(body).toBe(
-      [
-        '#EXTM3U',
-        '#EXT-X-VERSION:6',
-        '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080',
-        'hls_1080p.m3u8',
-        '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720',
-        'hls_720p.m3u8',
-        '#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480',
-        'hls_480p.m3u8',
-        '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360',
-        'hls_360p.m3u8',
-        '',
-      ].join('\n'),
-    );
-  });
-
-  it('readManifestObject returns a deterministic variant m3u8 for hls_<rendition>.m3u8 paths', async () => {
-    const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
-    const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
-    const adapter = new VideoStorageAdapter(fakeStorage, cfg);
-    // Real GCP shape: the variant playlist sits flat at the output root, named
-    // after the mux-stream key, with flat segment filenames.
-    const body = await adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/hls_720p.m3u8' });
-    // Pin the exact variant playlist — the AES-128 key line, segment names,
-    // and #EXT-X-ENDLIST are all load-bearing for the player/key flow.
-    expect(body).toBe(
-      [
-        '#EXTM3U',
-        '#EXT-X-VERSION:6',
-        '#EXT-X-TARGETDURATION:6',
-        '#EXT-X-KEY:METHOD=AES-128,URI="https://example.invalid/k",IV=0xABCDEF0123456789ABCDEF0123456789',
-        '#EXTINF:6.000,',
-        'hls_720p0000000000.ts',
-        '#EXTINF:6.000,',
-        'hls_720p0000000001.ts',
-        '#EXT-X-ENDLIST',
-        '',
-      ].join('\n'),
-    );
-  });
-
-  it('derives the fake master variant names from the hls-naming seam (drift guard)', async () => {
-    // Contract pin: the fake MUST reference each rendition via
-    // `hlsVariantPlaylistName()` — the same seam the real transcoder job builder
-    // and the playback rewriter use — so the fake can never silently diverge
-    // from the real GCP output shape (the divergence that once broke real
-    // playback). If someone re-hardcodes a literal that drifts from the seam,
-    // this fails.
-    const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
-    const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
-    const adapter = new VideoStorageAdapter(fakeStorage, cfg);
-    const body = await adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/manifest.m3u8' });
-    const lines = body.split('\n');
-    for (const rendition of ['1080p', '720p', '480p', '360p']) {
-      expect(lines).toContain(hlsVariantPlaylistName(rendition));
+    process.env['LEARNWREN_PUBLIC_URL'] = 'https://app.example';
+    try {
+      const { adapter, storage, sessions } = make();
+      const r = await adapter.createResumableSession({ ...ref, contentType: 'video/mp4', videoId: 'v' });
+      expect(r.uri).toBe('https://resumable.example/session');
+      expect(storage.createResumableUpload).toHaveBeenCalledExactlyOnceWith({
+        bucket: 'b',
+        path: 'videos/v/source.mp4',
+        contentType: 'video/mp4',
+        metadata: { videoId: 'v' },
+        origin: 'https://app.example',
+      });
+      const expires = new Date(r.expiresAt).getTime();
+      expect(expires).toBeGreaterThanOrEqual(before + 7 * 24 * 3600 * 1000 - 1000);
+      expect(expires).toBeLessThanOrEqual(before + 7 * 24 * 3600 * 1000 + 5000);
+      expect(sessions.get('v')).toBeUndefined();
+    } finally {
+      delete process.env['LEARNWREN_PUBLIC_URL'];
     }
   });
 
-  it('signObjectUrl returns a gs-stub:// URL with bucket, path, and ttl', async () => {
-    const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
-    const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
-    const adapter = new VideoStorageAdapter(fakeStorage, cfg);
-    const url = await adapter.signObjectUrl({ bucket: 'b', path: 'videos/v1/hls/hls_720p0000000000.ts', ttlSec: 14400 });
-    expect(url).toBe('gs-stub://b/videos/v1/hls/hls_720p0000000000.ts?ttl=14400');
+  it('gcs: falls back to the local dev origin when LEARNWREN_PUBLIC_URL is unset', async () => {
+    delete process.env['LEARNWREN_PUBLIC_URL'];
+    const { adapter, storage } = make();
+    await adapter.createResumableSession({ ...ref, contentType: 'video/mp4', videoId: 'v' });
+    expect(storage.createResumableUpload.mock.calls[0]![0]).toMatchObject({ origin: 'http://localhost:4200' });
   });
 
-  it('readManifestObject throws when the path is unknown to the fake', async () => {
-    const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
-    const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
-    const adapter = new VideoStorageAdapter(fakeStorage, cfg);
-    await expect(
-      adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/random.txt' }),
-    ).rejects.toThrow(/unknown manifest path/);
-  });
-
-  it('throws for a .m3u8 path whose base does NOT start with the mux prefix', async () => {
-    // Kills the L217 `&&`→`||` mutant: the base ends in .m3u8 but is neither
-    // `manifest.m3u8` nor a `hls_*` variant. The real conjunction must reject
-    // it; an OR would mis-treat it as a variant playlist and produce output.
-    const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
-    const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
-    const adapter = new VideoStorageAdapter(fakeStorage, cfg);
-    await expect(
-      adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/other.m3u8' }),
-    ).rejects.toThrow(/unknown manifest path/);
-  });
-
-  it('throws for an hls_* path that does NOT end in .m3u8', async () => {
-    // Kills the L217 `.endsWith('.m3u8')`→`.endsWith('')` mutant: the base
-    // starts with the mux prefix but has a non-m3u8 extension. The real
-    // suffix check must reject it; the empty-string suffix always matches and
-    // would emit a bogus variant playlist.
-    const fakeStorage = { bucket: () => ({ file: () => ({}) }) } as unknown as FirebaseStorageHandle;
-    const cfg = { playbackStorageImpl: 'fake' } as VideoConfig;
-    const adapter = new VideoStorageAdapter(fakeStorage, cfg);
-    await expect(
-      adapter.readManifestObject({ bucket: 'b', path: 'videos/v1/hls/hls_720p.txt' }),
-    ).rejects.toThrow(/unknown manifest path/);
+  it('s3: opens an api upload session and hands the browser the proxy route', async () => {
+    const { adapter, storage, sessions } = make(realCfg, 's3');
+    const r = await adapter.createResumableSession({ ...ref, contentType: 'video/quicktime', videoId: 'v' });
+    expect(r.uri).toBe('/api/internal/uploads/videos/v');
+    expect(sessions.get('v')).toEqual({ bucket: 'b', path: 'videos/v/source.mp4', contentType: 'video/quicktime', parts: [], received: 0 });
+    expect(storage.createResumableUpload).not.toHaveBeenCalled();
   });
 });
 
-describe('VideoStorageAdapter — self-hosted seams (US-09-04 Slice B)', () => {
-  const localCfg = { playbackStorageImpl: 'real', sourceProbeImpl: 'local' } as VideoConfig;
+describe('VideoStorageAdapter.onModuleInit', () => {
+  it('creates the source and output buckets', async () => {
+    const { adapter, storage } = make({ ...realCfg, sourceBucket: 'src-b', outputBucket: 'out-b' } as VideoConfig);
+    await adapter.onModuleInit();
+    expect(storage.ensureBucket.mock.calls.map((c) => c[0])).toEqual(['src-b', 'out-b']);
+  });
+});
 
-  it('probeSource in local mode downloads to a temp file, probes the path, and cleans up', async () => {
-    const seen: { destination?: string } = {};
-    const file = {
-      download: vi.fn(async (opts: { destination: string }) => {
-        seen.destination = opts.destination;
-        const { writeFileSync } = await import('node:fs');
-        writeFileSync(opts.destination, 'mp4');
-        return [];
-      }),
-      getSignedUrl: vi.fn(),
-    };
-    const runner = vi.fn(async () => ({
-      stdout: JSON.stringify({
-        streams: [{ codec_type: 'video', height: 360 }],
-        format: { duration: '2.0' },
-      }),
-    }));
-    const bucket = { file: () => file };
-    const adapter = new VideoStorageAdapter({ bucket: () => bucket } as never, localCfg);
-    adapter.__setRunner(runner as never);
-    const probe = await adapter.probeSource({ bucket: 'b', path: 'videos/v/source.mp4' });
-    expect(probe).toEqual({ height: 360, durationSec: 2 });
-    expect(file.getSignedUrl).not.toHaveBeenCalled();
-    expect(seen.destination).toBeTruthy();
-    expect(runner.mock.calls[0]![1].at(-1)).toBe(seen.destination);
-    const { existsSync } = await import('node:fs');
+describe('VideoStorageAdapter object operations delegate to the port', () => {
+  it('headObject / deleteObject / downloadObject / uploadFile / openObjectReadStream', async () => {
+    const { adapter, storage } = make();
+    expect(await adapter.headObject(ref)).toEqual({ size: 10 });
+    expect(storage.headObject).toHaveBeenCalledWith(ref);
+    await adapter.deleteObject(ref);
+    expect(storage.deleteObject).toHaveBeenCalledWith(ref);
+    await adapter.downloadObject({ ...ref, destination: '/dev/null' });
+    expect(storage.downloadToFile).toHaveBeenCalledWith({ ...ref, destination: '/dev/null' });
+    await adapter.uploadFile({ ...ref, localPath: '/tmp/x', contentType: 'video/mp2t' });
+    expect(storage.putFile).toHaveBeenCalledWith({ ...ref, localPath: '/tmp/x', contentType: 'video/mp2t' });
+    const s = adapter.openObjectReadStream(ref);
+    expect(storage.openReadStream).toHaveBeenCalledWith(ref);
+    expect(s).toBe(storage.openReadStream.mock.results[0]!.value);
+  });
+
+  it('deletePrefix is best-effort: a store failure is swallowed', async () => {
+    const { adapter, storage } = make();
+    storage.deletePrefix.mockRejectedValueOnce(new Error('403'));
+    await expect(adapter.deletePrefix({ bucket: 'b', prefix: 'videos/v/' })).resolves.toBeUndefined();
+    expect(storage.deletePrefix).toHaveBeenCalledWith({ bucket: 'b', prefix: 'videos/v/' });
+  });
+
+  it('propagates headObject and deleteObject failures', async () => {
+    const { adapter, storage } = make();
+    storage.headObject.mockRejectedValueOnce(new Error('h'));
+    await expect(adapter.headObject(ref)).rejects.toThrow('h');
+    storage.deleteObject.mockRejectedValueOnce(new Error('d'));
+    await expect(adapter.deleteObject(ref)).rejects.toThrow('d');
+  });
+});
+
+describe('VideoStorageAdapter.probeSource', () => {
+  it('fake: returns the static probe without touching storage or ffprobe', async () => {
+    const { adapter, storage, runner } = make(fakeCfg);
+    expect(await adapter.probeSource(ref)).toEqual({ height: 240, durationSec: 1 });
+    expect(storage.signReadUrl).not.toHaveBeenCalled();
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it('real: signs a 60 s read URL and runs the pinned ffprobe arg vector against it', async () => {
+    const { adapter, storage, runner } = make();
+    const result = await adapter.probeSource(ref);
+    expect(result).toEqual({ height: 720, durationSec: 42.5 });
+    expect(storage.signReadUrl).toHaveBeenCalledExactlyOnceWith({ ...ref, ttlSec: 60 });
+    const [binary, args] = runner.mock.calls[0]! as unknown as [string, string[]];
+    expect(binary).toMatch(/ffprobe$/);
+    expect(args).toEqual(['-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', 'https://signed.example/path']);
+  });
+
+  it('local: downloads to a temp file named source, probes the path, removes the directory', async () => {
+    const { adapter, storage, runner } = make(localCfg);
+    const probe = await adapter.probeSource(ref);
+    expect(probe).toEqual({ height: 720, durationSec: 42.5 });
+    expect(storage.signReadUrl).not.toHaveBeenCalled();
+    const destination = (storage.downloadToFile.mock.calls[0]![0] as { destination: string }).destination;
     const { basename, dirname } = await import('node:path');
-    expect(basename(seen.destination!)).toBe('source');
-    expect(basename(dirname(seen.destination!))).toMatch(/^lw-probe-/);
-    expect(existsSync(seen.destination!)).toBe(false);
-    expect(existsSync(dirname(seen.destination!))).toBe(false);
+    const { existsSync } = await import('node:fs');
+    expect(basename(destination)).toBe('source');
+    expect(basename(dirname(destination))).toMatch(/^lw-probe-/);
+    expect((runner.mock.calls[0]! as unknown as [string, string[]])[1].at(-1)).toBe(destination);
+    expect(existsSync(dirname(destination))).toBe(false);
   });
 
-  it('downloadObject streams an object to a local destination', async () => {
-    const file = { download: vi.fn(async () => []) };
-    const adapter = new VideoStorageAdapter({ bucket: () => ({ file: () => file }) } as never, localCfg);
-    await adapter.downloadObject({ bucket: 'b', path: 'p', destination: '/tmp/x' });
-    expect(file.download).toHaveBeenCalledWith({ destination: '/tmp/x' });
+  it('local: removes the temp directory even when ffprobe fails', async () => {
+    const runner = vi.fn(async () => { throw new Error('probe failed'); });
+    const { adapter, storage } = make(localCfg, 'gcs', runner);
+    await expect(adapter.probeSource(ref)).rejects.toThrow('probe failed');
+    const destination = (storage.downloadToFile.mock.calls[0]![0] as { destination: string }).destination;
+    const { existsSync } = await import('node:fs');
+    const { dirname } = await import('node:path');
+    expect(existsSync(dirname(destination))).toBe(false);
   });
 
-  it('uploadFile uploads a local file to the object path with its content type', async () => {
-    const upload = vi.fn(async () => []);
-    const adapter = new VideoStorageAdapter({ bucket: () => ({ upload }) } as never, localCfg);
-    await adapter.uploadFile({
-      localPath: '/tmp/hls_360p.m3u8',
-      bucket: 'out',
-      path: 'videos/v/hls/hls_360p.m3u8',
-      contentType: 'application/vnd.apple.mpegurl',
-    });
-    expect(upload).toHaveBeenCalledWith('/tmp/hls_360p.m3u8', {
-      destination: 'videos/v/hls/hls_360p.m3u8',
-      contentType: 'application/vnd.apple.mpegurl',
-      resumable: false,
-    });
+  it('throws when ffprobe reports no video stream', async () => {
+    const runner = vi.fn(async () => ({ stdout: JSON.stringify({ streams: [{ codec_type: 'audio' }] }) }));
+    const { adapter } = make(realCfg, 'gcs', runner);
+    await expect(adapter.probeSource(ref)).rejects.toThrow(/no video stream/);
   });
 
-  it('openObjectReadStream returns the object read stream', () => {
-    const stream = { pipe: vi.fn() };
-    const file = { createReadStream: vi.fn(() => stream) };
-    const adapter = new VideoStorageAdapter({ bucket: () => ({ file: () => file }) } as never, localCfg);
-    expect(adapter.openObjectReadStream({ bucket: 'b', path: 'p' })).toBe(stream);
+  it('throws when the video stream has no numeric height', async () => {
+    const runner = vi.fn(async () => ({ stdout: JSON.stringify({ streams: [{ codec_type: 'video', height: '720' }] }) }));
+    const { adapter } = make(realCfg, 'gcs', runner);
+    await expect(adapter.probeSource(ref)).rejects.toThrow(/no video stream/);
+  });
+
+  it('throws the no-video-stream error (not a TypeError) when ffprobe returns no streams at all', async () => {
+    const runner = vi.fn(async () => ({ stdout: '{}' }));
+    const { adapter } = make(realCfg, 'gcs', runner);
+    await expect(adapter.probeSource(ref)).rejects.toThrow(/no video stream/);
+  });
+
+  it('reports duration 0 when ffprobe omits the format block', async () => {
+    const runner = vi.fn(async () => ({ stdout: JSON.stringify({ streams: [{ codec_type: 'video', height: 360 }] }) }));
+    const { adapter } = make(realCfg, 'gcs', runner);
+    expect(await adapter.probeSource(ref)).toEqual({ height: 360, durationSec: 0 });
+  });
+});
+
+describe('VideoStorageAdapter playback reads', () => {
+  it('real: readManifestObject fetches the object body; signObjectUrl signs with the TTL', async () => {
+    const { adapter, storage } = make();
+    expect(await adapter.readManifestObject({ bucket: 'out', path: 'videos/v/hls/manifest.m3u8' })).toBe('#EXTM3U\nreal');
+    expect(storage.getObject).toHaveBeenCalledWith({ bucket: 'out', path: 'videos/v/hls/manifest.m3u8' });
+    expect(await adapter.signObjectUrl({ bucket: 'out', path: 'videos/v/hls/x.ts', ttlSec: 14400 })).toBe('https://signed.example/path');
+    expect(storage.signReadUrl).toHaveBeenCalledWith({ bucket: 'out', path: 'videos/v/hls/x.ts', ttlSec: 14400 });
+  });
+
+  it('fake: master mirrors the GCP layout with all four flat variant playlists', async () => {
+    const { adapter, storage } = make(fakeCfg);
+    const master = await adapter.readManifestObject({ bucket: 'out', path: 'videos/v/hls/manifest.m3u8' });
+    expect(master.startsWith('#EXTM3U\n#EXT-X-VERSION:6\n')).toBe(true);
+    for (const r of ['1080p', '720p', '480p', '360p']) {
+      expect(master).toContain(`\n${hlsVariantPlaylistName(r)}\n`);
+    }
+    expect(master).toContain('#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080\nhls_1080p.m3u8');
+    expect(master).toContain('#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\nhls_360p.m3u8');
+    expect(master.endsWith('hls_360p.m3u8\n')).toBe(true);
+    expect(storage.getObject).not.toHaveBeenCalled();
+  });
+
+  it('fake: a variant playlist carries an AES-128 key line and two flat segments named after the mux key', async () => {
+    const { adapter } = make(fakeCfg);
+    const body = await adapter.readManifestObject({ bucket: 'out', path: `videos/v/hls/${hlsVariantPlaylistName('720p')}` });
+    expect(body.startsWith('#EXTM3U\n#EXT-X-VERSION:6\n#EXT-X-TARGETDURATION:6\n')).toBe(true);
+    expect(body).toContain('#EXT-X-KEY:METHOD=AES-128,URI="https://example.invalid/k",IV=0xABCDEF0123456789ABCDEF0123456789');
+    expect(body.endsWith('#EXTINF:6.000,\nhls_720p0000000000.ts\n#EXTINF:6.000,\nhls_720p0000000001.ts\n#EXT-X-ENDLIST\n')).toBe(true);
+  });
+
+  it('fake: an unknown manifest path throws', async () => {
+    const { adapter } = make(fakeCfg);
+    await expect(adapter.readManifestObject({ bucket: 'out', path: 'videos/v/hls/other.txt' })).rejects.toThrow(/unknown manifest path/);
+    await expect(adapter.readManifestObject({ bucket: 'out', path: 'videos/v/hls/weird.m3u8' })).rejects.toThrow(/unknown manifest path/);
+    // A mux-key prefix on a non-playlist extension is not a variant playlist.
+    await expect(adapter.readManifestObject({ bucket: 'out', path: 'videos/v/hls/hls_720p0000000000.ts' })).rejects.toThrow(/unknown manifest path/);
+  });
+
+  it('fake: signObjectUrl returns a gs-stub URL carrying bucket, path and TTL', async () => {
+    const { adapter, storage } = make(fakeCfg);
+    expect(await adapter.signObjectUrl({ bucket: 'out', path: 'videos/v/hls/x.ts', ttlSec: 99 })).toBe('gs-stub://out/videos/v/hls/x.ts?ttl=99');
+    expect(storage.signReadUrl).not.toHaveBeenCalled();
   });
 });

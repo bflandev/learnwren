@@ -22,6 +22,8 @@ import {
   type TranscoderClient,
 } from './transcoder/gcp-transcoder.adapter';
 import { VIDEO_TRANSCODER, type VideoTranscoder } from './transcoder/transcoder.port';
+import { VideoUploadProxyController } from './upload/video-upload-proxy.controller';
+import { VideoUploadSessions } from './upload/video-upload-sessions';
 import { VIDEO_CONFIG, readVideoConfigFromEnv, type VideoConfig } from './video.config';
 import { VideoController } from './video.controller';
 import { VideoExceptionFilter } from './video.exception-filter';
@@ -76,6 +78,9 @@ if (
 }
 const controllers = [
   VideoController,
+  // Serves chunked uploads in S3 mode; guarded, and a no-op 409 elsewhere
+  // (no session is ever opened outside S3 mode).
+  VideoUploadProxyController,
   CaptionsController,
   TranscoderEventsController,
   PlaybackController,
@@ -96,6 +101,7 @@ const controllers = [
     VideoService,
     CaptionsService,
     VideoStorageAdapter,
+    VideoUploadSessions,
     VideoOwnerGuard,
     VideoExceptionFilter,
     PubSubPushGuard,

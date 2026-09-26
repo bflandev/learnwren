@@ -14,7 +14,7 @@ import { CourseOwnerGuard } from './course-owner.guard';
 import { COVER_CONFIG, readCoverConfigFromEnv, type CoverConfig } from './cover/cover.config';
 import {
   COVER_STORAGE,
-  FirebaseCoverStorageAdapter,
+  CoverStorageAdapter,
 } from './cover/cover-storage.adapter';
 import { FakeCoverStorageAdapter } from './cover/fake-cover-storage.adapter';
 import { CoverController } from './cover/cover.controller';
@@ -75,15 +75,17 @@ import { HEALTH_CONFIG, readHealthConfigFromEnv } from './health/health.config';
     NotificationsService,
     CoverImageService,
     CoverExceptionFilter,
-    FirebaseCoverStorageAdapter,
+    CoverStorageAdapter,
     AdminHealthService,
     { provide: HEALTH_CONFIG, useFactory: () => readHealthConfigFromEnv(process.env) },
     { provide: COVER_CONFIG, useFactory: () => readCoverConfigFromEnv(process.env) },
     {
       provide: COVER_STORAGE,
-      inject: [COVER_CONFIG, FirebaseCoverStorageAdapter],
-      useFactory: (cfg: CoverConfig, firebase: FirebaseCoverStorageAdapter) =>
-        cfg.impl === 'firebase' ? firebase : new FakeCoverStorageAdapter({ bucket: cfg.bucket }),
+      inject: [COVER_CONFIG, CoverStorageAdapter],
+      // impl 'firebase' is the historical env value for the real object store
+      // (GCS or S3, per LEARNWREN_OBJECT_STORAGE); 'fake' is in-memory.
+      useFactory: (cfg: CoverConfig, real: CoverStorageAdapter) =>
+        cfg.impl === 'firebase' ? real : new FakeCoverStorageAdapter({ bucket: cfg.bucket }),
     },
   ],
   exports: [CoursesRepository, CourseOwnerGuard, EnrollmentRepository],

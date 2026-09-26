@@ -2,6 +2,7 @@ import { Module, ValidationPipe } from '@nestjs/common';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { FirebaseAdminModule } from '@learnwren/api-firebase';
+import { ObjectStorageModule } from '@learnwren/api-object-storage';
 import { AuthModule } from '@learnwren/api-auth';
 import { CoursesModule, VideoModule } from '@learnwren/api-courses';
 import { ProfileModule } from '@learnwren/api-profile';
@@ -12,6 +13,8 @@ import { resolveThrottleTiers } from './throttle.config';
 @Module({
   imports: [
     FirebaseAdminModule.forRoot(),
+    // One object-storage seam for every file the platform stores (GCS or S3).
+    ObjectStorageModule,
     // Per-IP rate limit. Two tiers: a burst limit (100 / 10s) catches scraping
     // and a sustained limit (1000 / minute) bounds amplification of expensive
     // routes like /api/catalog. The throttler hashes req.ip — main.ts sets

@@ -597,11 +597,11 @@ test('UC-04-02 student sees the lesson materials section and Download fetches th
 
   // Click Download — the page now uses a synchronous anchor click (popup-
   // blocker safe), so assert the browser download targets THIS material
-  // (fake storage adapter returns /api/internal/fake-materials/<materialId>)
+  // (fake storage adapter returns /api/internal/downloads/materials/<materialId>)
   const downloadPromise = page.waitForEvent('download');
   await downloadButton.click();
   const download = await downloadPromise;
-  expect(download.url()).toMatch(/\/fake-materials\//);
+  expect(download.url()).toMatch(/\/downloads\/materials\//);
   expect(download.url()).toContain(materialId);
 });
 

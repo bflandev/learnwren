@@ -1,6 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 
-import { FIREBASE_STORAGE, type FirebaseStorageHandle } from '@learnwren/api-firebase';
+import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 
 import { COVER_CONFIG, type CoverConfig } from './cover.config';
 
@@ -17,34 +17,24 @@ export interface CoverStoragePort {
   deleteObject(input: { path: string }): Promise<void>;
 }
 
-/** Firebase Storage implementation. Selected when LEARNWREN_COVER_STORAGE=firebase. */
+/** Cover images in the configured bucket, through the shared ObjectStorage port. */
 @Injectable()
-export class FirebaseCoverStorageAdapter implements CoverStoragePort {
+export class CoverStorageAdapter implements CoverStoragePort, OnModuleInit {
   constructor(
-    @Inject(FIREBASE_STORAGE) private readonly storage: FirebaseStorageHandle,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(COVER_CONFIG) private readonly cfg: CoverConfig,
   ) {}
 
+  onModuleInit(): Promise<void> {
+    return this.storage.ensureBucket(this.cfg.bucket);
+  }
+
   async putObject(input: PutObjectInput): Promise<void> {
-    const file = this.storage.bucket(this.cfg.bucket).file(input.path);
-    await file.save(input.body, {
-      contentType: input.contentType,
-      metadata: {
-        cacheControl: input.cacheControl,
-        metadata: input.metadata,
-      },
-      resumable: false,
-    });
+    await this.storage.putObject({ ...input, bucket: this.cfg.bucket });
   }
 
   async deleteObject(input: { path: string }): Promise<void> {
-    const file = this.storage.bucket(this.cfg.bucket).file(input.path);
-    try {
-      await file.delete({ ignoreNotFound: true });
-    } catch (err) {
-      if ((err as { code?: number }).code === 404) return;
-      throw err;
-    }
+    await this.storage.deleteObject({ bucket: this.cfg.bucket, path: input.path });
   }
 }
 

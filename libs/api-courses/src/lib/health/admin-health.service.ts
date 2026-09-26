@@ -1,11 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import {
-  FIREBASE_STORAGE,
-  FIRESTORE,
-  type FirebaseStorageHandle,
-  type FirestoreHandle,
-} from '@learnwren/api-firebase';
+import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
   AdminHealthReport,
@@ -31,7 +27,7 @@ function failureDetail(reason: unknown): string {
 export class AdminHealthService {
   constructor(
     @Inject(FIRESTORE) private readonly db: FirestoreHandle,
-    @Inject(FIREBASE_STORAGE) private readonly storage: FirebaseStorageHandle,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(HEALTH_CONFIG) private readonly config: HealthConfig,
     private readonly videos: VideoRepository,
   ) {}
@@ -112,12 +108,7 @@ export class AdminHealthService {
   private async measureStorageBytes(): Promise<number> {
     if (this.config.storageImpl === 'fake') return 0;
     const buckets = [this.config.sourceBucket, this.config.outputBucket];
-    const perBucket = await Promise.all(
-      buckets.map(async (name) => {
-        const [files] = await this.storage.bucket(name).getFiles();
-        return files.reduce((sum, f) => sum + Number(f.metadata.size ?? 0), 0);
-      }),
-    );
+    const perBucket = await Promise.all(buckets.map((name) => this.storage.totalBytes(name)));
     return perBucket.reduce((a, b) => a + b, 0);
   }
 

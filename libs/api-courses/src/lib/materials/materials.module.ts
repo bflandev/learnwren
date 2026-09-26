@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 
 import { AuthModule } from '@learnwren/api-auth';
 import { FirebaseAdminModule } from '@learnwren/api-firebase';
+import { readObjectStorageConfigFromEnv } from '@learnwren/api-object-storage';
 
 import { CoursesModule } from '../courses.module';
 import { MaterialAccessGuard } from './material-access.guard';
@@ -12,7 +13,7 @@ import { MaterialsExceptionFilter } from './materials.exception-filter';
 import { MaterialsRepository } from './materials.repository';
 import { MaterialsService } from './materials.service';
 import { MaterialsStorageAdapter } from './materials-storage.adapter';
-import { FakeMaterialsController } from './webhook/fake-materials.controller';
+import { MaterialsProxyController } from './webhook/materials-proxy.controller';
 
 // The fake materials passthrough writes attacker-supplied bytes through the
 // Admin SDK — only safe in dev/test. Require BOTH `NODE_ENV !== 'production'`
@@ -29,9 +30,12 @@ if (
     'Refusing to start: LEARNWREN_MATERIALS_STORAGE_FAKE=true is incompatible with NODE_ENV=production',
   );
 }
+// S3 mode (self-host) also needs the api to carry material bytes: the store is
+// never exposed to browsers, so signed URLs are not an option there.
+const proxyEnabled = fakeMaterialsEnabled || readObjectStorageConfigFromEnv(process.env).kind === 's3';
 const controllers = [
   MaterialsController,
-  ...(fakeMaterialsEnabled ? [FakeMaterialsController] : []),
+  ...(proxyEnabled ? [MaterialsProxyController] : []),
 ];
 
 // CoursesModule ↔ MaterialsModule are mutually dependent (CoursesService

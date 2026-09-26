@@ -5,7 +5,9 @@
     "declaration": true,
     "outDir": "../../dist/out-tsc",
     "module": "commonjs",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "target": "es2021",
@@ -17,7 +19,9 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "exclude": [
     "vite.config.ts",
     "vite.config.mts",
@@ -47,6 +51,9 @@
     },
     {
       "path": "../../libs/shared-data-models/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/api-object-storage/tsconfig.lib.json"
     }
   ]
 }

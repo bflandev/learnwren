@@ -42,13 +42,10 @@ function makeService(o: Overrides = {}) {
     }),
   };
   const storage = {
-    bucket: vi.fn((name: string) => ({
-      getFiles: vi.fn(() => {
-        if (o.bucketError) return Promise.reject(o.bucketError);
-        const sizes = o.bucketFiles?.[name] ?? [];
-        return Promise.resolve([sizes.map((s) => ({ metadata: { size: s } }))]);
-      }),
-    })),
+    totalBytes: vi.fn((name: string) => {
+      if (o.bucketError) return Promise.reject(o.bucketError);
+      return Promise.resolve((o.bucketFiles?.[name] ?? []).reduce((a, b) => a + b, 0));
+    }),
   };
   const videos = {
     countPendingTranscodes: vi.fn(() =>
@@ -101,7 +98,7 @@ describe('AdminHealthService.getReport', () => {
       detail: 'fake',
     });
     expect(report.stats.storageUsedBytes).toBe(0);
-    expect(storage.bucket).not.toHaveBeenCalled();
+    expect(storage.totalBytes).not.toHaveBeenCalled();
   });
 
   it('real storage mode: sums object sizes across source and output buckets', async () => {

@@ -4,9 +4,14 @@
     "outDir": "../../dist/out-tsc",
     "composite": true,
     "declaration": true,
-    "types": ["node", "multer"]
+    "types": [
+      "node",
+      "multer"
+    ]
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "exclude": [
     "vite.config.ts",
     "vite.config.mts",
@@ -34,6 +39,9 @@
     },
     {
       "path": "../shared-data-models/tsconfig.lib.json"
+    },
+    {
+      "path": "../api-object-storage/tsconfig.lib.json"
     }
   ]
 }

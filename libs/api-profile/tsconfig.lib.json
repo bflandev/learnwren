@@ -3,7 +3,10 @@
   "compilerOptions": {
     "outDir": "../../dist/out-tsc",
     "declaration": true,
-    "types": ["node", "multer"],
+    "types": [
+      "node",
+      "multer"
+    ],
     "target": "es2021",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -13,7 +16,9 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "exclude": [
     "vite.config.ts",
     "vite.config.mts",
@@ -41,6 +46,9 @@
     },
     {
       "path": "../shared-data-models/tsconfig.lib.json"
+    },
+    {
+      "path": "../api-object-storage/tsconfig.lib.json"
     }
   ]
 }

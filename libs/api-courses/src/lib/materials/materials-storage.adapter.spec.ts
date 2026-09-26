@@ -1,162 +1,98 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ObjectStorage } from '@learnwren/api-object-storage';
+
 import type { MaterialsConfig } from './materials.config';
 import { MaterialsStorageAdapter } from './materials-storage.adapter';
 
-const fakeCfg: MaterialsConfig = {
-  materialsBucket: 'b',
-  storageImpl: 'fake',
-  uploadUrlTtlSec: 900,
-  downloadUrlTtlSec: 900,
-};
+const fakeCfg: MaterialsConfig = { materialsBucket: 'b', storageImpl: 'fake', uploadUrlTtlSec: 900, downloadUrlTtlSec: 900 };
 const realCfg: MaterialsConfig = { ...fakeCfg, storageImpl: 'real' };
 
-/** Minimal Cloud Storage double — one configurable `file` object per test. */
-function storageWith(file: Record<string, unknown>) {
-  return { bucket: () => ({ file: () => file }) } as never;
+function storage(kind: 'gcs' | 's3' = 'gcs') {
+  return {
+    kind,
+    signWriteUrl: vi.fn(async () => 'https://signed.example/upload'),
+    signReadUrl: vi.fn(async () => 'https://signed.example/download'),
+    headObject: vi.fn(async () => ({ size: 4096 })),
+    deleteObject: vi.fn(async () => undefined),
+    ensureBucket: vi.fn(async () => undefined),
+  };
+}
+const asPort = (s: ReturnType<typeof storage>) => s as unknown as ObjectStorage;
+
+const upload = { bucket: 'b', path: 'materials/m1/source.pdf', contentType: 'application/pdf', materialId: 'm1' };
+const download = { ...upload, filename: 'doc.pdf', ttlSec: 900 };
+
+function expectFuture(iso: string, before: number) {
+  const ms = new Date(iso).getTime();
+  expect(ms).toBeGreaterThan(before + 800_000);
+  expect(ms).toBeLessThan(before + 1_000_000);
 }
 
-describe('MaterialsStorageAdapter — fake mode', () => {
-  it('signUploadUrl returns an internal passthrough URL with a future expiresAt', async () => {
+describe('MaterialsStorageAdapter — proxied modes (fake, or any s3 store)', () => {
+  it.each([
+    ['fake adapter on gcs', fakeCfg, 'gcs' as const],
+    ['real adapter on s3', realCfg, 's3' as const],
+    ['fake adapter on s3', fakeCfg, 's3' as const],
+  ])('%s: mints api proxy URLs and never signs', async (_label, cfg, kind) => {
     const before = Date.now();
-    const a = new MaterialsStorageAdapter(storageWith({}), fakeCfg);
-    const r = await a.signUploadUrl({
-      bucket: 'b',
-      path: 'materials/m1/source.pdf',
-      contentType: 'application/pdf',
-      materialId: 'm1',
-    });
-    expect(r.uploadUrl).toBe('/api/internal/fake-materials/m1');
-    // expiresAt must be in the future (now + 900s), not in the past.
-    // Kills ArithmeticOperator mutants that replace `+` with `-` or `*` with `/`.
-    const expiresMs = new Date(r.expiresAt).getTime();
-    expect(expiresMs).toBeGreaterThan(before + 800_000);
-    expect(expiresMs).toBeLessThan(before + 1_000_000);
-  });
-
-  it('signDownloadUrl returns an internal passthrough URL with a future expiresAt', async () => {
-    const before = Date.now();
-    const a = new MaterialsStorageAdapter(storageWith({}), fakeCfg);
-    const r = await a.signDownloadUrl({
-      bucket: 'b',
-      path: 'materials/m1/source.pdf',
-      filename: 'doc.pdf',
-      contentType: 'application/pdf',
-      materialId: 'm1',
-      ttlSec: 900,
-    });
-    expect(r.downloadUrl).toBe('/api/internal/fake-materials/m1');
-    const expiresMs = new Date(r.expiresAt).getTime();
-    expect(expiresMs).toBeGreaterThan(before + 800_000);
-    expect(expiresMs).toBeLessThan(before + 1_000_000);
+    const s = storage(kind);
+    const a = new MaterialsStorageAdapter(asPort(s), cfg);
+    const up = await a.signUploadUrl(upload);
+    expect(up.uploadUrl).toBe('/api/internal/uploads/materials/m1');
+    expectFuture(up.expiresAt, before);
+    const down = await a.signDownloadUrl(download);
+    expect(down.downloadUrl).toBe('/api/internal/downloads/materials/m1');
+    expectFuture(down.expiresAt, before);
+    expect(s.signWriteUrl).not.toHaveBeenCalled();
+    expect(s.signReadUrl).not.toHaveBeenCalled();
   });
 });
 
-describe('MaterialsStorageAdapter — real mode', () => {
-  it('signUploadUrl asks Cloud Storage for a v4 write URL bound to the content-type', async () => {
+describe('MaterialsStorageAdapter — gcs signed mode', () => {
+  it('signUploadUrl asks for a write URL bound to the content type and TTL', async () => {
     const before = Date.now();
-    const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example/upload']);
-    const a = new MaterialsStorageAdapter(storageWith({ getSignedUrl }), realCfg);
-    const r = await a.signUploadUrl({
-      bucket: 'b',
-      path: 'materials/m1/source.pdf',
-      contentType: 'application/pdf',
-      materialId: 'm1',
-    });
+    const s = storage();
+    const r = await new MaterialsStorageAdapter(asPort(s), realCfg).signUploadUrl(upload);
     expect(r.uploadUrl).toBe('https://signed.example/upload');
-    expect(getSignedUrl).toHaveBeenCalledWith(
-      expect.objectContaining({ version: 'v4', action: 'write', contentType: 'application/pdf' }),
-    );
-    // expiresAt must be a future timestamp (now + 900s). Kills arithmetic-operator mutants.
-    const expiresMs = new Date(r.expiresAt).getTime();
-    expect(expiresMs).toBeGreaterThan(before + 800_000);
-    expect(expiresMs).toBeLessThan(before + 1_000_000);
+    expect(s.signWriteUrl).toHaveBeenCalledExactlyOnceWith({ bucket: 'b', path: 'materials/m1/source.pdf', contentType: 'application/pdf', ttlSec: 900 });
+    expectFuture(r.expiresAt, before);
   });
 
-  it('signDownloadUrl requests a read URL with attachment disposition', async () => {
+  it('signDownloadUrl asks for a read URL with attachment disposition and the content type', async () => {
     const before = Date.now();
-    const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example/download']);
-    const a = new MaterialsStorageAdapter(storageWith({ getSignedUrl }), realCfg);
-    const r = await a.signDownloadUrl({
-      bucket: 'b',
-      path: 'materials/m1/source.pdf',
-      filename: 'doc.pdf',
-      contentType: 'application/pdf',
-      materialId: 'm1',
-      ttlSec: 900,
-    });
+    const s = storage();
+    const r = await new MaterialsStorageAdapter(asPort(s), realCfg).signDownloadUrl(download);
     expect(r.downloadUrl).toBe('https://signed.example/download');
-    const opts = getSignedUrl.mock.calls[0]![0] as Record<string, unknown>;
-    expect(opts['version']).toBe('v4');
-    expect(opts['action']).toBe('read');
-    expect(String(opts['responseDisposition'])).toContain('attachment');
-    expect(String(opts['responseDisposition'])).toContain('doc.pdf');
-    expect(opts['responseType']).toBe('application/pdf');
-    // expiresAt must be a future timestamp (now + 900s). Kills arithmetic-operator mutants.
-    const expiresMs = new Date(r.expiresAt).getTime();
-    expect(expiresMs).toBeGreaterThan(before + 800_000);
-    expect(expiresMs).toBeLessThan(before + 1_000_000);
-  });
-
-  it('signDownloadUrl sanitizes special characters in the filename', async () => {
-    const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example/download']);
-    const a = new MaterialsStorageAdapter(storageWith({ getSignedUrl }), realCfg);
-    await a.signDownloadUrl({
+    expect(s.signReadUrl).toHaveBeenCalledExactlyOnceWith({
       bucket: 'b',
       path: 'materials/m1/source.pdf',
-      filename: 'a"b\nc.pdf',
-      contentType: 'application/pdf',
-      materialId: 'm1',
       ttlSec: 900,
+      responseDisposition: 'attachment; filename="doc.pdf"',
+      responseType: 'application/pdf',
     });
-    const opts = getSignedUrl.mock.calls[0]![0] as Record<string, unknown>;
-    const disposition = String(opts['responseDisposition']);
-    // The sanitized filename must not contain a raw " or newline from the input
-    expect(disposition).not.toContain('\n');
-    expect(disposition).toContain('a_b_c.pdf');
-    // Ensure the original unsanitized characters are gone from the filename portion
-    expect(disposition).not.toContain('"b');
+    expectFuture(r.expiresAt, before);
   });
 
-  it('headObject returns the numeric size when metadata size is a string', async () => {
-    const getMetadata = vi.fn().mockResolvedValue([{ size: '4096' }]);
-    const a = new MaterialsStorageAdapter(storageWith({ getMetadata }), realCfg);
+  it('signDownloadUrl sanitizes quotes, backslashes and newlines in the filename', async () => {
+    const s = storage();
+    await new MaterialsStorageAdapter(asPort(s), realCfg).signDownloadUrl({ ...download, filename: 'a"b\\c\r\nd.pdf' });
+    const arg = s.signReadUrl.mock.calls[0]![0] as { responseDisposition: string };
+    expect(arg.responseDisposition).toBe('attachment; filename="a_b_c__d.pdf"');
+  });
+
+  it('creates the materials bucket on module init', async () => {
+    const s = storage();
+    await new MaterialsStorageAdapter(asPort(s), realCfg).onModuleInit();
+    expect(s.ensureBucket).toHaveBeenCalledExactlyOnceWith('b');
+  });
+
+  it('headObject and deleteObject delegate to the port', async () => {
+    const s = storage();
+    const a = new MaterialsStorageAdapter(asPort(s), realCfg);
     expect(await a.headObject({ bucket: 'b', path: 'p' })).toEqual({ size: 4096 });
-  });
-
-  it('headObject returns the numeric size when metadata size is already a number', async () => {
-    // Distinguishes the ternary branch: `typeof meta.size === 'string' ? Number(meta.size) : meta.size`
-    // With the mutant (hardcoded true), numeric input is still coerced via Number() which is same.
-    // With hardcoded false, string inputs would be returned as-is (a string, not a number).
-    // This test pins that a numeric size in metadata is returned as the same number.
-    const getMetadata = vi.fn().mockResolvedValue([{ size: 8192 }]);
-    const a = new MaterialsStorageAdapter(storageWith({ getMetadata }), realCfg);
-    const result = await a.headObject({ bucket: 'b', path: 'p' });
-    expect(result).toEqual({ size: 8192 });
-    expect(typeof result!.size).toBe('number');
-  });
-
-  it('headObject returns null when the object is missing (404)', async () => {
-    const getMetadata = vi.fn().mockRejectedValue({ code: 404 });
-    const a = new MaterialsStorageAdapter(storageWith({ getMetadata }), realCfg);
-    expect(await a.headObject({ bucket: 'b', path: 'p' })).toBeNull();
-  });
-
-  it('deleteObject swallows a 404', async () => {
-    const del = vi.fn().mockRejectedValue({ code: 404 });
-    const a = new MaterialsStorageAdapter(storageWith({ delete: del }), realCfg);
-    await expect(a.deleteObject({ bucket: 'b', path: 'p' })).resolves.toBeUndefined();
-  });
-
-  it('headObject rethrows non-404 errors', async () => {
-    const getMetadata = vi.fn().mockRejectedValue({ code: 500 });
-    const a = new MaterialsStorageAdapter(storageWith({ getMetadata }), realCfg);
-    await expect(a.headObject({ bucket: 'b', path: 'p' })).rejects.toMatchObject({ code: 500 });
-  });
-
-  it('deleteObject rethrows non-404 errors', async () => {
-    const del = vi.fn().mockRejectedValue({ code: 500 });
-    const a = new MaterialsStorageAdapter(storageWith({ delete: del }), realCfg);
-    await expect(a.deleteObject({ bucket: 'b', path: 'p' })).rejects.toMatchObject({ code: 500 });
+    expect(s.headObject).toHaveBeenCalledWith({ bucket: 'b', path: 'p' });
+    await a.deleteObject({ bucket: 'b', path: 'p' });
+    expect(s.deleteObject).toHaveBeenCalledWith({ bucket: 'b', path: 'p' });
   });
 });

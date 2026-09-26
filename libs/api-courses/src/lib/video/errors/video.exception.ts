@@ -143,6 +143,22 @@ export class SegmentNotFoundException extends VideoException {
   }
 }
 
+export class UploadSessionMissingException extends VideoException {
+  constructor() {
+    super(
+      'UPLOAD_SESSION_MISSING',
+      'No open upload session for this video; start the upload again.',
+      409,
+    );
+  }
+}
+
+export class UploadChunkInvalidException extends VideoException {
+  constructor(detail: string) {
+    super('UPLOAD_CHUNK_INVALID', `Invalid upload chunk: ${detail}.`, 400, { detail });
+  }
+}
+
 export class InvalidCaptionFileException extends VideoException {
   constructor() {
     super('INVALID_CAPTION_FILE', 'Captions must be a valid WebVTT (.vtt) file.', 400);
