@@ -179,6 +179,12 @@ describe('VideoStorageAdapter.probeSource', () => {
     await expect(adapter.probeSource(ref)).rejects.toThrow(/no video stream/);
   });
 
+  it('throws the no-video-stream error (not a TypeError) when ffprobe returns no streams at all', async () => {
+    const runner = vi.fn(async () => ({ stdout: '{}' }));
+    const { adapter } = make(realCfg, 'gcs', runner);
+    await expect(adapter.probeSource(ref)).rejects.toThrow(/no video stream/);
+  });
+
   it('reports duration 0 when ffprobe omits the format block', async () => {
     const runner = vi.fn(async () => ({ stdout: JSON.stringify({ streams: [{ codec_type: 'video', height: 360 }] }) }));
     const { adapter } = make(realCfg, 'gcs', runner);
@@ -204,6 +210,7 @@ describe('VideoStorageAdapter playback reads', () => {
     }
     expect(master).toContain('#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080\nhls_1080p.m3u8');
     expect(master).toContain('#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\nhls_360p.m3u8');
+    expect(master.endsWith('hls_360p.m3u8\n')).toBe(true);
     expect(storage.getObject).not.toHaveBeenCalled();
   });
 
@@ -212,7 +219,7 @@ describe('VideoStorageAdapter playback reads', () => {
     const body = await adapter.readManifestObject({ bucket: 'out', path: `videos/v/hls/${hlsVariantPlaylistName('720p')}` });
     expect(body).toContain('#EXT-X-TARGETDURATION:6');
     expect(body).toContain('#EXT-X-KEY:METHOD=AES-128,URI="https://example.invalid/k",IV=0xABCDEF0123456789ABCDEF0123456789');
-    expect(body).toContain('#EXTINF:6.000,\nhls_720p0000000000.ts\n#EXTINF:6.000,\nhls_720p0000000001.ts\n#EXT-X-ENDLIST');
+    expect(body.endsWith('#EXTINF:6.000,\nhls_720p0000000000.ts\n#EXTINF:6.000,\nhls_720p0000000001.ts\n#EXT-X-ENDLIST\n')).toBe(true);
   });
 
   it('fake: an unknown manifest path throws', async () => {

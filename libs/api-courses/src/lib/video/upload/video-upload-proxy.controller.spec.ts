@@ -49,11 +49,17 @@ function make() {
 }
 
 describe('parseContentRange', () => {
-  it('parses a well-formed header', () => {
+  it('parses a well-formed header, including a single-byte range', () => {
     expect(parseContentRange('bytes 0-99/100')).toEqual({ start: 0, last: 99, total: 100 });
+    expect(parseContentRange('bytes 5-5/10')).toEqual({ start: 5, last: 5, total: 10 });
   });
 
-  it.each([undefined, '', 'bytes */100', 'bytes 0-99', 'bytes a-b/c', 'bytes 10-5/100', 'bytes 0-100/100'])(
+  it('names the problem in the detail', () => {
+    expect(() => parseContentRange('nope')).toThrow(/malformed Content-Range/);
+    expect(() => parseContentRange('bytes 10-5/100')).toThrow(/Content-Range out of bounds/);
+  });
+
+  it.each([undefined, '', 'bytes */100', 'bytes 0-99', 'bytes a-b/c', 'bytes 10-5/100', 'bytes 0-100/100', 'xbytes 0-1/2', 'bytes 0-1/2junk'])(
     'rejects %j',
     (h) => {
       expect(() => parseContentRange(h as string | undefined)).toThrow(/Invalid upload chunk/);
@@ -104,6 +110,25 @@ describe('VideoUploadProxyController.chunk', () => {
     expect(res.statusCode).toBe(308);
     expect(res.headers['Range']).toBe(`bytes=0-${BIG - 1}`);
     expect(storage.uploadPart).toHaveBeenCalledOnce();
+  });
+
+  it('a single-byte final chunk right at the received offset completes the upload (not a re-ack)', async () => {
+    const { ctrl, storage } = make();
+    const total = BIG + 1;
+    await ctrl.chunk(VID, makeReq(Buffer.alloc(BIG), `bytes 0-${BIG - 1}/${total}`), makeRes() as never);
+    const res = makeRes();
+    await ctrl.chunk(VID, makeReq(Buffer.alloc(1), `bytes ${BIG}-${BIG}/${total}`), res as never);
+    expect(res.statusCode).toBe(200);
+    expect(storage.completeMultipartUpload).toHaveBeenCalledOnce();
+  });
+
+  it('rejects when the request stream errors while reading the body', async () => {
+    const { ctrl } = make();
+    const req = new Readable({ read() { /* driven manually */ } }) as unknown as { headers: Record<string, string | undefined> };
+    req.headers = { 'content-range': 'bytes 0-2/3' };
+    const pending = ctrl.chunk(VID, req as never, makeRes() as never);
+    (req as unknown as Readable).emit('error', new Error('socket reset'));
+    await expect(pending).rejects.toThrow('socket reset');
   });
 
   it('409s when no session is open', async () => {

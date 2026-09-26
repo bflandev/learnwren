@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { GcsObjectStorage } from './gcs-object-storage';
+import { OBJECT_STORAGE } from './object-storage.port';
 
 function makeHandle(fileOverrides: Record<string, unknown> = {}, bucketOverrides: Record<string, unknown> = {}) {
   const file = {
@@ -129,10 +130,15 @@ describe('GcsObjectStorage', () => {
     expect('responseType' in arg).toBe(false);
   });
 
-  it('signWriteUrl mints a v4 write URL bound to the content type', async () => {
+  it('signWriteUrl mints a v4 write URL bound to the content type and TTL', async () => {
     const { storage, file } = makeHandle();
+    const before = Date.now();
     await storage.signWriteUrl({ ...ref, contentType: 'application/pdf', ttlSec: 30 });
-    expect(file.getSignedUrl.mock.calls[0]![0]).toMatchObject({ version: 'v4', action: 'write', contentType: 'application/pdf' });
+    const after = Date.now();
+    const arg = file.getSignedUrl.mock.calls[0]![0] as Record<string, unknown>;
+    expect(arg).toMatchObject({ version: 'v4', action: 'write', contentType: 'application/pdf' });
+    expect(arg['expires'] as number).toBeGreaterThanOrEqual(before + 30_000);
+    expect(arg['expires'] as number).toBeLessThanOrEqual(after + 30_000);
   });
 
   it('createResumableUpload returns the session URI with metadata and origin', async () => {
@@ -144,9 +150,13 @@ describe('GcsObjectStorage', () => {
 
   it('multipart methods are not supported on GCS', async () => {
     const { storage } = makeHandle();
-    await expect(storage.createMultipartUpload({ ...ref, contentType: 'video/mp4' })).rejects.toThrow(/not supported on gcs/);
-    await expect(storage.uploadPart({ ...ref, uploadId: 'u', partNumber: 1, body: Buffer.alloc(1) })).rejects.toThrow(/not supported on gcs/);
-    await expect(storage.completeMultipartUpload({ ...ref, uploadId: 'u', parts: [] })).rejects.toThrow(/not supported on gcs/);
-    await expect(storage.abortMultipartUpload({ ...ref, uploadId: 'u' })).rejects.toThrow(/not supported on gcs/);
+    await expect(storage.createMultipartUpload({ ...ref, contentType: 'video/mp4' })).rejects.toThrow('createMultipartUpload is not supported on gcs');
+    await expect(storage.uploadPart({ ...ref, uploadId: 'u', partNumber: 1, body: Buffer.alloc(1) })).rejects.toThrow('uploadPart is not supported on gcs');
+    await expect(storage.completeMultipartUpload({ ...ref, uploadId: 'u', parts: [] })).rejects.toThrow('completeMultipartUpload is not supported on gcs');
+    await expect(storage.abortMultipartUpload({ ...ref, uploadId: 'u' })).rejects.toThrow('abortMultipartUpload is not supported on gcs');
+  });
+
+  it('OBJECT_STORAGE token has the exact registered key', () => {
+    expect(Symbol.keyFor(OBJECT_STORAGE)).toBe('learnwren.api-object-storage.storage');
   });
 });

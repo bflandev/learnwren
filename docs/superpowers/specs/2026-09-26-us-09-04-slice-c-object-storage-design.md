@@ -7,7 +7,7 @@
 **Date:** 2026-09-26
 **Story:** [US-09-04](../../epics/09-non-functional-requirements.md#us-09-04-open-source-and-self-hosting) (EP-09, Non-Functional Requirements)
 **Builds on:** [Slice A](./2026-09-25-us-09-04-self-hosting-design.md) (Compose), [Slice B](./2026-09-25-us-09-04-slice-b-ffmpeg-video-design.md) (ffmpeg video)
-**Status:** Design approved 2026-09-26 ("S3 store, uploads via api").
+**Status:** Shipped 2026-09-26 ("S3 store, uploads via api").
 
 ---
 
@@ -146,3 +146,40 @@ through the api." `docs/self-hosting.md`, README, USER_GUIDE, epic AC.
   READY → playback; material upload + download round-trip through the api;
   cover image upload → `<img>` loads via `/media/`; MinIO has no published
   port.
+
+## 6. Verification record (2026-09-26)
+
+- Unit: `api-object-storage` 52 tests (config, GCS and S3 backends with a
+  mocked `send`, public media route, module factory); api-courses 1,227;
+  api-profile 360; api 40 (guard coverage with the one allowlist entry).
+  Lint, typecheck and build green for the four projects; Nx sync check clean.
+- api-e2e: 222 passed on one-shot emulators (GCS mode, unchanged).
+  web-e2e: 57 passed (the materials route rename included).
+- RustFS probe with the AWS SDK before adopting it: bucket head/create, put,
+  head (404 on missing), get, 5 MiB + tail multipart, abort, list, batch
+  delete, idempotent delete — all as the port expects.
+- Docker stack, scripted, RustFS with no published port: cover upload →
+  `coverImageUrl` on `/api/media/learnwren-covers/…` → `200 image/jpeg`;
+  `/api/media/learnwren-source/x` → `404`; material upload through
+  `/api/internal/uploads/materials/:id` → complete → download through
+  `/api/internal/downloads/materials/:id` with an attachment disposition and
+  identical bytes; a 20 MB clip in three 8 MB chunks → `308 bytes=0-8388607`,
+  `308 bytes=0-16777215`, `200`; a chunk after completion → `409`;
+  `upload-complete` → `READY` via ffmpeg (duration 20 s, three renditions);
+  segment `200 video/mp2t`; the editor page shows the cover image and hls.js
+  played to 3.95 s at 720p with no page errors.
+
+Found and changed on the way:
+
+- **MinIO's public images are gone** (Docker Hub 404, quay.io 401). The
+  stack uses RustFS 1.0.0 (Apache-2.0, S3-compatible) instead. Because every
+  adapter sits behind the port, the swap touched only `docker-compose.yml`.
+- **No vendor bucket policies.** Anonymous bucket reads differ per store, so
+  public images are served by `GET /api/media/:bucket/:key` restricted to
+  `LEARNWREN_PUBLIC_BUCKETS`, and the api creates its buckets on boot via
+  `ensureBucket`; the planned `minio-init` job and nginx `/media/` proxy were
+  dropped.
+- `@aws-sdk/lib-storage`'s `Upload` needs a real client and could not be unit
+  tested; `putStream` is a small own multipart loop (single `PutObject` when
+  the body fits one part, abort on failure), so `lib-storage` and
+  `s3-request-presigner` are not used and were removed.

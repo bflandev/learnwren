@@ -25,7 +25,7 @@ import type { MultipartPart, ObjectRef, ObjectStorage } from './object-storage.p
 /** The slice of S3Client the store uses; lets tests inject a fake `send`. */
 export type S3Sender = Pick<S3Client, 'send'>;
 
-const DEFAULT_PART_BYTES = 8 * 1024 * 1024;
+export const DEFAULT_PART_BYTES = 8 * 1024 * 1024;
 
 function isNotFound(err: unknown): boolean {
   const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };

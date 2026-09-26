@@ -16,7 +16,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { describe, expect, it, vi } from 'vitest';
 
-import { S3ObjectStorage, type S3Sender } from './s3-object-storage';
+import { DEFAULT_PART_BYTES, makeS3Client, S3ObjectStorage, type S3Sender } from './s3-object-storage';
 
 const ref = { bucket: 'b', path: 'dir/obj.bin' };
 
@@ -31,6 +31,22 @@ async function collect(s: NodeJS.ReadableStream): Promise<string> {
   for await (const c of s as AsyncIterable<Buffer>) chunks.push(c);
   return Buffer.concat(chunks).toString();
 }
+
+describe('makeS3Client', () => {
+  it('builds a path-style client on the configured endpoint, region and credentials', async () => {
+    const client = makeS3Client({ kind: 's3', publicBuckets: [], endpoint: 'http://objectstore:9000', accessKey: 'ak', secretKey: 'sk', region: 'eu-west-1' });
+    expect(client.config.forcePathStyle).toBe(true);
+    expect(await client.config.region()).toBe('eu-west-1');
+    const ep = await client.config.endpoint!();
+    expect(`${ep.protocol}//${ep.hostname}:${ep.port}`).toBe('http://objectstore:9000');
+    const creds = await client.config.credentials();
+    expect(creds).toMatchObject({ accessKeyId: 'ak', secretAccessKey: 'sk' });
+  });
+
+  it('defaults to 8 MiB multipart parts', () => {
+    expect(DEFAULT_PART_BYTES).toBe(8 * 1024 * 1024);
+  });
+});
 
 describe('S3ObjectStorage', () => {
   it('reports its kind', () => {
@@ -137,18 +153,23 @@ describe('S3ObjectStorage', () => {
     await exists.storage.ensureBucket('b');
     expect(exists.send).toHaveBeenCalledOnce();
     expect(exists.cmd<HeadBucketCommand>()).toBeInstanceOf(HeadBucketCommand);
+    expect(exists.cmd<HeadBucketCommand>().input).toEqual({ Bucket: 'b' });
     const missing = make((c) => { if (c instanceof HeadBucketCommand) throw Object.assign(new Error('nf'), { $metadata: { httpStatusCode: 404 } }); return {}; });
     await missing.storage.ensureBucket('b');
     expect(missing.cmd<CreateBucketCommand>(1)).toBeInstanceOf(CreateBucketCommand);
     expect(missing.cmd<CreateBucketCommand>(1).input).toEqual({ Bucket: 'b' });
-    const denied = make(() => { throw Object.assign(new Error('denied'), { $metadata: { httpStatusCode: 403 } }); });
+    const denied = make((c) => { if (c instanceof HeadBucketCommand) throw Object.assign(new Error('denied'), { $metadata: { httpStatusCode: 403 } }); return {}; });
     await expect(denied.storage.ensureBucket('b')).rejects.toThrow('denied');
+    expect(denied.send).toHaveBeenCalledOnce(); // no CreateBucket attempt on a non-404
   });
 
   it('headObject returns ContentLength (and ContentType when present), null on 404/NotFound, rethrows otherwise', async () => {
     const { storage, cmd } = make(() => ({ ContentLength: 9 }));
     expect(await storage.headObject(ref)).toEqual({ size: 9 });
+    expect(cmd<HeadObjectCommand>().input).toEqual({ Bucket: 'b', Key: 'dir/obj.bin' });
     expect(await make(() => ({ ContentLength: 2, ContentType: 'image/png' })).storage.headObject(ref)).toEqual({ size: 2, contentType: 'image/png' });
+    const plain = make(() => { throw new Error('plain failure'); });
+    await expect(plain.storage.headObject(ref)).rejects.toThrow('plain failure');
     expect(cmd<HeadObjectCommand>()).toBeInstanceOf(HeadObjectCommand);
     const nf = make(() => { throw Object.assign(new Error('nf'), { $metadata: { httpStatusCode: 404 } }); });
     expect(await nf.storage.headObject(ref)).toBeNull();
@@ -170,8 +191,8 @@ describe('S3ObjectStorage', () => {
     const { storage, send } = make((c) => {
       if (c instanceof ListObjectsV2Command) {
         page++;
-        if (page === 1) return { Contents: [{ Key: 'p/1' }, { Key: 'p/2' }], IsTruncated: true, NextContinuationToken: 't' };
-        if (page === 2) return { Contents: [], IsTruncated: true, NextContinuationToken: 't2' };
+        if (page === 1) return { Contents: [{ Key: 'p/1' }, { Key: 'p/2' }, {}], IsTruncated: true, NextContinuationToken: 't' };
+        if (page === 2) return { IsTruncated: true, NextContinuationToken: 't2' };
         return { Contents: [{ Key: 'p/3' }] };
       }
       return {};
@@ -182,6 +203,7 @@ describe('S3ObjectStorage', () => {
     expect(lists[0]!.input).toMatchObject({ Bucket: 'b', Prefix: 'p/' });
     const dels = send.mock.calls.map((c) => c[0]).filter((c) => c instanceof DeleteObjectsCommand) as DeleteObjectsCommand[];
     expect(dels.map((d) => d.input.Delete!.Objects!.map((o) => o.Key))).toEqual([['p/1', 'p/2'], ['p/3']]);
+    expect(dels.every((d) => d.input.Delete!.Quiet === true)).toBe(true);
   });
 
   it('totalBytes sums Size across pages', async () => {
@@ -196,13 +218,14 @@ describe('S3ObjectStorage', () => {
       return {};
     });
     expect(await storage.totalBytes('b')).toBe(13);
+    expect(await make(() => ({})).storage.totalBytes('empty')).toBe(0);
   });
 
   it('signed URLs and GCS resumable sessions are not used in s3 mode', async () => {
     const { storage } = make();
-    await expect(storage.signReadUrl({ ...ref, ttlSec: 1 })).rejects.toThrow(/not used in s3 mode/);
-    await expect(storage.signWriteUrl({ ...ref, contentType: 'x', ttlSec: 1 })).rejects.toThrow(/not used in s3 mode/);
-    await expect(storage.createResumableUpload({ ...ref, contentType: 'x', metadata: {}, origin: 'o' })).rejects.toThrow(/not used in s3 mode/);
+    await expect(storage.signReadUrl({ ...ref, ttlSec: 1 })).rejects.toThrow('signReadUrl is not used in s3 mode');
+    await expect(storage.signWriteUrl({ ...ref, contentType: 'x', ttlSec: 1 })).rejects.toThrow('signWriteUrl is not used in s3 mode');
+    await expect(storage.createResumableUpload({ ...ref, contentType: 'x', metadata: {}, origin: 'o' })).rejects.toThrow('createResumableUpload is not used in s3 mode');
   });
 
   it('multipart: create → part → complete → abort map to the S3 commands', async () => {
@@ -223,6 +246,11 @@ describe('S3ObjectStorage', () => {
     await storage.abortMultipartUpload({ ...ref, uploadId: 'up1' });
     expect(cmd<AbortMultipartUploadCommand>(3).input).toEqual({ Bucket: 'b', Key: 'dir/obj.bin', UploadId: 'up1' });
     expect(send).toHaveBeenCalledTimes(4);
+  });
+
+  it('uploadPart returns an empty etag when S3 sends none', async () => {
+    const { storage } = make(() => ({}));
+    expect(await storage.uploadPart({ ...ref, uploadId: 'u', partNumber: 1, body: Buffer.alloc(1) })).toBe('');
   });
 
   it('createMultipartUpload fails loudly when S3 returns no UploadId', async () => {

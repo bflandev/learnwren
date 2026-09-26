@@ -12,5 +12,5 @@ Spec: `../specs/2026-09-26-us-09-04-slice-c-object-storage-design.md`. TDD per t
 - [x] 8. Video storage adapter → port; `kind === 's3'` session URL; `VideoUploadProxyController` with chunk protocol. Tests. Health service → `totalBytes`.
 - [x] 9. Guard-coverage spec, `nx affected` gates, api-e2e.
 - [x] 10. Compose: minio + minio-init, api env, nginx `/media/`, drop storage-emulator publication; `.env.example`.
-- [ ] 11. Compose end-to-end script (video chunks, material round-trip, cover via /media, playback).
-- [ ] 12. Stryker scoped; docs (README, USER_GUIDE, self-hosting, epic AC, TECHNICAL_ARCHITECTURE row, quality report note).
+- [x] 11. Compose end-to-end script (video chunks, material round-trip, cover via /media, playback).
+- [x] 12. Stryker scoped; docs (README, USER_GUIDE, self-hosting, epic AC, TECHNICAL_ARCHITECTURE row, quality report note).

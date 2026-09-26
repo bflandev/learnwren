@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { readObjectStorageConfigFromEnv } from './object-storage.config';
+import { OBJECT_STORAGE_CONFIG, readObjectStorageConfigFromEnv } from './object-storage.config';
+
+describe('OBJECT_STORAGE_CONFIG token', () => {
+  it('has the exact registered key', () => {
+    expect(Symbol.keyFor(OBJECT_STORAGE_CONFIG)).toBe('learnwren.api-object-storage.config');
+  });
+});
 
 describe('readObjectStorageConfigFromEnv', () => {
   it('defaults to gcs when unset', () => {
