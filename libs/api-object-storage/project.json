@@ -1,0 +1,9 @@
+{
+  "name": "api-object-storage",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api-object-storage/src",
+  "projectType": "library",
+  "tags": ["scope:api"],
+  "// targets": "to see all targets run: nx show project api-object-storage --web",
+  "targets": {}
+}
