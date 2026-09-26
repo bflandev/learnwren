@@ -7,6 +7,19 @@
 
 Target band: core domain logic — 75–85% target.
 
+## Scoped run — US-09-04 Slice C (2026-09-26)
+
+Stryker scoped with `--mutate` to the files this slice added or changed
+(`video/upload/video-upload-proxy.controller.ts`, `video/upload/video-upload-sessions.ts`,
+`video/video-storage.adapter.ts`, `materials/materials-storage.adapter.ts`,
+`materials/webhook/materials-proxy.controller.ts`, `cover/cover-storage.adapter.ts`,
+`health/admin-health.service.ts`): first pass 96.69% (13 survivors), then
+**100%** after tightening assertions (Content-Range regex anchors and detail
+strings, a single-byte final chunk, the request-stream error path, the fake
+playlist header, a mux-key-prefixed non-playlist path). The adapters that now
+merely delegate to the `ObjectStorage` port lost most of their mutable surface;
+the port's own backends are mutation-tested in `mutation-report-api-object-storage.md`.
+
 ## Scoped run — US-09-04 Slice B (2026-09-25)
 
 Stryker scoped with `--mutate` to the files the slice added or changed
