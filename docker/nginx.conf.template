@@ -25,7 +25,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     # Same policy as production hosting minus the Google storage origins:
-    # every file (uploads, downloads, segments, public images) is same-origin here.
+    # every file (uploads, downloads, segments, public images) is served by /api here.
     add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-hashes' 'sha256-MhtPZXr7+LpJUY5qtMutB+qWfQtMaPccfe7QXtCcEYc='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:" always;
 
     location /api/ {
@@ -38,17 +38,6 @@ server {
         proxy_read_timeout 300s;
         # Stream upload bodies straight through instead of spooling to disk.
         proxy_request_buffering off;
-    }
-
-    # Public images (course covers, profile pictures): anonymous-read buckets
-    # in the object store, which is otherwise unreachable from outside.
-    location /media/ {
-        proxy_pass http://minio:9000/;
-        proxy_set_header Host $host;
-        proxy_hide_header x-amz-request-id;
-        proxy_hide_header x-amz-id-2;
-        add_header Cache-Control "public, max-age=31536000, immutable" always;
-        add_header X-Content-Type-Options "nosniff" always;
     }
 
     location / {

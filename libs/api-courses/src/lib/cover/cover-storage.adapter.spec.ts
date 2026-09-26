@@ -8,7 +8,7 @@ import { COVER_STORAGE, CoverStorageAdapter } from './cover-storage.adapter';
 const CFG: CoverConfig = { bucket: 'my-bucket', publicBaseUrl: 'https://cdn.example', impl: 'firebase' };
 
 function makeStorage() {
-  const storage = { putObject: vi.fn(async () => undefined), deleteObject: vi.fn(async () => undefined) };
+  const storage = { putObject: vi.fn(async () => undefined), deleteObject: vi.fn(async () => undefined), ensureBucket: vi.fn(async () => undefined) };
   return { storage, adapter: new CoverStorageAdapter(storage as unknown as ObjectStorage, CFG) };
 }
 
@@ -43,6 +43,12 @@ describe('CoverStorageAdapter', () => {
     const { storage, adapter } = makeStorage();
     storage.deleteObject.mockRejectedValueOnce(new Error('down'));
     await expect(adapter.deleteObject({ path: 'p' })).rejects.toThrow('down');
+  });
+
+  it('creates its bucket on module init', async () => {
+    const { storage, adapter } = makeStorage();
+    await adapter.onModuleInit();
+    expect(storage.ensureBucket).toHaveBeenCalledExactlyOnceWith('my-bucket');
   });
 
   it('COVER_STORAGE token has the exact registered key', () => {

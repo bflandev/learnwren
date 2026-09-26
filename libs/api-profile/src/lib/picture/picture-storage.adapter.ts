@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 
 import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 
@@ -19,11 +19,15 @@ export interface PictureStoragePort {
 
 /** Profile pictures in the configured bucket, through the shared ObjectStorage port. */
 @Injectable()
-export class PictureStorageAdapter implements PictureStoragePort {
+export class PictureStorageAdapter implements PictureStoragePort, OnModuleInit {
   constructor(
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(PICTURE_CONFIG) private readonly cfg: PictureConfig,
   ) {}
+
+  onModuleInit(): Promise<void> {
+    return this.storage.ensureBucket(this.cfg.bucket);
+  }
 
   async putObject(input: PutObjectInput): Promise<void> {
     await this.storage.putObject({ ...input, bucket: this.cfg.bucket });

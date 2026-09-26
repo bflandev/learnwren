@@ -6,10 +6,12 @@ import { pipeline } from 'node:stream/promises';
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CreateBucketCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -143,10 +145,10 @@ export class S3ObjectStorage implements ObjectStorage {
     return out;
   }
 
-  async headObject(input: ObjectRef): Promise<{ size: number } | null> {
+  async headObject(input: ObjectRef): Promise<{ size: number; contentType?: string } | null> {
     try {
       const res = await this.client.send(new HeadObjectCommand({ Bucket: input.bucket, Key: input.path }));
-      return { size: res.ContentLength ?? 0 };
+      return { size: res.ContentLength ?? 0, ...(res.ContentType ? { contentType: res.ContentType } : {}) };
     } catch (err) {
       if (isNotFound(err)) return null;
       throw err;
@@ -167,6 +169,15 @@ export class S3ObjectStorage implements ObjectStorage {
           Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
         }),
       );
+    }
+  }
+
+  async ensureBucket(bucket: string): Promise<void> {
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: bucket }));
+    } catch (err) {
+      if (!isNotFound(err)) throw err;
+      await this.client.send(new CreateBucketCommand({ Bucket: bucket }));
     }
   }
 

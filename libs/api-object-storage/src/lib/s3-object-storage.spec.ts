@@ -3,10 +3,12 @@ import { Readable } from 'node:stream';
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CreateBucketCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -130,9 +132,23 @@ describe('S3ObjectStorage', () => {
     await expect(collect(bad.storage.openReadStream(ref))).rejects.toThrow('nope');
   });
 
-  it('headObject returns ContentLength, null on 404/NotFound, rethrows otherwise', async () => {
+  it('ensureBucket creates the bucket only when HeadBucket says it is missing', async () => {
+    const exists = make();
+    await exists.storage.ensureBucket('b');
+    expect(exists.send).toHaveBeenCalledOnce();
+    expect(exists.cmd<HeadBucketCommand>()).toBeInstanceOf(HeadBucketCommand);
+    const missing = make((c) => { if (c instanceof HeadBucketCommand) throw Object.assign(new Error('nf'), { $metadata: { httpStatusCode: 404 } }); return {}; });
+    await missing.storage.ensureBucket('b');
+    expect(missing.cmd<CreateBucketCommand>(1)).toBeInstanceOf(CreateBucketCommand);
+    expect(missing.cmd<CreateBucketCommand>(1).input).toEqual({ Bucket: 'b' });
+    const denied = make(() => { throw Object.assign(new Error('denied'), { $metadata: { httpStatusCode: 403 } }); });
+    await expect(denied.storage.ensureBucket('b')).rejects.toThrow('denied');
+  });
+
+  it('headObject returns ContentLength (and ContentType when present), null on 404/NotFound, rethrows otherwise', async () => {
     const { storage, cmd } = make(() => ({ ContentLength: 9 }));
     expect(await storage.headObject(ref)).toEqual({ size: 9 });
+    expect(await make(() => ({ ContentLength: 2, ContentType: 'image/png' })).storage.headObject(ref)).toEqual({ size: 2, contentType: 'image/png' });
     expect(cmd<HeadObjectCommand>()).toBeInstanceOf(HeadObjectCommand);
     const nf = make(() => { throw Object.assign(new Error('nf'), { $metadata: { httpStatusCode: 404 } }); });
     expect(await nf.storage.headObject(ref)).toBeNull();

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 
 import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 import type { ISODateString } from '@learnwren/shared-data-models';
@@ -74,7 +74,7 @@ export interface VideoStoragePort {
 }
 
 @Injectable()
-export class VideoStorageAdapter implements VideoStoragePort {
+export class VideoStorageAdapter implements VideoStoragePort, OnModuleInit {
   // Stryker disable next-line ArrowFunction: default runner, overridden via __setRunner in tests
   private runner: FfprobeRunner = (binary, args) => promisifiedExecFile(binary, args);
 
@@ -83,6 +83,11 @@ export class VideoStorageAdapter implements VideoStoragePort {
     @Inject(VIDEO_CONFIG) private readonly cfg: VideoConfig,
     private readonly sessions: VideoUploadSessions,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.storage.ensureBucket(this.cfg.sourceBucket);
+    await this.storage.ensureBucket(this.cfg.outputBucket);
+  }
 
   /** Test hook — never called in production code paths. */
   __setRunner(runner: FfprobeRunner): void {

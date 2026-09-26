@@ -32,6 +32,9 @@ const PUBLIC_ALLOWLIST = new Set([
   'api-courses/src/lib/video/playback/playback-config.controller.ts',
   // Authenticated by OIDC via PubSubPushGuard, not a session cookie.
   'api-courses/src/lib/video/webhook/transcoder-events.controller.ts',
+  // Anonymous reads from the buckets named in LEARNWREN_PUBLIC_BUCKETS only
+  // (cover images, profile pictures) — the self-hosted public bucket URL.
+  'api-object-storage/src/lib/public-media.controller.ts',
 ]);
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');

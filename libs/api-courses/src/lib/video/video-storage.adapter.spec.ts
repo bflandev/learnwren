@@ -31,6 +31,7 @@ function makeStorage(kind: 'gcs' | 's3' = 'gcs') {
     }),
     putFile: vi.fn(async () => undefined),
     openReadStream: vi.fn(() => ({ pipe: vi.fn() })),
+    ensureBucket: vi.fn(async () => undefined),
   };
 }
 
@@ -81,6 +82,14 @@ describe('VideoStorageAdapter.createResumableSession', () => {
     expect(r.uri).toBe('/api/internal/uploads/videos/v');
     expect(sessions.get('v')).toEqual({ bucket: 'b', path: 'videos/v/source.mp4', contentType: 'video/quicktime', parts: [], received: 0 });
     expect(storage.createResumableUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe('VideoStorageAdapter.onModuleInit', () => {
+  it('creates the source and output buckets', async () => {
+    const { adapter, storage } = make({ ...realCfg, sourceBucket: 'src-b', outputBucket: 'out-b' } as VideoConfig);
+    await adapter.onModuleInit();
+    expect(storage.ensureBucket.mock.calls.map((c) => c[0])).toEqual(['src-b', 'out-b']);
   });
 });
 

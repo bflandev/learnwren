@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 
 import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 import type { ISODateString } from '@learnwren/shared-data-models';
@@ -53,11 +53,15 @@ function sanitizeFilename(name: string): string {
  * needs to be reachable from outside.
  */
 @Injectable()
-export class MaterialsStorageAdapter implements MaterialsStoragePort {
+export class MaterialsStorageAdapter implements MaterialsStoragePort, OnModuleInit {
   constructor(
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(MATERIALS_CONFIG) private readonly cfg: MaterialsConfig,
   ) {}
+
+  onModuleInit(): Promise<void> {
+    return this.storage.ensureBucket(this.cfg.materialsBucket);
+  }
 
   private get proxied(): boolean {
     return this.cfg.storageImpl === 'fake' || this.storage.kind === 's3';

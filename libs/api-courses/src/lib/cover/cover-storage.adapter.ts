@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 
 import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 
@@ -19,11 +19,15 @@ export interface CoverStoragePort {
 
 /** Cover images in the configured bucket, through the shared ObjectStorage port. */
 @Injectable()
-export class CoverStorageAdapter implements CoverStoragePort {
+export class CoverStorageAdapter implements CoverStoragePort, OnModuleInit {
   constructor(
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(COVER_CONFIG) private readonly cfg: CoverConfig,
   ) {}
+
+  onModuleInit(): Promise<void> {
+    return this.storage.ensureBucket(this.cfg.bucket);
+  }
 
   async putObject(input: PutObjectInput): Promise<void> {
     await this.storage.putObject({ ...input, bucket: this.cfg.bucket });

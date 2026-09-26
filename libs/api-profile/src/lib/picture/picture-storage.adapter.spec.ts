@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ObjectStorage } from '@learnwren/api-object-storage';
 
-import { PICTURE_STORAGE, PictureStorageAdapter, type PictureStoragePort } from './picture-storage.adapter';
+import { PICTURE_STORAGE, PictureStorageAdapter } from './picture-storage.adapter';
 
 describe('PICTURE_STORAGE token', () => {
   it('is the registered global symbol with the exact key', () => {
@@ -14,8 +14,8 @@ describe('PICTURE_STORAGE token', () => {
 const cfg = { bucket: 'b', publicBaseUrl: 'https://example.com', impl: 'firebase' as const };
 
 function make() {
-  const storage = { putObject: vi.fn(async () => undefined), deleteObject: vi.fn(async () => undefined) };
-  const adapter: PictureStoragePort = new PictureStorageAdapter(storage as unknown as ObjectStorage, cfg);
+  const storage = { putObject: vi.fn(async () => undefined), deleteObject: vi.fn(async () => undefined), ensureBucket: vi.fn(async () => undefined) };
+  const adapter = new PictureStorageAdapter(storage as unknown as ObjectStorage, cfg);
   return { storage, adapter };
 }
 
@@ -44,6 +44,12 @@ describe('PictureStorageAdapter', () => {
     const { storage, adapter } = make();
     await adapter.deleteObject({ path: 'profile-pictures/u1/avatar.jpg' });
     expect(storage.deleteObject).toHaveBeenCalledExactlyOnceWith({ bucket: 'b', path: 'profile-pictures/u1/avatar.jpg' });
+  });
+
+  it('creates its bucket on module init', async () => {
+    const { storage, adapter } = make();
+    await adapter.onModuleInit();
+    expect(storage.ensureBucket).toHaveBeenCalledExactlyOnceWith('b');
   });
 
   it('propagates storage failures', async () => {

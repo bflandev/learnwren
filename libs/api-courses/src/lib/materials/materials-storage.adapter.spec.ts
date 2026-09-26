@@ -15,6 +15,7 @@ function storage(kind: 'gcs' | 's3' = 'gcs') {
     signReadUrl: vi.fn(async () => 'https://signed.example/download'),
     headObject: vi.fn(async () => ({ size: 4096 })),
     deleteObject: vi.fn(async () => undefined),
+    ensureBucket: vi.fn(async () => undefined),
   };
 }
 const asPort = (s: ReturnType<typeof storage>) => s as unknown as ObjectStorage;
@@ -78,6 +79,12 @@ describe('MaterialsStorageAdapter — gcs signed mode', () => {
     await new MaterialsStorageAdapter(asPort(s), realCfg).signDownloadUrl({ ...download, filename: 'a"b\\c\r\nd.pdf' });
     const arg = s.signReadUrl.mock.calls[0]![0] as { responseDisposition: string };
     expect(arg.responseDisposition).toBe('attachment; filename="a_b_c__d.pdf"');
+  });
+
+  it('creates the materials bucket on module init', async () => {
+    const s = storage();
+    await new MaterialsStorageAdapter(asPort(s), realCfg).onModuleInit();
+    expect(s.ensureBucket).toHaveBeenCalledExactlyOnceWith('b');
   });
 
   it('headObject and deleteObject delegate to the port', async () => {

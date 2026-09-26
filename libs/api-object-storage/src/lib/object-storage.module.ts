@@ -9,6 +9,7 @@ import {
   type ObjectStorageConfig,
 } from './object-storage.config';
 import { OBJECT_STORAGE, type ObjectStorage } from './object-storage.port';
+import { PublicMediaController } from './public-media.controller';
 import { makeS3Client, S3ObjectStorage } from './s3-object-storage';
 
 export function makeObjectStorage(cfg: ObjectStorageConfig, gcs: FirebaseStorageHandle): ObjectStorage {
@@ -18,6 +19,7 @@ export function makeObjectStorage(cfg: ObjectStorageConfig, gcs: FirebaseStorage
 /** Global: every feature module injects OBJECT_STORAGE, none imports a vendor SDK. */
 @Global()
 @Module({
+  controllers: [PublicMediaController],
   providers: [
     { provide: OBJECT_STORAGE_CONFIG, useFactory: () => readObjectStorageConfigFromEnv(process.env) },
     {

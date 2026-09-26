@@ -20,8 +20,9 @@ graph TD
 
     subgraph "Firebase Services"
         D --> E[Firestore]
-        D --> F1[Cloud Storage: source bucket]
-        D --> F2[Cloud Storage: output bucket]
+        D --> F1[Object storage: source bucket]
+        D --> F2[Object storage: output bucket]
+        %% Cloud Storage for Firebase in the cloud; any S3-compatible store when self-hosted
         D --> G[Firebase Authentication]
     end
 
@@ -52,7 +53,7 @@ graph TD
 | **Database** | NoSQL Document Store | Firestore (via Firebase) | A flexible, scalable NoSQL database that integrates seamlessly with Firebase Authentication and Cloud Functions. |
 | **Hosting & CDN** | Static & API Hosting | Firebase Hosting & Cloud Functions | Provides a serverless environment for hosting the Angular frontend and NestJS backend, with a built-in global CDN. |
 | **Authentication** | Identity Provider | Firebase Authentication | Manages user sign-up, sign-in, and security rules, integrating directly with Firestore. |
-| **File Storage** | Video & Lesson Materials | Cloud Storage for Firebase | Securely stores and delivers user-uploaded content like videos and PDFs, governed by Firebase security rules. |
+| **File Storage** | Video & Lesson Materials | Cloud Storage for Firebase in the cloud deployment; any S3-compatible store (RustFS in the Compose stack; any S3-compatible store) for self-hosting — both behind the `ObjectStorage` port (`libs/api-object-storage`, US-09-04 Slice C). | Securely stores and delivers user-uploaded content like videos and PDFs. GCS mode uses signed URLs and Firebase security rules; S3 mode never exposes the store — uploads, downloads and public images all pass through the api. |
 | **Video Pipeline** | Transcoding | GCP Transcoder API (MVP); pluggable via the `VideoTranscoder` port — future swap to a self-hosted Cloud Run + FFmpeg + Shaka Packager worker for operators who want full self-host. | Same project, IAM, and billing as Firebase. Writes outputs to our own Cloud Storage bucket. Native AES-128 HLS encryption. Pay-per-use. |
 | **Video Player** | Web Player | hls.js with a light custom UI (MVP). EME-ready for the future Widevine / PlayReady / FairPlay slice. | HLS-only player covers every modern browser (native on Safari / iOS, via JS-MSE elsewhere). Smallest viable bundle. No player swap needed for full-DRM migration. |
 

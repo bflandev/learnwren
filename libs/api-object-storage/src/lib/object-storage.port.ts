@@ -38,11 +38,13 @@ export interface ObjectStorage {
   getObject(input: ObjectRef): Promise<Buffer>;
   downloadToFile(input: ObjectRef & { destination: string }): Promise<void>;
   openReadStream(input: ObjectRef): NodeJS.ReadableStream;
-  headObject(input: ObjectRef): Promise<{ size: number } | null>;
+  headObject(input: ObjectRef): Promise<{ size: number; contentType?: string } | null>;
   /** Idempotent: a missing object is not an error. */
   deleteObject(input: ObjectRef): Promise<void>;
   deletePrefix(input: { bucket: string; prefix: string }): Promise<void>;
   totalBytes(bucket: string): Promise<number>;
+  /** Create the bucket if it does not exist (self-hosted stores start empty); a no-op on GCS. */
+  ensureBucket(bucket: string): Promise<void>;
 
   // GCS only
   signReadUrl(input: ObjectRef & {

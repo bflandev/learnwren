@@ -4,11 +4,15 @@ import { readObjectStorageConfigFromEnv } from './object-storage.config';
 
 describe('readObjectStorageConfigFromEnv', () => {
   it('defaults to gcs when unset', () => {
-    expect(readObjectStorageConfigFromEnv({})).toEqual({ kind: 'gcs' });
+    expect(readObjectStorageConfigFromEnv({})).toEqual({ kind: 'gcs', publicBuckets: [] });
   });
 
   it('accepts gcs explicitly', () => {
-    expect(readObjectStorageConfigFromEnv({ LEARNWREN_OBJECT_STORAGE: 'gcs' })).toEqual({ kind: 'gcs' });
+    expect(readObjectStorageConfigFromEnv({ LEARNWREN_OBJECT_STORAGE: 'gcs' })).toEqual({ kind: 'gcs', publicBuckets: [] });
+  });
+
+  it('parses the public bucket list, trimming and dropping empties', () => {
+    expect(readObjectStorageConfigFromEnv({ LEARNWREN_PUBLIC_BUCKETS: ' covers, pictures,, ' }).publicBuckets).toEqual(['covers', 'pictures']);
   });
 
   it('reads a complete s3 config with the region defaulted', () => {
@@ -19,7 +23,7 @@ describe('readObjectStorageConfigFromEnv', () => {
         LEARNWREN_S3_ACCESS_KEY: 'ak',
         LEARNWREN_S3_SECRET_KEY: 'sk',
       }),
-    ).toEqual({ kind: 's3', endpoint: 'http://minio:9000', accessKey: 'ak', secretKey: 'sk', region: 'us-east-1' });
+    ).toEqual({ kind: 's3', publicBuckets: [], endpoint: 'http://minio:9000', accessKey: 'ak', secretKey: 'sk', region: 'us-east-1' });
   });
 
   it('honours an explicit region', () => {

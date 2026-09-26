@@ -78,8 +78,15 @@ describe('GcsObjectStorage', () => {
     expect(s).toBe(file.createReadStream.mock.results[0]!.value);
   });
 
-  it('headObject returns the numeric size, and null on 404', async () => {
+  it('ensureBucket is a no-op (cloud buckets are provisioned out of band)', async () => {
+    const { storage, handle } = makeHandle();
+    await storage.ensureBucket('b');
+    expect(handle.bucket).not.toHaveBeenCalled();
+  });
+
+  it('headObject returns the numeric size (and content type when known), and null on 404', async () => {
     expect(await makeHandle().storage.headObject(ref)).toEqual({ size: 12 });
+    expect(await makeHandle({ getMetadata: vi.fn(async () => [{ size: 3, contentType: 'image/jpeg' }]) }).storage.headObject(ref)).toEqual({ size: 3, contentType: 'image/jpeg' });
     expect(await makeHandle({ getMetadata: vi.fn(async () => [{ size: 3 }]) }).storage.headObject(ref)).toEqual({ size: 3 });
     const notFound = makeHandle({ getMetadata: vi.fn(async () => { throw Object.assign(new Error('nf'), { code: 404 }); }) });
     expect(await notFound.storage.headObject(ref)).toBeNull();

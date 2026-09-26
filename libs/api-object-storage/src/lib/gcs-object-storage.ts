@@ -61,12 +61,12 @@ export class GcsObjectStorage implements ObjectStorage {
     return this.file(input).createReadStream();
   }
 
-  async headObject(input: ObjectRef): Promise<{ size: number } | null> {
+  async headObject(input: ObjectRef): Promise<{ size: number; contentType?: string } | null> {
     try {
       const [meta] = await this.file(input).getMetadata();
       // Stryker disable next-line ConditionalExpression: equivalent — Number(n) === n for a number, so forcing the string branch is unobservable
       const size = typeof meta.size === 'string' ? Number(meta.size) : (meta.size as number);
-      return { size };
+      return { size, ...(meta.contentType ? { contentType: meta.contentType } : {}) };
     } catch (err) {
       if (isNotFound(err)) return null;
       throw err;
@@ -84,6 +84,10 @@ export class GcsObjectStorage implements ObjectStorage {
 
   async deletePrefix(input: { bucket: string; prefix: string }): Promise<void> {
     await this.storage.bucket(input.bucket).deleteFiles({ prefix: input.prefix });
+  }
+
+  async ensureBucket(): Promise<void> {
+    // Cloud buckets are provisioned out of band (see docs/deployment.md).
   }
 
   async totalBytes(bucket: string): Promise<number> {

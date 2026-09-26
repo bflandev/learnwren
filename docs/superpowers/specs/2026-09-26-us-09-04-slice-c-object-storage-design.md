@@ -60,13 +60,14 @@ Three cuts were offered; the user chose the first:
 | `GcsObjectStorage` | Wraps the Firebase Storage handle; behaviour identical to today's direct SDK calls. |
 | `S3ObjectStorage` | `@aws-sdk/client-s3` with `forcePathStyle`; `@aws-sdk/lib-storage` `Upload` for streams; multipart create/part/complete/abort for the chunked video route. |
 | `readObjectStorageConfigFromEnv` | `LEARNWREN_OBJECT_STORAGE=gcs\|s3` (default `gcs`); for `s3`: `LEARNWREN_S3_ENDPOINT`, `LEARNWREN_S3_ACCESS_KEY`, `LEARNWREN_S3_SECRET_KEY`, `LEARNWREN_S3_REGION` (default `us-east-1`). Fails startup when `s3` is chosen and any of the three is missing. |
-| `ObjectStorageModule` | Global module providing `OBJECT_STORAGE` from the config; the GCS branch injects `FIREBASE_STORAGE`. |
+| `ObjectStorageModule` | Global module providing `OBJECT_STORAGE` from the config; the GCS branch injects `FIREBASE_STORAGE`. Also mounts `PublicMediaController`. |
+| `PublicMediaController` | `GET /api/media/:bucket/:key`: anonymous reads from `LEARNWREN_PUBLIC_BUCKETS` only. |
 
 Port (all inputs take `{ bucket, path }`):
 `putObject(body, contentType, cacheControl?, metadata?)`, `putFile(localPath,
 contentType)`, `putStream(stream, contentType)`, `getObject(): Buffer`,
 `downloadToFile(destination)`, `openReadStream()`, `headObject(): {size} |
-null`, `deleteObject()` (idempotent), `deletePrefix()`, `totalBytes(bucket)`,
+null`, `deleteObject()` (idempotent), `deletePrefix()`, `totalBytes(bucket)`, `ensureBucket(bucket)`,
 `signReadUrl(ttlSec, disposition?, responseType?)`, `signWriteUrl(contentType,
 ttlSec)`, `createResumableUpload(contentType, metadata, origin)`,
 `createMultipartUpload(contentType): uploadId`, `uploadPart(uploadId,
@@ -91,7 +92,7 @@ GCS implementation only.
 | Material upload | GCS signed `PUT` URL | `PUT /api/internal/uploads/materials/:matId` (the passthrough controller, renamed `MaterialsProxyController`, mounted when materials storage is `fake` **or** the store is `s3`; streams the body with `putStream` instead of buffering). |
 | Material download | GCS signed `GET` URL | `GET /api/internal/downloads/materials/:matId` (same controller, `MaterialAccessGuard`, streams with `Content-Disposition: attachment`). |
 | HLS segments | signed (gcp) / proxied (ffmpeg) | proxied (already). |
-| Cover / picture reads | public bucket URL | public bucket URL: `LEARNWREN_*_PUBLIC_BASE_URL=http://<host>:<port>/media/<bucket>`; nginx `location /media/ { proxy_pass http://minio:9000/; }`; the init container sets anonymous read on those two buckets only. |
+| Cover / picture reads | public bucket URL | `GET /api/media/:bucket/:key` (`PublicMediaController`, unauthenticated by design and on the guard-coverage allowlist), which serves only the buckets named in `LEARNWREN_PUBLIC_BUCKETS`; `LEARNWREN_*_PUBLIC_BASE_URL=http://<host>:<port>/api/media/<bucket>`. Chosen over a bucket policy + nginx proxy so no vendor-specific policy is needed. |
 
 The passthrough's old route prefix `internal/fake-materials` is renamed to
 `internal/uploads/materials` and `internal/downloads/materials`; the fake
@@ -100,19 +101,20 @@ route is class-guarded.
 
 ### 3.4 Compose
 
-- `minio` service (`minio/minio`, `server /data`), volume `minio-data`,
-  credentials from `.env` (`LEARNWREN_S3_ACCESS_KEY` / `LEARNWREN_S3_SECRET_KEY`,
-  defaulted), **no published ports** (the console can be bound to loopback
-  with `LEARNWREN_MINIO_CONSOLE_BIND`, off by default).
-- `minio-init` one-shot (`minio/mc`): creates the source, output, materials,
-  covers and pictures buckets, `anonymous set download` on covers and
-  pictures.
-- api: `LEARNWREN_OBJECT_STORAGE=s3`, endpoint `http://minio:9000`, the five
-  bucket names, the two public base URLs.
-- web: nginx `/media/` location; CSP `img-src`/`connect-src` no longer need
-  the Storage emulator origin, so `LEARNWREN_STORAGE_ORIGIN` and the
-  `LEARNWREN_STORAGE_BIND` port publication go away; the emulators service
-  keeps only Auth and Firestore (and the UI).
+- `objectstore` service (`rustfs/rustfs`, S3-compatible, Apache-2.0), volume
+  `objectstore-data`, credentials from `.env` (`LEARNWREN_S3_ACCESS_KEY` /
+  `LEARNWREN_S3_SECRET_KEY`, defaulted), **no published ports**. MinIO was
+  the plan, but its public images (Docker Hub and quay.io) were withdrawn
+  during the slice; the port made the swap a Compose-only change.
+- No init container: each storage adapter calls `ensureBucket` on module
+  init (`HeadBucket` → `CreateBucket`), so a fresh store is usable at once
+  and a wrong credential fails the api at boot.
+- api: `LEARNWREN_OBJECT_STORAGE=s3`, endpoint `http://objectstore:9000`, the
+  five bucket names, `LEARNWREN_PUBLIC_BUCKETS`, the two public base URLs.
+- web: CSP `img-src`/`connect-src` no longer need the Storage emulator origin,
+  so `LEARNWREN_STORAGE_ORIGIN` and the `LEARNWREN_STORAGE_BIND` port
+  publication go away; the emulators service keeps only Auth and Firestore
+  (and the UI).
 
 ### 3.5 Docs
 
