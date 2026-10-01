@@ -81,7 +81,7 @@ Stop it when done: `docker stop lw-d2-pg`. The shell does not keep `export` betw
   - `readDataStoreConfigFromEnv(env: Record<string, string | undefined>): DataStoreConfig`
   - `DATA_STORE_CONFIG = Symbol.for('learnwren.api-document-store.config')`
 
-- [ ] **Step 1: Add the dependency (controller, in the MAIN checkout)**
+- [x] **Step 1: Add the dependency (controller, in the MAIN checkout)**
 
 `pnpm add` fails inside a worktree, because the virtual store is shared (memory: `project_us_09_04_self_hosting.md`). The controller runs this once, before dispatching Task 1's implementer:
 
@@ -96,7 +96,7 @@ git checkout package.json pnpm-lock.yaml && git status --short
 
 Expected: the grep shows `pg`, `@types/pg` and the pre-existing `@aws-sdk/client-s3` (if `@aws-sdk/client-s3` is missing, the copy went wrong; restore from `/private/tmp/claude-501/`). `git status` in main shows only the two untracked PNGs. The worktree now has both manifests modified, and `node_modules` (symlinked) contains `pg`.
 
-- [ ] **Step 2: Write the failing config test**
+- [x] **Step 2: Write the failing config test**
 
 `libs/api-document-store/src/lib/data-store.config.spec.ts`:
 
@@ -137,12 +137,12 @@ describe('readDataStoreConfigFromEnv', () => {
 });
 ```
 
-- [ ] **Step 3: Run it to verify it fails**
+- [x] **Step 3: Run it to verify it fails**
 
 Run: `NX_DAEMON=false pnpm nx test api-document-store`
 Expected: FAIL, cannot resolve `./data-store.config`.
 
-- [ ] **Step 4: Write the config and the shared `QuerySpec`**
+- [x] **Step 4: Write the config and the shared `QuerySpec`**
 
 `libs/api-document-store/src/lib/data-store.config.ts`:
 
@@ -185,12 +185,12 @@ export interface QuerySpec {
 
 In `in-memory-document-store.ts`: delete its local `interface QuerySpec { … }` block and add `import type { QuerySpec } from './query-spec';`. Remove `FieldRef`, `SortDir` and `WhereOp` from its port import list only if they are now unused (typecheck and lint say).
 
-- [ ] **Step 5: Run tests, typecheck, lint**
+- [x] **Step 5: Run tests, typecheck, lint**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-document-store`
 Expected: PASS. In-memory behaviour is unchanged: the contract still passes 27/27 for `in-memory`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml libs/api-document-store/src/lib/query-spec.ts libs/api-document-store/src/lib/data-store.config.ts libs/api-document-store/src/lib/data-store.config.spec.ts libs/api-document-store/src/lib/in-memory-document-store.ts
@@ -214,7 +214,7 @@ git commit -m "feat(api-document-store): LEARNWREN_DATA_STORE selector, shared Q
   - `interface SqlQuery { readonly text: string; readonly values: unknown[] }`
   - `buildQuerySql(spec: QuerySpec, mode: 'rows' | 'count'): SqlQuery`. `rows` selects `path, data` with ORDER BY/LIMIT; `count` selects `count(*)::int AS count` with no ORDER BY/LIMIT.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `libs/api-document-store/src/lib/postgres/paths.spec.ts`:
 
@@ -365,12 +365,12 @@ describe('buildQuerySql', () => {
 });
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `NX_DAEMON=false pnpm nx test api-document-store`
 Expected: FAIL, cannot resolve `./paths`, `./auto-id`, `./sql-query`.
 
-- [ ] **Step 3: Write the helpers**
+- [x] **Step 3: Write the helpers**
 
 `libs/api-document-store/src/lib/postgres/paths.ts`:
 
@@ -479,12 +479,12 @@ export function buildQuerySql(spec: QuerySpec, mode: 'rows' | 'count'): SqlQuery
 }
 ```
 
-- [ ] **Step 4: Run tests, typecheck, lint**
+- [x] **Step 4: Run tests, typecheck, lint**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-document-store`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add libs/api-document-store/src/lib/postgres/paths.ts libs/api-document-store/src/lib/postgres/paths.spec.ts libs/api-document-store/src/lib/postgres/auto-id.ts libs/api-document-store/src/lib/postgres/auto-id.spec.ts libs/api-document-store/src/lib/postgres/sql-query.ts libs/api-document-store/src/lib/postgres/sql-query.spec.ts
@@ -507,11 +507,11 @@ git commit -m "feat(api-document-store): Postgres path, auto-id and SQL builder 
   - `isRetryableTxnError(err: unknown): boolean`
   - `MAX_TXN_ATTEMPTS = 5`
 
-- [ ] **Step 1: Start the local Postgres**
+- [x] **Step 1: Start the local Postgres**
 
 Run the "Local Postgres for tests" block at the top of this plan.
 
-- [ ] **Step 2: Write the failing contract spec and fake-pool spec**
+- [x] **Step 2: Write the failing contract spec and fake-pool spec**
 
 `libs/api-document-store/src/lib/postgres/postgres-document-store.contract.spec.ts`:
 
@@ -719,12 +719,12 @@ describe('PostgresDocumentStore lifecycle (fake pool)', () => {
 });
 ```
 
-- [ ] **Step 3: Run them to verify they fail**
+- [x] **Step 3: Run them to verify they fail**
 
 Run: `LEARNWREN_TEST_POSTGRES_URL=postgres://postgres:learnwren@127.0.0.1:55432/learnwren_test NX_DAEMON=false pnpm nx test api-document-store --skip-nx-cache`
 Expected: FAIL, cannot resolve `./postgres-document-store`.
 
-- [ ] **Step 4: Write the schema and the adapter**
+- [x] **Step 4: Write the schema and the adapter**
 
 `libs/api-document-store/src/lib/postgres/schema.ts`:
 
@@ -1047,7 +1047,7 @@ export { PostgresDocumentStore } from './lib/postgres/postgres-document-store';
 export { readDataStoreConfigFromEnv, DATA_STORE_CONFIG, type DataStoreConfig } from './lib/data-store.config';
 ```
 
-- [ ] **Step 5: Run unit + Postgres contract, then the Firestore contract**
+- [x] **Step 5: Run unit + Postgres contract, then the Firestore contract**
 
 Run: `LEARNWREN_TEST_POSTGRES_URL=postgres://postgres:learnwren@127.0.0.1:55432/learnwren_test NX_DAEMON=false pnpm nx test api-document-store --skip-nx-cache`
 Expected: PASS, and the output shows `postgres-document-store.contract.spec.ts` running all 27 contract cases plus its 3 adapter cases (not skipped).
@@ -1057,12 +1057,12 @@ If a contract case fails only for Postgres, the adapter or SQL is wrong. Fix it 
 Then confirm the Firestore contract is unaffected (probe 8080 first): `pnpm exec firebase emulators:exec --only firestore --project demo-learnwren 'NX_DAEMON=false pnpm nx run api-document-store:test --skip-nx-cache'`
 Expected: PASS, firestore contract included. (Postgres is skipped in this run unless you also pass the URL. Passing it is fine.)
 
-- [ ] **Step 6: Typecheck, lint**
+- [x] **Step 6: Typecheck, lint**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t typecheck lint -p api-document-store`
 Expected: PASS. If lint flags the `as Transaction['get']` cast, mirror the Firestore adapter's existing handling.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add libs/api-document-store/src/index.ts libs/api-document-store/src/lib/postgres/schema.ts libs/api-document-store/src/lib/postgres/postgres-document-store.ts libs/api-document-store/src/lib/postgres/postgres-document-store.spec.ts libs/api-document-store/src/lib/postgres/postgres-document-store.contract.spec.ts
@@ -1080,7 +1080,7 @@ git commit -m "feat(api-document-store): PostgreSQL adapter passing the shared D
 - Consumes: Task 1 `readDataStoreConfigFromEnv`, `DATA_STORE_CONFIG`, `DataStoreConfig`; Task 3 `PostgresDocumentStore`; `FirestoreDocumentStore`; `FIRESTORE`, `FirestoreHandle`.
 - Produces: `makeDocumentStore(cfg: DataStoreConfig, firestore: FirestoreHandle, makePool?: (url: string) => Pool): Promise<DocumentStore>`, exported from the module file. `makePool` is a test seam; it defaults to `(url) => new Pool({ connectionString: url })`.
 
-- [ ] **Step 1: Write the failing module tests**
+- [x] **Step 1: Write the failing module tests**
 
 Replace `libs/api-document-store/src/lib/document-store.module.spec.ts` with:
 
@@ -1158,12 +1158,12 @@ describe('makeDocumentStore', () => {
 });
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `NX_DAEMON=false pnpm nx test api-document-store`
 Expected: FAIL, `makeDocumentStore` is not exported.
 
-- [ ] **Step 3: Wire the selector**
+- [x] **Step 3: Wire the selector**
 
 Replace `libs/api-document-store/src/lib/document-store.module.ts` with:
 
@@ -1214,7 +1214,7 @@ export class DocumentStoreModule {}
 
 The log message carries only `err.message`. The connection URL, which holds the password, is never logged.
 
-- [ ] **Step 4: Document the settings**
+- [x] **Step 4: Document the settings**
 
 Append to `.env.example`, after the object-storage block, keeping the file's existing comment style:
 
@@ -1226,12 +1226,12 @@ Append to `.env.example`, after the object-storage block, keeping the file's exi
 # LEARNWREN_POSTGRES_URL=postgres://learnwren:change-me@postgres:5432/learnwren
 ```
 
-- [ ] **Step 5: Run tests, typecheck, lint for the lib and the api**
+- [x] **Step 5: Run tests, typecheck, lint for the lib and the api**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-document-store api`
 Expected: PASS.
 
-- [ ] **Step 6: Boot smoke: the api on Postgres**
+- [x] **Step 6: Boot smoke: the api on Postgres**
 
 With the local Postgres up, and the Firebase emulators running for Auth (probe the ports per the run-e2e skill: 3333, 8080, 9099, 9199), start the api in Postgres mode in the background. It is the api's own listen mode, as in `docs/development.md`.
 
@@ -1247,7 +1247,7 @@ docker exec lw-d2-pg psql -U postgres -d learnwren_test -c '\d documents'
 
 Expected: `200`, and `\d documents` shows the five columns (`path`, `parent`, `collection`, `id`, `data`). Then stop the api and any emulator you started (only your PIDs), and re-probe the ports. If the api fails to boot, paste its log in the report. Do not change code to force it.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add libs/api-document-store/src/lib/document-store.module.ts libs/api-document-store/src/lib/document-store.module.spec.ts .env.example
@@ -1262,7 +1262,7 @@ git commit -m "feat(api-document-store): LEARNWREN_DATA_STORE selects Firestore 
 - Modify: `.github/workflows/ci.yml`, `stryker.api-document-store.config.mjs` (comment only), `docs/superpowers/specs/2026-10-01-us-09-04-slice-d-auth-and-data-design.md` (§3.3, §4)
 - Create/modify: `docs/quality/mutation-report-api-document-store.md`, plus tests that kill survivors
 
-- [ ] **Step 1: Postgres in the `e2e` job**
+- [x] **Step 1: Postgres in the `e2e` job**
 
 In `.github/workflows/ci.yml`, job `e2e`, add under `runs-on` (same indentation as `steps:`):
 
@@ -1286,7 +1286,7 @@ In `.github/workflows/ci.yml`, job `e2e`, add under `runs-on` (same indentation 
 
 Rename the run step to `Run the DocumentStore contracts (Firestore + Postgres) and api-e2e`. Its command is unchanged: the env reaches the `api-document-store:test` run inside `emulators:exec`. Extend the comment above it with one line: "LEARNWREN_TEST_POSTGRES_URL points the Postgres contract at the service container."
 
-- [ ] **Step 2: Make the mutation job able to kill adapter mutants**
+- [x] **Step 2: Make the mutation job able to kill adapter mutants**
 
 Today the `mutation` matrix job runs `stryker.api-document-store.config.mjs` with no Firestore emulator and no Postgres. Both contract specs skip, so every adapter-wrapper mutant survives in CI. In the `mutation` job:
 - add the same `services: postgres:` block and the same job-level `env: LEARNWREN_TEST_POSTGRES_URL: …` as in Step 1;
@@ -1306,7 +1306,7 @@ Today the `mutation` matrix job runs `stryker.api-document-store.config.mjs` wit
 
 Update the header comment of `stryker.api-document-store.config.mjs` to say it runs with the Firestore emulator and `LEARNWREN_TEST_POSTGRES_URL` set, and that CI's mutation job provides both.
 
-- [ ] **Step 3: Mutation round**
+- [x] **Step 3: Mutation round**
 
 Follow the mutation-round skill (invoke it). Start the local Postgres and probe 8080, then:
 
@@ -1317,7 +1317,7 @@ pnpm exec firebase emulators:exec --only firestore --project demo-learnwren 'npx
 
 Triage every Survived/NoCoverage mutant in `reports/mutation/api-document-store/mutation.json`. Add the missing assertion, preferring a contract case if the behaviour is backend-neutral (it must then also pass on Firestore and in-memory), else a `sql-query.spec.ts` or fake-pool case. Mark an equivalent only with a concrete reason in the repo's annotation form. Reach 100% adjusted. Then regenerate `docs/quality/mutation-report-api-document-store.md` the same way D1 wrote it (see that file's header and the skill; never no-arg `report.mjs` from the worktree, never after a `--mutate` scoped run).
 
-- [ ] **Step 4: Sync spec §3.3 and §4**
+- [x] **Step 4: Sync spec §3.3 and §4**
 
 In `docs/superpowers/specs/2026-10-01-us-09-04-slice-d-auth-and-data-design.md` §3.3, make the SQL block and table match what was built:
 - the table has an `id text NOT NULL` column;
@@ -1336,7 +1336,7 @@ In §4 add two ceilings:
 
 Keep each edit to a line or two. Keep the DRAFT banner.
 
-- [ ] **Step 5: Full verification**
+- [x] **Step 5: Full verification**
 
 Probe ports (3333, 4200, 8080, 9099, 9199, 55432) per the run-e2e skill, with the local Postgres up:
 
@@ -1358,7 +1358,7 @@ Expected:
 
 Then `docker stop lw-d2-pg` and re-probe the ports.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .github/workflows/ci.yml stryker.api-document-store.config.mjs docs/superpowers/specs/2026-10-01-us-09-04-slice-d-auth-and-data-design.md docs/quality/mutation-report-api-document-store.md
