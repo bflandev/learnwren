@@ -10,24 +10,14 @@ import {
   type FieldRef,
   type Query,
   type QuerySnapshot,
-  type SortDir,
   type Transaction,
-  type WhereOp,
   type WriteBatch,
 } from './document-store.port';
+import type { QuerySpec } from './query-spec';
 import { stripUndefined } from './strip-undefined';
 
 type Store = Map<string, DocData>;
 type Write = (store: Store) => void;
-
-interface QuerySpec {
-  /** Collection path, or the collection id when `group` is true. */
-  readonly source: string;
-  readonly group: boolean;
-  readonly filters: readonly { field: FieldRef; op: WhereOp; value: unknown }[];
-  readonly order: readonly { field: FieldRef; dir: SortDir }[];
-  readonly limit?: number;
-}
 
 export interface InMemoryDocumentStore extends DocumentStore {
   /** Full path → data. For test assertions only. */
