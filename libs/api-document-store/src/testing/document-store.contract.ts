@@ -67,11 +67,13 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
       );
     });
 
-    it('doc() with no id generates distinct ids', async () => {
-      const a = col('items').doc();
-      const b = col('items').doc();
-      expect(a.id).not.toBe('');
-      expect(a.id).not.toBe(b.id);
+    it('doc() with no id generates ids shaped like a Firestore auto-id, unique across collections', async () => {
+      const idPattern = /^[A-Za-z0-9_-]{1,64}$/;
+      const fromA = [col('items').doc().id, col('items').doc().id, col('items').doc().id];
+      const fromB = [col('other').doc().id, col('other').doc().id, col('other').doc().id];
+      for (const id of [...fromA, ...fromB]) expect(id).toMatch(idPattern);
+      const all = [...fromA, ...fromB];
+      expect(new Set(all).size).toBe(all.length);
     });
 
     it('delete removes the document', async () => {
@@ -137,6 +139,19 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
         expect(snap.docs.map((d) => d.id)).toEqual(['c', 'a', 'b']);
       });
 
+      it('orderBy excludes documents that lack the ordered field, in both directions', async () => {
+        await col('sparse').doc('has1').set({ rank: 1 });
+        await col('sparse').doc('has2').set({ rank: 2 });
+        await col('sparse').doc('missing').set({ other: 'x' });
+        const asc = await col('sparse').orderBy('rank', 'asc').get();
+        expect(asc.docs.map((d) => d.id)).toEqual(['has1', 'has2']);
+        const desc = await col('sparse').orderBy('rank', 'desc').get();
+        expect(desc.docs.map((d) => d.id)).toEqual(['has2', 'has1']);
+        // An unordered query still returns the document missing the field.
+        const unordered = await col('sparse').get();
+        expect(unordered.docs.map((d) => d.id).sort()).toEqual(['has1', 'has2', 'missing']);
+      });
+
       it('count() counts the collection and a filtered query', async () => {
         expect((await col('q').count().get()).data().count).toBe(3);
         expect((await col('q').where('kind', '==', 'x').count().get()).data().count).toBe(2);
@@ -193,6 +208,20 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
       expect((await p1.collection('kids').doc('k').get()).exists).toBe(false);
       expect((await p1.collection('kids').doc('k').collection('grand').doc('g').get()).exists).toBe(false);
       expect((await col('tree').doc('p10').get()).exists).toBe(true);
+    });
+
+    it('recursiveDelete on an id containing "_" does not match a sibling whose id differs only by that character', async () => {
+      const ab = col('tree').doc('a_b');
+      await ab.set({ a: 1 });
+      await ab.collection('kids').doc('k').set({ b: 1 });
+      const axb = col('tree').doc('aXb');
+      await axb.set({ sibling: true });
+      await axb.collection('kids').doc('k').set({ sibling: true });
+      await store.recursiveDelete(ab);
+      expect((await ab.get()).exists).toBe(false);
+      expect((await ab.collection('kids').doc('k').get()).exists).toBe(false);
+      expect((await axb.get()).exists).toBe(true);
+      expect((await axb.collection('kids').doc('k').get()).exists).toBe(true);
     });
 
     it('a batch commits every write', async () => {

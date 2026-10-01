@@ -624,8 +624,18 @@ describe('CoursesRepository.listPublished', () => {
   it('returns only courses whose status is PUBLISHED', async () => {
     const fake = createInMemoryDocumentStore({
       'courses/c-draft': { id: 'c-draft', title: 'Draft', status: 'DRAFT' },
-      'courses/c-pub-1': { id: 'c-pub-1', title: 'Pub One', status: 'PUBLISHED' },
-      'courses/c-pub-2': { id: 'c-pub-2', title: 'Pub Two', status: 'PUBLISHED' },
+      'courses/c-pub-1': {
+        id: 'c-pub-1',
+        title: 'Pub One',
+        status: 'PUBLISHED',
+        publishedAt: '2026-05-01T00:00:00.000Z',
+      },
+      'courses/c-pub-2': {
+        id: 'c-pub-2',
+        title: 'Pub Two',
+        status: 'PUBLISHED',
+        publishedAt: '2026-05-02T00:00:00.000Z',
+      },
       'courses/c-arch': { id: 'c-arch', title: 'Archived', status: 'ARCHIVED' },
     });
     const repo = await buildRepo(fake);

@@ -125,6 +125,17 @@ export function createInMemoryDocumentStore(seed: Record<string, DocData> = {}):
   function runQuery(spec: QuerySpec): QuerySnapshot {
     let hits = [...store.entries()].filter(([path]) => inSource(path, spec));
     for (const filter of spec.filters) hits = hits.filter(([path, data]) => matches(path, data, filter));
+    // Firestore excludes documents missing an orderBy field from the result
+    // entirely (it is never just "sorted last"). DOCUMENT_ID is exempt: every
+    // document has an id, so the field can never be missing for it.
+    for (const clause of spec.order) {
+      // Stryker disable next-line ConditionalExpression: equivalent — fieldValue(…,
+      // DOCUMENT_ID) always resolves to the path's last segment, which is never
+      // undefined, so the filter below is already a no-op for DOCUMENT_ID with or
+      // without this guard. The guard documents why, but removing it changes nothing.
+      if (clause.field === DOCUMENT_ID) continue;
+      hits = hits.filter(([path, data]) => fieldValue(path, data, clause.field) !== undefined);
+    }
     // Sort by the last clause first so the first clause ends up primary.
     for (const clause of [...spec.order].reverse()) {
       hits.sort(([ap, ad], [bp, bd]) => {
