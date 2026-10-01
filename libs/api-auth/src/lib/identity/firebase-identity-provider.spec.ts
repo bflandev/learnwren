@@ -282,6 +282,24 @@ describe('FirebaseIdentityProvider.verifySession', () => {
     expect(auth.verifySessionCookie).toHaveBeenCalledWith('COOKIE-VALUE', true);
   });
 
+  it('defaults email to an empty string when the decoded claim has none', async () => {
+    const auth = buildFakeAuth({
+      verifySessionCookie: vi.fn(async () => ({
+        uid: 'uid-123',
+        role: 'STUDENT',
+        email_verified: false,
+      })),
+    });
+    const provider = buildProvider(auth);
+
+    expect(await provider.verifySession('COOKIE-VALUE')).toEqual({
+      uid: 'uid-123',
+      email: '',
+      role: 'STUDENT',
+      emailVerified: false,
+    });
+  });
+
   it('returns null when the cookie is rejected', async () => {
     const auth = buildFakeAuth({
       verifySessionCookie: vi.fn(async () => {

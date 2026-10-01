@@ -420,16 +420,29 @@ describe('AdminUserDeleteService.delete', () => {
     expect(repo.anonymiseUser).toHaveBeenCalled();
   });
 
-  it('deleteUser resolving for an already-gone user (idempotent) proceeds straight to anonymise, no warn', async () => {
-    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  it('calls identity.deleteUser before repo.anonymiseUser — deleteUser is idempotent at the port, so no not-found tolerance branch is needed', async () => {
+    const callOrder: string[] = [];
     const { firestore, repo } = makeFixture({ target: { role: 'STUDENT', status: 'ACTIVE' } });
-    const svc = new AdminUserDeleteService(firestore as never, auth as never, repo, storage, fakePicConfig);
+    repo.anonymiseUser = vi.fn(async () => {
+      callOrder.push('anonymiseUser');
+    });
+    const orderedAuth = {
+      ...auth,
+      deleteUser: vi.fn(async () => {
+        callOrder.push('deleteUser');
+      }),
+    };
+    const svc = new AdminUserDeleteService(
+      firestore as never,
+      orderedAuth as never,
+      repo,
+      storage,
+      fakePicConfig,
+    );
     await expect(svc.delete('actor' as UserId, 'target' as UserId)).resolves.toBeUndefined();
-    // No not-found tolerance branch exists any more — deleteUser is idempotent
-    // at the port, so there is nothing to warn about here.
-    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('user already gone'));
-    expect(auth.deleteUser).toHaveBeenCalledWith('target');
+    expect(orderedAuth.deleteUser).toHaveBeenCalledWith('target');
     expect(repo.anonymiseUser).toHaveBeenCalled();
+    expect(callOrder).toEqual(['deleteUser', 'anonymiseUser']);
   });
 
   it('tolerates storage.deleteObject failing (logs warn, continues to enrollment/app cleanup)', async () => {

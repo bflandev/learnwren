@@ -257,6 +257,9 @@ describe('AuthService.register', () => {
   });
 
   it('accepts a password at the 256-character boundary', async () => {
+    // Lower-bound counterpart for PASSWORD_MAX: password.length === 256 is valid;
+    // the guard is `> PASSWORD_MAX`, not `>=`. An EqualityOperator mutant flipping
+    // it to `>=` would reject a maximal-but-legal password.
     const identity = buildIdentity();
     const firestore = buildFakeFirestore();
     const service = await buildModule(identity, firestore);
@@ -270,6 +273,11 @@ describe('AuthService.register', () => {
   });
 
   it('swallows a deleteUser failure during rollback and still rejects with the triggering error', async () => {
+    // bestEffortDeleteUser wraps auth.deleteUser in try/catch so a failed
+    // rollback cleanup never masks the original failure. A BlockStatement mutant
+    // emptying that catch would be invisible unless we drive deleteUser to throw
+    // AND assert register still rejects with the Firestore-write error (not the
+    // deleteUser error) — proving the catch ran.
     const identity = buildIdentity({
       deleteUser: vi.fn(async () => {
         throw new Error('deleteUser exploded');
@@ -707,6 +715,9 @@ describe('AuthService.login', () => {
   });
 
   it('throws InternalAuthException when the user doc is missing on login', async () => {
+    // The `if (!userDoc.exists)` guard rejects logins for users that exist in
+    // the identity provider but not Firestore. A ConditionalExpression mutant
+    // flipping it to `false` would let a malformed account return a session.
     const identity = buildIdentity({
       verifyPassword: vi.fn(async () => ({ uid: 'uid-orphan' })),
       getUser: vi.fn(async () => ({ uid: 'uid-orphan', email: 'alice@example.com', emailVerified: true })),

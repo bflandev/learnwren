@@ -181,7 +181,7 @@ export class AuthService {
       await this.identity.setRole(uid, 'STUDENT');
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
-      this.logger.error(`[auth] register setCustomUserClaims failed uid=${uid}: ${String(err)}`);
+      this.logger.error(`[auth] register setRole failed uid=${uid}: ${String(err)}`);
       await this.bestEffortDeleteUser(uid);
       throw new InternalAuthException();
     }
