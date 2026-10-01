@@ -1,8 +1,19 @@
 import { describeDocumentStoreContract } from '../testing/document-store.contract';
 import { DocumentNotFoundError } from './document-store.errors';
-import { createInMemoryDocumentStore } from './in-memory-document-store';
+import { compareFieldValues, createInMemoryDocumentStore } from './in-memory-document-store';
 
 describeDocumentStoreContract('in-memory', () => createInMemoryDocumentStore());
+
+describe('compareFieldValues', () => {
+  it('returns -1/0/1 for less-than/equal/greater-than, independent of sort-algorithm quirks', () => {
+    expect(compareFieldValues(1, 2)).toBe(-1);
+    expect(compareFieldValues(2, 1)).toBe(1);
+    expect(compareFieldValues(2, 2)).toBe(0);
+    expect(compareFieldValues('a', 'b')).toBe(-1);
+    expect(compareFieldValues('b', 'a')).toBe(1);
+    expect(compareFieldValues('a', 'a')).toBe(0);
+  });
+});
 
 describe('createInMemoryDocumentStore', () => {
   it('seeds documents by full path and exposes them on __store', async () => {

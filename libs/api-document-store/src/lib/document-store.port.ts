@@ -10,12 +10,21 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type DocData = { [field: string]: any };
 
+// Stryker disable next-line StringLiteral: equivalent — the Symbol.for() registry
+// key is never read back; DOCUMENT_STORE is used only by reference (DI token
+// identity), so any key string yields an indistinguishable symbol.
 export const DOCUMENT_STORE = Symbol.for('learnwren.api-document-store.store');
 
 /** Write this as a field value in `update` to remove the field. */
+// Stryker disable next-line StringLiteral: equivalent — DELETE_FIELD is compared
+// by reference (`value === DELETE_FIELD`) everywhere it's used; the registry
+// key string itself is never inspected.
 export const DELETE_FIELD: unique symbol = Symbol.for('learnwren.api-document-store.delete-field');
 
 /** Use as the field in `where` / `orderBy` to mean the document id. */
+// Stryker disable next-line StringLiteral: equivalent — DOCUMENT_ID is compared
+// by reference (`field === DOCUMENT_ID`) everywhere it's used; the registry
+// key string itself is never inspected.
 export const DOCUMENT_ID: unique symbol = Symbol.for('learnwren.api-document-store.document-id');
 
 export type FieldRef = string | typeof DOCUMENT_ID;

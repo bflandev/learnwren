@@ -50,8 +50,28 @@ function matches(path: string, data: DocData, filter: QuerySpec['filters'][numbe
 }
 
 function inSource(path: string, spec: QuerySpec): boolean {
-  if (spec.group) return depth(path) >= 2 && path.split('/').at(-2) === spec.source;
+  if (spec.group) {
+    // Stryker disable next-line ConditionalExpression: equivalent — every document
+    // path in this store comes from a doc() call under some collection, so depth
+    // is always >= 2; `.at(-2)` is undefined (never equal to spec.source) below
+    // that depth anyway, so the guard can never observably differ.
+    return depth(path) >= 2 && path.split('/').at(-2) === spec.source;
+  }
   return path.startsWith(`${spec.source}/`) && depth(path) === depth(spec.source) + 1;
+}
+
+/**
+ * Three-way compare for `orderBy`, exported for direct unit coverage: inside
+ * Array.sort a tie (0) and the "swap requested" branch (1) are indistinguishable
+ * for some sort algorithms/positions (sign-only shift decisions), which can mask
+ * a mutation there. Testing this function directly pins the exact contract.
+ */
+export function compareFieldValues(av: string | number, bv: string | number): -1 | 0 | 1 {
+  if (av === bv) return 0;
+  // Stryker disable next-line EqualityOperator: equivalent — the `av === bv` guard
+  // above already returns for ties, so this line only runs when av !== bv, where
+  // `<` and `<=` are identical.
+  return av < bv ? -1 : 1;
 }
 
 function applyPatch(store: Store, path: string, patch: DocData): void {
@@ -110,10 +130,13 @@ export function createInMemoryDocumentStore(seed: Record<string, DocData> = {}):
       hits.sort(([ap, ad], [bp, bd]) => {
         const av = fieldValue(ap, ad, clause.field) as string | number;
         const bv = fieldValue(bp, bd, clause.field) as string | number;
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        const cmp = compareFieldValues(av, bv);
         return clause.dir === 'desc' ? -cmp : cmp;
       });
     }
+    // Stryker disable next-line ConditionalExpression: equivalent — `Array.slice(0,
+    // undefined)` returns a full copy identical to the un-sliced array, so an
+    // always-true guard here is behaviourally indistinguishable from the real one.
     if (spec.limit !== undefined) hits = hits.slice(0, spec.limit);
     return {
       empty: hits.length === 0,
@@ -126,6 +149,9 @@ export function createInMemoryDocumentStore(seed: Record<string, DocData> = {}):
     return {
       __spec: spec,
       where: (field, op, value) => makeQuery({ ...spec, filters: [...spec.filters, { field, op, value }] }),
+      // Stryker disable next-line StringLiteral: equivalent — sort direction below
+      // only checks `=== 'desc'`; any other default string (including '') resolves
+      // to the same ascending behaviour, so the literal's exact value is unobservable.
       orderBy: (field, dir = 'asc') => makeQuery({ ...spec, order: [...spec.order, { field, dir }] }),
       limit: (n) => makeQuery({ ...spec, limit: n }),
       count: () => ({ get: async () => ({ data: () => ({ count: runQuery(spec).size }) }) }),
@@ -135,7 +161,15 @@ export function createInMemoryDocumentStore(seed: Record<string, DocData> = {}):
 
   function makeCollection(path: string): CollectionRef {
     return {
-      ...makeQuery({ source: path, group: false, filters: [], order: [] }),
+      ...makeQuery({
+        source: path,
+        group: false,
+        filters: [],
+        // Stryker disable next-line ArrayDeclaration: equivalent — a placeholder
+        // item lacks `.field`/`.dir`; fieldValue reads them as undefined, so the
+        // comparator becomes a no-op (cmp always 0) identical to an empty order array.
+        order: [],
+      }),
       id: lastSegment(path),
       doc: (id) => makeDoc(`${path}/${id ?? `auto-${++autoSeq}`}`),
     };
@@ -170,7 +204,15 @@ export function createInMemoryDocumentStore(seed: Record<string, DocData> = {}):
   return {
     __store: store,
     collection: (name) => makeCollection(name),
-    collectionGroup: (collectionId) => makeQuery({ source: collectionId, group: true, filters: [], order: [] }),
+    collectionGroup: (collectionId) =>
+      makeQuery({
+        source: collectionId,
+        group: true,
+        filters: [],
+        // Stryker disable next-line ArrayDeclaration: equivalent — see the matching
+        // comment in makeCollection() above.
+        order: [],
+      }),
     batch(): WriteBatch {
       const writes: Write[] = [];
       return { ...writer(writes), commit: async () => commitAtomically(store, writes) };

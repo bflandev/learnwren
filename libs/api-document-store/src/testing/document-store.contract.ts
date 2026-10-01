@@ -30,6 +30,10 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
       expect(miss.data()).toBeUndefined();
     });
 
+    it('a CollectionRef reports its own id (the last path segment)', () => {
+      expect(col('items').id).toBe(`${ns}_items`);
+    });
+
     it('set replaces the whole document', async () => {
       const ref = col('items').doc('a');
       await ref.set({ a: 1, b: 2 });
@@ -48,6 +52,13 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
       await ref.set({ a: 1, b: 2, c: 3 });
       await ref.update({ b: 20, c: DELETE_FIELD, d: 4 });
       expect((await ref.get()).data()).toEqual({ a: 1, b: 20, d: 4 });
+    });
+
+    it('update ignores an undefined (non-DELETE_FIELD) patch value, leaving the existing field untouched', async () => {
+      const ref = col('items').doc('a');
+      await ref.set({ a: 1, b: 2 });
+      await ref.update({ a: undefined, c: 3 });
+      expect((await ref.get()).data()).toEqual({ a: 1, b: 2, c: 3 });
     });
 
     it('update on a missing document rejects with DocumentNotFoundError', async () => {
@@ -82,6 +93,8 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
         expect(snap.docs.map((d) => d.id).sort()).toEqual(['a', 'c']);
         expect(snap.size).toBe(2);
         expect(snap.empty).toBe(false);
+        // Query results must carry real document data, not just the id/ref.
+        expect(snap.docs.find((d) => d.id === 'a')?.data()).toEqual({ kind: 'x', rank: 3 });
       });
 
       it("where 'in' filters", async () => {
@@ -103,6 +116,27 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
         expect(desc.docs.map((d) => d.id)).toEqual(['a', 'c']);
       });
 
+      it('orderBy defaults to ascending when no direction is given', async () => {
+        const defaulted = await col('q').orderBy('rank').get();
+        expect(defaulted.docs.map((d) => d.id)).toEqual(['b', 'c', 'a']);
+      });
+
+      it('orderBy with multiple clauses sorts by the first clause first', async () => {
+        await col('multi').doc('a').set({ kind: 'x', rank: 2 });
+        await col('multi').doc('b').set({ kind: 'x', rank: 1 });
+        await col('multi').doc('c').set({ kind: 'y', rank: 0 });
+        const snap = await col('multi').orderBy('kind', 'asc').orderBy('rank', 'asc').get();
+        expect(snap.docs.map((d) => d.id)).toEqual(['b', 'a', 'c']);
+      });
+
+      it('orderBy treats equal sort-key values as ties (ordering by that clause alone is stable)', async () => {
+        await col('ties').doc('a').set({ rank: 1 });
+        await col('ties').doc('b').set({ rank: 1 });
+        await col('ties').doc('c').set({ rank: 0 });
+        const snap = await col('ties').orderBy('rank', 'asc').get();
+        expect(snap.docs.map((d) => d.id)).toEqual(['c', 'a', 'b']);
+      });
+
       it('count() counts the collection and a filtered query', async () => {
         expect((await col('q').count().get()).data().count).toBe(3);
         expect((await col('q').where('kind', '==', 'x').count().get()).data().count).toBe(2);
@@ -116,13 +150,33 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
       });
     });
 
-    it('a collection query excludes subcollection documents; collectionGroup spans parents', async () => {
+    it('a collection query excludes subcollection documents; collectionGroup spans parents and a same-named top-level collection', async () => {
       await col('parents').doc('p1').set({});
       await col('parents').doc('p1').collection(`${ns}_kids`).doc('k1').set({ tag: 't' });
       await col('parents').doc('p2').collection(`${ns}_kids`).doc('k2').set({ tag: 't' });
+      // A top-level collection sharing the "kids" id: collectionGroup must match
+      // it too (depth is irrelevant to group membership — only the id matters).
+      await col('kids').doc('top').set({ tag: 't' });
+      // A sibling top-level collection at the SAME depth as `parents`, with a
+      // different id: a plain collection() query must not leak it in by depth alone.
+      await col('other').doc('x').set({ tag: 't' });
+      // A collection literally named "parents" nested under an unrelated
+      // ancestor: a plain collection() query for the top-level `parents` must
+      // not match it by name alone — only an exact top-level path qualifies.
+      await col('kids').doc('top').collection(`${ns}_parents`).doc('nested').set({ tag: 't' });
+
       expect((await col('parents').get()).docs.map((d) => d.id)).toEqual(['p1']);
-      const group = await store.collectionGroup(`${ns}_kids`).where('tag', '==', 't').get();
+
+      const group = await store.collectionGroup(`${ns}_kids`).get();
       expect(group.docs.map((d) => d.ref.path).sort()).toEqual([
+        `${ns}_kids/top`,
+        `${ns}_parents/p1/${ns}_kids/k1`,
+        `${ns}_parents/p2/${ns}_kids/k2`,
+      ]);
+
+      const filtered = await store.collectionGroup(`${ns}_kids`).where('tag', '==', 't').get();
+      expect(filtered.docs.map((d) => d.ref.path).sort()).toEqual([
+        `${ns}_kids/top`,
         `${ns}_parents/p1/${ns}_kids/k1`,
         `${ns}_parents/p2/${ns}_kids/k2`,
       ]);
@@ -167,6 +221,16 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
         expect(result).toBe('done');
         expect((await col('t').doc('a').get()).data()).toEqual({ n: 2, kind: 'k' });
         expect((await col('t').doc('b').get()).data()).toEqual({ n: 1 });
+      });
+
+      it('a committed transaction delete actually removes the document', async () => {
+        await col('t').doc('a').set({ n: 1 });
+        await col('t').doc('b').set({ n: 2 });
+        await store.runTransaction(async (txn) => {
+          txn.delete(col('t').doc('a'));
+        });
+        expect((await col('t').doc('a').get()).exists).toBe(false);
+        expect((await col('t').doc('b').get()).exists).toBe(true);
       });
 
       it('applies no write when the body throws, and rethrows the same error', async () => {

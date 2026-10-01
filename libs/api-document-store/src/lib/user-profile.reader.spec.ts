@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { readStoredUserProfiles, scanStoredUserProfiles } from './user-profile.reader';
 import type { StoredUserRecord } from './user-profile.reader';
-import type { DocumentStore } from './document-store.port';
+import { DOCUMENT_ID, type DocumentStore } from './document-store.port';
 
 function makeFirestore(
   users: Record<string, Record<string, unknown> | null>,
@@ -49,7 +49,7 @@ describe('readStoredUserProfiles', () => {
   });
 
   it('reads from the "users" collection (not any other name)', async () => {
-    const collectionSpy = vi.fn((_name: string) => ({
+    const collectionSpy = vi.fn(() => ({
       doc: vi.fn(() => ({
         get: vi.fn(async () => ({ exists: true, data: () => ({ displayName: 'Ada' }) })),
       })),
@@ -91,25 +91,26 @@ describe('readStoredUserProfiles', () => {
 describe('scanStoredUserProfiles', () => {
   function fakeFirestore(docs: Array<{ id: string; data: Record<string, unknown> }>) {
     let capturedLimit = -1;
+    const orderBy = vi.fn(() => ({
+      limit: (n: number) => {
+        capturedLimit = n;
+        return {
+          get: async () => ({
+            docs: docs.slice(0, n).map((d) => ({ id: d.id, data: () => d.data })),
+          }),
+        };
+      },
+    }));
     const handle = {
-      collection: () => ({
-        orderBy: () => ({
-          limit: (n: number) => {
-            capturedLimit = n;
-            return {
-              get: async () => ({
-                docs: docs.slice(0, n).map((d) => ({ id: d.id, data: () => d.data })),
-              }),
-            };
-          },
-        }),
-      }),
+      collection: () => ({ orderBy }),
       get capturedLimit() {
         return capturedLimit;
       },
+      orderBy,
     };
     return handle as unknown as Parameters<typeof scanStoredUserProfiles>[0] & {
       capturedLimit: number;
+      orderBy: typeof orderBy;
     };
   }
 
@@ -123,6 +124,7 @@ describe('scanStoredUserProfiles', () => {
     expect(records[0]).toMatchObject({ id: 'u1', displayName: 'Ada', role: 'STUDENT' });
     expect(records[1]?.id).toBe('u2');
     expect(fs.capturedLimit).toBe(5001);
+    expect(fs.orderBy).toHaveBeenCalledWith(DOCUMENT_ID);
   });
 
   it('honours the limit argument', async () => {
