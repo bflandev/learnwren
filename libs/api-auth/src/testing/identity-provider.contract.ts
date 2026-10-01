@@ -54,6 +54,24 @@ export function describeIdentityProviderContract(
       expect((await idp.verifyPassword(address, PASSWORD)).uid).toBe(uid);
     });
 
+    it('emails match case-insensitively', async () => {
+      const address = email();
+      const mixedCase = address.toUpperCase();
+      const uid = await idp.createUser({ email: address, password: PASSWORD, displayName: 'A' });
+
+      expect(await idp.getUserByEmail(mixedCase)).toEqual({ uid, email: address, emailVerified: false });
+      expect((await idp.verifyPassword(mixedCase, PASSWORD)).uid).toBe(uid);
+      await expect(idp.createUser({ email: mixedCase, password: PASSWORD, displayName: 'B' })).rejects.toBeInstanceOf(
+        EmailInUseError,
+      );
+    });
+
+    it('createSession rejects a proof the adapter did not issue', async () => {
+      const address = email();
+      const uid = await idp.createUser({ email: address, password: PASSWORD, displayName: 'A' });
+      await expect(idp.createSession({ uid })).rejects.toThrow();
+    });
+
     it('verifyPassword gives one generic rejection for a wrong password, an unknown email and a disabled account', async () => {
       const address = email();
       const uid = await idp.createUser({ email: address, password: PASSWORD, displayName: 'A' });
@@ -153,6 +171,14 @@ export function describeIdentityProviderContract(
         const uid = await idp.createUser({ email: address, password: PASSWORD, displayName: 'A' });
         const session = await signIn(address);
         await idp.deleteUser(uid);
+        expect(await idp.verifySession(session.token)).toBeNull();
+      });
+
+      it('disabling a user rejects their existing session', async () => {
+        const address = email();
+        const uid = await idp.createUser({ email: address, password: PASSWORD, displayName: 'A' });
+        const session = await signIn(address);
+        await idp.updateUser(uid, { disabled: true });
         expect(await idp.verifySession(session.token)).toBeNull();
       });
     });

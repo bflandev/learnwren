@@ -192,8 +192,10 @@ export class FirebaseIdentityProvider implements IdentityProvider {
     const settings = { url: publicUrl(continuePath) };
     if (kind === 'verify-email') return this.auth.generateEmailVerificationLink(email, settings);
     if (kind === 'reset-password') return this.auth.generatePasswordResetLink(email, settings);
+    // kind is narrowed to 'change-email' here — the only remaining union member.
+    if (!newEmail) throw new Error('change-email requires newEmail');
     try {
-      return await this.auth.generateVerifyAndChangeEmailLink(email, newEmail ?? '', settings);
+      return await this.auth.generateVerifyAndChangeEmailLink(email, newEmail as string, settings);
     } catch (err) {
       if (authCode(err) === 'auth/email-already-exists') throw new EmailInUseError();
       throw err;

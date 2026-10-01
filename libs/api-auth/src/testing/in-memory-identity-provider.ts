@@ -31,10 +31,13 @@ export function createInMemoryIdentityProvider(): InMemoryIdentityProvider {
   const users = new Map<string, StoredUser>();
   const sessions = new Map<string, string>(); // token → uid
   const links: string[] = [];
+  // Proofs this adapter minted via verifyPassword — createSession accepts only these (F2).
+  const issuedProofs = new WeakSet<object>();
   let seq = 0;
 
+  const normalizeEmail = (e: string) => e.toLowerCase();
   const view = (u: StoredUser): IdentityUser => ({ uid: u.uid, email: u.email, emailVerified: u.emailVerified });
-  const byEmail = (email: string) => [...users.values()].find((u) => u.email === email);
+  const byEmail = (email: string) => [...users.values()].find((u) => u.email === normalizeEmail(email));
   const mustGet = (uid: string): StoredUser => {
     const user = users.get(uid);
     if (!user) throw new Error(`in-memory identity: no user ${uid}`);
@@ -50,7 +53,7 @@ export function createInMemoryIdentityProvider(): InMemoryIdentityProvider {
     async createUser({ email, password }) {
       if (byEmail(email)) throw new EmailInUseError();
       const uid = `user-${++seq}`;
-      users.set(uid, { uid, email, password, emailVerified: false, disabled: false });
+      users.set(uid, { uid, email: normalizeEmail(email), password, emailVerified: false, disabled: false });
       return uid;
     },
     async getUser(uid) {
@@ -80,9 +83,12 @@ export function createInMemoryIdentityProvider(): InMemoryIdentityProvider {
     async verifyPassword(email, password): Promise<PasswordProof> {
       const user = byEmail(email);
       if (!user || user.disabled || user.password !== password) throw new InvalidCredentialsException();
-      return { uid: user.uid };
+      const proof: PasswordProof = { uid: user.uid };
+      issuedProofs.add(proof);
+      return proof;
     },
     async createSession(proof) {
+      if (!issuedProofs.has(proof)) throw new Error('in-memory identity: createSession given a proof it did not issue');
       const token = `session-${++seq}`;
       sessions.set(token, proof.uid);
       return { token, maxAgeSeconds: SESSION_MAX_AGE_SECONDS };
@@ -90,7 +96,7 @@ export function createInMemoryIdentityProvider(): InMemoryIdentityProvider {
     async verifySession(token) {
       const uid = sessions.get(token);
       const user = uid === undefined ? undefined : users.get(uid);
-      if (!user) return null;
+      if (!user || user.disabled) return null;
       return { uid: user.uid, email: user.email, role: user.role, emailVerified: user.emailVerified };
     },
     async endSession(token) {
@@ -100,7 +106,8 @@ export function createInMemoryIdentityProvider(): InMemoryIdentityProvider {
       dropSessionsOf(uid);
     },
     async createEmailActionLink(kind: EmailActionKind, email, continuePath, newEmail) {
-      if (kind === 'change-email' && newEmail !== undefined && byEmail(newEmail)) throw new EmailInUseError();
+      if (kind === 'change-email' && !newEmail) throw new Error('change-email requires newEmail');
+      if (kind === 'change-email' && byEmail(newEmail as string)) throw new EmailInUseError();
       const query = new URLSearchParams({ kind, email, continue: continuePath, ...(newEmail ? { newEmail } : {}) });
       const link = `http://in-memory.test/action?${query.toString()}`;
       links.push(link);

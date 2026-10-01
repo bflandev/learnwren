@@ -9,6 +9,9 @@ import type { UserRole } from '@learnwren/shared-data-models';
  * verifyPassword rejects with InvalidCredentialsException for an unknown
  * email, a wrong password or a disabled account (one generic answer, so the
  * response never reveals which). Lookups resolve null for an unknown user.
+ *
+ * Emails are matched case-insensitively (createUser, getUserByEmail,
+ * verifyPassword, and the EmailInUseError checks all normalise first).
  */
 // Stryker disable next-line StringLiteral: equivalent — the Symbol.for() registry
 // key is never read back; IDENTITY_PROVIDER is used only by reference (DI token
@@ -34,7 +37,9 @@ export interface SessionClaims {
 
 /**
  * Proof that a password check passed. Opaque beyond `uid`: each adapter
- * carries what it needs to mint a session (Firebase: the ID token).
+ * carries what it needs to mint a session (Firebase: the ID token). Only
+ * valid when it came from that same provider's `verifyPassword` — a
+ * hand-built proof must be rejected by `createSession`.
  */
 export interface PasswordProof {
   readonly uid: string;
@@ -59,7 +64,11 @@ export interface IdentityProvider {
   createSession(proof: PasswordProof): Promise<MintedSession>;
   /** null for an invalid, expired or revoked session token. */
   verifySession(token: string): Promise<SessionClaims | null>;
-  /** Logout. Never throws for an already-invalid token. */
+  /**
+   * Logout. Never throws for an already-invalid token. Firebase revokes
+   * every session of the user; other adapters may end only this one.
+   * Callers that need every device signed out call revokeAllSessions.
+   */
   endSession(token: string): Promise<void>;
   revokeAllSessions(uid: string): Promise<void>;
   /**
