@@ -5,17 +5,24 @@ import { AccountRecoveryService } from './account-recovery.service';
 import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { EMAIL_TRANSPORT } from './email-transport/email-transport';
 import {
+  EmailAlreadyExistsException,
+  EmailActionTokenInvalidException,
   InternalAuthException,
   InvalidUnlockTokenException,
+  PasswordTooLongException,
   TooManyRequestsException,
   UnlockTokenExpiredException,
+  WeakPasswordException,
 } from './errors/auth.exception';
+import { EmailActionInvalidError, EmailInUseError } from './identity/identity.errors';
 import { IDENTITY_PROVIDER, type IdentityProvider } from './identity/identity-provider.port';
+import { PasswordPolicyService } from './password-policy.service';
 
 function buildIdentity(overrides: Partial<IdentityProvider> = {}): IdentityProvider {
   return {
     getUserByEmail: vi.fn(async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: false })),
     createEmailActionLink: vi.fn(async () => 'https://verify/abc'),
+    applyEmailAction: vi.fn(async () => undefined),
     ...overrides,
   } as unknown as IdentityProvider;
 }
@@ -56,6 +63,7 @@ async function buildService(
   const moduleRef = await Test.createTestingModule({
     providers: [
       AccountRecoveryService,
+      PasswordPolicyService,
       { provide: IDENTITY_PROVIDER, useValue: identity },
       { provide: AuthAttemptsRepository, useValue: attempts },
       { provide: EMAIL_TRANSPORT, useValue: emailTransport },
@@ -331,5 +339,113 @@ describe('AccountRecoveryService.sendInitialVerificationEmail', () => {
 
     expect(sent).toBe(false);
     expect(emailTransport.sendVerificationEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('AccountRecoveryService.applyEmailAction', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  async function build(identityOverrides: Partial<IdentityProvider> = {}) {
+    const identity = buildIdentity(identityOverrides);
+    const { repo: attempts } = buildAttemptsMock();
+    const emailTransport = buildEmailTransport();
+    const service = await buildService(identity, attempts, emailTransport);
+    return { service, identity };
+  }
+
+  it('rejects an unknown mode with EmailActionTokenInvalidException without calling identity', async () => {
+    const { service, identity } = await build();
+    await expect(service.applyEmailAction('bogus-mode', 'tok')).rejects.toBeInstanceOf(
+      EmailActionTokenInvalidException,
+    );
+    expect(identity.applyEmailAction).not.toHaveBeenCalled();
+  });
+
+  it('calls identity.applyEmailAction with no password for verify-email', async () => {
+    const { service, identity } = await build();
+    await service.applyEmailAction('verify-email', 'tok-1');
+    expect(identity.applyEmailAction).toHaveBeenCalledWith('verify-email', 'tok-1', undefined);
+  });
+
+  it('calls identity.applyEmailAction with no password for change-email', async () => {
+    const { service, identity } = await build();
+    await service.applyEmailAction('change-email', 'tok-2');
+    expect(identity.applyEmailAction).toHaveBeenCalledWith('change-email', 'tok-2', undefined);
+  });
+
+  it('throws WeakPasswordException and never calls identity when reset-password has no newPassword', async () => {
+    const { service, identity } = await build();
+    await expect(service.applyEmailAction('reset-password', 'tok-3')).rejects.toBeInstanceOf(
+      WeakPasswordException,
+    );
+    expect(identity.applyEmailAction).not.toHaveBeenCalled();
+  });
+
+  it('throws WeakPasswordException when the reset password fails policy', async () => {
+    const { service, identity } = await build();
+    await expect(
+      service.applyEmailAction('reset-password', 'tok-4', 'weak'),
+    ).rejects.toBeInstanceOf(WeakPasswordException);
+    expect(identity.applyEmailAction).not.toHaveBeenCalled();
+  });
+
+  it('throws PasswordTooLongException when the reset password exceeds PASSWORD_MAX', async () => {
+    const { service, identity } = await build();
+    const tooLong = `Aa1!${'x'.repeat(260)}`;
+    await expect(
+      service.applyEmailAction('reset-password', 'tok-5', tooLong),
+    ).rejects.toBeInstanceOf(PasswordTooLongException);
+    expect(identity.applyEmailAction).not.toHaveBeenCalled();
+  });
+
+  it('calls identity.applyEmailAction with the new password on a valid reset', async () => {
+    const { service, identity } = await build();
+    await service.applyEmailAction('reset-password', 'tok-6', 'Str0ng!Passw0rd');
+    expect(identity.applyEmailAction).toHaveBeenCalledWith('reset-password', 'tok-6', 'Str0ng!Passw0rd');
+  });
+
+  it('maps EmailActionInvalidError to EmailActionTokenInvalidException', async () => {
+    const { service } = await build({
+      applyEmailAction: vi.fn(async () => {
+        throw new EmailActionInvalidError();
+      }),
+    });
+    await expect(service.applyEmailAction('verify-email', 'tok-7')).rejects.toBeInstanceOf(
+      EmailActionTokenInvalidException,
+    );
+  });
+
+  it('maps EmailInUseError to EmailAlreadyExistsException', async () => {
+    const { service } = await build({
+      applyEmailAction: vi.fn(async () => {
+        throw new EmailInUseError();
+      }),
+    });
+    await expect(service.applyEmailAction('change-email', 'tok-8')).rejects.toBeInstanceOf(
+      EmailAlreadyExistsException,
+    );
+  });
+
+  it('logs and throws InternalAuthException for any other identity error', async () => {
+    const { service } = await build({
+      applyEmailAction: vi.fn(async () => {
+        throw new Error('db exploded');
+      }),
+    });
+    await expect(service.applyEmailAction('verify-email', 'tok-9')).rejects.toBeInstanceOf(
+      InternalAuthException,
+    );
+  });
+
+  it('never logs the raw token', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { service } = await build();
+    const secretToken = 'SECRET-TOKEN-VALUE';
+    await service.applyEmailAction('verify-email', secretToken);
+    const allLoggedText = [...logSpy.mock.calls, ...errorSpy.mock.calls].flat().join(' ');
+    expect(allLoggedText).not.toContain(secretToken);
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });

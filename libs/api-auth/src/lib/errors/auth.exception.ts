@@ -130,3 +130,9 @@ export class UnlockTokenExpiredException extends AuthException {
     });
   }
 }
+
+export class EmailActionTokenInvalidException extends AuthException {
+  constructor() {
+    super('TOKEN_INVALID_OR_EXPIRED', 'Token is invalid or has expired.', 400);
+  }
+}

@@ -5,13 +5,24 @@ import type { UserId } from '@learnwren/shared-data-models';
 import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
 import {
+  EmailAlreadyExistsException,
+  EmailActionTokenInvalidException,
   InternalAuthException,
   InvalidUnlockTokenException,
   TooManyRequestsException,
   UnlockTokenExpiredException,
 } from './errors/auth.exception';
-import { IDENTITY_PROVIDER, type IdentityProvider, type IdentityUser } from './identity/identity-provider.port';
+import { EmailActionInvalidError, EmailInUseError } from './identity/identity.errors';
+import {
+  IDENTITY_PROVIDER,
+  type EmailActionKind,
+  type IdentityProvider,
+  type IdentityUser,
+} from './identity/identity-provider.port';
 import { publicUrl } from './identity/public-url';
+import { assertAcceptablePassword, PasswordPolicyService } from './password-policy.service';
+
+const EMAIL_ACTION_MODES: readonly EmailActionKind[] = ['verify-email', 'reset-password', 'change-email'];
 
 @Injectable()
 export class AccountRecoveryService {
@@ -22,6 +33,7 @@ export class AccountRecoveryService {
     @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
     private readonly attempts: AuthAttemptsRepository,
     @Inject(EMAIL_TRANSPORT) private readonly emailTransport: EmailTransport,
+    private readonly passwordPolicy: PasswordPolicyService,
   ) {}
 
   async resendVerification(email: string): Promise<void> {
@@ -72,6 +84,35 @@ export class AccountRecoveryService {
       throw new UnlockTokenExpiredException();
     }
     throw new InvalidUnlockTokenException();
+  }
+
+  /**
+   * Redeems a self-hosted email-action link (US-09-04 D3b): verify-email,
+   * reset-password or change-email. `newPassword` is required (and policy-
+   * checked) only for reset-password. Never logs the token.
+   */
+  async applyEmailAction(mode: string, token: string, newPassword?: string): Promise<void> {
+    if (!EMAIL_ACTION_MODES.includes(mode as EmailActionKind)) {
+      throw new EmailActionTokenInvalidException();
+    }
+    const kind = mode as EmailActionKind;
+    if (kind === 'reset-password') {
+      assertAcceptablePassword(this.passwordPolicy, newPassword ?? '');
+    }
+
+    try {
+      await this.identity.applyEmailAction(kind, token, kind === 'reset-password' ? newPassword : undefined);
+    } catch (err) {
+      if (err instanceof EmailActionInvalidError) {
+        throw new EmailActionTokenInvalidException();
+      }
+      if (err instanceof EmailInUseError) {
+        throw new EmailAlreadyExistsException();
+      }
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
+      this.logger.error(`[auth] email-action ${kind} failed: ${String(err)}`);
+      throw new InternalAuthException();
+    }
   }
 
   /**

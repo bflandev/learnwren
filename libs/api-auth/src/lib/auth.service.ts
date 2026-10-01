@@ -10,7 +10,7 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import { AccountRecoveryService } from './account-recovery.service';
-import { PasswordPolicyService } from './password-policy.service';
+import { assertAcceptablePassword, PasswordPolicyService } from './password-policy.service';
 import { PasswordVerificationService } from './password-verification.service';
 import { SessionCookieService, type MintedSession } from './session-cookie.service';
 import {
@@ -20,8 +20,6 @@ import {
   InvalidDisplayNameException,
   InvalidEmailException,
   InternalAuthException,
-  PasswordTooLongException,
-  WeakPasswordException,
 } from './errors/auth.exception';
 import { EmailInUseError } from './identity/identity.errors';
 import {
@@ -68,7 +66,6 @@ export type { MeResponse } from '@learnwren/shared-data-models';
 
 const DISPLAY_NAME_MAX = 80;
 const EMAIL_MAX = 254;
-const PASSWORD_MAX = 256;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 @Injectable()
@@ -121,13 +118,7 @@ export class AuthService {
     if (!EMAIL_REGEX.test(input.email)) {
       throw new InvalidEmailException();
     }
-    if (input.password.length > PASSWORD_MAX) {
-      throw new PasswordTooLongException();
-    }
-    const policy = this.passwordPolicy.validate(input.password);
-    if (!policy.valid) {
-      throw new WeakPasswordException(policy.unmet);
-    }
+    assertAcceptablePassword(this.passwordPolicy, input.password);
     return displayName;
   }
 
