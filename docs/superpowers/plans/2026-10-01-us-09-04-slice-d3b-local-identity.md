@@ -212,6 +212,7 @@ In `testing/in-memory-identity-provider.ts`:
   - `reset-password` → require `newPassword` (else `EmailActionInvalidError`), set the password, then `dropSessionsOf(uid)`;
   - `change-email` → if `byEmail(newEmail)` exists for another uid → `EmailInUseError` (leave the action unconsumed); else set `email: normalizeEmail(newEmail), emailVerified: true`.
 - On a wrong-kind or `EmailInUseError` rejection, do not consume the token, so the contract's "wrong kind, then the right kind" case passes. Only a successful apply deletes it.
+- `in-memory-identity-provider.spec.ts` asserts the old link format (`kind=reset-password`); update it to `mode=reset-password` and also assert a `token` parameter is present.
 
 - [ ] **Step 4: Firebase adapter**
 
@@ -721,7 +722,7 @@ export class LocalIdentityProvider implements IdentityProvider {
 - [ ] **Step 4: Run (the controller has the test Postgres running)**
 
 Run: `LEARNWREN_TEST_POSTGRES_URL=postgres://postgres:learnwren@127.0.0.1:55432/learnwren_test NX_DAEMON=false pnpm nx test api-auth --skip-nx-cache`
-Expected: PASS, with both `local (in-memory store)` and `local (postgres)` contracts running all cases: 15 base + 4 revocation + 5 email actions.
+Expected: PASS, with both `local (in-memory store)` and `local (postgres)` contracts running all cases: 14 base + 4 revocation + 5 email actions.
 
 Then: `NX_DAEMON=false pnpm nx run-many -t typecheck lint -p api-auth`.
 
