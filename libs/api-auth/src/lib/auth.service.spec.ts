@@ -1,7 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FIREBASE_AUTH, FIRESTORE } from '@learnwren/api-firebase';
+import { FIREBASE_AUTH } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE } from '@learnwren/api-document-store';
 
 import { AccountRecoveryService } from './account-recovery.service';
 import { AuthAttemptsRepository } from './auth-attempts.repository';
@@ -103,7 +104,7 @@ async function buildModule(
       AccountRecoveryService,
       SessionCookieService,
       { provide: FIREBASE_AUTH, useValue: auth },
-      { provide: FIRESTORE, useValue: firestore },
+      { provide: DOCUMENT_STORE, useValue: firestore },
       { provide: FirebaseAuthRestClient, useValue: rest },
       { provide: EMAIL_TRANSPORT, useValue: buildEmailTransportMock() },
     ],
@@ -663,7 +664,7 @@ async function buildLoginModule(
       AccountRecoveryService,
       SessionCookieService,
       { provide: FIREBASE_AUTH, useValue: auth },
-      { provide: FIRESTORE, useValue: firestore },
+      { provide: DOCUMENT_STORE, useValue: firestore },
       { provide: FirebaseAuthRestClient, useValue: rest },
       { provide: AuthAttemptsRepository, useValue: attempts },
       { provide: EMAIL_TRANSPORT, useValue: emailTransport },

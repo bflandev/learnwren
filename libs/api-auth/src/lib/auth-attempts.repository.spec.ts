@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FIRESTORE } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE } from '@learnwren/api-document-store';
 
 import { AuthAttemptsRepository } from './auth-attempts.repository';
 
@@ -86,7 +86,7 @@ async function buildRepo(firestore: FakeFirestore) {
   const moduleRef = await Test.createTestingModule({
     providers: [
       AuthAttemptsRepository,
-      { provide: FIRESTORE, useValue: firestore },
+      { provide: DOCUMENT_STORE, useValue: firestore },
     ],
   }).compile();
   return moduleRef.get(AuthAttemptsRepository);
