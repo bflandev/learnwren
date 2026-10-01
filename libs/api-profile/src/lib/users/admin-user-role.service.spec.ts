@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserId } from '@learnwren/shared-data-models';
 
-// revokeAllUserSessions sleeps past a real second boundary outside emulator
-// mode — run these unit tests in emulator mode so revocation is single-shot.
-process.env['FIREBASE_AUTH_EMULATOR_HOST'] = process.env['FIREBASE_AUTH_EMULATOR_HOST'] ?? '127.0.0.1:9099';
-
 import { AdminUserRoleService } from './admin-user-role.service';
 import {
   AdminUsersException,
@@ -78,10 +74,10 @@ function makeFixture(
   };
 }
 
-function makeAuth(): { setCustomUserClaims: ReturnType<typeof vi.fn>; revokeRefreshTokens: ReturnType<typeof vi.fn> } {
+function makeAuth(): { setRole: ReturnType<typeof vi.fn>; revokeAllSessions: ReturnType<typeof vi.fn> } {
   return {
-    setCustomUserClaims: vi.fn().mockResolvedValue(undefined),
-    revokeRefreshTokens: vi.fn().mockResolvedValue(undefined),
+    setRole: vi.fn().mockResolvedValue(undefined),
+    revokeAllSessions: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -111,7 +107,7 @@ describe('AdminUserRoleService.promote', () => {
     const { svc } = makeService(fx, auth);
     await expect(svc.promote(ACTOR, 'nope' as UserId)).rejects.toBeInstanceOf(UserNotFoundException);
     expect(fx.txnGet).toHaveBeenCalled();
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
   });
 
   it('throws InvalidRoleTransitionException when the user is already an INSTRUCTOR', async () => {
@@ -125,7 +121,7 @@ describe('AdminUserRoleService.promote', () => {
       currentRole: 'INSTRUCTOR',
       attempted: 'INSTRUCTOR',
     });
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
     expect(fx.txnUpdate).not.toHaveBeenCalled();
   });
 
@@ -138,7 +134,7 @@ describe('AdminUserRoleService.promote', () => {
       currentRole: 'ADMIN',
       attempted: 'INSTRUCTOR',
     });
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
   });
 
   it('rejects a SUSPENDED target with a typed 409 and never writes the role', async () => {
@@ -155,7 +151,7 @@ describe('AdminUserRoleService.promote', () => {
       attempted: 'INSTRUCTOR',
     });
     expect(fx.txnUpdate).not.toHaveBeenCalled();
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
   });
 
   it('rejects a DELETED tombstone with a typed 409 instead of overwriting it with a role write', async () => {
@@ -186,7 +182,7 @@ describe('AdminUserRoleService.promote', () => {
       expect.objectContaining({ id: 'u1', _collection: 'users' }),
       expect.objectContaining({ role: 'INSTRUCTOR', updatedAt: expect.any(String) }),
     );
-    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('u1', { role: 'INSTRUCTOR' });
+    expect(auth.setRole).toHaveBeenCalledWith('u1', 'INSTRUCTOR');
     expect(res).toEqual({ id: 'u1', role: 'INSTRUCTOR' });
     expect(logSpy).toHaveBeenCalledWith('Promoted uid=u1 to INSTRUCTOR by actor=actor');
   });
@@ -211,10 +207,10 @@ describe('AdminUserRoleService.promote', () => {
     expect(fx.directUpdates.filter((u) => u.collection === 'instructorApplications')).toHaveLength(0);
   });
 
-  it('reverts the claimed role to STUDENT and throws INTERNAL when setCustomUserClaims fails', async () => {
+  it('reverts the claimed role to STUDENT and throws INTERNAL when setRole fails', async () => {
     const fx = makeFixture({ u1: { role: 'STUDENT', status: 'ACTIVE' } });
     const cause = new Error('Firebase exploded');
-    auth.setCustomUserClaims.mockRejectedValue(cause);
+    auth.setRole.mockRejectedValue(cause);
     const { svc, errorSpy, logSpy } = makeService(fx, auth);
     const err = await svc.promote(ACTOR, U1).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AdminUsersException);
@@ -236,7 +232,7 @@ describe('AdminUserRoleService.promote', () => {
   it('still throws INTERNAL when the role revert ALSO fails — and logs the revert error', async () => {
     const fx = makeFixture({ u1: { role: 'STUDENT', status: 'ACTIVE' } });
     fx.setFailDirectUpdates(true);
-    auth.setCustomUserClaims.mockRejectedValue(new Error('Firebase exploded'));
+    auth.setRole.mockRejectedValue(new Error('Firebase exploded'));
     const { svc, errorSpy } = makeService(fx, auth);
     const err = await svc.promote(ACTOR, U1).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AdminUsersException);
@@ -260,7 +256,7 @@ describe('AdminUserRoleService.demote', () => {
     const fx = makeFixture({});
     const { svc } = makeService(fx, auth);
     await expect(svc.demote(ACTOR, 'nope' as UserId)).rejects.toBeInstanceOf(UserNotFoundException);
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
   });
 
   it('throws InvalidRoleTransitionException when the user is a STUDENT', async () => {
@@ -274,7 +270,7 @@ describe('AdminUserRoleService.demote', () => {
       currentRole: 'STUDENT',
       attempted: 'STUDENT',
     });
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
   });
 
   it('throws InvalidRoleTransitionException when the user is an ADMIN', async () => {
@@ -286,7 +282,7 @@ describe('AdminUserRoleService.demote', () => {
       currentRole: 'ADMIN',
       attempted: 'STUDENT',
     });
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
   });
 
   it('rejects a SUSPENDED instructor with a typed 409 and never writes the role', async () => {
@@ -318,21 +314,21 @@ describe('AdminUserRoleService.demote', () => {
       expect.objectContaining({ id: 'u1', _collection: 'users' }),
       expect.objectContaining({ role: 'STUDENT', updatedAt: expect.any(String) }),
     );
-    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('u1', { role: 'STUDENT' });
-    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('u1');
+    expect(auth.setRole).toHaveBeenCalledWith('u1', 'STUDENT');
+    expect(auth.revokeAllSessions).toHaveBeenCalledWith('u1');
     // Security ordering: the claim downgrade must happen BEFORE the revoke so
     // any token minted after revocation is already STUDENT.
-    expect(auth.setCustomUserClaims.mock.invocationCallOrder[0]).toBeLessThan(
-      auth.revokeRefreshTokens.mock.invocationCallOrder[0],
+    expect(auth.setRole.mock.invocationCallOrder[0]).toBeLessThan(
+      auth.revokeAllSessions.mock.invocationCallOrder[0],
     );
     expect(res).toEqual({ id: 'u1', role: 'STUDENT' });
     expect(logSpy).toHaveBeenCalledWith('Demoted uid=u1 to STUDENT by actor=actor');
   });
 
-  it('reverts the claimed role to INSTRUCTOR and throws INTERNAL when revokeRefreshTokens fails', async () => {
+  it('reverts the claimed role to INSTRUCTOR and throws INTERNAL when revokeAllSessions fails', async () => {
     const fx = makeFixture({ u1: { role: 'INSTRUCTOR', status: 'ACTIVE' } });
     const cause = new Error('Firestore unavailable');
-    auth.revokeRefreshTokens.mockRejectedValue(cause);
+    auth.revokeAllSessions.mockRejectedValue(cause);
     const { svc, errorSpy, logSpy } = makeService(fx, auth);
     const err = await svc.demote(ACTOR, U1).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AdminUsersException);
@@ -351,17 +347,17 @@ describe('AdminUserRoleService.demote', () => {
   });
 
   it('the revert also restores the Auth custom claim, not just the Firestore doc', async () => {
-    // Authorization is claim-based: after setCustomUserClaims(STUDENT)
+    // Authorization is claim-based: after setRole(STUDENT)
     // succeeded and the revoke failed, reverting only the doc would leave a
     // directory INSTRUCTOR whose next login mints a STUDENT session (and the
     // promote-side mirror image is fail-OPEN). Both sides must revert.
     const fx = makeFixture({ u1: { role: 'INSTRUCTOR', status: 'ACTIVE' } });
-    auth.revokeRefreshTokens.mockRejectedValue(new Error('revoke boom'));
+    auth.revokeAllSessions.mockRejectedValue(new Error('revoke boom'));
     const { svc } = makeService(fx, auth);
     await svc.demote(ACTOR, U1).catch(() => undefined);
 
-    expect(auth.setCustomUserClaims).toHaveBeenNthCalledWith(1, 'u1', { role: 'STUDENT' });
-    expect(auth.setCustomUserClaims).toHaveBeenNthCalledWith(2, 'u1', { role: 'INSTRUCTOR' });
+    expect(auth.setRole).toHaveBeenNthCalledWith(1, 'u1', 'STUDENT');
+    expect(auth.setRole).toHaveBeenNthCalledWith(2, 'u1', 'INSTRUCTOR');
   });
 
   // ── authored-course guard: demote must mirror the delete path's USER_HAS_COURSES
@@ -385,8 +381,8 @@ describe('AdminUserRoleService.demote', () => {
     );
     // No role claim, no Auth side effects.
     expect(fx.txnUpdate).not.toHaveBeenCalled();
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
+    expect(auth.revokeAllSessions).not.toHaveBeenCalled();
   });
 
   it('promote does NOT run the authored-course guard (a course-owning STUDENT is impossible, but the query must not gate promotion)', async () => {

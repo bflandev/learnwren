@@ -40,9 +40,6 @@
       "path": "../api-document-store/tsconfig.lib.json"
     },
     {
-      "path": "../api-firebase/tsconfig.lib.json"
-    },
-    {
       "path": "../api-auth/tsconfig.lib.json"
     },
     {

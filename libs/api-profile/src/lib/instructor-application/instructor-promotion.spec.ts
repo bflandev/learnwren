@@ -23,31 +23,31 @@ function fakeFirestore(appData: Record<string, unknown> | null) {
 describe('promoteUserToInstructor', () => {
   const NOW = '2026-05-29T12:00:00.000Z';
 
-  it('sets the INSTRUCTOR claim, updates the user role, and resolves a PENDING app', async () => {
-    const setCustomUserClaims = vi.fn(async () => undefined);
+  it('sets the INSTRUCTOR role, updates the user role, and resolves a PENDING app', async () => {
+    const setRole = vi.fn(async () => undefined);
     const { firestore, userUpdate, appUpdate } = fakeFirestore({ status: 'PENDING' });
 
-    await promoteUserToInstructor('u1' as UserId, { setCustomUserClaims }, firestore as never, NOW);
+    await promoteUserToInstructor('u1' as UserId, { setRole }, firestore as never, NOW);
 
-    expect(setCustomUserClaims).toHaveBeenCalledWith('u1', { role: 'INSTRUCTOR' });
+    expect(setRole).toHaveBeenCalledWith('u1', 'INSTRUCTOR');
     expect(userUpdate).toHaveBeenCalledWith({ role: 'INSTRUCTOR', updatedAt: NOW });
     expect(appUpdate).toHaveBeenCalledWith({ status: 'APPROVED', resolvedAt: NOW });
   });
 
   it('does not touch the app when none is PENDING', async () => {
-    const setCustomUserClaims = vi.fn(async () => undefined);
+    const setRole = vi.fn(async () => undefined);
     const { firestore, appUpdate } = fakeFirestore({ status: 'DECLINED' });
 
-    await promoteUserToInstructor('u1' as UserId, { setCustomUserClaims }, firestore as never, NOW);
+    await promoteUserToInstructor('u1' as UserId, { setRole }, firestore as never, NOW);
 
     expect(appUpdate).not.toHaveBeenCalled();
   });
 
   it('does not touch the app when none exists', async () => {
-    const setCustomUserClaims = vi.fn(async () => undefined);
+    const setRole = vi.fn(async () => undefined);
     const { firestore, appUpdate } = fakeFirestore(null);
 
-    await promoteUserToInstructor('u1' as UserId, { setCustomUserClaims }, firestore as never, NOW);
+    await promoteUserToInstructor('u1' as UserId, { setRole }, firestore as never, NOW);
 
     expect(appUpdate).not.toHaveBeenCalled();
   });
@@ -56,7 +56,7 @@ describe('promoteUserToInstructor', () => {
   // doc exists but data() returns undefined, the optional chain must short-circuit
   // to undefined (≠ 'PENDING') rather than throw a TypeError on the property read.
   it('does not throw and skips the app update when the app exists but data() is undefined', async () => {
-    const setCustomUserClaims = vi.fn(async () => undefined);
+    const setRole = vi.fn(async () => undefined);
     const appUpdate = vi.fn(async () => undefined);
     const userUpdate = vi.fn(async () => undefined);
     const firestore = {
@@ -73,7 +73,7 @@ describe('promoteUserToInstructor', () => {
     };
 
     await expect(
-      promoteUserToInstructor('u1' as UserId, { setCustomUserClaims }, firestore as never, NOW),
+      promoteUserToInstructor('u1' as UserId, { setRole }, firestore as never, NOW),
     ).resolves.toBeUndefined();
     expect(appUpdate).not.toHaveBeenCalled();
   });

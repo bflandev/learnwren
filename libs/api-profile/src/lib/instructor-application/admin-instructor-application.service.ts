@@ -1,7 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { auth as adminAuth } from 'firebase-admin';
 
-import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import {
   DELETE_FIELD,
   DOCUMENT_STORE,
@@ -9,7 +7,13 @@ import {
   type DocumentStore,
   readStoredUserProfiles,
 } from '@learnwren/api-document-store';
-import { EMAIL_TRANSPORT, type EmailTransport } from '@learnwren/api-auth';
+import {
+  EMAIL_TRANSPORT,
+  IDENTITY_PROVIDER,
+  type EmailTransport,
+  type IdentityProvider,
+  type IdentityUser,
+} from '@learnwren/api-auth';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
   InstructorApplication,
@@ -19,7 +23,7 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
-import { promoteUserToInstructor, type PromotionFirestoreLike } from './instructor-promotion';
+import { promoteUserToInstructor } from './instructor-promotion';
 import {
   AdminInstructorApplicationException,
   ApplicantNotVerifiedException,
@@ -37,7 +41,7 @@ export class AdminInstructorApplicationService {
 
   constructor(
     @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
-    @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
+    @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
     @Inject(EMAIL_TRANSPORT) private readonly email: EmailTransport,
   ) {}
 
@@ -89,7 +93,7 @@ export class AdminInstructorApplicationService {
     // request promotes the user; ordering: security write (claim) before data
     // write (users doc), revert the status claim on failure so admin can retry.
     try {
-      await promoteUserToInstructor(uid, this.auth, this.firestore as unknown as PromotionFirestoreLike, nowIso());
+      await promoteUserToInstructor(uid, this.identity, this.firestore, nowIso());
     } catch (err) {
       // Transaction committed APPROVED but the promotion failed; revert to a
       // clean PENDING state (resolvedAt cleared) so the admin can retry rather
@@ -152,7 +156,8 @@ export class AdminInstructorApplicationService {
     // review) must not fail the request (that would mislead the admin into
     // retrying a decline that already succeeded).
     try {
-      const user = await this.auth.getUser(uid);
+      const user = await this.identity.getUser(uid);
+      if (!user) throw new Error('user not found');
       await this.email.sendInstructorApplicationDeclinedEmail({ to: user.email ?? '' });
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
@@ -166,18 +171,16 @@ export class AdminInstructorApplicationService {
   }
 
   /**
-   * getUser can throw raw Firebase errors that would escape the feature
-   * filter's @Catch list and render unenveloped. A missing Auth user means
+   * getUser can throw raw provider errors that would escape the feature
+   * filter's @Catch list and render unenveloped. A missing user (null) means
    * there is nothing left to approve (user deletion cascades the application
    * doc away) → typed 404; anything else → typed INTERNAL.
    */
-  private async getApplicantOrThrow(uid: UserId): Promise<adminAuth.UserRecord> {
+  private async getApplicantOrThrow(uid: UserId): Promise<IdentityUser> {
+    let user: IdentityUser | null;
     try {
-      return await this.auth.getUser(uid);
+      user = await this.identity.getUser(uid);
     } catch (err) {
-      if (this.isFirebaseError(err) && err.code === 'auth/user-not-found') {
-        throw new ApplicationNotFoundException();
-      }
       // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
       this.logger.error(`[admin] approve getUser failed uid=${uid}: ${String(err)}`);
       throw new AdminInstructorApplicationException(
@@ -188,10 +191,10 @@ export class AdminInstructorApplicationService {
         { cause: err },
       );
     }
-  }
-
-  private isFirebaseError(err: unknown): err is { code: string } {
-    return typeof err === 'object' && err !== null && 'code' in err;
+    if (!user) {
+      throw new ApplicationNotFoundException();
+    }
+    return user;
   }
 
   // Builds the response view from the just-resolved application; the request is the sole writer, so the in-memory snapshot + new status is authoritative.

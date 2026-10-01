@@ -1,11 +1,10 @@
+import type { IdentityProvider } from '@learnwren/api-auth';
 import type { UserId } from '@learnwren/shared-data-models';
 
 import { INSTRUCTOR_APPLICATIONS_COLLECTION } from './instructor-applications.constants';
 
-/** Minimal structural slice of the Firebase Admin Auth handle. */
-export interface PromotionAuthLike {
-  setCustomUserClaims(uid: string, claims: object | null): Promise<unknown>;
-}
+/** Structural slice of the identity port this helper needs. */
+export type PromotionAuthLike = Pick<IdentityProvider, 'setRole'>;
 
 /** Minimal structural slice of the Firebase Admin Firestore handle. */
 export interface PromotionFirestoreLike {
@@ -26,11 +25,11 @@ export interface PromotionFirestoreLike {
  */
 export async function promoteUserToInstructor(
   uid: UserId,
-  auth: PromotionAuthLike,
+  identity: PromotionAuthLike,
   firestore: PromotionFirestoreLike,
   nowIso: string,
 ): Promise<void> {
-  await auth.setCustomUserClaims(uid, { role: 'INSTRUCTOR' });
+  await identity.setRole(uid, 'INSTRUCTOR');
   await firestore.collection('users').doc(uid).update({ role: 'INSTRUCTOR', updatedAt: nowIso });
   await resolvePendingInstructorApplication(uid, firestore, nowIso);
 }

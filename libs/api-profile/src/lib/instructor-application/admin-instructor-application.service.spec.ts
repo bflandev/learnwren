@@ -48,7 +48,7 @@ describe('AdminInstructorApplicationService', () => {
   let queryDocs: Array<{ data: () => unknown }>;
   let txn: ReturnType<typeof makeFirestore>['txn'];
   let whereFn: ReturnType<typeof makeFirestore>['whereFn'];
-  let auth: { getUser: ReturnType<typeof vi.fn>; setCustomUserClaims: ReturnType<typeof vi.fn> };
+  let auth: { getUser: ReturnType<typeof vi.fn>; setRole: ReturnType<typeof vi.fn> };
   let email: {
     sendInstructorApplicationApprovedEmail: ReturnType<typeof vi.fn>;
     sendInstructorApplicationDeclinedEmail: ReturnType<typeof vi.fn>;
@@ -59,7 +59,7 @@ describe('AdminInstructorApplicationService', () => {
     ({ firestore, docs, queryDocs, txn, whereFn } = makeFirestore());
     auth = {
       getUser: vi.fn(async () => ({ email: 'ada@example.com', emailVerified: true })),
-      setCustomUserClaims: vi.fn(async () => undefined),
+      setRole: vi.fn(async () => undefined),
     };
     email = {
       sendInstructorApplicationApprovedEmail: vi.fn(async () => undefined),
@@ -141,7 +141,7 @@ describe('AdminInstructorApplicationService', () => {
 
     const view = await svc.approve('u1' as never);
 
-    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('u1', { role: 'INSTRUCTOR' });
+    expect(auth.setRole).toHaveBeenCalledWith('u1', 'INSTRUCTOR');
     expect(docs['users/u1'].update).toHaveBeenCalledWith(
       expect.objectContaining({ role: 'INSTRUCTOR' }),
     );
@@ -193,12 +193,13 @@ describe('AdminInstructorApplicationService', () => {
     };
 
     await expect(svc.approve('u1' as never)).rejects.toThrow(ApplicationNotPendingException);
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
     expect(email.sendInstructorApplicationApprovedEmail).not.toHaveBeenCalled();
   });
 
-  it('approve: missing Auth user (auth/user-not-found) -> typed ApplicationNotFoundException, not a raw 500', async () => {
-    // getUser runs before the transaction; a raw auth/user-not-found used to
+  it('approve: missing Auth user (getUser resolves null) -> typed ApplicationNotFoundException, not a raw 500', async () => {
+    // getUser runs before the transaction; a null result (the port's contract
+    // for an unknown user) used to be a thrown auth/user-not-found that could
     // escape the feature filter's @Catch list and render unenveloped.
     docs['instructorApplications/u1'] = {
       get: vi.fn(async () => ({
@@ -207,14 +208,12 @@ describe('AdminInstructorApplicationService', () => {
       })),
       update: vi.fn(async () => undefined),
     };
-    auth.getUser = vi.fn(async () => {
-      throw Object.assign(new Error('no user'), { code: 'auth/user-not-found' });
-    });
+    auth.getUser = vi.fn(async () => null);
 
     await expect(svc.approve('u1' as never)).rejects.toThrow(ApplicationNotFoundException);
     // Nothing was claimed or promoted.
     expect(txn.update).not.toHaveBeenCalled();
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
   });
 
   it('approve: other raw getUser failure -> typed INTERNAL AdminInstructorApplicationException with cause', async () => {
@@ -245,7 +244,7 @@ describe('AdminInstructorApplicationService', () => {
       update: vi.fn(),
     };
     await expect(svc.approve('u1' as never)).rejects.toThrow(ApplicantNotVerifiedException);
-    expect(auth.setCustomUserClaims).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
   });
 
   // If promoteUserToInstructor fails after the transaction committed APPROVED,
@@ -262,7 +261,7 @@ describe('AdminInstructorApplicationService', () => {
       update: appUpdate,
     };
     const promotionError = new Error('Firebase Auth unavailable');
-    auth.setCustomUserClaims = vi.fn(async () => {
+    auth.setRole = vi.fn(async () => {
       throw promotionError;
     });
 
@@ -299,7 +298,7 @@ describe('AdminInstructorApplicationService', () => {
         throw revertError;
       }),
     };
-    auth.setCustomUserClaims = vi.fn(async () => {
+    auth.setRole = vi.fn(async () => {
       throw new Error('Firebase Auth unavailable');
     });
     const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
@@ -382,7 +381,7 @@ describe('AdminInstructorApplicationService', () => {
 
     const view = await svc.approve('u1' as never);
 
-    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('u1', { role: 'INSTRUCTOR' });
+    expect(auth.setRole).toHaveBeenCalledWith('u1', 'INSTRUCTOR');
     expect(view.status).toBe('APPROVED');
     expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('approval notice failed'));
     errSpy.mockRestore();
@@ -459,6 +458,25 @@ describe('AdminInstructorApplicationService', () => {
     auth.getUser = vi.fn(async () => {
       throw getUserError;
     });
+
+    const view = await svc.decline('u1' as never);
+
+    expect(view.status).toBe('DECLINED');
+    expect(email.sendInstructorApplicationDeclinedEmail).not.toHaveBeenCalled();
+  });
+
+  // Same best-effort skip, but via the port's null-for-unknown-user contract
+  // rather than a thrown error.
+  it('decline: getUser resolving null after the claim does not propagate', async () => {
+    const update = vi.fn(async () => undefined);
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update,
+    };
+    auth.getUser = vi.fn(async () => null);
 
     const view = await svc.decline('u1' as never);
 

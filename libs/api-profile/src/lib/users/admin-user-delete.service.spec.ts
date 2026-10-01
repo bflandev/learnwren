@@ -103,7 +103,7 @@ function makeFixture(
 
 function makeAuth(): Record<string, ReturnType<typeof vi.fn>> {
   return {
-    revokeRefreshTokens: vi.fn().mockResolvedValue(undefined),
+    revokeAllSessions: vi.fn().mockResolvedValue(undefined),
     deleteUser: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -207,11 +207,11 @@ describe('AdminUserDeleteService.delete', () => {
     );
   });
 
-  it('calls revokeRefreshTokens then deleteUser after the claim', async () => {
+  it('calls revokeAllSessions then deleteUser after the claim', async () => {
     const { firestore, repo } = makeFixture({ target: { role: 'STUDENT', status: 'ACTIVE' } });
     const svc = new AdminUserDeleteService(firestore as never, auth as never, repo, storage, fakePicConfig);
     await svc.delete('actor' as UserId, 'target' as UserId);
-    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('target');
+    expect(auth.revokeAllSessions).toHaveBeenCalledWith('target');
     expect(auth.deleteUser).toHaveBeenCalledWith('target');
   });
 
@@ -251,20 +251,23 @@ describe('AdminUserDeleteService.delete', () => {
     expect(txnUpdate).not.toHaveBeenCalled();
   });
 
-  it('tolerates auth.deleteUser throwing a user-not-found error (idempotent retry)', async () => {
+  it('calls identity.deleteUser directly — the port is idempotent, so a missing user is never treated as an error (no re-entry needed)', async () => {
+    // Regression for the removed not-found tolerance branch: deleteUser is
+    // called without a surrounding try/catch, since the port's contract
+    // already makes a missing user a no-op success rather than a throw.
     const { firestore, repo } = makeFixture({ u9: { role: 'STUDENT', status: 'DELETED' } });
-    const notFoundErr = Object.assign(new Error('user-not-found'), { code: 'auth/user-not-found' });
-    const badAuth = { ...auth, deleteUser: vi.fn().mockRejectedValue(notFoundErr) };
-    const svc = new AdminUserDeleteService(firestore as never, badAuth as never, repo, storage, fakePicConfig);
+    const svc = new AdminUserDeleteService(firestore as never, auth as never, repo, storage, fakePicConfig);
     await expect(svc.delete('actor' as UserId, 'u9' as UserId)).resolves.toBeUndefined();
+    expect(auth.deleteUser).toHaveBeenCalledWith('u9');
   });
 
   it('wraps unexpected errors from post-commit steps into AdminUsersException INTERNAL', async () => {
     const { firestore, repo } = makeFixture({ target: { role: 'STUDENT', status: 'ACTIVE' } });
-    // Make an unexpected error from deleteUser (non-auth/user-not-found code).
+    // Any deleteUser failure is unexpected now — the port is idempotent, so a
+    // missing user never throws; this simulates a genuine backend failure.
     const unexpectedErr = Object.assign(new Error('network error'), { code: 'auth/network-request-failed' });
     const badAuth = {
-      revokeRefreshTokens: vi.fn().mockResolvedValue(undefined),
+      revokeAllSessions: vi.fn().mockResolvedValue(undefined),
       deleteUser: vi.fn().mockRejectedValue(unexpectedErr),
     };
     const svc = new AdminUserDeleteService(firestore as never, badAuth as never, repo, storage, fakePicConfig);
@@ -400,36 +403,32 @@ describe('AdminUserDeleteService.delete', () => {
     expect(logSpy).not.toHaveBeenCalled();
   });
 
-  it('tolerates revokeRefreshTokens failing (logs warn, continues to deleteUser/anonymise)', async () => {
+  it('tolerates revokeAllSessions failing (logs warn, continues to deleteUser/anonymise)', async () => {
     const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const { firestore, repo } = makeFixture({ target: { role: 'STUDENT', status: 'ACTIVE' } });
     const badAuth = {
-      revokeRefreshTokens: vi.fn().mockRejectedValue(new Error('revoke boom')),
+      revokeAllSessions: vi.fn().mockRejectedValue(new Error('revoke boom')),
       deleteUser: vi.fn().mockResolvedValue(undefined),
     };
     const svc = new AdminUserDeleteService(firestore as never, badAuth as never, repo, storage, fakePicConfig);
     // Must NOT reject — the catch block swallows the revoke failure.
     await expect(svc.delete('actor' as UserId, 'target' as UserId)).resolves.toBeUndefined();
     // The catch body ran (warn emitted) — kills emptying the catch block.
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('revokeRefreshTokens failed'));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('revokeAllSessions failed'));
     // Sequence continued past the failed revoke.
     expect(badAuth.deleteUser).toHaveBeenCalledWith('target');
     expect(repo.anonymiseUser).toHaveBeenCalled();
   });
 
-  it('tolerates auth.deleteUser user-not-found by warning and continuing (catch body ran)', async () => {
+  it('deleteUser resolving for an already-gone user (idempotent) proceeds straight to anonymise, no warn', async () => {
     const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const { firestore, repo } = makeFixture({ target: { role: 'STUDENT', status: 'ACTIVE' } });
-    const notFoundErr = Object.assign(new Error('gone'), { code: 'auth/user-not-found' });
-    const badAuth = {
-      revokeRefreshTokens: vi.fn().mockResolvedValue(undefined),
-      deleteUser: vi.fn().mockRejectedValue(notFoundErr),
-    };
-    const svc = new AdminUserDeleteService(firestore as never, badAuth as never, repo, storage, fakePicConfig);
+    const svc = new AdminUserDeleteService(firestore as never, auth as never, repo, storage, fakePicConfig);
     await expect(svc.delete('actor' as UserId, 'target' as UserId)).resolves.toBeUndefined();
-    // The not-found warn branch executed and named the user already gone.
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('user already gone'));
-    // Continued to anonymise after swallowing not-found.
+    // No not-found tolerance branch exists any more — deleteUser is idempotent
+    // at the port, so there is nothing to warn about here.
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('user already gone'));
+    expect(auth.deleteUser).toHaveBeenCalledWith('target');
     expect(repo.anonymiseUser).toHaveBeenCalled();
   });
 
@@ -467,7 +466,7 @@ describe('AdminUserDeleteService.delete', () => {
     const { firestore, repo } = makeFixture({ target: { role: 'STUDENT', status: 'ACTIVE' } });
     const unexpectedErr = Object.assign(new Error('network error'), { code: 'auth/network-request-failed' });
     const badAuth = {
-      revokeRefreshTokens: vi.fn().mockResolvedValue(undefined),
+      revokeAllSessions: vi.fn().mockResolvedValue(undefined),
       deleteUser: vi.fn().mockRejectedValue(unexpectedErr),
     };
     const svc = new AdminUserDeleteService(firestore as never, badAuth as never, repo, storage, fakePicConfig);

@@ -19,7 +19,7 @@ import * as admin from 'firebase-admin';
 
 import { promoteUserToInstructor } from '../libs/api-profile/src/lib/instructor-application/instructor-promotion';
 import type { PromotionFirestoreLike } from '../libs/api-profile/src/lib/instructor-application/instructor-promotion';
-import type { UserId } from '@learnwren/shared-data-models';
+import type { UserId, UserRole } from '@learnwren/shared-data-models';
 
 import { initFirebaseApp, resolveMode } from './firebase-admin-init';
 
@@ -41,7 +41,7 @@ export async function promoteToInstructor(
 
   await promoteUserToInstructor(
     user.uid as UserId,
-    auth,
+    { setRole: (uid: string, role: UserRole) => auth.setCustomUserClaims(uid, { role }) },
     firestore as unknown as PromotionFirestoreLike,
     new Date().toISOString(),
   );

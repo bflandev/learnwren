@@ -1,14 +1,15 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { auth as adminAuth } from 'firebase-admin';
 
 import {
   AuthException,
   EMAIL_TRANSPORT,
+  EmailInUseError,
+  IDENTITY_PROVIDER,
   PasswordVerificationService,
-  revokeAllUserSessions,
   type EmailTransport,
+  type IdentityProvider,
+  type IdentityUser,
 } from '@learnwren/api-auth';
-import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type { ConfirmEmailChangeResponse, UserId } from '@learnwren/shared-data-models';
@@ -29,7 +30,7 @@ export class EmailChangeService {
   private readonly logger = new Logger('EmailChangeService');
 
   constructor(
-    @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
+    @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
     @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
     private readonly passwordVerification: PasswordVerificationService,
     @Inject(EMAIL_TRANSPORT) private readonly emailTransport: EmailTransport,
@@ -92,10 +93,10 @@ export class EmailChangeService {
     // Best-effort: the email change is already applied everywhere that matters
     // (Auth + Firestore), so a revocation failure must not fail the request.
     // The stale sessions carry the old email claim until they age out.
-    // revokeAllUserSessions (not a bare revoke) closes the same-second
-    // cookie-minting gap — see its doc comment.
+    // revokeAllSessions (not a bare revoke) closes the same-second
+    // cookie-minting gap — see its doc comment on the port.
     try {
-      await revokeAllUserSessions(this.auth, uid);
+      await this.identity.revokeAllSessions(uid);
     } catch (err) {
       this.logger.error(`[profile] email-change revoke failed uid=${uid}: ${String(err)}`);
     }
@@ -105,15 +106,20 @@ export class EmailChangeService {
     return { changed: true, email: user.email };
   }
 
-  /** getUser can throw raw Firebase errors; wrap them so the feature filter renders the envelope. */
-  private async getUserOrThrow(uid: UserId): Promise<adminAuth.UserRecord> {
+  /** getUser can throw raw provider errors; wrap them so the feature filter renders the envelope. A missing user (null) takes the same branch a throw used to. */
+  private async getUserOrThrow(uid: UserId): Promise<IdentityUser> {
+    let user: IdentityUser | null;
     try {
-      return await this.auth.getUser(uid);
+      user = await this.identity.getUser(uid);
     } catch (err) {
       // Stryker disable next-line StringLiteral: log-only diagnostic message; the throw below is the behaviour under test.
       this.logger.error(`[profile] email-change getUser failed uid=${uid}: ${String(err)}`);
       throw new EmailChangeFailedException(err instanceof Error ? { cause: err } : undefined);
     }
+    if (!user) {
+      throw new EmailChangeFailedException();
+    }
+    return user;
   }
 
   /**
@@ -140,25 +146,19 @@ export class EmailChangeService {
 
   private async generateLink(uid: UserId, currentEmail: string, newEmail: string): Promise<string> {
     try {
-      return await this.auth.generateVerifyAndChangeEmailLink(currentEmail, newEmail, {
-        url: this.continueUrl('/settings/profile/email-changed'),
-      });
+      return await this.identity.createEmailActionLink(
+        'change-email',
+        currentEmail,
+        '/settings/profile/email-changed',
+        newEmail,
+      );
     } catch (err) {
-      if (this.isFirebaseError(err) && err.code === 'auth/email-already-exists') {
+      if (err instanceof EmailInUseError) {
         throw new EmailAlreadyInUseException();
       }
       // Stryker disable next-line StringLiteral: log-only diagnostic message; the throw below is the behaviour under test.
       this.logger.error(`[profile] email-change link gen failed uid=${uid}: ${String(err)}`);
       throw new EmailChangeFailedException(err instanceof Error ? { cause: err } : undefined);
     }
-  }
-
-  private continueUrl(path: string): string {
-    const base = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
-    return `${base}${path}`;
-  }
-
-  private isFirebaseError(err: unknown): err is { code: string } {
-    return typeof err === 'object' && err !== null && 'code' in err;
   }
 }
