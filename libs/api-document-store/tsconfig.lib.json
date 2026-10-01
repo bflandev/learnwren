@@ -22,5 +22,9 @@
     "src/**/*.spec.jsx",
     "src/testing/**"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../api-firebase/tsconfig.lib.json"
+    }
+  ]
 }
