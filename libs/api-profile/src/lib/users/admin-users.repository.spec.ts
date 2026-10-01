@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FieldValue } from 'firebase-admin/firestore';
-import type { FirestoreHandle } from '@learnwren/api-firebase';
+import { DELETE_FIELD, type DocumentStore } from '@learnwren/api-document-store';
 import type { CourseId, UserId } from '@learnwren/shared-data-models';
 
 import { AdminUsersRepository } from './admin-users.repository';
@@ -58,7 +57,7 @@ function fakeFirestore(
     applicationExists?: boolean;
   },
   rec: Recorder = makeRecorder(),
-): { handle: FirestoreHandle; rec: Recorder } {
+): { handle: DocumentStore; rec: Recorder } {
   const handle = {
     collection: (name: string) => {
       rec.collections.push(name);
@@ -141,7 +140,7 @@ function fakeFirestore(
           void ref.delete();
         },
       }),
-  } as unknown as FirestoreHandle;
+  } as unknown as DocumentStore;
   return { handle, rec };
 }
 
@@ -552,7 +551,7 @@ describe('AdminUsersRepository', () => {
       displayName: 'Deleted user',
       email: '',
       biography: '',
-      photoUrl: FieldValue.delete(),
+      photoUrl: DELETE_FIELD,
       updatedAt: '2026-06-20T00:00:00.000Z',
     });
   });

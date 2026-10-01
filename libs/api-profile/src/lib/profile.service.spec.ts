@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { UserId } from '@learnwren/shared-data-models';
-import type { FirestoreHandle } from '@learnwren/api-firebase';
+import type { DocumentStore } from '@learnwren/api-document-store';
 
 import { ProfileInvalidException } from './errors/profile.exception';
 import { ProfileService } from './profile.service';
@@ -11,7 +11,7 @@ interface DocState {
 }
 
 function makeFirestore(initial: DocState): {
-  firestore: FirestoreHandle;
+  firestore: DocumentStore;
   written: Record<string, unknown> | null;
   state: DocState;
   collection: ReturnType<typeof vi.fn>;
@@ -31,7 +31,7 @@ function makeFirestore(initial: DocState): {
   };
   const docFn = vi.fn(() => doc);
   const collection = vi.fn(() => ({ doc: docFn }));
-  const firestore = { collection } as unknown as FirestoreHandle;
+  const firestore = { collection } as unknown as DocumentStore;
   return {
     firestore,
     get written() {

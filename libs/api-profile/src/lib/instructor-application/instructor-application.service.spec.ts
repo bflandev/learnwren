@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { FirestoreHandle } from '@learnwren/api-firebase';
+import type { DocumentStore } from '@learnwren/api-document-store';
 import type { UserId, UserRole } from '@learnwren/shared-data-models';
 
 import { InstructorApplicationService } from './instructor-application.service';
@@ -38,7 +38,7 @@ function makeFirestore(initial: DocState) {
         },
       }),
   );
-  const firestore = { collection, runTransaction } as unknown as FirestoreHandle;
+  const firestore = { collection, runTransaction } as unknown as DocumentStore;
   return { firestore, collection, setFn, state, runTransaction };
 }
 

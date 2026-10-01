@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
   MeResponse,
@@ -24,7 +24,7 @@ export class ProfileService {
   // Stryker disable next-line StringLiteral: Logger label is log-only; no behaviour depends on it.
   private readonly logger = new Logger('ProfileService');
 
-  constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
+  constructor(@Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore) {}
 
   async getProfile(
     uid: UserId,

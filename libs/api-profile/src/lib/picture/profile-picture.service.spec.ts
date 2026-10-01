@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import type { FirestoreHandle } from '@learnwren/api-firebase';
+import { DELETE_FIELD, type DocumentStore } from '@learnwren/api-document-store';
 import type { UserId } from '@learnwren/shared-data-models';
 import { FakePictureStorageAdapter } from './fake-picture-storage.adapter';
 import {
@@ -21,14 +21,10 @@ async function png(width: number, height: number): Promise<Buffer> {
   }).png().toBuffer();
 }
 
-// Sentinel that the fake's update detects as "unset this key".
-const DELETE_SENTINEL = Symbol('FieldValue.delete');
-
 function makeFakeFirestore() {
   const store = new Map<string, Record<string, unknown>>();
   return {
     store,
-    DELETE_SENTINEL,
     collection(name: string) {
       return {
         doc(id: string) {
@@ -39,7 +35,7 @@ function makeFakeFirestore() {
               const prev = store.get(key) ?? {};
               const next: Record<string, unknown> = { ...prev };
               for (const [k, v] of Object.entries(data)) {
-                if (v === DELETE_SENTINEL) delete next[k];
+                if (v === DELETE_FIELD) delete next[k];
                 else if (v !== undefined) next[k] = v;
               }
               store.set(key, next);
@@ -67,10 +63,8 @@ describe('ProfilePictureService', () => {
     firestore.store.set('users/u1', { displayName: 'Ada', biography: '', role: 'STUDENT' });
     service = new ProfilePictureService(
       storage,
-      firestore as unknown as FirestoreHandle,
+      firestore as unknown as DocumentStore,
       cfg,
-      // delete-sentinel injection (see impl note): allow the service to ask the fake for its delete sentinel
-      DELETE_SENTINEL as never,
     );
   });
 
@@ -135,12 +129,11 @@ describe('ProfilePictureService', () => {
           get: async () => ({ exists: false, data: () => undefined }),
         }),
       }),
-    } as unknown as FirestoreHandle;
+    } as unknown as DocumentStore;
     const svc = new ProfilePictureService(
       new FakePictureStorageAdapter(),
       absentFirestore,
       cfg,
-      DELETE_SENTINEL as never,
     );
     await expect(
       svc.removePicture('u1' as UserId, { email: 'a@b.com', emailVerified: true }),

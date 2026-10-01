@@ -1,13 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { FieldValue, type Transaction } from 'firebase-admin/firestore';
 
 import {
-  FIRESTORE,
-  type FirestoreHandle,
+  DELETE_FIELD,
+  DOCUMENT_STORE,
+  type DocumentStore,
   readStoredUserProfiles,
   scanStoredUserProfiles,
   type StoredUserRecord,
-} from '@learnwren/api-firebase';
+  type Transaction,
+} from '@learnwren/api-document-store';
 import type { Course, CourseId, Enrollment, UserId } from '@learnwren/shared-data-models';
 
 const ENROLLMENTS = 'enrollments';
@@ -26,7 +27,7 @@ interface DocWithId {
 /** All direct reads for the admin user directory live here (no api-courses dependency). */
 @Injectable()
 export class AdminUsersRepository {
-  constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
+  constructor(@Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore) {}
 
   /** Up to `limit` users ordered by document id (capped scan). */
   scanUsers(limit: number): Promise<StoredUserRecord[]> {
@@ -170,7 +171,7 @@ export class AdminUsersRepository {
       displayName: 'Deleted user',
       email: '',
       biography: '',
-      photoUrl: FieldValue.delete(),
+      photoUrl: DELETE_FIELD,
       updatedAt,
     });
   }
