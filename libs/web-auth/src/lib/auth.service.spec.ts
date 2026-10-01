@@ -207,6 +207,89 @@ describe('AuthService.resendVerification / requestPasswordReset / unlock', () =>
   });
 });
 
+describe('AuthService.applyEmailAction', () => {
+  let svc: AuthService;
+  let httpMock: HttpTestingController;
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    svc = TestBed.inject(AuthService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  it('posts mode/token/newPassword to /auth/email-action and returns ok on 204', async () => {
+    const promise = svc.applyEmailAction('reset-password', 'TOK', 'Brand-New-Pass-42!');
+    const req = httpMock.expectOne('/api/auth/email-action');
+    expect(req.request.body).toEqual({
+      mode: 'reset-password',
+      token: 'TOK',
+      newPassword: 'Brand-New-Pass-42!',
+    });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    expect(await promise).toEqual({ ok: true });
+  });
+
+  it('omits newPassword when not given (verify-email / change-email)', async () => {
+    const promise = svc.applyEmailAction('verify-email', 'TOK');
+    const req = httpMock.expectOne('/api/auth/email-action');
+    expect(req.request.body).toEqual({ mode: 'verify-email', token: 'TOK', newPassword: undefined });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    expect(await promise).toEqual({ ok: true });
+  });
+
+  it('returns ok=false with TOKEN_INVALID_OR_EXPIRED on 400', async () => {
+    const promise = svc.applyEmailAction('verify-email', 'BAD');
+    httpMock
+      .expectOne('/api/auth/email-action')
+      .flush({ error: { code: 'TOKEN_INVALID_OR_EXPIRED' } }, { status: 400, statusText: 'Bad Request' });
+    expect(await promise).toEqual({ ok: false, code: 'TOKEN_INVALID_OR_EXPIRED' });
+  });
+
+  it('returns ok=false with EMAIL_ALREADY_EXISTS on 409', async () => {
+    const promise = svc.applyEmailAction('change-email', 'TOK');
+    httpMock
+      .expectOne('/api/auth/email-action')
+      .flush({ error: { code: 'EMAIL_ALREADY_EXISTS' } }, { status: 409, statusText: 'Conflict' });
+    expect(await promise).toEqual({ ok: false, code: 'EMAIL_ALREADY_EXISTS' });
+  });
+
+  it('returns ok=false with WEAK_PASSWORD and unmet requirements on 400', async () => {
+    const promise = svc.applyEmailAction('reset-password', 'TOK', 'weak');
+    httpMock.expectOne('/api/auth/email-action').flush(
+      { error: { code: 'WEAK_PASSWORD', details: { unmetRequirements: ['MIN_LENGTH', 'DIGIT'] } } },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    expect(await promise).toEqual({
+      ok: false,
+      code: 'WEAK_PASSWORD',
+      unmet: ['MIN_LENGTH', 'DIGIT'],
+    });
+  });
+
+  it('returns ok=false with PASSWORD_TOO_LONG on 400', async () => {
+    const promise = svc.applyEmailAction('reset-password', 'TOK', 'x'.repeat(300));
+    httpMock
+      .expectOne('/api/auth/email-action')
+      .flush({ error: { code: 'PASSWORD_TOO_LONG' } }, { status: 400, statusText: 'Bad Request' });
+    expect(await promise).toEqual({ ok: false, code: 'PASSWORD_TOO_LONG' });
+  });
+
+  it('returns INTERNAL on a 500 with unknown error body', async () => {
+    const promise = svc.applyEmailAction('verify-email', 'X');
+    httpMock
+      .expectOne('/api/auth/email-action')
+      .flush({ error: { code: 'WHATEVER' } }, { status: 500, statusText: 'ISE' });
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
+
+  it('returns INTERNAL on a non-HttpErrorResponse failure', async () => {
+    const promise = svc.applyEmailAction('verify-email', 'X');
+    httpMock.expectOne('/api/auth/email-action').error(new ProgressEvent('network'));
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
+});
+
 describe('AuthService.login error edge cases', () => {
   let svc: AuthService;
   let httpMock: HttpTestingController;

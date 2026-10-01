@@ -2,7 +2,11 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, switchMap, tap } from 'rxjs';
 
-import type { ApiAuthErrorBody, AuthErrorCode } from '@learnwren/shared-data-models';
+import type {
+  ApiAuthErrorBody,
+  AuthErrorCode,
+  EmailActionMode,
+} from '@learnwren/shared-data-models';
 
 import type { AuthenticatedUser } from './types/authenticated-user';
 
@@ -39,6 +43,22 @@ export type LoginResult =
 export type UnlockResult =
   | { ok: true }
   | { ok: false; code: 'INVALID_UNLOCK_TOKEN' | 'UNLOCK_TOKEN_EXPIRED' | 'INTERNAL' };
+
+// Error codes POST /api/auth/email-action can return; everything else falls
+// to INTERNAL. `satisfies` ties each literal to AuthErrorCode so a renamed
+// API code fails compilation here instead of silently drifting.
+const EMAIL_ACTION_ERROR_CODES = [
+  'TOKEN_INVALID_OR_EXPIRED',
+  'EMAIL_ALREADY_EXISTS',
+  'WEAK_PASSWORD',
+  'PASSWORD_TOO_LONG',
+] as const satisfies readonly AuthErrorCode[];
+
+export type EmailActionErrorCode = (typeof EMAIL_ACTION_ERROR_CODES)[number] | 'INTERNAL';
+
+export type EmailActionResult =
+  | { ok: true }
+  | { ok: false; code: EmailActionErrorCode; unmet?: string[] };
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -132,6 +152,36 @@ export class AuthService {
         const code = (err.error as ApiAuthErrorBody | undefined)?.error?.code;
         if (code === 'INVALID_UNLOCK_TOKEN' || code === 'UNLOCK_TOKEN_EXPIRED') {
           return { ok: false, code };
+        }
+      }
+      return { ok: false, code: 'INTERNAL' };
+    }
+  }
+
+  /**
+   * Redeems a self-hosted email-action link (/auth/action): verify-email,
+   * reset-password or change-email. `newPassword` is only sent (and only
+   * meaningful) for reset-password.
+   */
+  async applyEmailAction(
+    mode: EmailActionMode,
+    token: string,
+    newPassword?: string,
+  ): Promise<EmailActionResult> {
+    try {
+      await firstValueFrom(
+        this.http.post('/api/auth/email-action', { mode, token, newPassword }),
+      );
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof HttpErrorResponse) {
+        const body = err.error as ApiAuthErrorBody | undefined;
+        const code = body?.error?.code;
+        if (code && (EMAIL_ACTION_ERROR_CODES as readonly string[]).includes(code)) {
+          const unmet = (
+            body?.error?.details as { unmetRequirements?: string[] } | undefined
+          )?.unmetRequirements;
+          return { ok: false, code: code as EmailActionErrorCode, unmet };
         }
       }
       return { ok: false, code: 'INTERNAL' };

@@ -284,6 +284,35 @@ export const GUEST_ROUTES: RouteFixture[] = [
   { name: 'register confirm', path: '/register/confirm', role: 'guest' },
   { name: 'forgot password', path: '/forgot-password', role: 'guest' },
   { name: 'unlock', path: '/auth/unlock', role: 'guest' },
+  // The a11y harness runs the web dev server alone (playwright.a11y.config.ts:
+  // "neither the NestJS api nor the Firebase emulators"), so an unstubbed
+  // POST /api/auth/email-action would hit a dead proxy target and land the
+  // 'verify' page on its 'error' state — an hlm-alert with no heading, which
+  // `waitForSelector('h1, h2, [role="heading"]')` would then time out on.
+  // Stub the endpoint to a deterministic 400 TOKEN_INVALID_OR_EXPIRED so the
+  // page settles on its 'invalid' state (a real <h1>) by scan time.
+  // 'reset-password' never POSTs on init at all (brief requirement), so its
+  // form (with its own <h1>, real content, no network) needs no stub.
+  {
+    name: 'email action (verify)',
+    path: '/auth/action?mode=verify-email&token=x',
+    role: 'guest',
+    stubs: async (page) => {
+      await stubJson(
+        page,
+        '**/api/auth/email-action',
+        { error: { code: 'TOKEN_INVALID_OR_EXPIRED', message: 'Invalid or expired token.' } },
+        400,
+      );
+    },
+    expectText: 'This link is invalid or has expired',
+  },
+  {
+    name: 'email action (reset form)',
+    path: '/auth/action?mode=reset-password&token=x',
+    role: 'guest',
+    expectText: 'Set a new password',
+  },
   {
     name: 'catalogue',
     path: '/catalog',
