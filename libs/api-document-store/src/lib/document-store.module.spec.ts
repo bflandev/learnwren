@@ -1,9 +1,9 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Logger, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { FIRESTORE } from '@learnwren/api-firebase';
 import type { Pool } from 'pg';
 
-import { DocumentStoreModule, makeDocumentStore } from './document-store.module';
+import { defaultPool, DocumentStoreModule, makeDocumentStore } from './document-store.module';
 import { DOCUMENT_STORE } from './document-store.port';
 import { FirestoreDocumentStore } from './firestore-document-store';
 import { PostgresDocumentStore } from './postgres/postgres-document-store';
@@ -66,6 +66,21 @@ describe('makeDocumentStore', () => {
     expect(urls).toEqual(['postgres://h/db']);
     expect(sql.some((s) => s.includes('CREATE TABLE IF NOT EXISTS documents'))).toBe(true);
     expect(typeof listeners['error']).toBe('function');
-    expect(() => listeners['error'](new Error('idle client died'))).not.toThrow();
+
+    const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    listeners['error'](new Error('idle client died'));
+    expect(errorSpy).toHaveBeenCalledWith('idle Postgres client error: idle client died');
+    // The 'DocumentStore' logger name — asserted via the instance context the real
+    // (unmocked) Logger carries, not just the message text.
+    expect((errorSpy.mock.contexts[0] as { context?: string }).context).toBe('DocumentStore');
+    errorSpy.mockRestore();
+  });
+});
+
+describe('defaultPool', () => {
+  it('builds a Pool configured with the given connection string', async () => {
+    const pool = defaultPool('postgres://h/db');
+    expect(pool.options.connectionString).toBe('postgres://h/db');
+    await pool.end();
   });
 });

@@ -1,4 +1,11 @@
-import { readDataStoreConfigFromEnv } from './data-store.config';
+import { DATA_STORE_CONFIG, readDataStoreConfigFromEnv } from './data-store.config';
+
+describe('DATA_STORE_CONFIG', () => {
+  it('is a global symbol keyed by the full library-qualified name', () => {
+    expect(DATA_STORE_CONFIG).toBe(Symbol.for('learnwren.api-document-store.config'));
+    expect(DATA_STORE_CONFIG.toString()).toBe('Symbol(learnwren.api-document-store.config)');
+  });
+});
 
 describe('readDataStoreConfigFromEnv', () => {
   it('defaults to firestore', () => {

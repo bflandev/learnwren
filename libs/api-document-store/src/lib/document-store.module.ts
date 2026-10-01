@@ -9,7 +9,7 @@ import { PostgresDocumentStore } from './postgres/postgres-document-store';
 
 const logger = new Logger('DocumentStore');
 
-const defaultPool = (url: string): Pool => new Pool({ connectionString: url });
+export const defaultPool = (url: string): Pool => new Pool({ connectionString: url });
 
 /** Picks the adapter from LEARNWREN_DATA_STORE (spec §3.1). Postgres creates its schema before the app serves. */
 export async function makeDocumentStore(

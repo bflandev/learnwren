@@ -56,9 +56,11 @@ async function upsert(db: Queryable, path: string, data: DocData): Promise<void>
 async function patch(db: Queryable, path: string, changes: DocData): Promise<void> {
   const removed: string[] = [];
   const kept: DocData = {};
+  // encode() below runs `kept` through stripUndefined, which already drops any
+  // undefined-valued key — so only DELETE_FIELD needs separating out here.
   for (const [key, value] of Object.entries(changes)) {
     if (value === DELETE_FIELD) removed.push(key);
-    else if (value !== undefined) kept[key] = value;
+    else kept[key] = value;
   }
   const result = await db.query('UPDATE documents SET data = (data - $2::text[]) || $3::jsonb WHERE path = $1', [
     path,
@@ -241,7 +243,8 @@ export class PostgresDocumentStore implements DocumentStore, OnApplicationShutdo
       exists: data !== undefined,
       id: path.slice(path.lastIndexOf('/') + 1),
       ref: new PgDocRef(this, path),
-      data: () => (data === undefined ? undefined : structuredClone(data)),
+      // structuredClone(undefined) is undefined, so no separate undefined check is needed.
+      data: () => structuredClone(data),
     };
   }
 
