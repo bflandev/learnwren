@@ -253,5 +253,22 @@ export class LocalIdentityProvider implements IdentityProvider {
     // change. Consequence: if this post-commit call fails, the password has already
     // changed but old sessions survive until they expire naturally.
     if (kind === 'reset-password') await this.revokeAllSessions(uid);
+    // A changed email makes any pending reset-password link for the old identity a
+    // stale credential-reset path (mirrors Firebase, which invalidates it too).
+    // Same post-commit tradeoff as the revoke above: best-effort, not atomic with
+    // the email change.
+    if (kind === 'change-email') await this.invalidatePendingPasswordResets(uid);
+  }
+
+  private async invalidatePendingPasswordResets(uid: string): Promise<void> {
+    const snap = await this.store
+      .collection(LOCAL_COLLECTIONS.actions)
+      .where('uid', '==', uid)
+      .where('kind', '==', 'reset-password' satisfies EmailActionKind)
+      .get();
+    if (snap.empty) return;
+    const batch = this.store.batch();
+    for (const doc of snap.docs) batch.delete(doc.ref);
+    await batch.commit();
   }
 }

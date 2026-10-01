@@ -239,6 +239,18 @@ export function describeIdentityProviderContract(
         );
         await expect(idp.applyEmailAction('verify-email', tokenOf(link))).resolves.toBeUndefined();
       });
+
+      it('a change-email invalidates pending password-reset links', async () => {
+        const oldAddress = email();
+        const newAddress = email();
+        await idp.createUser({ email: oldAddress, password: PASSWORD, displayName: 'A' });
+        const resetLink = await idp.createEmailActionLink('reset-password', oldAddress, '/login?reset=ok');
+        const changeLink = await idp.createEmailActionLink('change-email', oldAddress, '/x', newAddress);
+        await idp.applyEmailAction('change-email', tokenOf(changeLink));
+        await expect(
+          idp.applyEmailAction('reset-password', tokenOf(resetLink), 'Brand-New-Pass-42!'),
+        ).rejects.toBeInstanceOf(EmailActionInvalidError);
+      });
     });
   });
 }

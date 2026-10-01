@@ -144,6 +144,10 @@ export function createInMemoryIdentityProvider(): InMemoryIdentityProvider {
       if (existing && existing.uid !== action.uid) throw new EmailInUseError();
       users.set(action.uid, { ...mustGet(action.uid), email: normalizeEmail(newEmail), emailVerified: true });
       actions.delete(token);
+      // Mirrors LocalIdentityProvider: a changed email invalidates any pending reset-password link.
+      for (const [pendingToken, pending] of actions) {
+        if (pending.uid === action.uid && pending.kind === 'reset-password') actions.delete(pendingToken);
+      }
     },
   };
 }
