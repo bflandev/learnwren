@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DOCUMENT_STORE } from '@learnwren/api-document-store';
 
@@ -209,6 +209,8 @@ describe('AuthService.register', () => {
   });
 
   it('rejects with InvalidDisplayNameException when displayName exceeds 80 characters', async () => {
+    // Pins the upper bound: a ConditionalExpression mutant that strips this
+    // guard would let arbitrarily long names through to Firebase.
     const identity = buildIdentity();
     const firestore = buildFakeFirestore();
     const service = await buildModule(identity, firestore);
@@ -221,6 +223,8 @@ describe('AuthService.register', () => {
   });
 
   it('rejects with EmailTooLongException when the email exceeds 254 characters', async () => {
+    // The @MaxLength(254) DTO decorator was removed; the service now owns this
+    // guard and emits the typed code instead of a generic pipe BAD_REQUEST.
     const identity = buildIdentity();
     const firestore = buildFakeFirestore();
     const service = await buildModule(identity, firestore);
@@ -233,6 +237,9 @@ describe('AuthService.register', () => {
   });
 
   it('rejects with PasswordTooLongException when the password exceeds 256 characters', async () => {
+    // The @MaxLength(256) DTO decorator was removed; the service now owns this
+    // guard. The password is otherwise policy-valid, so only the length check
+    // can reject it.
     const identity = buildIdentity();
     const firestore = buildFakeFirestore();
     const service = await buildModule(identity, firestore);
@@ -245,6 +252,9 @@ describe('AuthService.register', () => {
   });
 
   it('accepts an email at the 254-character boundary', async () => {
+    // Lower-bound counterpart for EMAIL_MAX: email.length === 254 is valid; the
+    // guard is `> EMAIL_MAX`, not `>=`. An EqualityOperator mutant flipping it
+    // to `>=` would wrongly reject a maximal-but-legal address.
     const identity = buildIdentity();
     const firestore = buildFakeFirestore();
     const service = await buildModule(identity, firestore);
@@ -298,6 +308,8 @@ describe('AuthService.register', () => {
   });
 
   it('accepts a displayName at the 80-character boundary', async () => {
+    // Lower-bound counterpart: displayName.length === 80 is valid; the guard
+    // is `> DISPLAY_NAME_MAX`, not `>=`.
     const identity = buildIdentity();
     const firestore = buildFakeFirestore();
     const service = await buildModule(identity, firestore);
@@ -402,6 +414,8 @@ describe('AuthService.register', () => {
   });
 
   it('rollback also deletes the orphaned users/{uid} doc when setRole fails', async () => {
+    // The Firestore doc was written before the claim failed; deleting only the
+    // identity account would orphan users/{uid} forever (the uid can never log in).
     const identity = buildIdentity({
       setRole: vi.fn(async () => {
         throw new Error('claim failure');
@@ -774,6 +788,9 @@ describe('AuthService.login', () => {
 
 describe('AuthService.login — lazy heal of a stale users/{uid}.email', () => {
   beforeEach(() => vi.clearAllMocks());
+  // vi.spyOn(Logger.prototype, 'warn') below must be restored even when an
+  // assertion throws, or the spy leaks into later tests.
+  afterEach(() => vi.restoreAllMocks());
 
   const validInput = { email: 'new@example.com', password: 'Aa1!aaaaaaaa' };
 
@@ -862,7 +879,6 @@ describe('AuthService.login — lazy heal of a stale users/{uid}.email', () => {
     expect(result.cookie).toBe('COOKIE-VALUE');
     // The catch body ran (warn emitted) — kills emptying the catch block.
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('login email sync failed'));
-    warnSpy.mockRestore();
   });
 });
 
