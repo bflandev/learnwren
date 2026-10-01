@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { firestore as adminFirestore } from 'firebase-admin';
 
+import type { Transaction } from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
   Course,
@@ -100,7 +100,7 @@ export class LearnService {
    * must suppress the stamp, not be missed).
    */
   private async listAllLessonIdsInTxn(
-    t: adminFirestore.Transaction,
+    t: Transaction,
     course: Course,
   ): Promise<LessonId[]> {
     const modules = await this.courses.listModulesByCourseInTxn(t, course.id);

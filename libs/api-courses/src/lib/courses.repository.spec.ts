@@ -1,9 +1,13 @@
-import type { firestore as adminFirestore } from 'firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import {
+  createInMemoryDocumentStore,
+  DOCUMENT_STORE,
+  type DocumentStore,
+  type InMemoryDocumentStore,
+  type Transaction,
+} from '@learnwren/api-document-store';
 import type {
   Course,
   CourseId,
@@ -17,7 +21,6 @@ import type {
 
 import { CoursesRepository } from './courses.repository';
 import { CourseNotFoundException, StaleReorderException } from './errors/courses.exception';
-import { createFakeFirestore, type FakeFirestore } from './testing/fake-firestore';
 
 const INSTRUCTOR = 'uid-instructor-1' as UserId;
 const SEED_DATE = '2026-05-12T00:00:00.000Z' as ISODateString;
@@ -60,22 +63,22 @@ function makeLesson(overrides: Partial<Lesson> = {}): Lesson {
   };
 }
 
-async function buildRepo(fake: FakeFirestore): Promise<CoursesRepository> {
+async function buildRepo(fake: InMemoryDocumentStore): Promise<CoursesRepository> {
   const moduleRef = await Test.createTestingModule({
     providers: [
       CoursesRepository,
-      { provide: FIRESTORE, useValue: fake as unknown as FirestoreHandle },
+      { provide: DOCUMENT_STORE, useValue: fake as unknown as DocumentStore },
     ],
   }).compile();
   return moduleRef.get(CoursesRepository);
 }
 
-/** Run a callback inside a fake transaction, casting to the admin SDK type the repo expects. */
+/** Run a callback inside a fake transaction. */
 function withTxn<T>(
-  fake: FakeFirestore,
-  fn: (t: adminFirestore.Transaction) => Promise<T>,
+  fake: InMemoryDocumentStore,
+  fn: (t: Transaction) => Promise<T>,
 ): Promise<T> {
-  return fake.runTransaction((t) => fn(t as unknown as adminFirestore.Transaction));
+  return fake.runTransaction(fn);
 }
 
 describe('CoursesRepository — Course', () => {
@@ -85,7 +88,7 @@ describe('CoursesRepository — Course', () => {
   });
 
   it('createCourse writes the course at courses/{id}', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
     const course = makeCourse();
 
@@ -95,7 +98,7 @@ describe('CoursesRepository — Course', () => {
   });
 
   it('getCourse returns the stored course, or null when absent', async () => {
-    const fake = createFakeFirestore({ 'courses/cid-1': makeCourse() });
+    const fake = createInMemoryDocumentStore({ 'courses/cid-1': makeCourse() });
     const repo = await buildRepo(fake);
 
     expect(await repo.getCourse('cid-1' as CourseId)).toEqual(makeCourse());
@@ -103,7 +106,7 @@ describe('CoursesRepository — Course', () => {
   });
 
   it('listCoursesByInstructor filters by instructorId and orders by updatedAt desc', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/c-old': makeCourse({
         id: 'c-old' as CourseId,
         updatedAt: '2026-05-01T00:00:00.000Z' as ISODateString,
@@ -126,7 +129,7 @@ describe('CoursesRepository — Course', () => {
   });
 
   it('updateCourse merges the patch and refreshes updatedAt', async () => {
-    const fake = createFakeFirestore({ 'courses/cid-1': makeCourse() });
+    const fake = createInMemoryDocumentStore({ 'courses/cid-1': makeCourse() });
     const repo = await buildRepo(fake);
 
     await repo.updateCourse('cid-1' as CourseId, { title: 'Renamed' });
@@ -138,7 +141,7 @@ describe('CoursesRepository — Course', () => {
   });
 
   it('deleteCourseRecursive removes the course and every nested module and lesson', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
       'courses/cid-1/modules/mid-1/lessons/lid-1': makeLesson(),
@@ -162,7 +165,7 @@ describe('CoursesRepository — Module', () => {
   });
 
   it('appendModule assigns order = sibling count and touches the course', async () => {
-    const fake = createFakeFirestore({ 'courses/cid-1': makeCourse() });
+    const fake = createInMemoryDocumentStore({ 'courses/cid-1': makeCourse() });
     const repo = await buildRepo(fake);
 
     const first = await repo.appendModule('cid-1' as CourseId, {
@@ -186,7 +189,7 @@ describe('CoursesRepository — Module', () => {
     // Regression: previously used siblings.size as the new order. After deleting
     // a middle module, .size shrinks but max(order) does not — so .size collides
     // with an existing module's order, corrupting list ordering.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-a': makeModule({ id: 'mid-a' as ModuleId, order: 0 }),
       'courses/cid-1/modules/mid-b': makeModule({ id: 'mid-b' as ModuleId, order: 1 }),
@@ -207,7 +210,7 @@ describe('CoursesRepository — Module', () => {
   });
 
   it('getModule returns the stored module, or null when absent', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
     });
@@ -218,7 +221,7 @@ describe('CoursesRepository — Module', () => {
   });
 
   it('listModulesByCourse returns modules ordered by `order` ascending', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-b': makeModule({ id: 'mid-b' as ModuleId, order: 1 }),
       'courses/cid-1/modules/mid-a': makeModule({ id: 'mid-a' as ModuleId, order: 0 }),
@@ -231,7 +234,7 @@ describe('CoursesRepository — Module', () => {
   });
 
   it('updateModule merges the patch and refreshes updatedAt', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
     });
@@ -245,7 +248,7 @@ describe('CoursesRepository — Module', () => {
   });
 
   it('deleteModuleRecursive removes the module and its lessons only', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
       'courses/cid-1/modules/mid-1/lessons/lid-1': makeLesson(),
@@ -262,7 +265,7 @@ describe('CoursesRepository — Module', () => {
   });
 
   it('writeModuleOrder rewrites each module order to its array index', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-a': makeModule({ id: 'mid-a' as ModuleId, order: 0 }),
       'courses/cid-1/modules/mid-b': makeModule({ id: 'mid-b' as ModuleId, order: 1 }),
@@ -280,7 +283,7 @@ describe('CoursesRepository — Module', () => {
     // Regression: the in-txn assertReorderSetMatches collapses duplicates
     // into a Set, so a payload like ["a","a","b"] against a 3-item collection
     // ["a","b","c"] would silently double-write one id and drop another.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-a': makeModule({ id: 'mid-a' as ModuleId, order: 0 }),
       'courses/cid-1/modules/mid-b': makeModule({ id: 'mid-b' as ModuleId, order: 1 }),
@@ -303,7 +306,7 @@ describe('CoursesRepository — Lesson', () => {
   });
 
   it('appendLesson assigns order = sibling count and touches the course', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
     });
@@ -327,7 +330,7 @@ describe('CoursesRepository — Lesson', () => {
 
   it('appendLesson after a delete picks max(order)+1, not siblings.size', async () => {
     // Regression — same defect as appendModule.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
       'courses/cid-1/modules/mid-1/lessons/lid-a': makeLesson({ id: 'lid-a' as LessonId, order: 0 }),
@@ -351,7 +354,7 @@ describe('CoursesRepository — Lesson', () => {
   });
 
   it('moduleExists reports presence of the module document', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
     });
@@ -362,7 +365,7 @@ describe('CoursesRepository — Lesson', () => {
   });
 
   it('getLesson returns the stored lesson, or null when absent', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
       'courses/cid-1/modules/mid-1/lessons/lid-1': makeLesson(),
@@ -378,7 +381,7 @@ describe('CoursesRepository — Lesson', () => {
   });
 
   it('listLessonsByModule returns lessons ordered by `order` ascending', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
       'courses/cid-1/modules/mid-1/lessons/lid-b': makeLesson({
@@ -398,7 +401,7 @@ describe('CoursesRepository — Lesson', () => {
   });
 
   it('updateLesson merges the patch and refreshes updatedAt', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
       'courses/cid-1/modules/mid-1/lessons/lid-1': makeLesson(),
@@ -415,7 +418,7 @@ describe('CoursesRepository — Lesson', () => {
   });
 
   it('deleteLesson removes only the target lesson', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
       'courses/cid-1/modules/mid-1/lessons/lid-1': makeLesson(),
@@ -430,7 +433,7 @@ describe('CoursesRepository — Lesson', () => {
   });
 
   it('writeLessonOrder rewrites each lesson order to its array index', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
       'courses/cid-1/modules/mid-1/lessons/lid-a': makeLesson({ id: 'lid-a' as LessonId, order: 0 }),
@@ -455,7 +458,7 @@ describe('CoursesRepository — Lesson', () => {
 
 describe('CoursesRepository — misc', () => {
   it('newId returns a non-empty string and never collides', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
 
     const a = repo.newId<CourseId>();
@@ -466,7 +469,7 @@ describe('CoursesRepository — misc', () => {
   });
 
   it('rawFirestore exposes the injected handle', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
 
     expect(repo.rawFirestore).toBe(fake);
@@ -480,7 +483,7 @@ describe('CoursesRepository — transaction helpers (publish gate)', () => {
   });
 
   it('getCourseInTxn returns the course', async () => {
-    const fake = createFakeFirestore({ 'courses/cid-1': makeCourse() });
+    const fake = createInMemoryDocumentStore({ 'courses/cid-1': makeCourse() });
     const repo = await buildRepo(fake);
 
     const course = await withTxn(fake, (t) => repo.getCourseInTxn(t, 'cid-1' as CourseId));
@@ -489,7 +492,7 @@ describe('CoursesRepository — transaction helpers (publish gate)', () => {
   });
 
   it('getCourseInTxn throws CourseNotFoundException when the course is absent', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
 
     await expect(
@@ -498,7 +501,7 @@ describe('CoursesRepository — transaction helpers (publish gate)', () => {
   });
 
   it('listModulesByCourseInTxn returns modules ordered by `order`', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-b': makeModule({ id: 'mid-b' as ModuleId, order: 1 }),
       'courses/cid-1/modules/mid-a': makeModule({ id: 'mid-a' as ModuleId, order: 0 }),
@@ -513,7 +516,7 @@ describe('CoursesRepository — transaction helpers (publish gate)', () => {
   });
 
   it('listLessonsByModuleInTxn returns lessons ordered by `order`', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse(),
       'courses/cid-1/modules/mid-1': makeModule(),
       'courses/cid-1/modules/mid-1/lessons/lid-b': makeLesson({
@@ -542,7 +545,7 @@ describe('CoursesRepository.updateStatusInTxn', () => {
   });
 
   it('writes the new status, refreshes updatedAt, and composes the returned doc from the pre-read', async () => {
-    const fake = createFakeFirestore({ 'courses/cid-1': makeCourse() });
+    const fake = createInMemoryDocumentStore({ 'courses/cid-1': makeCourse() });
     const repo = await buildRepo(fake);
 
     const result = await withTxn(fake, (t) =>
@@ -561,7 +564,7 @@ describe('CoursesRepository.updateStatusInTxn', () => {
   });
 
   it('applies a publishedAt patch to both the stored doc and the returned doc', async () => {
-    const fake = createFakeFirestore({ 'courses/cid-1': makeCourse() });
+    const fake = createInMemoryDocumentStore({ 'courses/cid-1': makeCourse() });
     const repo = await buildRepo(fake);
     const publishedAt = '2026-05-21T12:00:00.000Z' as ISODateString;
 
@@ -574,7 +577,7 @@ describe('CoursesRepository.updateStatusInTxn', () => {
   });
 
   it('applies an archivedAt patch when archiving', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse({ status: 'PUBLISHED' }),
     });
     const repo = await buildRepo(fake);
@@ -588,8 +591,8 @@ describe('CoursesRepository.updateStatusInTxn', () => {
     expect((fake.__store.get('courses/cid-1') as Course).archivedAt).toBe(archivedAt);
   });
 
-  it('clears archivedAt when the patch passes archivedAt: null (FieldValue.delete)', async () => {
-    const fake = createFakeFirestore({
+  it('clears archivedAt when the patch passes archivedAt: null (DELETE_FIELD)', async () => {
+    const fake = createInMemoryDocumentStore({
       'courses/cid-1': makeCourse({
         status: 'ARCHIVED',
         archivedAt: '2026-05-10T00:00:00.000Z' as ISODateString,
@@ -607,7 +610,7 @@ describe('CoursesRepository.updateStatusInTxn', () => {
   });
 
   it('throws CourseNotFoundException without writing when the course is absent', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
 
     await expect(
@@ -619,7 +622,7 @@ describe('CoursesRepository.updateStatusInTxn', () => {
 
 describe('CoursesRepository.listPublished', () => {
   it('returns only courses whose status is PUBLISHED', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/c-draft': { id: 'c-draft', title: 'Draft', status: 'DRAFT' },
       'courses/c-pub-1': { id: 'c-pub-1', title: 'Pub One', status: 'PUBLISHED' },
       'courses/c-pub-2': { id: 'c-pub-2', title: 'Pub Two', status: 'PUBLISHED' },
@@ -633,7 +636,7 @@ describe('CoursesRepository.listPublished', () => {
   });
 
   it('returns an empty array when no course is published', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'courses/c-draft': { id: 'c-draft', title: 'Draft', status: 'DRAFT' },
     });
     const repo = await buildRepo(fake);

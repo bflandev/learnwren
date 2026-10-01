@@ -1,7 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { firestore as adminFirestore } from 'firebase-admin';
 
-import { FIRESTORE, type FirestoreHandle, runTransactionWithRetry } from '@learnwren/api-firebase';
+import {
+  DOCUMENT_STORE,
+  type DocumentStore,
+  type Transaction,
+  runTransactionWithRetry,
+} from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type { CategoryId, Course, CourseCategoryDoc } from '@learnwren/shared-data-models';
 
@@ -23,7 +27,7 @@ function sameName(a: string, b: string): boolean {
 
 @Injectable()
 export class CategoriesRepository {
-  constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
+  constructor(@Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore) {}
 
   private col() {
     return this.firestore.collection(CATEGORIES);
@@ -69,7 +73,7 @@ export class CategoriesRepository {
    * No lazy seed here: callers run `get` (which seeds) as their pre-check.
    */
   async getInTxn(
-    t: adminFirestore.Transaction,
+    t: Transaction,
     id: CategoryId,
   ): Promise<CourseCategoryDoc | null> {
     const snap = await t.get(this.col().doc(id));

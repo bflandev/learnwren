@@ -1,9 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import type { firestore as adminFirestore } from 'firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
-
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import {
+  DELETE_FIELD,
+  DOCUMENT_STORE,
+  type DocRef,
+  type DocumentStore,
+  type Transaction,
+} from '@learnwren/api-document-store';
 import type {
   ISODateString,
   LessonId,
@@ -25,7 +28,7 @@ import {
 
 @Injectable()
 export class VideoRepository {
-  constructor(@Inject(FIRESTORE) private readonly db: FirestoreHandle) {}
+  constructor(@Inject(DOCUMENT_STORE) private readonly db: DocumentStore) {}
 
   // ────────────────────────── Ref helpers ──────────────────────────
 
@@ -163,9 +166,9 @@ export class VideoRepository {
     });
   }
 
-  /** Best-effort release: plain update to clear the claim stamp via FieldValue.delete(). */
+  /** Best-effort release: plain update to clear the claim stamp via DELETE_FIELD. */
   async releaseUploadCompletionClaim(vid: VideoId): Promise<void> {
-    await this.videoRef(vid).update({ completeClaimedAt: FieldValue.delete() });
+    await this.videoRef(vid).update({ completeClaimedAt: DELETE_FIELD });
   }
 
   async getCaptions(vid: VideoId): Promise<VideoCaptions | null> {
@@ -368,9 +371,9 @@ export class VideoRepository {
         const lesson = lessonSnap.docs[0]!;
         const currentVid = (lesson.data() as { videoId?: string }).videoId;
         if (currentVid === vid) {
-          // Use FieldValue.delete() to remove the optional field rather than writing null,
+          // Use DELETE_FIELD to remove the optional field rather than writing null,
           // preserving the Lesson.videoId type contract (VideoId | undefined, not nullable).
-          tx.update(lesson.ref, { videoId: FieldValue.delete(), updatedAt: nowIso });
+          tx.update(lesson.ref, { videoId: DELETE_FIELD, updatedAt: nowIso });
         }
       }
     });
@@ -392,8 +395,8 @@ export class VideoRepository {
    * that the service's exception filter can map to a 500.
    */
   private async requireVideoInTxn(
-    tx: adminFirestore.Transaction,
-    ref: adminFirestore.DocumentReference,
+    tx: Transaction,
+    ref: DocRef,
   ): Promise<Video> {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new Error('Video disappeared in transaction.');
