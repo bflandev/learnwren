@@ -126,32 +126,37 @@ One table for every collection:
 
 ```sql
 CREATE TABLE IF NOT EXISTS documents (
-  path        text PRIMARY KEY,  -- 'courses/c1/modules/m1'
-  parent      text NOT NULL,     -- 'courses/c1/modules'  (collection path)
-  collection  text NOT NULL,     -- 'modules'             (for collectionGroup)
-  data        jsonb NOT NULL
+  path       text PRIMARY KEY,  -- 'courses/c1/modules/m1'
+  parent     text NOT NULL,     -- 'courses/c1/modules'  (collection path)
+  collection text NOT NULL,     -- 'modules'             (for collectionGroup)
+  id         text NOT NULL,     -- 'm1'                  (the DOCUMENT_ID column)
+  data       jsonb NOT NULL
 );
 CREATE INDEX IF NOT EXISTS documents_parent ON documents (parent);
 CREATE INDEX IF NOT EXISTS documents_collection ON documents (collection);
-CREATE INDEX IF NOT EXISTS documents_data ON documents USING gin (data jsonb_path_ops);
 ```
+
+No GIN index: no query uses `@>` containment. (ponytail: no index on `data`;
+add expression indexes per hot field if a collection grows large enough for
+the parent scan to matter.)
 
 | Port operation | SQL |
 | :--- | :--- |
-| `where(a, '==', v)` | `data @> '{"a": v}'` (GIN index) |
-| `where(a, 'in', vs)` | `data->'a' = ANY($1::jsonb[])` |
-| `where(DOCUMENT_ID, …)` | on the last path segment |
-| `where(a, '==', v)` on an array value | `data->'a' = to_jsonb($v)` (scalar equality — `@>` is containment and would match the wrong rows) |
-| `orderBy(a)` | `WHERE data ? 'a' AND … ORDER BY data->'a'` (documents lacking the field are excluded, as Firestore does) |
+| `where(a, '==', v)` | `data -> $field::text = $v::jsonb` — field names are cast to `text` since `->` also takes an integer |
+| `where(a, 'in', vs)` | `data -> $field::text = ANY($vs::jsonb[])` |
+| `where(DOCUMENT_ID, …)` | on the `id` column |
+| `orderBy(a)` | numbers sort numerically, then text `COLLATE "C"` (bytewise, matching Firestore's UTF-8-byte string order), then `path COLLATE "C"` in the last clause's direction; documents lacking the field are excluded (`WHERE data ? 'a'`), as Firestore does |
 | `count()` | `SELECT count(*)` |
 | `set(merge)` / `update` | `data \|\| $patch`, minus `DELETE_FIELD` keys via `data - 'k'` |
 | `recursiveDelete(ref)` | `DELETE … WHERE path = $1 OR path LIKE $1 \|\| '/%'` ($1 with `%`, `_` and `\` escaped, and the LIKE clause's own `ESCAPE` character set, so an id containing `_` cannot match an unrelated sibling) |
-| transaction | `BEGIN ISOLATION LEVEL SERIALIZABLE` … `COMMIT` |
+| transaction | `BEGIN ISOLATION LEVEL SERIALIZABLE` … `COMMIT`; retries internally up to 5 attempts on SQLSTATE `40001`/`40P01`, then raises `TransactionConflictError` |
+| batch | runs `READ COMMITTED` in one transaction (no retry — a batch call site decides how to retry) |
 
 - Driver: `pg` (node-postgres), the one new runtime dependency.
-- The schema is created on boot with `CREATE … IF NOT EXISTS`, the same idea as
-  `ensureBucket` in Slice C. A migration tool waits until a second schema version
-  exists.
+- The schema is created on boot with `CREATE … IF NOT EXISTS`, taking a
+  `pg_advisory_xact_lock` first so concurrent `ensureSchema` calls don't race
+  on `CREATE … IF NOT EXISTS` — the same idea as `ensureBucket` in Slice C. A
+  migration tool waits until a second schema version exists.
 - Generated ids use the same 20-character alphabet as Firestore auto-ids, so ids
   look the same in both backends.
 - Configuration: `LEARNWREN_POSTGRES_URL` (required when `postgres`), documented
@@ -255,6 +260,10 @@ Each slice merges to `main` on its own with every suite green.
 - One api process (inherited from Slices B and C).
 - No data migration from emulator-backed installs.
 - Expired sessions and email tokens stay in the table until read.
+- `jsonb` does not preserve object key order, so `data()` returns keys in
+  Postgres's order; nothing in the code depends on key order.
+- `NaN` and `Infinity` cannot be stored (JSON has no representation for
+  them), and nothing in the code stores them.
 
 ## 5. Verification
 
