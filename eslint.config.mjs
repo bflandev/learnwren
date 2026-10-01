@@ -44,11 +44,11 @@ export default [
   {
     // US-09-04 Slice D: data access goes through the DocumentStore port.
     // Only the port's own lib and the Firebase wiring lib touch Firestore.
-    // Nx's lint executor runs eslint with cwd set to each project's own
-    // directory, so file-path globs here can't name sibling projects to
-    // exclude them (the matched path never contains the project's own
-    // directory name). api-document-store and api-firebase opt out via a
-    // local override in their own eslint.config.mjs instead.
+    // This applies workspace-wide; api-document-store and api-firebase opt
+    // out via a local override in their own eslint.config.mjs (Nx's lint
+    // executor runs eslint with cwd set to each project's own directory, so
+    // file-path globs here can't name sibling projects to exclude them —
+    // the matched path never contains the project's own directory name).
     files: ['**/src/**/*.ts'],
     rules: {
       'no-restricted-imports': [
@@ -57,6 +57,15 @@ export default [
           paths: [
             {
               name: 'firebase-admin/firestore',
+              message: 'Use @learnwren/api-document-store (DocumentStore port).',
+            },
+            {
+              name: 'firebase-admin',
+              importNames: ['firestore'],
+              message: 'Use @learnwren/api-document-store (DocumentStore port).',
+            },
+            {
+              name: '@google-cloud/firestore',
               message: 'Use @learnwren/api-document-store (DocumentStore port).',
             },
             {
