@@ -169,22 +169,63 @@ the parent scan to matter.)
 
 ### 3.4 `IdentityProvider` port
 
-The operations the api actually uses, named for what they do rather than for
-Firebase:
+The port as built (`libs/api-auth/src/lib/identity/identity-provider.port.ts`),
+named for what each operation does rather than for Firebase:
 
+```ts
+export const IDENTITY_PROVIDER = Symbol.for('learnwren.api-auth.identity-provider');
+export const SESSION_MAX_AGE_SECONDS = 5 * 24 * 60 * 60;
+
+export interface IdentityUser {
+  readonly uid: string;
+  readonly email: string;
+  readonly emailVerified: boolean;
+}
+
+export interface SessionClaims {
+  readonly uid: string;
+  readonly email: string;
+  readonly role: UserRole | undefined;
+  readonly emailVerified: boolean;
+}
+
+export interface PasswordProof {
+  readonly uid: string;
+}
+
+export interface MintedSession {
+  readonly token: string;
+  readonly maxAgeSeconds: number;
+}
+
+export type EmailActionKind = 'verify-email' | 'reset-password' | 'change-email';
+
+export interface IdentityProvider {
+  createUser(input: { email: string; password: string; displayName: string }): Promise<string>;
+  getUser(uid: string): Promise<IdentityUser | null>;
+  getUserByEmail(email: string): Promise<IdentityUser | null>;
+  updateUser(uid: string, changes: { password?: string; disabled?: boolean; emailVerified?: boolean }): Promise<void>;
+  deleteUser(uid: string): Promise<void>;
+  setRole(uid: string, role: UserRole): Promise<void>;
+  verifyPassword(email: string, password: string): Promise<PasswordProof>;
+  createSession(proof: PasswordProof): Promise<MintedSession>;
+  verifySession(token: string): Promise<SessionClaims | null>;
+  endSession(token: string): Promise<void>;
+  revokeAllSessions(uid: string): Promise<void>;
+  createEmailActionLink(kind: EmailActionKind, email: string, continuePath: string, newEmail?: string): Promise<string>;
+}
 ```
-createUser({ email, password, displayName }) → uid
-getUser(uid) / getUserByEmail(email) → IdentityUser | null
-updateUser(uid, { email?, password?, disabled?, emailVerified?, displayName? })
-deleteUser(uid)
-setRole(uid, role)                         // replaces setCustomUserClaims
-verifyPassword(email, password) → uid      // replaces REST signInWithPassword
-createSession(uid) → { token, expiresAt }  // replaces createSessionCookie
-verifySession(token) → { uid, role, emailVerified }  // checks revocation
-revokeSessions(uid)                        // replaces revokeRefreshTokens
-createEmailActionLink(uid, 'verify' | 'reset' | 'change-email', newEmail?) → url
-applyEmailAction(token, 'verify' | 'reset' | 'change-email', newPassword?) → uid
-```
+
+`verifyPassword` returns an opaque `PasswordProof` rather than a uid because
+the Firebase adapter cannot mint a session cookie from a uid alone — only
+`createSessionCookie` can, and it needs the ID token `signInWithPassword`
+returned, so the proof carries whatever each adapter needs to finish the
+sign-in (today, that token) without leaking it into the port's shape.
+`endSession` and `revokeAllSessions` own the same-second retry
+(`sleepPastNextSecond`, §1 of the auth inventory): that race is Firebase's
+whole-second `tokensValidAfterTime`-vs-cookie-`iat` comparison, not a
+property of sessions in general, so it lives entirely inside the Firebase
+adapter and a local adapter's own session table has no reason to repeat it.
 
 **Firebase adapter:** a thin wrapper over today's calls. `createSession` mints
 the ID token through `signInWithPassword` then `createSessionCookie`, as the
@@ -224,8 +265,13 @@ keeps mirroring it, as now.
 The ports own the error vocabulary; adapters translate their own codes into it,
 and nothing outside an adapter imports `firebase-error.util`.
 
-- Identity: `EMAIL_EXISTS`, `USER_NOT_FOUND`, `INVALID_CREDENTIALS`,
-  `USER_DISABLED`, `SESSION_INVALID`, `TOKEN_INVALID_OR_EXPIRED`.
+- Identity: credential failures (wrong password, unknown email, disabled
+  account) reuse the existing `InvalidCredentialsException` — no new error
+  type for that case. The only new error is `EmailInUseError`, thrown by
+  `createUser` and by a change-email link to a taken address. `getUser` and
+  `getUserByEmail` resolve `null` for an unknown user rather than throwing;
+  `deleteUser` is idempotent and `verifySession` resolves `null` for any
+  invalid, expired or revoked token.
 - Store: `DocumentNotFound`, `TransactionConflict` (seen only by the retry helper).
 
 The api's public error codes and HTTP statuses do not change; the existing
@@ -250,7 +296,9 @@ Each slice merges to `main` on its own with every suite green.
 | **D0** | This design and the `TECHNICAL_ARCHITECTURE.md` update (two-backend diagram, stack table, Deployment Backends section). | None. |
 | **D1** | New lib `api-document-store`: port, Firestore adapter, in-memory adapter (grown from `fake-firestore.ts`), contract suite. Move all ~45 call sites and `runTransactionWithRetry` onto the port. | None. The existing unit, api-e2e and web-e2e suites pass unchanged. |
 | **D2** | PostgreSQL adapter; contract suite runs against it; Postgres service in CI. | None by default. |
-| **D3** | `IdentityProvider` port, Firebase adapter (refactor through the existing seams), local adapter. New web page `/auth/action` and public `POST /api/auth/email-action`. Compose switches to `postgres` + `local` and drops the emulators. Docs: `self-hosting.md`, `.env.example`, README, USER_GUIDE, and the US-09-04 criterion amended to **met**. | Compose only; one new web page reachable only from local-identity emails. |
+| **D3a** | `IdentityProvider` port, errors, `publicUrl`, contract suite and in-memory adapter (this doc, §3.4–3.6); Firebase adapter; every call site moved onto the port. | None, with one deliberate exception: admin suspend and delete now call `revokeAllSessions`, which double-revokes in production (the same-second retry, §3.4) where today they revoke once — closing the same-second gap password-change and demote already close. The emulator, which covers dev and e2e, stays a single revoke. |
+| **D3b** | Local adapter (scrypt password hashing, `sessions/`/`emailActions/` on `DocumentStore`), `LEARNWREN_IDENTITY` selector, new web page `/auth/action` and public `POST /api/auth/email-action`. | One new web page and endpoint, reachable only from local-identity emails; Firebase mode is unaffected. |
+| **D3c** | api-e2e and `tools/*` moved onto the port or a test seam; api-e2e runs on `postgres` + `local` in CI; Compose switches to `postgres` + `local` and drops the emulators; `self-hosting.md` rewritten for the local first-admin flow; the US-09-04 criterion amended to **met**. | Compose only. |
 
 ## 4. Ceilings, recorded on purpose
 

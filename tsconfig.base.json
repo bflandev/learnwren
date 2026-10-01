@@ -23,6 +23,7 @@
       ],
       "@learnwren/api-firebase": ["./libs/api-firebase/src/index.ts"],
       "@learnwren/api-auth": ["./libs/api-auth/src/index.ts"],
+      "@learnwren/api-auth/testing": ["./libs/api-auth/src/testing/index.ts"],
       "@learnwren/api-document-store": ["./libs/api-document-store/src/index.ts"],
       "@learnwren/api-document-store/testing": ["./libs/api-document-store/src/testing/document-store.contract.ts"],
       "@learnwren/web-auth": ["./libs/web-auth/src/index.ts"],
