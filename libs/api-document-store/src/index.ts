@@ -3,6 +3,8 @@ export * from './lib/document-store.errors';
 export { stripUndefined } from './lib/strip-undefined';
 export * from './lib/in-memory-document-store';
 export { FirestoreDocumentStore } from './lib/firestore-document-store';
+export { PostgresDocumentStore } from './lib/postgres/postgres-document-store';
+export { readDataStoreConfigFromEnv, DATA_STORE_CONFIG, type DataStoreConfig } from './lib/data-store.config';
 export { runTransactionWithRetry } from './lib/run-transaction-with-retry';
 export {
   readStoredUserProfiles,
