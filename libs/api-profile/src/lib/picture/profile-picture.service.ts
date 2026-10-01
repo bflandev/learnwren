@@ -1,8 +1,7 @@
-import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import sharp from 'sharp';
-import { FieldValue } from 'firebase-admin/firestore';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { DELETE_FIELD, DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type { MeResponse, UserId, UserRole } from '@learnwren/shared-data-models';
 
@@ -26,10 +25,8 @@ interface UserDoc {
 export class ProfilePictureService {
   constructor(
     @Inject(PICTURE_STORAGE) private readonly storage: PictureStoragePort,
-    @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
+    @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
     @Inject(PICTURE_CONFIG) private readonly cfg: PictureConfig,
-    /** @internal test-only seam for the Firestore `FieldValue.delete()` sentinel. */
-    @Optional() private readonly fieldDeleteValue: unknown = FieldValue.delete(),
   ) {}
 
   private pathFor(uid: UserId): string {
@@ -104,7 +101,7 @@ export class ProfilePictureService {
     // upload or remove, so we document rather than redesign.
     const updatedAt = nowIso();
     await this.firestore.collection('users').doc(uid).update({
-      photoUrl: this.fieldDeleteValue,
+      photoUrl: DELETE_FIELD,
       updatedAt,
     });
     await this.storage.deleteObject({ path: this.pathFor(uid) });

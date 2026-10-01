@@ -1,9 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { Inject, Injectable } from '@nestjs/common';
-import type { firestore as adminFirestore } from 'firebase-admin';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE, type DocRef, type DocumentStore } from '@learnwren/api-document-store';
 
 const COLLECTION = 'auth_attempts';
 const FAIL_LIMIT = 3;
@@ -43,7 +42,7 @@ export interface ThrottleResult {
 
 @Injectable()
 export class AuthAttemptsRepository {
-  constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
+  constructor(@Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore) {}
 
   emailHash(email: string): string {
     return createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
@@ -181,9 +180,7 @@ export class AuthAttemptsRepository {
     });
   }
 
-  private docRef(
-    emailHash: string,
-  ): adminFirestore.DocumentReference<adminFirestore.DocumentData> {
+  private docRef(emailHash: string): DocRef {
     return this.firestore.collection(COLLECTION).doc(emailHash);
   }
 

@@ -1,7 +1,10 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import type { firestore as adminFirestore } from 'firebase-admin';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import {
+  DOCUMENT_STORE,
+  type DocumentStore,
+  type Transaction,
+} from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
   Course,
@@ -49,7 +52,7 @@ export class PublishService {
     private readonly repo: CoursesRepository,
     @Inject(forwardRef(() => VideoService))
     private readonly videoSvc: VideoService,
-    @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
+    @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
   ) {}
 
   async computeEligibility(cid: CourseId): Promise<PublishEligibility> {
@@ -105,7 +108,7 @@ export class PublishService {
     from: CourseStatus[],
     to: CourseStatus,
     derivePatch: (
-      t: adminFirestore.Transaction,
+      t: Transaction,
     ) => Promise<{ publishedAt?: ISODateString; archivedAt?: ISODateString | null }>,
   ): Promise<Course> {
     return this.firestore.runTransaction(async (t) => {

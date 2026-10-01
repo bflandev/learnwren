@@ -9,7 +9,7 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
-import { createFakeFirestore } from '../testing/fake-firestore';
+import { createInMemoryDocumentStore } from '@learnwren/api-document-store';
 import { MaterialNotFoundException } from './errors/material.exception';
 import { MaterialsRepository } from './materials.repository';
 
@@ -34,12 +34,12 @@ function material(id: string, lessonId: string, over: Partial<Material> = {}): M
 
 describe('MaterialsRepository', () => {
   it('newId returns a non-empty string', () => {
-    const repo = new MaterialsRepository(createFakeFirestore() as never);
+    const repo = new MaterialsRepository(createInMemoryDocumentStore() as never);
     expect(repo.newId<MaterialId>().length).toBeGreaterThan(0);
   });
 
   it('create then get round-trips a material', async () => {
-    const db = createFakeFirestore();
+    const db = createInMemoryDocumentStore();
     const repo = new MaterialsRepository(db as never);
     await repo.create(material('m1', 'l1'));
     const got = await repo.get('m1' as MaterialId);
@@ -47,12 +47,12 @@ describe('MaterialsRepository', () => {
   });
 
   it('get returns null for a missing material', async () => {
-    const repo = new MaterialsRepository(createFakeFirestore() as never);
+    const repo = new MaterialsRepository(createInMemoryDocumentStore() as never);
     expect(await repo.get('nope' as MaterialId)).toBeNull();
   });
 
   it('listByLesson returns only that lesson’s materials', async () => {
-    const repo = new MaterialsRepository(createFakeFirestore() as never);
+    const repo = new MaterialsRepository(createInMemoryDocumentStore() as never);
     await repo.create(material('m1', 'l1'));
     await repo.create(material('m2', 'l1'));
     await repo.create(material('m3', 'l2'));
@@ -63,7 +63,7 @@ describe('MaterialsRepository', () => {
   it('listByLesson filters with an equality clause on the lessonId field', async () => {
     // Pin the exact ('lessonId', '==', value) query so a mutant blanking either
     // the field name or the operator literal is caught.
-    const db = createFakeFirestore();
+    const db = createInMemoryDocumentStore();
     const calls: Array<[string, string, unknown]> = [];
     const realCollection = db.collection.bind(db);
     db.collection = ((name: string) => {
@@ -81,7 +81,7 @@ describe('MaterialsRepository', () => {
   });
 
   it('update patches fields', async () => {
-    const repo = new MaterialsRepository(createFakeFirestore() as never);
+    const repo = new MaterialsRepository(createInMemoryDocumentStore() as never);
     await repo.create(material('m1', 'l1'));
     await repo.update('m1' as MaterialId, { state: 'READY', sizeBytes: 99 });
     const got = await repo.get('m1' as MaterialId);
@@ -93,14 +93,14 @@ describe('MaterialsRepository', () => {
     // complete/rename pre-check via loadMaterialOrThrow, but the doc can vanish
     // between that read and this update; the raw gRPC code-5 error must render
     // as the typed 404, not an unenveloped 500.
-    const repo = new MaterialsRepository(createFakeFirestore() as never);
+    const repo = new MaterialsRepository(createInMemoryDocumentStore() as never);
     await expect(
       repo.update('gone' as MaterialId, { displayName: 'x' }),
     ).rejects.toBeInstanceOf(MaterialNotFoundException);
   });
 
   it('delete removes the document', async () => {
-    const repo = new MaterialsRepository(createFakeFirestore() as never);
+    const repo = new MaterialsRepository(createInMemoryDocumentStore() as never);
     await repo.create(material('m1', 'l1'));
     await repo.delete('m1' as MaterialId);
     expect(await repo.get('m1' as MaterialId)).toBeNull();

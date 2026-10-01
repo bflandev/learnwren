@@ -1,7 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { EMAIL_TRANSPORT, type EmailTransport } from '@learnwren/api-auth';
-import { FIRESTORE, type FirestoreHandle, readStoredUserProfiles } from '@learnwren/api-firebase';
+import {
+  DOCUMENT_STORE,
+  type DocumentStore,
+  readStoredUserProfiles,
+} from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type { Course, ModuleId, NotifyModuleResult, UserId } from '@learnwren/shared-data-models';
 
@@ -28,7 +32,7 @@ export class NotificationsService {
   constructor(
     private readonly courses: CoursesRepository,
     private readonly enrollments: EnrollmentRepository,
-    @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
+    @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
     @Inject(EMAIL_TRANSPORT) private readonly email: EmailTransport,
   ) {}
 

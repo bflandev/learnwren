@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
   InstructorApplication,
@@ -25,7 +25,7 @@ export class InstructorApplicationService {
   // Stryker disable next-line StringLiteral: Logger label is log-only; no behavior depends on it.
   private readonly logger = new Logger('InstructorApplicationService');
 
-  constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
+  constructor(@Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore) {}
 
   async getApplication(uid: UserId): Promise<InstructorApplicationView> {
     const snap = await this.firestore.collection(COLLECTION).doc(uid).get();

@@ -1,6 +1,4 @@
-import { FieldPath } from 'firebase-admin/firestore';
-
-import type { FirestoreHandle } from './firebase.tokens';
+import { DOCUMENT_ID, type DocumentStore } from './document-store.port';
 
 const USERS = 'users';
 
@@ -43,13 +41,13 @@ export interface StoredUserProfile {
  * loop) into one parallel fan-out.
  */
 export async function readStoredUserProfiles(
-  firestore: FirestoreHandle,
+  store: DocumentStore,
   uids: readonly string[],
 ): Promise<Map<string, StoredUserProfile>> {
   const unique = [...new Set(uids)];
   const entries = await Promise.all(
     unique.map(async (uid): Promise<readonly [string, StoredUserProfile | undefined]> => {
-      const snap = await firestore.collection(USERS).doc(uid).get();
+      const snap = await store.collection(USERS).doc(uid).get();
       // Some snapshots expose `exists`; treat only an explicit `false` as missing
       // so callers that supply a bare `{ data }` snapshot still resolve.
       const data = snap.exists === false ? undefined : (snap.data() as StoredUserProfile | undefined);
@@ -75,9 +73,9 @@ export interface StoredUserRecord extends StoredUserProfile {
  * uid is the document key (not a stored field), so it is merged in here.
  */
 export async function scanStoredUserProfiles(
-  firestore: FirestoreHandle,
+  store: DocumentStore,
   limit: number,
 ): Promise<StoredUserRecord[]> {
-  const snap = await firestore.collection(USERS).orderBy(FieldPath.documentId()).limit(limit).get();
+  const snap = await store.collection(USERS).orderBy(DOCUMENT_ID).limit(limit).get();
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as StoredUserProfile) }));
 }

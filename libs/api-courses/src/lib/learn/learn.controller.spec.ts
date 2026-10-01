@@ -3,7 +3,8 @@ import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
-import { FIREBASE_AUTH, FIRESTORE } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE } from '@learnwren/api-document-store';
+import { FIREBASE_AUTH } from '@learnwren/api-firebase';
 import type {
   Course,
   CourseId,
@@ -78,7 +79,7 @@ async function buildController(svc: Partial<LearnService>): Promise<LearnControl
     controllers: [LearnController],
     providers: [
       { provide: LearnService, useValue: svc },
-      { provide: FIRESTORE, useValue: {} },
+      { provide: DOCUMENT_STORE, useValue: {} },
       { provide: FIREBASE_AUTH, useValue: {} },
     ],
   })
@@ -148,7 +149,7 @@ async function buildApp(opts: {
     providers: [
       { provide: LearnService, useValue: opts.svc },
       { provide: LearnExceptionFilter, useClass: LearnExceptionFilter },
-      { provide: FIRESTORE, useValue: {} },
+      { provide: DOCUMENT_STORE, useValue: {} },
       { provide: FIREBASE_AUTH, useValue: {} },
     ],
   })

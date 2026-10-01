@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Logger } from '@nestjs/common';
-import { FieldValue } from 'firebase-admin/firestore';
+import { DELETE_FIELD } from '@learnwren/api-document-store';
 
 import { AdminInstructorApplicationService } from './admin-instructor-application.service';
 import {
@@ -281,7 +281,7 @@ describe('AdminInstructorApplicationService', () => {
 
     // The revert must restore a clean PENDING doc: status written back AND the
     // resolvedAt stamp removed (not left as a stale resolution timestamp).
-    expect(appUpdate).toHaveBeenCalledWith({ status: 'PENDING', resolvedAt: FieldValue.delete() });
+    expect(appUpdate).toHaveBeenCalledWith({ status: 'PENDING', resolvedAt: DELETE_FIELD });
     // Email must NOT be sent (error happened before email step).
     expect(email.sendInstructorApplicationApprovedEmail).not.toHaveBeenCalled();
   });

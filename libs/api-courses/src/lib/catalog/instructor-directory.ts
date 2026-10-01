@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { FIRESTORE, type FirestoreHandle, readStoredUserProfiles } from '@learnwren/api-firebase';
+import {
+  DOCUMENT_STORE,
+  type DocumentStore,
+  readStoredUserProfiles,
+} from '@learnwren/api-document-store';
 import type { UserId } from '@learnwren/shared-data-models';
 
 const FALLBACK_NAME = 'Instructor';
@@ -18,7 +22,7 @@ export interface InstructorRef {
  */
 @Injectable()
 export class InstructorDirectory {
-  constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
+  constructor(@Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore) {}
 
   /**
    * Resolve a display name + optional photo URL + optional biography for each id.

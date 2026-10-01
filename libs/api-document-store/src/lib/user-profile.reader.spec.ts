@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { readStoredUserProfiles, scanStoredUserProfiles } from './user-profile.reader';
 import type { StoredUserRecord } from './user-profile.reader';
-import type { FirestoreHandle } from './firebase.tokens';
+import { DOCUMENT_ID, type DocumentStore } from './document-store.port';
 
 function makeFirestore(
   users: Record<string, Record<string, unknown> | null>,
   onGet?: (uid: string) => void,
-): FirestoreHandle {
+): DocumentStore {
   return {
     collection: vi.fn(() => ({
       doc: vi.fn((uid: string) => ({
@@ -18,44 +18,44 @@ function makeFirestore(
         }),
       })),
     })),
-  } as unknown as FirestoreHandle;
+  } as unknown as DocumentStore;
 }
 
 describe('readStoredUserProfiles', () => {
   it('returns the stored profile for each existing user', async () => {
-    const firestore = makeFirestore({
+    const store = makeFirestore({
       u1: { displayName: 'Ada', email: 'ada@example.com' },
       u2: { displayName: 'Bo', photoUrl: 'p.jpg', biography: 'Hi' },
     });
-    const map = await readStoredUserProfiles(firestore, ['u1', 'u2']);
+    const map = await readStoredUserProfiles(store, ['u1', 'u2']);
     expect(map.get('u1')).toEqual({ displayName: 'Ada', email: 'ada@example.com' });
     expect(map.get('u2')).toEqual({ displayName: 'Bo', photoUrl: 'p.jpg', biography: 'Hi' });
   });
 
   it('omits missing documents from the map (caller applies its own fallback)', async () => {
-    const firestore = makeFirestore({ u1: { displayName: 'Ada' }, ghost: null });
-    const map = await readStoredUserProfiles(firestore, ['u1', 'ghost']);
+    const store = makeFirestore({ u1: { displayName: 'Ada' }, ghost: null });
+    const map = await readStoredUserProfiles(store, ['u1', 'ghost']);
     expect(map.has('u1')).toBe(true);
     expect(map.has('ghost')).toBe(false);
   });
 
   it('deduplicates ids and reads each user at most once', async () => {
     const counts = new Map<string, number>();
-    const firestore = makeFirestore({ u1: { displayName: 'Ada' } }, (uid) =>
+    const store = makeFirestore({ u1: { displayName: 'Ada' } }, (uid) =>
       counts.set(uid, (counts.get(uid) ?? 0) + 1),
     );
-    await readStoredUserProfiles(firestore, ['u1', 'u1', 'u1']);
+    await readStoredUserProfiles(store, ['u1', 'u1', 'u1']);
     expect(counts.get('u1')).toBe(1);
   });
 
   it('reads from the "users" collection (not any other name)', async () => {
-    const collectionSpy = vi.fn((_name: string) => ({
+    const collectionSpy = vi.fn(() => ({
       doc: vi.fn(() => ({
         get: vi.fn(async () => ({ exists: true, data: () => ({ displayName: 'Ada' }) })),
       })),
     }));
-    const firestore = { collection: collectionSpy } as unknown as FirestoreHandle;
-    await readStoredUserProfiles(firestore, ['u1']);
+    const store = { collection: collectionSpy } as unknown as DocumentStore;
+    await readStoredUserProfiles(store, ['u1']);
     expect(collectionSpy).toHaveBeenCalledWith('users');
   });
 
@@ -63,27 +63,27 @@ describe('readStoredUserProfiles', () => {
     // The guard is `snap.exists === false ? undefined : snap.data()`. A stale
     // backend can report exists:false yet still hand back a data() payload; the
     // reader must honour exists:false and omit the doc.
-    const firestore = {
+    const store = {
       collection: vi.fn(() => ({
         doc: vi.fn(() => ({
           get: vi.fn(async () => ({ exists: false, data: () => ({ displayName: 'Stale' }) })),
         })),
       })),
-    } as unknown as FirestoreHandle;
-    const map = await readStoredUserProfiles(firestore, ['u1']);
+    } as unknown as DocumentStore;
+    const map = await readStoredUserProfiles(store, ['u1']);
     expect(map.has('u1')).toBe(false);
   });
 
   it('treats a bare snapshot without an `exists` field as present', async () => {
     // Mirrors mocks that return only `{ data }`; only an explicit exists:false is missing.
-    const firestore = {
+    const store = {
       collection: vi.fn(() => ({
         doc: vi.fn(() => ({
           get: vi.fn(async () => ({ data: () => ({ displayName: 'Ada' }) })),
         })),
       })),
-    } as unknown as FirestoreHandle;
-    const map = await readStoredUserProfiles(firestore, ['u1']);
+    } as unknown as DocumentStore;
+    const map = await readStoredUserProfiles(store, ['u1']);
     expect(map.get('u1')).toEqual({ displayName: 'Ada' });
   });
 });
@@ -91,25 +91,26 @@ describe('readStoredUserProfiles', () => {
 describe('scanStoredUserProfiles', () => {
   function fakeFirestore(docs: Array<{ id: string; data: Record<string, unknown> }>) {
     let capturedLimit = -1;
+    const orderBy = vi.fn(() => ({
+      limit: (n: number) => {
+        capturedLimit = n;
+        return {
+          get: async () => ({
+            docs: docs.slice(0, n).map((d) => ({ id: d.id, data: () => d.data })),
+          }),
+        };
+      },
+    }));
     const handle = {
-      collection: () => ({
-        orderBy: () => ({
-          limit: (n: number) => {
-            capturedLimit = n;
-            return {
-              get: async () => ({
-                docs: docs.slice(0, n).map((d) => ({ id: d.id, data: () => d.data })),
-              }),
-            };
-          },
-        }),
-      }),
+      collection: () => ({ orderBy }),
       get capturedLimit() {
         return capturedLimit;
       },
+      orderBy,
     };
     return handle as unknown as Parameters<typeof scanStoredUserProfiles>[0] & {
       capturedLimit: number;
+      orderBy: typeof orderBy;
     };
   }
 
@@ -123,6 +124,7 @@ describe('scanStoredUserProfiles', () => {
     expect(records[0]).toMatchObject({ id: 'u1', displayName: 'Ada', role: 'STUDENT' });
     expect(records[1]?.id).toBe('u2');
     expect(fs.capturedLimit).toBe(5001);
+    expect(fs.orderBy).toHaveBeenCalledWith(DOCUMENT_ID);
   });
 
   it('honours the limit argument', async () => {

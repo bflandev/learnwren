@@ -1,12 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { Transaction } from 'firebase-admin/firestore';
 
-import {
-  FIRESTORE,
-  type FirestoreHandle,
-  FIREBASE_AUTH,
-  type FirebaseAuthHandle,
-} from '@learnwren/api-firebase';
+import { DOCUMENT_STORE, type DocumentStore, type Transaction } from '@learnwren/api-document-store';
+import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import { nowIso } from '@learnwren/shared-data-models';
 import type { AdminUserStatusResponse, UserId } from '@learnwren/shared-data-models';
 
@@ -60,7 +55,7 @@ export class AdminUserStatusService {
   private readonly logger = new Logger(AdminUserStatusService.name);
 
   constructor(
-    @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
+    @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
     @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
     private readonly repo: AdminUsersRepository,
   ) {}

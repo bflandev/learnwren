@@ -1,16 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import {
+  DOCUMENT_STORE,
+  DocumentNotFoundError,
+  type DocumentStore,
+} from '@learnwren/api-document-store';
 import type { LessonId, Material, MaterialId } from '@learnwren/shared-data-models';
 
 import { MaterialNotFoundException } from './errors/material.exception';
 
-// Canonical gRPC status code for NOT_FOUND (see google.rpc.Code).
-const GRPC_NOT_FOUND = 5;
-
 @Injectable()
 export class MaterialsRepository {
-  constructor(@Inject(FIRESTORE) private readonly db: FirestoreHandle) {}
+  constructor(@Inject(DOCUMENT_STORE) private readonly db: DocumentStore) {}
 
   newId<T extends string>(): T {
     return this.db.collection('_ids').doc().id as T;
@@ -40,7 +41,7 @@ export class MaterialsRepository {
       // The service pre-checks existence, but the doc can vanish between that
       // read and this update (race with a concurrent delete). Map the raw
       // Firestore NOT_FOUND to the typed 404 instead of an unenveloped 500.
-      if ((err as { code?: unknown }).code === GRPC_NOT_FOUND) {
+      if (err instanceof DocumentNotFoundError) {
         throw new MaterialNotFoundException();
       }
       throw err;

@@ -7,7 +7,7 @@
 **Date:** 2026-10-01
 **Story:** [US-09-04](../../epics/09-non-functional-requirements.md#us-09-04-open-source-and-self-hosting) (EP-09, Non-Functional Requirements)
 **Builds on:** [Slice A](./2026-09-25-us-09-04-self-hosting-design.md) (Compose), [Slice B](./2026-09-25-us-09-04-slice-b-ffmpeg-video-design.md) (ffmpeg video), [Slice C](./2026-09-26-us-09-04-slice-c-object-storage-design.md) (object storage)
-**Status:** Design approved 2026-10-01. Not built.
+**Status:** Design approved 2026-10-01. D0 (design) and D1 (DocumentStore port, Firestore + in-memory adapters) shipped 2026-10-01; D2 and D3 not built.
 
 ---
 
@@ -141,10 +141,11 @@ CREATE INDEX IF NOT EXISTS documents_data ON documents USING gin (data jsonb_pat
 | `where(a, '==', v)` | `data @> '{"a": v}'` (GIN index) |
 | `where(a, 'in', vs)` | `data->'a' = ANY($1::jsonb[])` |
 | `where(DOCUMENT_ID, …)` | on the last path segment |
-| `orderBy(a)` | `ORDER BY data->'a'` |
+| `where(a, '==', v)` on an array value | `data->'a' = to_jsonb($v)` (scalar equality — `@>` is containment and would match the wrong rows) |
+| `orderBy(a)` | `WHERE data ? 'a' AND … ORDER BY data->'a'` (documents lacking the field are excluded, as Firestore does) |
 | `count()` | `SELECT count(*)` |
-| `set(merge)` / `update` | `data || $patch`, minus `DELETE_FIELD` keys via `data - 'k'` |
-| `recursiveDelete(ref)` | `DELETE … WHERE path = $1 OR path LIKE $1 \|\| '/%'` (path segments escaped for `LIKE`) |
+| `set(merge)` / `update` | `data \|\| $patch`, minus `DELETE_FIELD` keys via `data - 'k'` |
+| `recursiveDelete(ref)` | `DELETE … WHERE path = $1 OR path LIKE $1 \|\| '/%'` ($1 with `%`, `_` and `\` escaped, and the LIKE clause's own `ESCAPE` character set, so an id containing `_` cannot match an unrelated sibling) |
 | transaction | `BEGIN ISOLATION LEVEL SERIALIZABLE` … `COMMIT` |
 
 - Driver: `pg` (node-postgres), the one new runtime dependency.
@@ -248,6 +249,9 @@ Each slice merges to `main` on its own with every suite green.
   Firestore.
 - `orderBy` on JSONB compares JSON values; numbers and strings sort correctly,
   mixed types in one field would not. No field in the code mixes types.
+- None of the above need NULL ordering (`NULLS FIRST`/`LAST`): documents
+  missing the orderBy field are excluded by the `WHERE data ? 'a'` clause,
+  matching Firestore, so no NULL ever reaches `ORDER BY`.
 - One api process (inherited from Slices B and C).
 - No data migration from emulator-backed installs.
 - Expired sessions and email tokens stay in the table until read.

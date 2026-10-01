@@ -1,7 +1,12 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import {
+  createInMemoryDocumentStore,
+  DOCUMENT_STORE,
+  type DocumentStore,
+  type InMemoryDocumentStore,
+} from '@learnwren/api-document-store';
 import type {
   CategoryId,
   Course,
@@ -11,7 +16,6 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
-import { createFakeFirestore, type FakeFirestore } from '../testing/fake-firestore';
 import {
   CategoryExistsException,
   CategoryInUseException,
@@ -48,11 +52,11 @@ function makeCourse(overrides: Partial<Course> = {}): Course {
   };
 }
 
-async function buildRepo(fake: FakeFirestore): Promise<CategoriesRepository> {
+async function buildRepo(fake: InMemoryDocumentStore): Promise<CategoriesRepository> {
   const moduleRef = await Test.createTestingModule({
     providers: [
       CategoriesRepository,
-      { provide: FIRESTORE, useValue: fake as unknown as FirestoreHandle },
+      { provide: DOCUMENT_STORE, useValue: fake as unknown as DocumentStore },
     ],
   }).compile();
   return moduleRef.get(CategoriesRepository);
@@ -79,7 +83,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('seeds the default categories when the collection is empty', async () => {
-      const fake = createFakeFirestore();
+      const fake = createInMemoryDocumentStore();
       const repo = await buildRepo(fake);
 
       const listed = await repo.listAll();
@@ -96,7 +100,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('returns the stored categories without re-seeding when non-empty', async () => {
-      const fake = createFakeFirestore({
+      const fake = createInMemoryDocumentStore({
         'courseCategories/DESIGN': makeCategory(),
       });
       const repo = await buildRepo(fake);
@@ -110,21 +114,21 @@ describe('CategoriesRepository', () => {
 
   describe('get', () => {
     it('returns the stored category', async () => {
-      const fake = createFakeFirestore({ 'courseCategories/DESIGN': makeCategory() });
+      const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
       const repo = await buildRepo(fake);
 
       expect(await repo.get('DESIGN' as CategoryId)).toEqual(makeCategory());
     });
 
     it('returns null for an unknown id in a non-empty collection', async () => {
-      const fake = createFakeFirestore({ 'courseCategories/DESIGN': makeCategory() });
+      const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
       const repo = await buildRepo(fake);
 
       expect(await repo.get('NOPE' as CategoryId)).toBeNull();
     });
 
     it('seeds the defaults on a miss against an empty collection, then resolves', async () => {
-      const fake = createFakeFirestore();
+      const fake = createInMemoryDocumentStore();
       const repo = await buildRepo(fake);
 
       const got = await repo.get('PROGRAMMING' as CategoryId);
@@ -135,7 +139,7 @@ describe('CategoriesRepository', () => {
 
   describe('create', () => {
     it('writes the category with timestamps and returns it', async () => {
-      const fake = createFakeFirestore({ 'courseCategories/DESIGN': makeCategory() });
+      const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
       const repo = await buildRepo(fake);
 
       const created = await repo.create('DATA_SCIENCE' as CategoryId, 'Data Science');
@@ -150,7 +154,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('throws CategoryExistsException on an id collision', async () => {
-      const fake = createFakeFirestore({ 'courseCategories/DESIGN': makeCategory() });
+      const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
       const repo = await buildRepo(fake);
 
       await expect(repo.create('DESIGN' as CategoryId, 'Design')).rejects.toBeInstanceOf(
@@ -159,7 +163,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('throws CategoryExistsException on an id collision even when the name differs', async () => {
-      const fake = createFakeFirestore({
+      const fake = createInMemoryDocumentStore({
         'courseCategories/DESIGN': makeCategory(),
         'courseCategories/BUSINESS': makeCategory({ id: 'BUSINESS' as CategoryId, name: 'Business' }),
       });
@@ -173,7 +177,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('throws CategoryExistsException on a case-insensitive name collision', async () => {
-      const fake = createFakeFirestore({ 'courseCategories/DESIGN': makeCategory() });
+      const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
       const repo = await buildRepo(fake);
 
       await expect(repo.create('DE_SIGN' as CategoryId, 'dEsIgN')).rejects.toBeInstanceOf(
@@ -182,7 +186,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('seeds the defaults before creating into an empty collection', async () => {
-      const fake = createFakeFirestore();
+      const fake = createInMemoryDocumentStore();
       const repo = await buildRepo(fake);
 
       await repo.create('DATA_SCIENCE' as CategoryId, 'Data Science');
@@ -194,7 +198,7 @@ describe('CategoriesRepository', () => {
 
   describe('rename', () => {
     it('updates name and updatedAt, preserving createdAt, and returns the doc', async () => {
-      const fake = createFakeFirestore({ 'courseCategories/DESIGN': makeCategory() });
+      const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
       const repo = await buildRepo(fake);
 
       const renamed = await repo.rename('DESIGN' as CategoryId, 'Design & UX');
@@ -209,7 +213,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('throws CategoryNotFoundException for an unknown id', async () => {
-      const fake = createFakeFirestore({ 'courseCategories/DESIGN': makeCategory() });
+      const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
       const repo = await buildRepo(fake);
 
       await expect(repo.rename('NOPE' as CategoryId, 'Nope')).rejects.toBeInstanceOf(
@@ -218,7 +222,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('throws CategoryExistsException when another category holds the name (case-insensitive)', async () => {
-      const fake = createFakeFirestore({
+      const fake = createInMemoryDocumentStore({
         'courseCategories/DESIGN': makeCategory(),
         'courseCategories/BUSINESS': makeCategory({ id: 'BUSINESS' as CategoryId, name: 'Business' }),
       });
@@ -230,7 +234,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('allows renaming a category to a different casing of its own name', async () => {
-      const fake = createFakeFirestore({ 'courseCategories/DESIGN': makeCategory() });
+      const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
       const repo = await buildRepo(fake);
 
       const renamed = await repo.rename('DESIGN' as CategoryId, 'DESIGN');
@@ -246,7 +250,7 @@ describe('CategoriesRepository', () => {
     };
 
     it('deletes an unused category without requiring reassignTo', async () => {
-      const fake = createFakeFirestore(TWO_CATS);
+      const fake = createInMemoryDocumentStore(TWO_CATS);
       const repo = await buildRepo(fake);
 
       const result = await repo.deleteWithReassign('DESIGN' as CategoryId, undefined);
@@ -256,7 +260,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('throws CategoryNotFoundException for an unknown id', async () => {
-      const fake = createFakeFirestore(TWO_CATS);
+      const fake = createInMemoryDocumentStore(TWO_CATS);
       const repo = await buildRepo(fake);
 
       await expect(repo.deleteWithReassign('NOPE' as CategoryId, undefined)).rejects.toBeInstanceOf(
@@ -265,7 +269,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('throws LastCategoryException when only one category remains', async () => {
-      const fake = createFakeFirestore({ 'courseCategories/DESIGN': makeCategory() });
+      const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
       const repo = await buildRepo(fake);
 
       await expect(
@@ -274,7 +278,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('throws CategoryInUseException (with courseCount) when courses reference it and no reassignTo', async () => {
-      const fake = createFakeFirestore({
+      const fake = createInMemoryDocumentStore({
         ...TWO_CATS,
         'courses/cid-1': makeCourse({ category: 'DESIGN' as CategoryId }),
         'courses/cid-2': makeCourse({ id: 'cid-2' as CourseId, category: 'DESIGN' as CategoryId }),
@@ -291,7 +295,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('reassigns every referencing course (any status) then deletes the category', async () => {
-      const fake = createFakeFirestore({
+      const fake = createInMemoryDocumentStore({
         ...TWO_CATS,
         'courses/cid-1': makeCourse({ category: 'DESIGN' as CategoryId, status: 'PUBLISHED' }),
         'courses/cid-2': makeCourse({ id: 'cid-2' as CourseId, category: 'DESIGN' as CategoryId }),
@@ -315,7 +319,7 @@ describe('CategoriesRepository', () => {
     });
 
     it('throws CategoryNotFoundException when reassignTo does not exist', async () => {
-      const fake = createFakeFirestore({
+      const fake = createInMemoryDocumentStore({
         ...TWO_CATS,
         'courses/cid-1': makeCourse({ category: 'DESIGN' as CategoryId }),
       });

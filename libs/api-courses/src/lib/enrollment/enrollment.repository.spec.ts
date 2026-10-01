@@ -14,7 +14,7 @@ import {
   CourseNotAvailableException,
   NotEnrolledException,
 } from '../errors/courses.exception';
-import { createFakeFirestore } from '../testing/fake-firestore';
+import { createInMemoryDocumentStore } from '@learnwren/api-document-store';
 import { EnrollmentRepository, enrollmentId } from './enrollment.repository';
 
 const UID = 'student-1' as UserId;
@@ -35,7 +35,7 @@ function course(over: Partial<Course> = {}): Course {
 }
 
 function repoWith(seed: Record<string, unknown>) {
-  const db = createFakeFirestore(seed as Record<string, Record<string, unknown>>);
+  const db = createInMemoryDocumentStore(seed as Record<string, Record<string, unknown>>);
   return { repo: new EnrollmentRepository(db as never), db };
 }
 
@@ -908,7 +908,7 @@ describe('EnrollmentRepository.deleteAllForCourse', () => {
       const e = enrollment(`user-${i}`, 'exact-course', 'ACTIVE');
       seed[`enrollments/${e.id}`] = e;
     }
-    const base = createFakeFirestore(seed as Record<string, Record<string, unknown>>);
+    const base = createInMemoryDocumentStore(seed as Record<string, Record<string, unknown>>);
     let batchCount = 0;
     const counting = { ...base, batch: () => { batchCount++; return base.batch(); } };
     const repo = new EnrollmentRepository(counting as never);
@@ -927,7 +927,7 @@ describe('EnrollmentRepository.deleteAllForCourse', () => {
       const e = enrollment(`user-${i}`, 'slice-course', 'ACTIVE');
       seed[`enrollments/${e.id}`] = e;
     }
-    const base = createFakeFirestore(seed as Record<string, Record<string, unknown>>);
+    const base = createInMemoryDocumentStore(seed as Record<string, Record<string, unknown>>);
     let deleteCalls = 0;
     const counting = {
       ...base,

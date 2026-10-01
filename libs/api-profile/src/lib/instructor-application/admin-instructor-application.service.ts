@@ -1,13 +1,14 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { auth as adminAuth } from 'firebase-admin';
 
+import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import {
-  FIRESTORE,
-  type FirestoreHandle,
-  FIREBASE_AUTH,
-  type FirebaseAuthHandle,
+  DELETE_FIELD,
+  DOCUMENT_STORE,
+  type DocRef,
+  type DocumentStore,
   readStoredUserProfiles,
-} from '@learnwren/api-firebase';
+} from '@learnwren/api-document-store';
 import { EMAIL_TRANSPORT, type EmailTransport } from '@learnwren/api-auth';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
@@ -17,7 +18,6 @@ import type {
   PendingInstructorApplicationView,
   UserId,
 } from '@learnwren/shared-data-models';
-import { FieldValue, type DocumentReference } from 'firebase-admin/firestore';
 
 import { promoteUserToInstructor, type PromotionFirestoreLike } from './instructor-promotion';
 import {
@@ -36,7 +36,7 @@ export class AdminInstructorApplicationService {
   private readonly logger = new Logger('AdminInstructorApplicationService');
 
   constructor(
-    @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
+    @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
     @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
     @Inject(EMAIL_TRANSPORT) private readonly email: EmailTransport,
   ) {}
@@ -67,7 +67,7 @@ export class AdminInstructorApplicationService {
       throw new ApplicantNotVerifiedException();
     }
 
-    const appRef = this.firestore.collection(COLLECTION).doc(uid) as unknown as DocumentReference<Record<string, unknown>>;
+    const appRef = this.firestore.collection(COLLECTION).doc(uid) as unknown as DocRef;
 
     // Atomically claim the transition PENDING → APPROVED so that two concurrent
     // approve requests cannot both succeed (the loser re-reads a non-PENDING
@@ -96,7 +96,7 @@ export class AdminInstructorApplicationService {
       // than leaving the application stuck in a claimed-but-unpromoted
       // APPROVED state.
       await appRef
-        .update({ status: 'PENDING', resolvedAt: FieldValue.delete() })
+        .update({ status: 'PENDING', resolvedAt: DELETE_FIELD })
         .catch((revertErr: unknown) => {
           // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
           this.logger.error(`[admin] approval revert failed uid=${uid}: ${String(revertErr)}`);
@@ -130,7 +130,7 @@ export class AdminInstructorApplicationService {
   }
 
   async decline(uid: UserId): Promise<InstructorApplicationView> {
-    const appRef = this.firestore.collection(COLLECTION).doc(uid) as unknown as DocumentReference<Record<string, unknown>>;
+    const appRef = this.firestore.collection(COLLECTION).doc(uid) as unknown as DocRef;
 
     // Atomically claim the transition PENDING → DECLINED so that concurrent
     // approve/decline or decline/decline requests cannot interleave.

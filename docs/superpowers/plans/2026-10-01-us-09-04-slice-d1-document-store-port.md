@@ -85,7 +85,7 @@ Apply each row to every file the task lists. Each row is mechanical; anything th
 **Interfaces:**
 - Produces: everything in `document-store.port.ts` and `document-store.errors.ts` below, plus `stripUndefined<T>(value: T): T`. Every later task imports these names.
 
-- [ ] **Step 1: Copy the lib config**
+- [x] **Step 1: Copy the lib config**
 
 The nx-generate skill scaffolds into MAIN, not the worktree (memory), so copy by hand:
 
@@ -103,7 +103,7 @@ Add the alias to `tsconfig.base.json` `compilerOptions.paths`, alphabetically be
 "@learnwren/api-document-store": ["./libs/api-document-store/src/index.ts"],
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `libs/api-document-store/src/lib/document-store.errors.spec.ts`:
 
@@ -160,12 +160,12 @@ describe('stripUndefined', () => {
 });
 ```
 
-- [ ] **Step 3: Run them to verify they fail**
+- [x] **Step 3: Run them to verify they fail**
 
 Run: `pnpm nx test api-document-store`
 Expected: FAIL, cannot resolve `./document-store.errors` / `./strip-undefined`.
 
-- [ ] **Step 4: Write the port, errors and helper**
+- [x] **Step 4: Write the port, errors and helper**
 
 `libs/api-document-store/src/lib/document-store.port.ts`:
 
@@ -323,12 +323,12 @@ export * from './lib/document-store.port';
 export * from './lib/document-store.errors';
 ```
 
-- [ ] **Step 5: Run the tests and typecheck**
+- [x] **Step 5: Run the tests and typecheck**
 
 Run: `pnpm nx sync && pnpm nx test api-document-store && pnpm nx typecheck api-document-store && pnpm nx lint api-document-store`
 Expected: PASS for all.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tsconfig.base.json libs/api-document-store
@@ -352,7 +352,7 @@ git commit -m "feat(api-document-store): DocumentStore port, sentinels and error
   - `describeDocumentStoreContract(label: string, makeStore: () => DocumentStore): void`, exported from `@learnwren/api-document-store/testing` (path alias added in Step 5).
   - `createInMemoryDocumentStore(seed?: Record<string, DocData>): InMemoryDocumentStore`, where `InMemoryDocumentStore extends DocumentStore` and has `readonly __store: Map<string, DocData>` (full path → data, for test assertions; same name as the old fake so existing specs keep their assertions).
 
-- [ ] **Step 1: Write the contract suite**
+- [x] **Step 1: Write the contract suite**
 
 Each test namespaces its collections with a random prefix, so the suite can run against a shared emulator without cleanup.
 
@@ -561,7 +561,7 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
 }
 ```
 
-- [ ] **Step 2: Write the failing adapter spec**
+- [x] **Step 2: Write the failing adapter spec**
 
 `libs/api-document-store/src/lib/in-memory-document-store.spec.ts`:
 
@@ -626,12 +626,12 @@ describe('createInMemoryDocumentStore', () => {
 });
 ```
 
-- [ ] **Step 3: Run it to verify it fails**
+- [x] **Step 3: Run it to verify it fails**
 
 Run: `pnpm nx test api-document-store`
 Expected: FAIL, cannot resolve `./in-memory-document-store`.
 
-- [ ] **Step 4: Write the in-memory adapter**
+- [x] **Step 4: Write the in-memory adapter**
 
 Grown from `libs/api-courses/src/lib/testing/fake-firestore.ts`. Differences from the fake: port sentinels instead of `FieldValue`, `in` and `DOCUMENT_ID`, `count()`, `DocumentNotFoundError`, undefined stripping, atomic batches, and transactions that buffer their writes and run one at a time.
 
@@ -829,7 +829,7 @@ Export it from `src/index.ts`:
 export * from './lib/in-memory-document-store';
 ```
 
-- [ ] **Step 5: Publish the contract suite under a testing entry point**
+- [x] **Step 5: Publish the contract suite under a testing entry point**
 
 Add to `tsconfig.base.json` paths:
 
@@ -839,12 +839,12 @@ Add to `tsconfig.base.json` paths:
 
 The contract file uses Vitest globals (`describe`, `it`, `expect`), so exclude it from the lib build. Add `"src/testing/**"` to the `exclude` array of `libs/api-document-store/tsconfig.lib.json`, and `"src/testing/**/*.ts"` to the `include` array of `libs/api-document-store/tsconfig.spec.json`.
 
-- [ ] **Step 6: Run the tests and typecheck**
+- [x] **Step 6: Run the tests and typecheck**
 
 Run: `pnpm nx test api-document-store && pnpm nx typecheck api-document-store && pnpm nx lint api-document-store`
 Expected: PASS. The contract runs 19 tests for `in-memory`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add tsconfig.base.json libs/api-document-store
@@ -871,7 +871,7 @@ git commit -m "feat(api-document-store): contract suite and in-memory adapter (U
 
 The old `runTransactionWithRetry` and `user-profile.reader` stay in `api-firebase` until Task 8, so every commit in between still builds.
 
-- [ ] **Step 1: Write the failing helper tests**
+- [x] **Step 1: Write the failing helper tests**
 
 `libs/api-document-store/src/lib/firestore-document-store.spec.ts`:
 
@@ -1060,12 +1060,12 @@ describe('DocumentStoreModule', () => {
 });
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `pnpm nx test api-document-store`
 Expected: FAIL, cannot resolve `./firestore-document-store`, `./run-transaction-with-retry`, `./user-profile.reader`, `./document-store.module`. The emulator contract spec is reported as skipped.
 
-- [ ] **Step 3: Write the Firestore adapter**
+- [x] **Step 3: Write the Firestore adapter**
 
 `libs/api-document-store/src/lib/firestore-document-store.ts`:
 
@@ -1274,7 +1274,7 @@ export class FirestoreDocumentStore implements DocumentStore {
 }
 ```
 
-- [ ] **Step 4: Write the retry helper, reader and module**
+- [x] **Step 4: Write the retry helper, reader and module**
 
 `libs/api-document-store/src/lib/run-transaction-with-retry.ts`:
 
@@ -1365,7 +1365,7 @@ export { DocumentStoreModule } from './lib/document-store.module';
 
 Wire it in `apps/api/src/app/app.module.ts`: add `import { DocumentStoreModule } from '@learnwren/api-document-store';` and put `DocumentStoreModule,` in `imports` directly after `FirebaseAdminModule.forRoot(),`.
 
-- [ ] **Step 5: Run the unit tests, then the contract against the emulator**
+- [x] **Step 5: Run the unit tests, then the contract against the emulator**
 
 Run: `pnpm nx sync && pnpm nx test api-document-store && pnpm nx typecheck api-document-store && pnpm nx typecheck api && pnpm nx lint api-document-store`
 Expected: PASS (emulator contract skipped).
@@ -1376,7 +1376,7 @@ Expected: PASS, with the `firestore` contract run included (19 more tests). `--s
 
 If a contract test fails only for Firestore, the in-memory adapter is wrong, not the contract (Firestore is the reference behaviour). Fix the in-memory adapter and rerun both.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tsconfig.base.json apps/api/src/app/app.module.ts libs/api-document-store
@@ -1395,23 +1395,23 @@ git commit -m "feat(api-document-store): Firestore adapter, retry helper, user-p
 - Consumes: `DOCUMENT_STORE`, `DocumentStore`, `Transaction` from `@learnwren/api-document-store`.
 - Produces: no new names. `AuthService` still injects `FIREBASE_AUTH` (unchanged in D1).
 
-- [ ] **Step 1: Apply the migration recipe to the two source files**
+- [x] **Step 1: Apply the migration recipe to the two source files**
 
 In `auth-attempts.repository.ts`: replace the `firebase-admin` type import and the `FIRESTORE` import; the constructor becomes `constructor(@Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore) {}` (keep the field name to keep the diff small); every `adminFirestore.Transaction` becomes `Transaction`; every `adminFirestore.DocumentReference…` becomes `DocRef`.
 
 In `auth.service.ts`: replace only the `FIRESTORE` token and its `FirestoreHandle` type; leave `FIREBASE_AUTH` and `FIREBASE_WEB_API_KEY` alone.
 
-- [ ] **Step 2: Apply the recipe to both specs and run them**
+- [x] **Step 2: Apply the recipe to both specs and run them**
 
 Run: `pnpm nx test api-auth`
 Expected: PASS. A failure here is a recipe gap: report it, then fix it in the spec only if the spec was asserting a Firestore detail (for example a `FieldValue` instance), never by changing behaviour.
 
-- [ ] **Step 3: Typecheck and lint**
+- [x] **Step 3: Typecheck and lint**
 
 Run: `pnpm nx typecheck api-auth && pnpm nx lint api-auth && pnpm nx typecheck api`
 Expected: PASS. `grep -n "FIRESTORE\b\|firebase-admin/firestore\|adminFirestore" libs/api-auth/src -r` prints nothing.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add libs/api-auth/src/lib/auth-attempts.repository.ts libs/api-auth/src/lib/auth-attempts.repository.spec.ts libs/api-auth/src/lib/auth.service.ts libs/api-auth/src/lib/auth.service.spec.ts libs/api-auth/tsconfig.lib.json libs/api-auth/tsconfig.spec.json
@@ -1431,26 +1431,26 @@ git commit -m "refactor(api-auth): read and write through the DocumentStore port
 **Interfaces:**
 - Consumes: `DOCUMENT_STORE`, `DocumentStore`, `DocRef`, `Transaction`, `DELETE_FIELD`, `DocumentNotFoundError`, `runTransactionWithRetry`, `createInMemoryDocumentStore` from `@learnwren/api-document-store`.
 
-- [ ] **Step 1: Apply the recipe to the five repositories**
+- [x] **Step 1: Apply the recipe to the five repositories**
 
 Specific spots the recipe must catch:
 - `courses.repository.ts`: `FieldValue.delete()` at about lines 132 and 368 → `DELETE_FIELD` (also update the two doc comments that name `FieldValue.delete()`); `recursiveDelete` calls stay as they are.
 - `video.repository.ts`: `FieldValue.delete()` at about lines 168 and 373 → `DELETE_FIELD`; the `collectionGroup('lessons')` query and `.count()` stay as they are.
 - `materials.repository.ts`: delete the `GRPC_NOT_FOUND` constant and its comment; the catch in `update` becomes `if (err instanceof DocumentNotFoundError) throw new MaterialNotFoundException(…)` (keep the existing exception arguments).
 
-- [ ] **Step 2: Apply the recipe to the five specs and run them**
+- [x] **Step 2: Apply the recipe to the five specs and run them**
 
 The specs that used `createFakeFirestore` switch to `createInMemoryDocumentStore` and keep their `__store` assertions. Two behaviours differ from the old fake, and both now match Firestore: batches and transactions are atomic, and stored `undefined` properties are dropped. If an assertion depended on the old behaviour, change the assertion to the Firestore behaviour and say so in the commit body.
 
 Run: `pnpm nx test api-courses`
 Expected: PASS.
 
-- [ ] **Step 3: Typecheck and lint**
+- [x] **Step 3: Typecheck and lint**
 
 Run: `pnpm nx typecheck api-courses && pnpm nx lint api-courses`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add libs/api-courses/src/lib/courses.repository.ts libs/api-courses/src/lib/courses.repository.spec.ts libs/api-courses/src/lib/video/video.repository.ts libs/api-courses/src/lib/video/video.repository.spec.ts libs/api-courses/src/lib/materials/materials.repository.ts libs/api-courses/src/lib/materials/materials.repository.spec.ts libs/api-courses/src/lib/enrollment/enrollment.repository.ts libs/api-courses/src/lib/enrollment/enrollment.repository.spec.ts libs/api-courses/src/lib/categories/categories.repository.ts libs/api-courses/src/lib/categories/categories.repository.spec.ts
@@ -1469,9 +1469,9 @@ git commit -m "refactor(api-courses): repositories on the DocumentStore port (US
 **Interfaces:**
 - Consumes: as Task 5, plus `readStoredUserProfiles` / `StoredUserProfile` from `@learnwren/api-document-store`.
 
-- [ ] **Step 1: Apply the recipe to the five services and the listed specs**
+- [x] **Step 1: Apply the recipe to the five services and the listed specs**
 
-- [ ] **Step 2: Delete the old fake and prove nothing uses it**
+- [x] **Step 2: Delete the old fake and prove nothing uses it**
 
 ```bash
 git rm libs/api-courses/src/lib/testing/fake-firestore.ts
@@ -1480,12 +1480,12 @@ grep -rn "fake-firestore\|createFakeFirestore\|FIRESTORE\b\|FirestoreHandle\|fir
 
 Expected: the grep prints nothing. If `libs/api-courses/src/lib/testing/` is now empty, remove the directory, and remove any `testing/fake-firestore` exclusion from `libs/api-courses/tsconfig.lib.json` and `tools/crap/crap.mjs`.
 
-- [ ] **Step 3: Run tests, typecheck, lint**
+- [x] **Step 3: Run tests, typecheck, lint**
 
 Run: `pnpm nx test api-courses && pnpm nx typecheck api-courses && pnpm nx lint api-courses`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Stage each modified file by path (list them from `git status --short`; never `-A`), then:
 
@@ -1504,7 +1504,7 @@ git commit -m "refactor(api-courses): services on the DocumentStore port; retire
 **Interfaces:**
 - Consumes: as Task 6, plus `scanStoredUserProfiles` / `StoredUserRecord`.
 
-- [ ] **Step 1: Apply the recipe to the ten source files**
+- [x] **Step 1: Apply the recipe to the ten source files**
 
 Specific spots:
 - `admin-instructor-application.service.ts:99`: `resolvedAt: FieldValue.delete()` → `resolvedAt: DELETE_FIELD`.
@@ -1512,11 +1512,11 @@ Specific spots:
 - `profile-picture.service.ts:31-32`: remove the `@Optional() fieldDeleteValue` constructor seam and its comment; use `DELETE_FIELD` where `this.fieldDeleteValue` was used. The seam existed only because `FieldValue.delete()` was awkward to assert on; the port's symbol is not. Drop `Optional` from the `@nestjs/common` import if it is now unused.
 - The `auth/user-not-found` and `auth/email-already-exists` checks are Firebase **Auth** errors: leave them for D3.
 
-- [ ] **Step 2: Apply the recipe to the specs**
+- [x] **Step 2: Apply the recipe to the specs**
 
 In the profile-picture specs, remove the extra constructor argument that supplied the sentinel, and assert on `DELETE_FIELD` instead.
 
-- [ ] **Step 3: Run tests, typecheck, lint, and the leftover grep**
+- [x] **Step 3: Run tests, typecheck, lint, and the leftover grep**
 
 Run: `pnpm nx test api-profile && pnpm nx typecheck api-profile && pnpm nx lint api-profile`
 Expected: PASS.
@@ -1524,7 +1524,7 @@ Expected: PASS.
 Run: `grep -rn "FIRESTORE\b\|FirestoreHandle\|firebase-admin/firestore\|adminFirestore\|firestore as\|readStoredUserProfiles.*api-firebase" libs/api-profile/src`
 Expected: nothing.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Stage each modified file by path, then:
 
@@ -1540,7 +1540,7 @@ git commit -m "refactor(api-profile): read and write through the DocumentStore p
 - Delete: `libs/api-firebase/src/lib/run-transaction-with-retry.ts`, `run-transaction-with-retry.spec.ts`, `user-profile.reader.ts`, `user-profile.reader.spec.ts`
 - Modify: `libs/api-firebase/src/index.ts`, `eslint.config.mjs`, `.github/workflows/ci.yml`
 
-- [ ] **Step 1: Remove the moved code from `api-firebase`**
+- [x] **Step 1: Remove the moved code from `api-firebase`**
 
 ```bash
 git rm libs/api-firebase/src/lib/run-transaction-with-retry.ts libs/api-firebase/src/lib/run-transaction-with-retry.spec.ts libs/api-firebase/src/lib/user-profile.reader.ts libs/api-firebase/src/lib/user-profile.reader.spec.ts
@@ -1548,7 +1548,7 @@ git rm libs/api-firebase/src/lib/run-transaction-with-retry.ts libs/api-firebase
 
 In `libs/api-firebase/src/index.ts`, delete the `runTransactionWithRetry` export and the `user-profile.reader` export block. Keep `FIRESTORE` and `FirestoreHandle`: `DocumentStoreModule` and the Firestore adapter need them.
 
-- [ ] **Step 2: Add the lint guard**
+- [x] **Step 2: Add the lint guard**
 
 Append this block to the array in the root `eslint.config.mjs`, before the final catch-all block:
 
@@ -1581,7 +1581,7 @@ Append this block to the array in the root `eslint.config.mjs`, before the final
 
 Prove the guard bites, then revert the probe: add `import { FIRESTORE } from '@learnwren/api-firebase';` to the top of `libs/api-courses/src/lib/courses.repository.ts`, run `pnpm nx lint api-courses` (expected: FAIL naming `no-restricted-imports`), then `git checkout libs/api-courses/src/lib/courses.repository.ts`.
 
-- [ ] **Step 3: Run the Firestore contract in CI**
+- [x] **Step 3: Run the Firestore contract in CI**
 
 In `.github/workflows/ci.yml`, the api-e2e job's run step becomes:
 
@@ -1592,7 +1592,7 @@ In `.github/workflows/ci.yml`, the api-e2e job's run step becomes:
 
 Keep the comment above it and add one line: "The contract run needs FIRESTORE_EMULATOR_HOST, which emulators:exec sets; --skip-nx-cache stops a cached emulator-less run being replayed."
 
-- [ ] **Step 4: Full verification**
+- [x] **Step 4: Full verification**
 
 Run each and read the output; every one must pass:
 
@@ -1612,7 +1612,7 @@ grep -rln "firebase-admin/firestore\|FirestoreHandle\|@Inject(FIRESTORE)" libs/a
 
 Expected: nothing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add libs/api-firebase/src/index.ts eslint.config.mjs .github/workflows/ci.yml
@@ -1623,11 +1623,11 @@ git commit -m "refactor: api-firebase keeps only the Firebase wiring; lint guard
 
 ### Task 9: Mutation testing, docs, land
 
-- [ ] **Step 1: Mutation-test the new lib**
+- [x] **Step 1: Mutation-test the new lib**
 
 Use the mutation-round skill, scoped to `libs/api-document-store/src/lib/**` (exclude `src/testing/**`). Run Stryker inside `firebase emulators:exec --only firestore` so the Firestore contract run also kills mutants in the adapter's wrapper classes. Target 100%; mark only provably equivalent mutants, with a reason, per the repo's equivalence catalogue. Commit the report under `docs/quality/`, and never run the no-arg `report.mjs` from the worktree (it clobbers `docs/quality/mutation-report.md`).
 
-- [ ] **Step 2: Land**
+- [x] **Step 2: Land**
 
 Use the land-slice skill. D1 changes no behaviour, so the docs sync is small:
 - the spec's Status line: "D0 + D1 shipped <date> (<merge sha>)";

@@ -1,7 +1,12 @@
 import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi } from 'vitest';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import {
+  createInMemoryDocumentStore,
+  DOCUMENT_STORE,
+  type DocumentStore,
+  type InMemoryDocumentStore,
+} from '@learnwren/api-document-store';
 import type {
   CourseId,
   ISODateString,
@@ -22,7 +27,6 @@ import {
   VideoNotFoundException,
 } from './errors/video.exception';
 import { VideoRepository } from './video.repository';
-import { createFakeFirestore, type FakeFirestore } from '../testing/fake-firestore';
 
 const SEED_DATE = '2026-05-12T00:00:00.000Z' as ISODateString;
 const NOW_ISO = '2026-05-21T12:00:00.000Z';
@@ -55,11 +59,11 @@ function lessonDoc(overrides: Record<string, unknown> = {}): Record<string, unkn
   };
 }
 
-async function buildRepo(fake: FakeFirestore): Promise<VideoRepository> {
+async function buildRepo(fake: InMemoryDocumentStore): Promise<VideoRepository> {
   const moduleRef = await Test.createTestingModule({
     providers: [
       VideoRepository,
-      { provide: FIRESTORE, useValue: fake as unknown as FirestoreHandle },
+      { provide: DOCUMENT_STORE, useValue: fake as unknown as DocumentStore },
     ],
   }).compile();
   return moduleRef.get(VideoRepository);
@@ -67,7 +71,7 @@ async function buildRepo(fake: FakeFirestore): Promise<VideoRepository> {
 
 describe('VideoRepository — simple reads and writes', () => {
   it('newId returns a non-empty, non-colliding string', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
 
     const a = repo.newId<VideoId>();
@@ -78,7 +82,7 @@ describe('VideoRepository — simple reads and writes', () => {
   });
 
   it('getVideo returns the stored video, or null when absent', async () => {
-    const fake = createFakeFirestore({ 'videos/v1': makeVideo() });
+    const fake = createInMemoryDocumentStore({ 'videos/v1': makeVideo() });
     const repo = await buildRepo(fake);
 
     expect(await repo.getVideo('v1' as VideoId)).toEqual(makeVideo());
@@ -86,7 +90,7 @@ describe('VideoRepository — simple reads and writes', () => {
   });
 
   it('getVideoByLesson finds the video whose lessonId matches', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ id: 'v1' as VideoId, lessonId: 'l1' as LessonId }),
       'videos/v2': makeVideo({ id: 'v2' as VideoId, lessonId: 'l2' as LessonId }),
     });
@@ -104,7 +108,7 @@ describe('VideoRepository — simple reads and writes', () => {
   it('getVideoByLesson prefers the live (non-FAILED) doc when a retry left a FAILED sibling', async () => {
     // Retry flow: a FAILED doc and a fresh session's doc share the lessonId.
     // limit(1) with no ordering was nondeterministic; reads must pick the live doc.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v-failed': makeVideo({
         id: 'v-failed' as VideoId,
         state: 'FAILED',
@@ -123,7 +127,7 @@ describe('VideoRepository — simple reads and writes', () => {
   });
 
   it('getVideoByLesson picks the newest doc when all candidates share a state', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v-old': makeVideo({
         id: 'v-old' as VideoId,
         state: 'FAILED',
@@ -142,7 +146,7 @@ describe('VideoRepository — simple reads and writes', () => {
   });
 
   it('listVideosByLesson returns ALL docs for the lesson (cascade must tear down every one)', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ id: 'v1' as VideoId, state: 'FAILED' }),
       'videos/v2': makeVideo({ id: 'v2' as VideoId, state: 'PENDING_UPLOAD' }),
       'videos/v-other': makeVideo({ id: 'v-other' as VideoId, lessonId: 'l9' as LessonId }),
@@ -161,7 +165,7 @@ describe('VideoRepository — simple reads and writes', () => {
       key: 'AAAAAAAAAAAAAAAAAAAAAA==',
       createdAt: SEED_DATE,
     };
-    const fake = createFakeFirestore({ 'videoKeys/k1': { ...key } });
+    const fake = createInMemoryDocumentStore({ 'videoKeys/k1': { ...key } });
     const repo = await buildRepo(fake);
 
     expect(await repo.getVideoKey('k1' as VideoKeyId)).toEqual(key);
@@ -169,7 +173,7 @@ describe('VideoRepository — simple reads and writes', () => {
   });
 
   it('createVideo writes the video at videos/{id}', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
     const video = makeVideo();
 
@@ -179,7 +183,7 @@ describe('VideoRepository — simple reads and writes', () => {
   });
 
   it('updateVideo merges the patch into the existing document', async () => {
-    const fake = createFakeFirestore({ 'videos/v1': makeVideo() });
+    const fake = createInMemoryDocumentStore({ 'videos/v1': makeVideo() });
     const repo = await buildRepo(fake);
 
     await repo.updateVideo('v1' as VideoId, { state: 'UPLOADED' });
@@ -205,7 +209,7 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
   };
 
   it('moves the video to TRANSCODING, writes the key, and links the lesson', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       // PENDING_UPLOAD is the real pre-finalize state (completeUpload validates
       // it and never transitions away before finalizing).
       'videos/v1': makeVideo(),
@@ -236,7 +240,7 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
     // l1's doc and leave l2 untouched. Mutating the field to '' would match
     // neither (both have a non-empty id) and throw "Lesson disappeared".
     const OTHER_LESSON = 'courses/c1/modules/m1/lessons/l2';
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
       [LESSON_PATH]: lessonDoc({ id: 'l1' }),
       [OTHER_LESSON]: lessonDoc({ id: 'l2' }),
@@ -250,7 +254,7 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
   });
 
   it('persists the probed source duration on Video.source for later READY output', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
       [LESSON_PATH]: lessonDoc(),
     });
@@ -262,7 +266,7 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
   });
 
   it('throws when the video disappeared before the transaction ran', async () => {
-    const fake = createFakeFirestore({ [LESSON_PATH]: lessonDoc() });
+    const fake = createInMemoryDocumentStore({ [LESSON_PATH]: lessonDoc() });
     const repo = await buildRepo(fake);
 
     await expect(repo.finalizeUploadWithJob(finalizeArgs)).rejects.toThrow(
@@ -271,7 +275,7 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
   });
 
   it('throws when the lesson disappeared before the transaction ran', async () => {
-    const fake = createFakeFirestore({ 'videos/v1': makeVideo() });
+    const fake = createInMemoryDocumentStore({ 'videos/v1': makeVideo() });
     const repo = await buildRepo(fake);
 
     await expect(repo.finalizeUploadWithJob(finalizeArgs)).rejects.toThrow(
@@ -285,7 +289,7 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
     // pre-check and submit their own transcoder jobs. The first finalize wins
     // (TRANSCODING + job-A); the second must NOT overwrite transcoderJobName
     // with job-B (which would orphan job-A) — it must throw a 409 instead.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ state: 'TRANSCODING', transcoderJobName: 'job-A' }),
       [LESSON_PATH]: lessonDoc(),
     });
@@ -303,7 +307,7 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
     // Two concurrent upload SESSIONS create two video docs for one lesson; each
     // is PENDING_UPLOAD so the state guard alone cannot stop the loser from
     // overwriting Lesson.videoId and orphaning the winner's video forever.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
       [LESSON_PATH]: lessonDoc({ videoId: 'v-winner' }),
     });
@@ -320,7 +324,7 @@ describe('VideoRepository.finalizeUploadWithJob', () => {
   });
 
   it('still finalizes when the lesson already points at THIS video', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
       [LESSON_PATH]: lessonDoc({ videoId: 'v1' }),
     });
@@ -340,7 +344,7 @@ describe('VideoRepository.markFailedFromSubmission', () => {
   };
 
   it('moves the video to FAILED and records the reason and actual size', async () => {
-    const fake = createFakeFirestore({ 'videos/v1': makeVideo({ state: 'UPLOADED' }) });
+    const fake = createInMemoryDocumentStore({ 'videos/v1': makeVideo({ state: 'UPLOADED' }) });
     const repo = await buildRepo(fake);
 
     const result = await repo.markFailedFromSubmission(failArgs);
@@ -352,7 +356,7 @@ describe('VideoRepository.markFailedFromSubmission', () => {
   });
 
   it('throws when the video does not exist', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
 
     await expect(repo.markFailedFromSubmission(failArgs)).rejects.toThrow(
@@ -370,7 +374,7 @@ describe('VideoRepository.applyTranscoderResult', () => {
   };
 
   it('reports VIDEO_NOT_FOUND when the video is absent', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
 
     expect(
@@ -384,7 +388,7 @@ describe('VideoRepository.applyTranscoderResult', () => {
   });
 
   it('reports JOB_NAME_MISMATCH when the stored job name differs', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ state: 'TRANSCODING', transcoderJobName: 'a-different-job' }),
     });
     const repo = await buildRepo(fake);
@@ -400,7 +404,7 @@ describe('VideoRepository.applyTranscoderResult', () => {
   });
 
   it('reports ALREADY_APPLIED when the video is already in the target state', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ state: 'READY', transcoderJobName: JOB_NAME }),
     });
     const repo = await buildRepo(fake);
@@ -416,7 +420,7 @@ describe('VideoRepository.applyTranscoderResult', () => {
   });
 
   it('reports WRONG_STATE when the video is neither TRANSCODING nor the target state', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ state: 'UPLOADED', transcoderJobName: JOB_NAME }),
     });
     const repo = await buildRepo(fake);
@@ -432,7 +436,7 @@ describe('VideoRepository.applyTranscoderResult', () => {
   });
 
   it('applies a READY outcome: state READY with the transcoder output', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ state: 'TRANSCODING', transcoderJobName: JOB_NAME }),
     });
     const repo = await buildRepo(fake);
@@ -459,7 +463,7 @@ describe('VideoRepository.applyTranscoderResult', () => {
     // The GCP Transcoder job returns no reliable output duration, so the event
     // carries 0; the authoritative duration is the ffprobe value persisted on
     // the source at upload-complete time.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({
         state: 'TRANSCODING',
         transcoderJobName: JOB_NAME,
@@ -479,7 +483,7 @@ describe('VideoRepository.applyTranscoderResult', () => {
   });
 
   it('prefers the probed source duration over a non-zero transcoder duration', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({
         state: 'TRANSCODING',
         transcoderJobName: JOB_NAME,
@@ -503,7 +507,7 @@ describe('VideoRepository.applyTranscoderResult', () => {
     // already applied (state FAILED), targetState must equal 'FAILED' so the
     // already-applied short-circuit fires. Forcing the ternary to 'READY' (or
     // '') would skip it and mis-report WRONG_STATE.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ state: 'FAILED', transcoderJobName: JOB_NAME }),
     });
     const repo = await buildRepo(fake);
@@ -519,7 +523,7 @@ describe('VideoRepository.applyTranscoderResult', () => {
   });
 
   it('applies a FAILED outcome: state FAILED with a prefixed failure reason', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ state: 'TRANSCODING', transcoderJobName: JOB_NAME }),
     });
     const repo = await buildRepo(fake);
@@ -540,7 +544,7 @@ describe('VideoRepository.applyTranscoderResult', () => {
 
 describe('VideoRepository.deleteVideoAndDetach', () => {
   it('deletes the video, deletes the key, and clears the lesson link', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
       'videoKeys/k1': { id: 'k1', videoId: 'v1', key: 'x', createdAt: SEED_DATE },
       [LESSON_PATH]: lessonDoc({ videoId: 'v1' }),
@@ -559,7 +563,7 @@ describe('VideoRepository.deleteVideoAndDetach', () => {
     // Pins the videoKeys `.where('videoId', '==', vid)` field literal: only the
     // key tagged with v1 must be removed; a key for another video must survive.
     // A mutated field name would match neither and delete no key at all.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
       'videoKeys/k1': { id: 'k1', videoId: 'v1', key: 'x', createdAt: SEED_DATE },
       'videoKeys/k-other': { id: 'k-other', videoId: 'v-other', key: 'y', createdAt: SEED_DATE },
@@ -574,7 +578,7 @@ describe('VideoRepository.deleteVideoAndDetach', () => {
   });
 
   it('leaves the lesson link intact when it points at a different video', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
       [LESSON_PATH]: lessonDoc({ videoId: 'v-other' }),
     });
@@ -588,7 +592,7 @@ describe('VideoRepository.deleteVideoAndDetach', () => {
   });
 
   it('succeeds when no key and no lesson exist', async () => {
-    const fake = createFakeFirestore({ 'videos/v1': makeVideo() });
+    const fake = createInMemoryDocumentStore({ 'videos/v1': makeVideo() });
     const repo = await buildRepo(fake);
 
     await expect(
@@ -600,7 +604,7 @@ describe('VideoRepository.deleteVideoAndDetach', () => {
 
 describe('VideoRepository.listVideoStatesForLessons', () => {
   it('listVideoStatesForLessons returns a Map keyed by lessonId with the latest VideoState for each', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ id: 'v1' as VideoId, lessonId: 'l1' as LessonId, state: 'READY' as VideoState }),
       'videos/v2': makeVideo({ id: 'v2' as VideoId, lessonId: 'l2' as LessonId, state: 'TRANSCODING' as VideoState }),
     });
@@ -618,7 +622,7 @@ describe('VideoRepository.listVideoStatesForLessons', () => {
   });
 
   it('listVideoStatesForLessons returns an empty Map for an empty input', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
 
     const states = await repo.listVideoStatesForLessons([]);
@@ -629,7 +633,7 @@ describe('VideoRepository.listVideoStatesForLessons', () => {
 
 describe('VideoRepository.listVideosForLessons', () => {
   it('returns a Map with full Video docs keyed by lessonId, absent for lessons with no video', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({
         id: 'v1' as VideoId,
         lessonId: 'lesson-1' as LessonId,
@@ -657,7 +661,7 @@ describe('VideoRepository.listVideosForLessons', () => {
   });
 
   it('returns an empty Map for an empty input', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
 
     const map = await repo.listVideosForLessons([]);
@@ -681,7 +685,7 @@ function makeCaptions(overrides: Partial<VideoCaptions> = {}): VideoCaptions {
 
 describe('VideoRepository — captions', () => {
   it('upsertCaptions then getCaptions round-trips', async () => {
-    const fake = createFakeFirestore({ 'videos/v1': makeVideo() });
+    const fake = createInMemoryDocumentStore({ 'videos/v1': makeVideo() });
     const repo = await buildRepo(fake);
     await repo.upsertCaptions(makeCaptions());
     const got = await repo.getCaptions('v1' as VideoId);
@@ -693,7 +697,7 @@ describe('VideoRepository — captions', () => {
     // Captions PUT racing a video delete: the old non-transactional
     // read-then-set recreated an orphan videoCaptions doc that no endpoint
     // could ever reach (every captions route resolves the video first).
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
     await expect(repo.upsertCaptions(makeCaptions())).rejects.toBeInstanceOf(
       VideoNotFoundException,
@@ -703,7 +707,7 @@ describe('VideoRepository — captions', () => {
 
   it('upsertCaptions preserves the original createdAt when replacing existing captions', async () => {
     const OLD = '2026-01-01T00:00:00.000Z' as ISODateString;
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
       'videoCaptions/v1': makeCaptions({ createdAt: OLD }),
     });
@@ -717,26 +721,26 @@ describe('VideoRepository — captions', () => {
   });
 
   it('getCaptions returns null when absent', async () => {
-    const repo = await buildRepo(createFakeFirestore());
+    const repo = await buildRepo(createInMemoryDocumentStore());
     expect(await repo.getCaptions('nope' as VideoId)).toBeNull();
   });
 
   it('getCaptionsMeta returns null when no captions exist', async () => {
     // Pins the `if (!captions) return null` guard: forcing it false would
     // dereference null and throw instead of returning null.
-    const repo = await buildRepo(createFakeFirestore());
+    const repo = await buildRepo(createInMemoryDocumentStore());
     expect(await repo.getCaptionsMeta('nope' as VideoId)).toBeNull();
   });
 
   it('getCaptionsMeta omits the content body', async () => {
-    const fake = createFakeFirestore({ 'videoCaptions/v1': makeCaptions() });
+    const fake = createInMemoryDocumentStore({ 'videoCaptions/v1': makeCaptions() });
     const repo = await buildRepo(fake);
     const meta = await repo.getCaptionsMeta('v1' as VideoId);
     expect(meta).toEqual({ language: 'en', label: 'English', updatedAt: SEED_DATE });
   });
 
   it('deleteCaptions removes the doc and is idempotent', async () => {
-    const fake = createFakeFirestore({ 'videoCaptions/v1': makeCaptions() });
+    const fake = createInMemoryDocumentStore({ 'videoCaptions/v1': makeCaptions() });
     const repo = await buildRepo(fake);
     await repo.deleteCaptions('v1' as VideoId);
     expect(await repo.getCaptions('v1' as VideoId)).toBeNull();
@@ -744,7 +748,7 @@ describe('VideoRepository — captions', () => {
   });
 
   it('deleteVideoAndDetach also removes the captions doc', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
       [LESSON_PATH]: lessonDoc({ videoId: 'v1' }),
       'videoCaptions/v1': makeCaptions(),
@@ -761,7 +765,7 @@ const STALE_CLAIM_AT = '2026-05-21T10:00:00.000Z'; // before staleBefore → sta
 
 describe('VideoRepository.claimUploadCompletion', () => {
   it('writes completeClaimedAt + updatedAt and returns the video on success', async () => {
-    const fake = createFakeFirestore({ 'videos/v1': makeVideo() });
+    const fake = createInMemoryDocumentStore({ 'videos/v1': makeVideo() });
     const repo = await buildRepo(fake);
 
     const result = await repo.claimUploadCompletion('v1' as VideoId, NOW_ISO as ISODateString, STALE_BEFORE as ISODateString);
@@ -774,7 +778,7 @@ describe('VideoRepository.claimUploadCompletion', () => {
   });
 
   it('throws VideoNotFoundException when the video does not exist', async () => {
-    const fake = createFakeFirestore();
+    const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
 
     await expect(
@@ -783,7 +787,7 @@ describe('VideoRepository.claimUploadCompletion', () => {
   });
 
   it('throws InvalidVideoStateException when the video is not PENDING_UPLOAD', async () => {
-    const fake = createFakeFirestore({ 'videos/v1': makeVideo({ state: 'TRANSCODING' }) });
+    const fake = createInMemoryDocumentStore({ 'videos/v1': makeVideo({ state: 'TRANSCODING' }) });
     const repo = await buildRepo(fake);
 
     await expect(
@@ -793,7 +797,7 @@ describe('VideoRepository.claimUploadCompletion', () => {
 
   it('throws UploadCompletionInProgressException when a FRESH claim already exists', async () => {
     // A claim stamped after staleBefore belongs to a live concurrent attempt.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ completeClaimedAt: FRESH_CLAIM_AT as ISODateString }),
     });
     const repo = await buildRepo(fake);
@@ -807,7 +811,7 @@ describe('VideoRepository.claimUploadCompletion', () => {
     // Boundary for `completeClaimedAt >= staleBefore`: a claim at exactly the
     // cutoff is INCLUSIVE-fresh and must block. The `>` mutant would treat the
     // boundary as stale and wrongly re-claim.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ completeClaimedAt: STALE_BEFORE as ISODateString }),
     });
     const repo = await buildRepo(fake);
@@ -819,7 +823,7 @@ describe('VideoRepository.claimUploadCompletion', () => {
 
   it('re-claims successfully when an existing claim is STALE (crashed attempt)', async () => {
     // A claim stamped before staleBefore belongs to a crashed attempt; re-claim.
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ completeClaimedAt: STALE_CLAIM_AT as ISODateString }),
     });
     const repo = await buildRepo(fake);
@@ -832,8 +836,8 @@ describe('VideoRepository.claimUploadCompletion', () => {
 });
 
 describe('VideoRepository.releaseUploadCompletionClaim', () => {
-  it('clears completeClaimedAt via FieldValue.delete()', async () => {
-    const fake = createFakeFirestore({
+  it('clears completeClaimedAt via DELETE_FIELD', async () => {
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ completeClaimedAt: NOW_ISO as ISODateString }),
     });
     const repo = await buildRepo(fake);
@@ -846,7 +850,7 @@ describe('VideoRepository.releaseUploadCompletionClaim', () => {
 
 describe('VideoRepository.finalizeUploadWithJob — clears completeClaimedAt', () => {
   it('clears completeClaimedAt in the transaction alongside the TRANSCODING write', async () => {
-    const fake = createFakeFirestore({
+    const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo({ completeClaimedAt: NOW_ISO as ISODateString }),
       [LESSON_PATH]: lessonDoc(),
     });
@@ -873,10 +877,9 @@ describe('VideoRepository.finalizeUploadWithJob — clears completeClaimedAt', (
 });
 
 describe('VideoRepository.countPendingTranscodes', () => {
-  // The fake Firestore in-memory store has no aggregate .count() support, so
-  // this pins the query shape (collection/where/count/get) with a direct mock
-  // rather than createFakeFirestore — matching the constructor's single
-  // @Inject(FIRESTORE) param, no NestJS Test module needed.
+  // Pins the query shape (collection/where/count/get) with a direct mock
+  // rather than createInMemoryDocumentStore — matching the constructor's single
+  // @Inject(DOCUMENT_STORE) param, no NestJS Test module needed.
   it('counts videos in UPLOADED or TRANSCODING via an aggregate query', async () => {
     const get = vi.fn().mockResolvedValue({ data: () => ({ count: 3 }) });
     const count = vi.fn().mockReturnValue({ get });

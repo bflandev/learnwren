@@ -8,12 +8,8 @@ import {
   revokeAllUserSessions,
   type EmailTransport,
 } from '@learnwren/api-auth';
-import {
-  FIREBASE_AUTH,
-  type FirebaseAuthHandle,
-  FIRESTORE,
-  type FirestoreHandle,
-} from '@learnwren/api-firebase';
+import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type { ConfirmEmailChangeResponse, UserId } from '@learnwren/shared-data-models';
 
@@ -34,7 +30,7 @@ export class EmailChangeService {
 
   constructor(
     @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
-    @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
+    @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
     private readonly passwordVerification: PasswordVerificationService,
     @Inject(EMAIL_TRANSPORT) private readonly emailTransport: EmailTransport,
   ) {}

@@ -1,7 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { firestore as adminFirestore } from 'firebase-admin';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import {
+  DOCUMENT_STORE,
+  type DocumentStore,
+  type Transaction,
+} from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
   Course,
@@ -57,11 +60,11 @@ export function enrollmentId(userId: UserId, courseId: CourseId): EnrollmentId {
  * the completion-rollup denominator shares the transaction's conflict set —
  * a lesson written concurrently forces a retry instead of being missed.
  */
-export type TxnLessonLister = (t: adminFirestore.Transaction) => Promise<LessonId[]>;
+export type TxnLessonLister = (t: Transaction) => Promise<LessonId[]>;
 
 @Injectable()
 export class EnrollmentRepository {
-  constructor(@Inject(FIRESTORE) private readonly db: FirestoreHandle) {}
+  constructor(@Inject(DOCUMENT_STORE) private readonly db: DocumentStore) {}
 
   async getEnrollment(userId: UserId, courseId: CourseId): Promise<Enrollment | null> {
     const snap = await this.db

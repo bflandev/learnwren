@@ -1,8 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { firestore as adminFirestore } from 'firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import {
+  DELETE_FIELD,
+  DOCUMENT_STORE,
+  type DocumentStore,
+  type Transaction,
+} from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
   Course,
@@ -45,7 +48,7 @@ function nextOrder(existing: number[]): number {
 
 @Injectable()
 export class CoursesRepository {
-  constructor(@Inject(FIRESTORE) private readonly firestore: FirestoreHandle) {}
+  constructor(@Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore) {}
 
   // ────────────────────────── Path helpers ──────────────────────────
   // The Firestore SDK has no concept of "a path string"; you build refs by
@@ -76,7 +79,7 @@ export class CoursesRepository {
   }
 
   /** Course create inside a caller's transaction (US-08-02 category conflict set). */
-  createCourseInTxn(t: adminFirestore.Transaction, course: Course): void {
+  createCourseInTxn(t: Transaction, course: Course): void {
     t.set(this.courseRef(course.id), course);
   }
 
@@ -115,7 +118,7 @@ export class CoursesRepository {
   }
 
   /** Course patch inside a caller's transaction (US-08-02 category conflict set). */
-  updateCourseInTxn(t: adminFirestore.Transaction, cid: CourseId, patch: Partial<Course>): void {
+  updateCourseInTxn(t: Transaction, cid: CourseId, patch: Partial<Course>): void {
     t.update(this.courseRef(cid), { ...patch, updatedAt: nowIso() });
   }
 
@@ -125,11 +128,11 @@ export class CoursesRepository {
    * Firebase Admin's `.update({ coverImageUrl: undefined })` silently strips
    * `undefined` keys, leaving the existing field in place — so a plain
    * `updateCourse(cid, { coverImageUrl: undefined })` is a no-op against
-   * Firestore. We must call `FieldValue.delete()` explicitly to remove it.
+   * Firestore. We must pass `DELETE_FIELD` explicitly to remove it.
    */
   async clearCoverImageUrl(cid: CourseId): Promise<void> {
     await this.courseRef(cid).update({
-      coverImageUrl: FieldValue.delete(),
+      coverImageUrl: DELETE_FIELD,
       updatedAt: nowIso(),
     });
   }
@@ -302,14 +305,14 @@ export class CoursesRepository {
   }
 
   /** @internal — exposed for service-level helpers that need the raw handle. */
-  get rawFirestore(): FirestoreHandle {
+  get rawFirestore(): DocumentStore {
     return this.firestore;
   }
 
   // ────────────────────────── Slice D (publish gate) ──────────────────────────
 
   async getCourseInTxn(
-    t: adminFirestore.Transaction,
+    t: Transaction,
     cid: CourseId,
   ): Promise<Course> {
     const snap = await t.get(this.courseRef(cid));
@@ -320,7 +323,7 @@ export class CoursesRepository {
   }
 
   async listModulesByCourseInTxn(
-    t: adminFirestore.Transaction,
+    t: Transaction,
     cid: CourseId,
   ): Promise<Module[]> {
     const snap = await t.get(this.modulesCol(cid).orderBy('order', 'asc'));
@@ -328,7 +331,7 @@ export class CoursesRepository {
   }
 
   async listLessonsByModuleInTxn(
-    t: adminFirestore.Transaction,
+    t: Transaction,
     cid: CourseId,
     mid: ModuleId,
   ): Promise<Lesson[]> {
@@ -342,7 +345,7 @@ export class CoursesRepository {
    * The repository does NOT enforce state-machine rules; the caller does.
    */
   async updateStatusInTxn(
-    t: adminFirestore.Transaction,
+    t: Transaction,
     cid: CourseId,
     status: CourseStatus,
     patch: { publishedAt?: ISODateString; archivedAt?: ISODateString | null } = {},
@@ -356,7 +359,7 @@ export class CoursesRepository {
     return this.composeUpdatedCourse(before, status, now, patch);
   }
 
-  /** Build the Firestore update payload, translating `archivedAt: null` to FieldValue.delete(). */
+  /** Build the Firestore update payload, translating `archivedAt: null` to DELETE_FIELD. */
   private buildStatusUpdate(
     status: CourseStatus,
     now: ISODateString,
@@ -365,7 +368,7 @@ export class CoursesRepository {
     const update: Record<string, unknown> = { status, updatedAt: now };
     if (patch.publishedAt !== undefined) update['publishedAt'] = patch.publishedAt;
     if (patch.archivedAt === null) {
-      update['archivedAt'] = FieldValue.delete();
+      update['archivedAt'] = DELETE_FIELD;
     } else if (patch.archivedAt !== undefined) {
       update['archivedAt'] = patch.archivedAt;
     }

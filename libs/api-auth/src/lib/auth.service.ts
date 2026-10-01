@@ -1,12 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { auth as adminAuth } from 'firebase-admin';
 
-import {
-  FIREBASE_AUTH,
-  type FirebaseAuthHandle,
-  FIRESTORE,
-  type FirestoreHandle,
-} from '@learnwren/api-firebase';
+import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
   ISODateString,
@@ -80,7 +76,7 @@ export class AuthService {
   constructor(
     private readonly passwordPolicy: PasswordPolicyService,
     @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
-    @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
+    @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
     private readonly restClient: FirebaseAuthRestClient,
     private readonly passwordVerification: PasswordVerificationService,
     private readonly sessionCookies: SessionCookieService,

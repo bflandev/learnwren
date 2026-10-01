@@ -200,8 +200,10 @@ jobs:
       # Boots the Auth/Firestore/Storage emulators, then runs the suite. The
       # api is started by Playwright's webServer; its fake-mode video env lives
       # in apps/api-e2e/playwright.config.ts, so no GCP credentials are needed.
-      - name: Run api-e2e against the Firebase emulators
-        run: pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e api-e2e'
+      # The contract run needs FIRESTORE_EMULATOR_HOST, which emulators:exec
+      # sets; --skip-nx-cache stops a cached emulator-less run being replayed.
+      - name: Run the DocumentStore contract and api-e2e against the Firebase emulators
+        run: pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx run api-document-store:test --skip-nx-cache && pnpm nx e2e api-e2e'
 
   web-e2e:
     name: web-e2e (Firebase emulators)
