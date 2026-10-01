@@ -227,6 +227,11 @@ describe('AdminUserRoleService.promote', () => {
     expect(revert!.data).toEqual({ role: 'STUDENT', updatedAt: expect.any(String) });
     expect(errorSpy).toHaveBeenCalledWith('Promotion of uid=u1 failed: Firebase exploded');
     expect(logSpy).not.toHaveBeenCalled();
+    // auth.setRole rejects on every call, including bestEffortRevertRole's own
+    // identity.setRole(uid, 'STUDENT') revert attempt — its catch BODY (kills
+    // the BlockStatement mutant emptying it) and log text (kills the
+    // message→"" mutant) are both pinned here.
+    expect(errorSpy).toHaveBeenCalledWith('role-claim revert failed for uid=u1: Error: Firebase exploded');
   });
 
   it('still throws INTERNAL when the role revert ALSO fails — and logs the revert error', async () => {
@@ -385,6 +390,19 @@ describe('AdminUserRoleService.demote', () => {
     expect(auth.revokeAllSessions).not.toHaveBeenCalled();
   });
 
+  it('caps the owned course ids in the demote error at 10 even when more are owned', async () => {
+    // 12 courses owned → courseCount is the full 12 but courseIds is sliced to 10.
+    const courses = Array.from({ length: 12 }, (_, i) => ({ id: `c${i}` }));
+    const fx = makeFixture({ u1: { role: 'INSTRUCTOR', status: 'ACTIVE' } }, {}, courses);
+    const { svc } = makeService(fx, auth);
+    const err = (await svc.demote(ACTOR, U1).catch((e: unknown) => e)) as UserHasCoursesException;
+    expect(err.details?.courseCount).toBe(12);
+    expect((err.details?.courseIds as string[]).length).toBe(10);
+    expect(err.details?.courseIds).toEqual([
+      'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9',
+    ]);
+  });
+
   it('promote does NOT run the authored-course guard (a course-owning STUDENT is impossible, but the query must not gate promotion)', async () => {
     const fx = makeFixture({ u1: { role: 'STUDENT', status: 'ACTIVE' } }, {}, [{ id: 'c1' }]);
     const { svc } = makeService(fx, auth);
@@ -418,6 +436,23 @@ describe('AdminUserRoleService.demote', () => {
       (c: unknown[]) => (c[0] as { _collection?: string })._collection === 'instructorApplications',
     );
     expect(appWrites).toHaveLength(0);
+  });
+
+  it('no-ops silently (no log, no write) when the application doc is genuinely absent on demote', async () => {
+    // Distinct from the PENDING case above: here `apps` has no entry at all,
+    // so `snap.exists` is false. A ConditionalExpression mutant that skips
+    // `if (!snap.exists) return;` would instead call `snap.data().status` on
+    // `undefined`, throwing — caught by the outer best-effort catch and
+    // LOGGED. The PENDING-doc test can't distinguish this: there, exists is
+    // already true, so the `!snap.exists` branch is never taken either way.
+    const fx = makeFixture({ u1: { role: 'INSTRUCTOR', status: 'ACTIVE' } }, {});
+    const { svc, errorSpy } = makeService(fx, auth);
+    await svc.demote(ACTOR, U1);
+    const appWrites = fx.txnUpdate.mock.calls.filter(
+      (c: unknown[]) => (c[0] as { _collection?: string })._collection === 'instructorApplications',
+    );
+    expect(appWrites).toHaveLength(0);
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 
   it('a failed application decline does NOT fail the demote — it logs loudly instead', async () => {

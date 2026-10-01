@@ -233,6 +233,7 @@ describe('AdminInstructorApplicationService', () => {
     expect(err).toBeInstanceOf(AdminInstructorApplicationException);
     expect((err as AdminInstructorApplicationException).code).toBe('INTERNAL');
     expect((err as AdminInstructorApplicationException).status).toBe(500);
+    expect((err as Error).message).toBe('Failed to load the applicant.');
     expect((err as Error).cause).toBe(cause);
     expect(txn.update).not.toHaveBeenCalled();
   });
@@ -477,10 +478,19 @@ describe('AdminInstructorApplicationService', () => {
       update,
     };
     auth.getUser = vi.fn(async () => null);
+    // Spy the logger: `email.sendInstructorApplicationDeclinedEmail` not being
+    // called is also true if `if (!user) throw …` were skipped and `user.email`
+    // threw a TypeError instead (caught by the same outer try/catch) — that
+    // wouldn't distinguish a ConditionalExpression mutant on the guard. Pin the
+    // exact thrown message instead: a TypeError's text would read
+    // "Cannot read properties of null", not "user not found".
+    const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
     const view = await svc.decline('u1' as never);
 
     expect(view.status).toBe('DECLINED');
     expect(email.sendInstructorApplicationDeclinedEmail).not.toHaveBeenCalled();
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('user not found'));
+    errSpy.mockRestore();
   });
 });

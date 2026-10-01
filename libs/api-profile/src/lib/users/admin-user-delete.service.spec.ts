@@ -251,7 +251,7 @@ describe('AdminUserDeleteService.delete', () => {
     expect(txnUpdate).not.toHaveBeenCalled();
   });
 
-  it('calls identity.deleteUser directly — the port is idempotent, so a missing user is never treated as an error (no re-entry needed)', async () => {
+  it('re-entry on an already-DELETED user still calls identity.deleteUser (idempotent at the port, no try/catch needed)', async () => {
     // Regression for the removed not-found tolerance branch: deleteUser is
     // called without a surrounding try/catch, since the port's contract
     // already makes a missing user a no-op success rather than a throw.
