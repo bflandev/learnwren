@@ -2,7 +2,6 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AuthenticatedRequest } from '@learnwren/api-auth';
-import { FIREBASE_AUTH } from '@learnwren/api-firebase';
 import { DOCUMENT_STORE } from '@learnwren/api-document-store';
 import type {
   Course,
@@ -14,7 +13,7 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
-import { InstructorRoleGuard } from '@learnwren/api-auth';
+import { FirebaseSessionGuard, InstructorRoleGuard } from '@learnwren/api-auth';
 
 import { CourseOwnerGuard } from './course-owner.guard';
 import { CoursesController } from './courses.controller';
@@ -72,9 +71,10 @@ async function buildController(service: CoursesService): Promise<CoursesControll
       { provide: InstructorRoleGuard, useValue: { canActivate: () => true } },
       { provide: CourseOwnerGuard, useValue: { canActivate: () => true } },
       { provide: DOCUMENT_STORE, useValue: {} },
-      { provide: FIREBASE_AUTH, useValue: {} },
     ],
   })
+    .overrideGuard(FirebaseSessionGuard)
+    .useValue({ canActivate: () => true })
     .overrideGuard(InstructorRoleGuard)
     .useValue({ canActivate: () => true })
     .overrideGuard(CourseOwnerGuard)
