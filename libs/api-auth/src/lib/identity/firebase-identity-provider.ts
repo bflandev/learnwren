@@ -3,7 +3,7 @@ import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase'
 import type { UserRole } from '@learnwren/shared-data-models';
 
 import { FirebaseAuthRestClient } from '../firebase-auth-rest-client';
-import { EmailInUseError } from './identity.errors';
+import { EmailActionInvalidError, EmailInUseError } from './identity.errors';
 import {
   SESSION_MAX_AGE_SECONDS,
   type EmailActionKind,
@@ -200,5 +200,10 @@ export class FirebaseIdentityProvider implements IdentityProvider {
       if (authCode(err) === 'auth/email-already-exists') throw new EmailInUseError();
       throw err;
     }
+  }
+
+  /** Firebase handles its action links on its own hosted page; nothing reaches the api. */
+  async applyEmailAction(): Promise<void> {
+    throw new EmailActionInvalidError();
   }
 }

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InvalidCredentialsException } from '../errors/auth.exception';
 import type { FirebaseAuthRestClient } from '../firebase-auth-rest-client';
 import { FirebaseIdentityProvider } from './firebase-identity-provider';
-import { EmailInUseError } from './identity.errors';
+import { EmailActionInvalidError, EmailInUseError } from './identity.errors';
 import type { PasswordProof } from './identity-provider.port';
 
 interface FakeAuth {
@@ -608,5 +608,14 @@ describe('EmailInUseError', () => {
     const e = new EmailInUseError();
     expect(e.name).toBe('EmailInUseError');
     expect(e.message).toBe('Email already in use');
+  });
+});
+
+describe('applyEmailAction', () => {
+  it('always rejects with EmailActionInvalidError — Firebase handles action links on its own hosted page', async () => {
+    const provider = buildProvider(buildFakeAuth());
+    for (const kind of ['verify-email', 'reset-password', 'change-email'] as const) {
+      await expect(provider.applyEmailAction(kind, 'some-token')).rejects.toBeInstanceOf(EmailActionInvalidError);
+    }
   });
 });

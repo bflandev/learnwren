@@ -17,5 +17,5 @@ const emulator = process.env['FIREBASE_AUTH_EMULATOR_HOST'];
 describe.skipIf(!emulator)('Firebase identity adapter against the Auth emulator', () => {
   const app = initializeApp({ projectId: 'demo-learnwren' }, `identity-contract-${randomUUID()}`);
   const provider = new FirebaseIdentityProvider(getAuth(app) as never, new FirebaseAuthRestClient('fake-api-key'));
-  describeIdentityProviderContract('firebase', () => provider, { revocation: false });
+  describeIdentityProviderContract('firebase', () => provider, { revocation: false, emailActions: false });
 });

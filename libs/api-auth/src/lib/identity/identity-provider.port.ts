@@ -1,4 +1,4 @@
-import type { UserRole } from '@learnwren/shared-data-models';
+import type { EmailActionMode, UserRole } from '@learnwren/shared-data-models';
 
 /**
  * The identity port (spec 2026-10-01 §3.4): every user-account and session
@@ -50,7 +50,7 @@ export interface MintedSession {
   readonly maxAgeSeconds: number;
 }
 
-export type EmailActionKind = 'verify-email' | 'reset-password' | 'change-email';
+export type EmailActionKind = EmailActionMode;
 
 export interface IdentityProvider {
   createUser(input: { email: string; password: string; displayName: string }): Promise<string>;
@@ -77,4 +77,15 @@ export interface IdentityProvider {
    * for 'change-email'.
    */
   createEmailActionLink(kind: EmailActionKind, email: string, continuePath: string, newEmail?: string): Promise<string>;
+  /**
+   * Consume a single-use token from an emailed link (D3b). 'verify-email'
+   * marks the email verified; 'reset-password' sets `newPassword` and revokes
+   * every session; 'change-email' moves the account to the new address and
+   * marks it verified. Rejects with EmailActionInvalidError for an unknown,
+   * expired, used or wrong-kind token, and EmailInUseError when the
+   * change-email target was taken after the link was sent. Adapters whose
+   * links are handled elsewhere (Firebase's hosted action page) always reject
+   * with EmailActionInvalidError.
+   */
+  applyEmailAction(kind: EmailActionKind, token: string, newPassword?: string): Promise<void>;
 }

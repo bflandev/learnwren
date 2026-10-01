@@ -1,15 +1,18 @@
 import { randomUUID } from 'node:crypto';
 
 import { InvalidCredentialsException } from '../lib/errors/auth.exception';
-import { EmailInUseError } from '../lib/identity/identity.errors';
+import { EmailActionInvalidError, EmailInUseError } from '../lib/identity/identity.errors';
 import type { IdentityProvider } from '../lib/identity/identity-provider.port';
 
 export interface IdentityContractOptions {
   /** False only for an adapter that cannot observe revocation (the Firebase Auth emulator ignores checkRevoked). */
   readonly revocation: boolean;
+  /** False for an adapter whose links are handled elsewhere (Firebase). */
+  readonly emailActions: boolean;
 }
 
 const PASSWORD = 'Correct-Horse-9-battery';
+const tokenOf = (link: string) => new URL(link).searchParams.get('token') ?? '';
 
 /** Behaviour every IdentityProvider adapter must share (spec §5.1). */
 export function describeIdentityProviderContract(
@@ -180,6 +183,61 @@ export function describeIdentityProviderContract(
         const session = await signIn(address);
         await idp.updateUser(uid, { disabled: true });
         expect(await idp.verifySession(session.token)).toBeNull();
+      });
+    });
+
+    describe.skipIf(!options.emailActions)('email actions', () => {
+      it('verify-email marks the email verified and the token is single-use', async () => {
+        const address = email();
+        const uid = await idp.createUser({ email: address, password: PASSWORD, displayName: 'A' });
+        const link = await idp.createEmailActionLink('verify-email', address, '/login');
+        expect(new URL(link).searchParams.get('mode')).toBe('verify-email');
+        await idp.applyEmailAction('verify-email', tokenOf(link));
+        expect((await idp.getUser(uid))?.emailVerified).toBe(true);
+        await expect(idp.applyEmailAction('verify-email', tokenOf(link))).rejects.toBeInstanceOf(EmailActionInvalidError);
+      });
+
+      it('reset-password sets the new password and revokes every session', async () => {
+        const address = email();
+        const uid = await idp.createUser({ email: address, password: PASSWORD, displayName: 'A' });
+        const session = await signIn(address);
+        const link = await idp.createEmailActionLink('reset-password', address, '/login?reset=ok');
+        await idp.applyEmailAction('reset-password', tokenOf(link), 'Brand-New-Pass-42!');
+        await expect(idp.verifyPassword(address, PASSWORD)).rejects.toBeInstanceOf(InvalidCredentialsException);
+        expect((await idp.verifyPassword(address, 'Brand-New-Pass-42!')).uid).toBe(uid);
+        expect(await idp.verifySession(session.token)).toBeNull();
+      });
+
+      it('change-email moves the account to the new address, verified', async () => {
+        const oldAddress = email();
+        const newAddress = email();
+        const uid = await idp.createUser({ email: oldAddress, password: PASSWORD, displayName: 'A' });
+        const link = await idp.createEmailActionLink('change-email', oldAddress, '/x', newAddress);
+        await idp.applyEmailAction('change-email', tokenOf(link));
+        expect(await idp.getUser(uid)).toEqual({ uid, email: newAddress, emailVerified: true });
+        expect(await idp.getUserByEmail(oldAddress)).toBeNull();
+        expect((await idp.verifyPassword(newAddress, PASSWORD)).uid).toBe(uid);
+      });
+
+      it('change-email rejects with EmailInUseError when the target was taken after the link was sent, changing nothing', async () => {
+        const oldAddress = email();
+        const target = email();
+        const uid = await idp.createUser({ email: oldAddress, password: PASSWORD, displayName: 'A' });
+        const link = await idp.createEmailActionLink('change-email', oldAddress, '/x', target);
+        await idp.createUser({ email: target, password: PASSWORD, displayName: 'B' });
+        await expect(idp.applyEmailAction('change-email', tokenOf(link))).rejects.toBeInstanceOf(EmailInUseError);
+        expect((await idp.getUser(uid))?.email).toBe(oldAddress);
+      });
+
+      it('rejects an unknown token and a token used for the wrong kind', async () => {
+        const address = email();
+        await idp.createUser({ email: address, password: PASSWORD, displayName: 'A' });
+        await expect(idp.applyEmailAction('verify-email', 'not-a-token')).rejects.toBeInstanceOf(EmailActionInvalidError);
+        const link = await idp.createEmailActionLink('verify-email', address, '/login');
+        await expect(idp.applyEmailAction('reset-password', tokenOf(link), 'Brand-New-Pass-42!')).rejects.toBeInstanceOf(
+          EmailActionInvalidError,
+        );
+        await expect(idp.applyEmailAction('verify-email', tokenOf(link))).resolves.toBeUndefined();
       });
     });
   });
