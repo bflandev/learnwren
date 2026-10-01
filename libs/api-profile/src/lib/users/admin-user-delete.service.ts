@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { IDENTITY_PROVIDER, type IdentityProvider } from '@learnwren/api-auth';
 import { DOCUMENT_STORE, type DocumentStore, type Transaction } from '@learnwren/api-document-store';
-import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import { nowIso } from '@learnwren/shared-data-models';
 import type { CourseId, UserId, UserStatus } from '@learnwren/shared-data-models';
 
@@ -28,12 +28,6 @@ function resolveStatus(raw?: string): UserStatus {
   return 'ACTIVE';
 }
 
-/** True when the Firebase error code signals the user is already gone. */
-function isUserNotFoundError(err: unknown): boolean {
-  const code = (err as { code?: string }).code;
-  return code === 'auth/user-not-found';
-}
-
 /**
  * Admin hard-delete of a user account.
  *
@@ -54,8 +48,9 @@ function isUserNotFoundError(err: unknown): boolean {
  *    6. CLAIM: set status = 'DELETED' inside the transaction.
  *
  *  Post-commit (order matters; each tolerates already-done):
- *    7.  revokeRefreshTokens  — kills live sessions.
- *    8.  auth.deleteUser      — removes the Auth account (tolerate not-found).
+ *    7.  identity.revokeAllSessions — kills live sessions.
+ *    8.  identity.deleteUser        — removes the account (idempotent: a
+ *        missing user is not an error, so no tolerance branch is needed).
  *    9.  anonymiseUser        — overwrites PII; preserves id/role/createdAt tombstone.
  *    10. deleteObject         — removes the profile-picture storage object.
  *    11. deleteAllEnrollmentsForUser — chunked batch delete.
@@ -69,7 +64,7 @@ export class AdminUserDeleteService {
 
   constructor(
     @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
-    @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
+    @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
     private readonly repo: AdminUsersRepository,
     @Inject(PICTURE_STORAGE) private readonly storage: PictureStoragePort,
     /** Picture config — only the bucket/path convention is used; no URL minting here. */
@@ -142,20 +137,18 @@ export class AdminUserDeleteService {
    * absent state so that retries via the DELETED re-entry path converge cleanly.
    */
   private async runPostCommitSteps(uid: UserId): Promise<void> {
-    // 7. Kill live sessions.
+    // 7. Kill live sessions. revokeAllSessions (not a bare revoke) closes the
+    // same-second cookie-minting gap — see its doc comment on the port. In
+    // production that is a second revoke past the next second boundary.
     try {
-      await this.auth.revokeRefreshTokens(uid);
+      await this.identity.revokeAllSessions(uid);
     } catch (err) {
-      this.logger.warn(`revokeRefreshTokens failed for uid=${uid}: ${String(err)} — continuing`);
+      this.logger.warn(`revokeAllSessions failed for uid=${uid}: ${String(err)} — continuing`);
     }
 
-    // 8. Remove the Auth account (tolerate user-not-found).
-    try {
-      await this.auth.deleteUser(uid);
-    } catch (err) {
-      if (!isUserNotFoundError(err)) throw err;
-      this.logger.warn(`auth.deleteUser uid=${uid}: user already gone — continuing`);
-    }
+    // 8. Remove the Auth account. The port's deleteUser is idempotent, so no
+    // not-found tolerance branch is needed here.
+    await this.identity.deleteUser(uid);
 
     // 9. Anonymise the Firestore profile document (PII wipe; tombstone preserved).
     await this.repo.anonymiseUser(uid, nowIso());

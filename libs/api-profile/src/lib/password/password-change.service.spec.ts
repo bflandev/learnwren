@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 
-// revokeAllUserSessions sleeps past a real second boundary outside emulator
-// mode — run these unit tests in emulator mode so revocation is single-shot.
-process.env['FIREBASE_AUTH_EMULATOR_HOST'] = process.env['FIREBASE_AUTH_EMULATOR_HOST'] ?? '127.0.0.1:9099';
-
-import { AuthException } from '@learnwren/api-auth';
+import { AuthException, type IdentityProvider } from '@learnwren/api-auth';
 import type { UserId } from '@learnwren/shared-data-models';
 
 import { PasswordChangeService } from './password-change.service';
@@ -27,10 +23,10 @@ function makeService(overrides: {
   sendEmail?: () => Promise<void>;
   revoke?: () => Promise<unknown>;
 } = {}) {
-  const auth = {
+  const identity = {
     updateUser: overrides.updateUser ?? vi.fn().mockResolvedValue(undefined),
-    revokeRefreshTokens: overrides.revoke ?? vi.fn().mockResolvedValue(undefined),
-  };
+    revokeAllSessions: overrides.revoke ?? vi.fn().mockResolvedValue(undefined),
+  } as unknown as IdentityProvider;
   const verification = {
     verifyPassword: overrides.verifyPassword ?? vi.fn().mockResolvedValue('t'),
     clearFailures: vi.fn().mockResolvedValue(undefined),
@@ -42,12 +38,12 @@ function makeService(overrides: {
     sendPasswordChangedEmail: overrides.sendEmail ?? vi.fn().mockResolvedValue(undefined),
   };
   const svc = new PasswordChangeService(
-    auth as never,
+    identity,
     verification as never,
     policy as never,
     transport as never,
   );
-  return { svc, auth, verification, policy, transport };
+  return { svc, auth: identity, verification, policy, transport };
 }
 
 describe('PasswordChangeService.changePassword', () => {
@@ -94,7 +90,7 @@ describe('PasswordChangeService.changePassword', () => {
     await svc.changePassword(UID, EMAIL, valid);
     expect(auth.updateUser).toHaveBeenCalledWith(UID, { password: VALID_NEW });
     expect(transport.sendPasswordChangedEmail).toHaveBeenCalledWith({ to: EMAIL });
-    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith(UID);
+    expect(auth.revokeAllSessions).toHaveBeenCalledWith(UID);
     // re-auth goes through the shared lockout-honoring seam with exact args
     expect(verification.verifyPassword).toHaveBeenCalledWith(EMAIL, valid.currentPassword);
   });
@@ -110,7 +106,7 @@ describe('PasswordChangeService.changePassword', () => {
     const { svc, auth } = makeService({ sendEmail });
     const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     await expect(svc.changePassword(UID, EMAIL, valid)).resolves.toBeUndefined();
-    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith(UID);
+    expect(auth.revokeAllSessions).toHaveBeenCalledWith(UID);
     // the catch body MUST execute (logs the swallowed failure) — kills the emptied-catch-block mutant
     expect(errSpy).toHaveBeenCalledWith(
       expect.stringContaining('[profile] password-changed notice failed'),
@@ -118,7 +114,7 @@ describe('PasswordChangeService.changePassword', () => {
     errSpy.mockRestore();
   });
 
-  it('swallows a revokeRefreshTokens failure (password already changed) and resolves', async () => {
+  it('swallows a revokeAllSessions failure (password already changed) and resolves', async () => {
     const revoke = vi.fn().mockRejectedValue(new Error('revoke down'));
     const { svc } = makeService({ revoke });
     const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);

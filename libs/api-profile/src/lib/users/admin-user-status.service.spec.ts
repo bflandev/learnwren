@@ -79,7 +79,7 @@ function makeFixture(users: Record<string, UserRecord> = {}) {
 function makeAuth(): Record<string, ReturnType<typeof vi.fn>> {
   return {
     updateUser: vi.fn().mockResolvedValue(undefined),
-    revokeRefreshTokens: vi.fn().mockResolvedValue(undefined),
+    revokeAllSessions: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -162,12 +162,12 @@ describe('AdminUserStatusService.suspend', () => {
     );
   });
 
-  it('calls auth.updateUser(disabled:true) and revokeRefreshTokens on success', async () => {
+  it('calls auth.updateUser(disabled:true) and revokeAllSessions on success', async () => {
     const { firestore, repo } = makeFixture({ u4: { role: 'STUDENT', status: 'ACTIVE' } });
     const svc = new AdminUserStatusService(firestore as never, auth as never, repo);
     await svc.suspend('actor' as UserId, 'u4' as UserId);
     expect(auth.updateUser).toHaveBeenCalledWith('u4', { disabled: true });
-    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith('u4');
+    expect(auth.revokeAllSessions).toHaveBeenCalledWith('u4');
   });
 
   it('returns AdminUserStatusResponse with id and status SUSPENDED', async () => {
@@ -269,14 +269,14 @@ describe('AdminUserStatusService.suspend', () => {
     }
   });
 
-  it('re-enables the Auth account when disable succeeded but revokeRefreshTokens failed (no stranded account)', async () => {
+  it('re-enables the Auth account when disable succeeded but revokeAllSessions failed (no stranded account)', async () => {
     // Regression: updateUser(disabled:true) succeeded, then the revoke threw.
     // Reverting only Firestore to ACTIVE left the Auth account disabled —
     // logins fail while unsuspend is rejected (status is already ACTIVE).
     const { firestore, repo } = makeFixture({ u5: { role: 'STUDENT', status: 'ACTIVE' } });
     const badAuth = {
       updateUser: vi.fn().mockResolvedValue(undefined),
-      revokeRefreshTokens: vi.fn().mockRejectedValue(new Error('revoke failure')),
+      revokeAllSessions: vi.fn().mockRejectedValue(new Error('revoke failure')),
     };
     const svc = new AdminUserStatusService(firestore as never, badAuth as never, repo);
 
@@ -293,7 +293,7 @@ describe('AdminUserStatusService.suspend', () => {
     const { firestore, repo } = makeFixture({ u5: { role: 'STUDENT', status: 'ACTIVE' } });
     const badAuth = {
       updateUser: vi.fn().mockRejectedValue(new Error('Auth failure')),
-      revokeRefreshTokens: vi.fn().mockResolvedValue(undefined),
+      revokeAllSessions: vi.fn().mockResolvedValue(undefined),
     };
     const svc = new AdminUserStatusService(firestore as never, badAuth as never, repo);
 
@@ -311,7 +311,7 @@ describe('AdminUserStatusService.suspend', () => {
         .fn()
         .mockResolvedValueOnce(undefined) // disable succeeds
         .mockRejectedValueOnce(new Error('re-enable failure')), // revert fails
-      revokeRefreshTokens: vi.fn().mockRejectedValue(new Error('revoke failure')),
+      revokeAllSessions: vi.fn().mockRejectedValue(new Error('revoke failure')),
     };
     const svc = new AdminUserStatusService(firestore as never, badAuth as never, repo);
 
@@ -421,12 +421,12 @@ describe('AdminUserStatusService.unsuspend', () => {
     );
   });
 
-  it('calls auth.updateUser(disabled:false) but NOT revokeRefreshTokens on unsuspend', async () => {
+  it('calls auth.updateUser(disabled:false) but NOT revokeAllSessions on unsuspend', async () => {
     const { firestore, repo } = makeFixture({ u6: { role: 'STUDENT', status: 'SUSPENDED' } });
     const svc = new AdminUserStatusService(firestore as never, auth as never, repo);
     await svc.unsuspend('actor' as UserId, 'u6' as UserId);
     expect(auth.updateUser).toHaveBeenCalledWith('u6', { disabled: false });
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+    expect(auth.revokeAllSessions).not.toHaveBeenCalled();
   });
 
   it('returns AdminUserStatusResponse with id and status ACTIVE', async () => {

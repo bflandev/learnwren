@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 
-// revokeAllUserSessions sleeps past a real second boundary outside emulator
-// mode — run these unit tests in emulator mode so revocation is single-shot.
-process.env['FIREBASE_AUTH_EMULATOR_HOST'] = process.env['FIREBASE_AUTH_EMULATOR_HOST'] ?? '127.0.0.1:9099';
-
-import { AuthException } from '@learnwren/api-auth';
+import { AuthException, EmailInUseError, type IdentityProvider } from '@learnwren/api-auth';
 import type { UserId } from '@learnwren/shared-data-models';
 
 import { EmailChangeService } from './email-change.service';
@@ -24,12 +20,11 @@ function makeService(overrides: {
   genLink?: () => Promise<string>;
   sendEmail?: () => Promise<void>;
 } = {}) {
-  const auth = {
-    generateVerifyAndChangeEmailLink:
-      overrides.genLink ?? vi.fn().mockResolvedValue('https://app/verify?oobCode=x'),
+  const identity = {
+    createEmailActionLink: overrides.genLink ?? vi.fn().mockResolvedValue('https://app/verify?oobCode=x'),
     getUser: vi.fn(),
-    revokeRefreshTokens: vi.fn().mockResolvedValue(undefined),
-  };
+    revokeAllSessions: vi.fn().mockResolvedValue(undefined),
+  } as unknown as IdentityProvider;
   const verification = {
     verifyPassword: overrides.verifyPassword ?? vi.fn().mockResolvedValue('t'),
     clearFailures: vi.fn().mockResolvedValue(undefined),
@@ -43,12 +38,12 @@ function makeService(overrides: {
     }),
   };
   const svc = new EmailChangeService(
-    auth as never,
+    identity,
     firestore as never,
     verification as never,
     transport as never,
   );
-  return { svc, auth, verification, transport };
+  return { svc, auth: identity, verification, transport };
 }
 
 describe('EmailChangeService.requestChange', () => {
@@ -89,10 +84,11 @@ describe('EmailChangeService.requestChange', () => {
   ])('accepts well-formed new email %j through the regex guard', async (goodEmail) => {
     const { svc, auth } = makeService();
     await svc.requestChange(UID, 'old@example.com', { ...valid, newEmail: goodEmail });
-    expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith(
+    expect(auth.createEmailActionLink).toHaveBeenCalledWith(
+      'change-email',
       'old@example.com',
+      '/settings/profile/email-changed',
       goodEmail,
-      expect.anything(),
     );
   });
 
@@ -102,10 +98,11 @@ describe('EmailChangeService.requestChange', () => {
       ...valid,
       newEmail: '  NEW@Example.COM  ',
     });
-    expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith(
+    expect(auth.createEmailActionLink).toHaveBeenCalledWith(
+      'change-email',
       'old@example.com',
+      '/settings/profile/email-changed',
       'new@example.com',
-      expect.anything(),
     );
     expect(transport.sendEmailChangeVerificationEmail).toHaveBeenCalledWith({
       to: 'new@example.com',
@@ -137,16 +134,8 @@ describe('EmailChangeService.requestChange', () => {
     );
   });
 
-  it('wraps a non-already-exists link-gen error as EmailChangeFailedException', async () => {
-    const genLink = vi.fn().mockRejectedValue({ code: 'auth/internal-error' });
-    const { svc } = makeService({ genLink });
-    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
-      EmailChangeFailedException,
-    );
-  });
-
-  it('wraps a link-gen error with no code property as EmailChangeFailedException', async () => {
-    const genLink = vi.fn().mockRejectedValue(new Error('opaque'));
+  it('wraps a non-EmailInUseError link-gen error as EmailChangeFailedException', async () => {
+    const genLink = vi.fn().mockRejectedValue(new Error('internal error'));
     const { svc } = makeService({ genLink });
     await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
       EmailChangeFailedException,
@@ -176,8 +165,8 @@ describe('EmailChangeService.requestChange', () => {
       .rejects.toBeInstanceOf(CurrentPasswordInvalidException);
   });
 
-  it('maps Firebase auth/email-already-exists to EMAIL_ALREADY_IN_USE', async () => {
-    const genLink = vi.fn().mockRejectedValue({ code: 'auth/email-already-exists' });
+  it('maps EmailInUseError to EMAIL_ALREADY_IN_USE', async () => {
+    const genLink = vi.fn().mockRejectedValue(new EmailInUseError());
     const { svc } = makeService({ genLink });
     await expect(svc.requestChange(UID, 'old@example.com', valid))
       .rejects.toBeInstanceOf(EmailAlreadyInUseException);
@@ -186,10 +175,11 @@ describe('EmailChangeService.requestChange', () => {
   it('generates the verify-and-change link and emails the NEW address on success', async () => {
     const { svc, auth, transport, verification } = makeService();
     await svc.requestChange(UID, 'old@example.com', valid);
-    expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith(
+    expect(auth.createEmailActionLink).toHaveBeenCalledWith(
+      'change-email',
       'old@example.com',
+      '/settings/profile/email-changed',
       'new@example.com',
-      expect.objectContaining({ url: expect.stringContaining('/settings/profile/email-changed') }),
     );
     expect(transport.sendEmailChangeVerificationEmail).toHaveBeenCalledWith({
       to: 'new@example.com',
@@ -206,7 +196,7 @@ describe('EmailChangeService.requestChange', () => {
     const verifyPassword = vi.fn().mockRejectedValue(locked);
     const { svc, auth } = makeService({ verifyPassword });
     await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBe(locked);
-    expect(auth.generateVerifyAndChangeEmailLink).not.toHaveBeenCalled();
+    expect(auth.createEmailActionLink).not.toHaveBeenCalled();
   });
 
   it('does not clear the lockout counter when re-auth fails', async () => {
@@ -234,42 +224,8 @@ describe('EmailChangeService.requestChange', () => {
       svc.requestChange(UID, 'old@example.com', { ...valid, newEmail: 'nope' }),
     ).rejects.toBeInstanceOf(EmailInvalidException);
     expect(verification.verifyPassword).not.toHaveBeenCalled();
-    expect(auth.generateVerifyAndChangeEmailLink).not.toHaveBeenCalled();
+    expect(auth.createEmailActionLink).not.toHaveBeenCalled();
     expect(transport.sendEmailChangeVerificationEmail).not.toHaveBeenCalled();
-  });
-
-  it('continueUrl honours LEARNWREN_PUBLIC_URL when set', async () => {
-    const prev = process.env['LEARNWREN_PUBLIC_URL'];
-    process.env['LEARNWREN_PUBLIC_URL'] = 'https://learnwren.test';
-    try {
-      const { svc, auth } = makeService();
-      await svc.requestChange(UID, 'old@example.com', valid);
-      expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith(
-        'old@example.com',
-        'new@example.com',
-        { url: 'https://learnwren.test/settings/profile/email-changed' },
-      );
-    } finally {
-      if (prev === undefined) delete process.env['LEARNWREN_PUBLIC_URL'];
-      else process.env['LEARNWREN_PUBLIC_URL'] = prev;
-    }
-  });
-
-  it('continueUrl falls back to http://localhost:4200 when LEARNWREN_PUBLIC_URL is unset', async () => {
-    const prev = process.env['LEARNWREN_PUBLIC_URL'];
-    delete process.env['LEARNWREN_PUBLIC_URL'];
-    try {
-      const { svc, auth } = makeService();
-      await svc.requestChange(UID, 'old@example.com', valid);
-      expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith(
-        'old@example.com',
-        'new@example.com',
-        { url: 'http://localhost:4200/settings/profile/email-changed' },
-      );
-    } finally {
-      if (prev === undefined) delete process.env['LEARNWREN_PUBLIC_URL'];
-      else process.env['LEARNWREN_PUBLIC_URL'] = prev;
-    }
   });
 
   it('an Error reauth failure carries the original error as cause', async () => {
@@ -301,22 +257,6 @@ describe('EmailChangeService.requestChange', () => {
       cause: boom,
     });
   });
-
-  it('a string link-gen error (typeof !== object) is NOT a firebase error → EmailChangeFailed', async () => {
-    const genLink = vi.fn().mockRejectedValue('auth/email-already-exists');
-    const { svc } = makeService({ genLink });
-    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
-      EmailChangeFailedException,
-    );
-  });
-
-  it('a null link-gen error (err === null) is NOT a firebase error → EmailChangeFailed', async () => {
-    const genLink = vi.fn().mockRejectedValue(null);
-    const { svc } = makeService({ genLink });
-    await expect(svc.requestChange(UID, 'old@example.com', valid)).rejects.toBeInstanceOf(
-      EmailChangeFailedException,
-    );
-  });
 });
 
 describe('EmailChangeService.confirmChange', () => {
@@ -325,7 +265,7 @@ describe('EmailChangeService.confirmChange', () => {
     auth.getUser = vi.fn().mockResolvedValue({ email: 'old@example.com', emailVerified: true });
     const res = await svc.confirmChange(UID, 'old@example.com');
     expect(res).toEqual({ changed: false });
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+    expect(auth.revokeAllSessions).not.toHaveBeenCalled();
   });
 
   it('returns changed:false when the new email is not yet verified', async () => {
@@ -340,7 +280,7 @@ describe('EmailChangeService.confirmChange', () => {
     auth.getUser = vi.fn().mockResolvedValue({ email: undefined, emailVerified: true });
     const res = await svc.confirmChange(UID, 'old@example.com');
     expect(res).toEqual({ changed: false });
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+    expect(auth.revokeAllSessions).not.toHaveBeenCalled();
   });
 
   it('treats a whitespace/case-only cookie email difference as no swap (normalized compare)', async () => {
@@ -348,7 +288,7 @@ describe('EmailChangeService.confirmChange', () => {
     auth.getUser = vi.fn().mockResolvedValue({ email: 'Old@Example.com', emailVerified: true });
     const res = await svc.confirmChange(UID, '  old@example.COM  ');
     expect(res).toEqual({ changed: false });
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+    expect(auth.revokeAllSessions).not.toHaveBeenCalled();
   });
 
   it('treats emailVerified !== true (e.g. truthy non-boolean) as not verified', async () => {
@@ -359,7 +299,7 @@ describe('EmailChangeService.confirmChange', () => {
       .mockResolvedValue({ email: 'new@example.com', emailVerified: 'yes' });
     const res = await svc.confirmChange(UID, 'old@example.com');
     expect(res).toEqual({ changed: false });
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+    expect(auth.revokeAllSessions).not.toHaveBeenCalled();
   });
 
   it('syncs Firestore, revokes tokens, and returns changed:true on a verified swap', async () => {
@@ -378,7 +318,7 @@ describe('EmailChangeService.confirmChange', () => {
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'new@example.com', updatedAt: expect.any(String) }),
     );
-    expect(auth.revokeRefreshTokens).toHaveBeenCalledWith(UID);
+    expect(auth.revokeAllSessions).toHaveBeenCalledWith(UID);
   });
 
   it('wraps a raw getUser failure as EmailChangeFailedException (enveloped, not a raw 500)', async () => {
@@ -389,6 +329,14 @@ describe('EmailChangeService.confirmChange', () => {
       code: 'EMAIL_CHANGE_FAILED',
       cause: boom,
     });
+  });
+
+  it('wraps a null getUser result (unknown user) as EmailChangeFailedException', async () => {
+    const { svc, auth } = makeService();
+    auth.getUser = vi.fn().mockResolvedValue(null);
+    await expect(svc.confirmChange(UID, 'old@example.com')).rejects.toBeInstanceOf(
+      EmailChangeFailedException,
+    );
   });
 
   it('wraps a raw Firestore update failure as EmailChangeFailedException', async () => {
@@ -403,13 +351,13 @@ describe('EmailChangeService.confirmChange', () => {
       cause: boom,
     });
     // The change was NOT applied, so no tokens are revoked.
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
+    expect(auth.revokeAllSessions).not.toHaveBeenCalled();
   });
 
-  it('swallows a revokeRefreshTokens failure once the email change is applied (best-effort)', async () => {
+  it('swallows a revokeAllSessions failure once the email change is applied (best-effort)', async () => {
     const { svc, auth } = makeService();
     auth.getUser = vi.fn().mockResolvedValue({ email: 'new@example.com', emailVerified: true });
-    auth.revokeRefreshTokens = vi.fn().mockRejectedValue(new Error('revoke down'));
+    auth.revokeAllSessions = vi.fn().mockRejectedValue(new Error('revoke down'));
     const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     const res = await svc.confirmChange(UID, 'old@example.com');
     expect(res).toEqual({ changed: true, email: 'new@example.com' });

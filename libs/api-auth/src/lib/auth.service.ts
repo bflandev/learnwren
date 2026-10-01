@@ -1,7 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { auth as adminAuth } from 'firebase-admin';
 
-import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
@@ -12,8 +10,6 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import { AccountRecoveryService } from './account-recovery.service';
-import { isFirebaseError } from './firebase-error.util';
-import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { PasswordPolicyService } from './password-policy.service';
 import { PasswordVerificationService } from './password-verification.service';
 import { SessionCookieService, type MintedSession } from './session-cookie.service';
@@ -27,6 +23,13 @@ import {
   PasswordTooLongException,
   WeakPasswordException,
 } from './errors/auth.exception';
+import { EmailInUseError } from './identity/identity.errors';
+import {
+  IDENTITY_PROVIDER,
+  type IdentityProvider,
+  type IdentityUser,
+  type PasswordProof,
+} from './identity/identity-provider.port';
 
 export interface RegisterInput {
   email: string;
@@ -75,9 +78,8 @@ export class AuthService {
 
   constructor(
     private readonly passwordPolicy: PasswordPolicyService,
-    @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
+    @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
     @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
-    private readonly restClient: FirebaseAuthRestClient,
     private readonly passwordVerification: PasswordVerificationService,
     private readonly sessionCookies: SessionCookieService,
     private readonly recovery: AccountRecoveryService,
@@ -85,7 +87,7 @@ export class AuthService {
 
   async register(input: RegisterInput): Promise<RegisterResult> {
     const displayName = this.validateRegisterInput(input);
-    const uid = await this.createFirebaseAuthUser(input, displayName);
+    const uid = await this.createIdentityUser(input, displayName);
 
     await this.writeUserDocumentOrRollback(uid, input.email, displayName);
     await this.assignStudentClaimOrRollback(uid);
@@ -129,17 +131,17 @@ export class AuthService {
     return displayName;
   }
 
-  /** Creates the Firebase Auth user, mapping `auth/email-already-exists` to the typed exception. */
-  private async createFirebaseAuthUser(input: RegisterInput, displayName: string): Promise<UserId> {
-    let userRecord: adminAuth.UserRecord;
+  /** Creates the identity-provider user, mapping EmailInUseError to the typed exception. */
+  private async createIdentityUser(input: RegisterInput, displayName: string): Promise<UserId> {
     try {
-      userRecord = await this.auth.createUser({
+      const uid = await this.identity.createUser({
         email: input.email,
         password: input.password,
         displayName,
       });
+      return uid as UserId;
     } catch (err) {
-      if (isFirebaseError(err) && err.code === 'auth/email-already-exists') {
+      if (err instanceof EmailInUseError) {
         throw new EmailAlreadyExistsException();
       }
       this.logger.error(
@@ -148,7 +150,6 @@ export class AuthService {
       );
       throw new InternalAuthException();
     }
-    return userRecord.uid as UserId;
   }
 
   private async writeUserDocumentOrRollback(
@@ -177,10 +178,10 @@ export class AuthService {
 
   private async assignStudentClaimOrRollback(uid: UserId): Promise<void> {
     try {
-      await this.auth.setCustomUserClaims(uid, { role: 'STUDENT' });
+      await this.identity.setRole(uid, 'STUDENT');
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
-      this.logger.error(`[auth] register setCustomUserClaims failed uid=${uid}: ${String(err)}`);
+      this.logger.error(`[auth] register setRole failed uid=${uid}: ${String(err)}`);
       await this.bestEffortDeleteUser(uid);
       throw new InternalAuthException();
     }
@@ -193,11 +194,8 @@ export class AuthService {
    */
   private async autoLoginOrRollback(input: RegisterInput, uid: UserId): Promise<MintedSession> {
     try {
-      const restResult = await this.restClient.signInWithPassword({
-        email: input.email,
-        password: input.password,
-      });
-      return await this.sessionCookies.mint(restResult.idToken);
+      const proof = await this.identity.verifyPassword(input.email, input.password);
+      return await this.sessionCookies.mint(proof);
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] register auto-login failed uid=${uid}: ${String(err)}`);
@@ -210,20 +208,20 @@ export class AuthService {
     // Lockout pre-check, password exchange, and failure counting all live in
     // the shared PasswordVerificationService so the profile re-auth flows
     // count toward the same lockout.
-    const idToken = await this.passwordVerification.verifyPassword(input.email, input.password);
-    const userRecord = await this.requireVerifiedUser(idToken);
+    const proof = await this.passwordVerification.verifyPassword(input.email, input.password);
+    const identityUser = await this.requireVerifiedUser(proof);
 
-    const session = await this.sessionCookies.mint(idToken);
+    const session = await this.sessionCookies.mint(proof);
     await this.passwordVerification.clearFailures(input.email);
 
-    const profile = await this.loadUserProfile(userRecord.uid);
-    await this.syncStaleEmailBestEffort(userRecord.uid as UserId, userRecord.email, profile.email);
+    const profile = await this.loadUserProfile(identityUser.uid);
+    await this.syncStaleEmailBestEffort(identityUser.uid as UserId, identityUser.email, profile.email);
 
     // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
-    this.logger.log(`[auth] login uid=${userRecord.uid}`);
+    this.logger.log(`[auth] login uid=${identityUser.uid}`);
     return {
-      uid: userRecord.uid as UserId,
-      email: userRecord.email!,
+      uid: identityUser.uid as UserId,
+      email: identityUser.email,
       role: profile.role,
       displayName: profile.displayName,
       emailVerified: true,
@@ -233,19 +231,23 @@ export class AuthService {
   }
 
   /**
-   * Verify the ID token and read fresh emailVerified from the Admin SDK
-   * (the REST response doesn't always include it consistently). Throws
-   * EmailNotVerifiedException if the user hasn't confirmed their email.
+   * Look up the identity by the proof's uid and require a verified email.
+   * A null user (identity disappeared between password check and lookup) is
+   * an internal error, not EMAIL_NOT_VERIFIED.
    */
-  private async requireVerifiedUser(idToken: string): Promise<adminAuth.UserRecord> {
-    const decoded = await this.auth.verifyIdToken(idToken, true);
-    const userRecord = await this.auth.getUser(decoded.uid);
-    if (!userRecord.emailVerified) {
+  private async requireVerifiedUser(proof: PasswordProof): Promise<IdentityUser> {
+    const user = await this.identity.getUser(proof.uid);
+    if (!user) {
       // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
-      this.logger.log(`[auth] login blocked code=EMAIL_NOT_VERIFIED uid=${userRecord.uid}`);
+      this.logger.error(`[auth] login missing identity uid=${proof.uid}`);
+      throw new InternalAuthException();
+    }
+    if (!user.emailVerified) {
+      // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
+      this.logger.log(`[auth] login blocked code=EMAIL_NOT_VERIFIED uid=${user.uid}`);
       throw new EmailNotVerifiedException();
     }
-    return userRecord;
+    return user;
   }
 
   private async loadUserProfile(
@@ -314,7 +316,7 @@ export class AuthService {
   private async bestEffortDeleteUser(uid: string): Promise<void> {
     // Stryker disable BlockStatement: the catch only logs then swallows the deleteUser error, so emptying it is indistinguishable from the original — equivalent. (Stryker associates a `} catch` block mutant with the try-open line, so it cannot be targeted by a next-line directive in isolation; this minimal region is the narrowest that reaches it. The try-body emptying is still locked by the "swallows a deleteUser failure during rollback" spec, which asserts deleteUser is invoked.)
     try {
-      await this.auth.deleteUser(uid);
+      await this.identity.deleteUser(uid);
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.error(`[auth] register rollback deleteUser failed uid=${uid}: ${String(err)}`);

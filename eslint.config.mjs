@@ -70,8 +70,9 @@ export default [
             },
             {
               name: '@learnwren/api-firebase',
-              importNames: ['FIRESTORE', 'FirestoreHandle'],
-              message: 'Inject DOCUMENT_STORE from @learnwren/api-document-store.',
+              importNames: ['FIRESTORE', 'FirestoreHandle', 'FIREBASE_AUTH', 'FirebaseAuthHandle'],
+              message:
+                'Inject DOCUMENT_STORE from @learnwren/api-document-store, or IDENTITY_PROVIDER from @learnwren/api-auth.',
             },
           ],
         },

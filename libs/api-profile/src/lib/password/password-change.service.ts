@@ -3,12 +3,12 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   AuthException,
   EMAIL_TRANSPORT,
+  IDENTITY_PROVIDER,
   PasswordPolicyService,
   PasswordVerificationService,
-  revokeAllUserSessions,
   type EmailTransport,
+  type IdentityProvider,
 } from '@learnwren/api-auth';
-import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import type { ChangePasswordRequest, UserId } from '@learnwren/shared-data-models';
 
 import {
@@ -24,7 +24,7 @@ export class PasswordChangeService {
   private readonly logger = new Logger('PasswordChangeService');
 
   constructor(
-    @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
+    @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
     private readonly passwordVerification: PasswordVerificationService,
     private readonly passwordPolicy: PasswordPolicyService,
     @Inject(EMAIL_TRANSPORT) private readonly emailTransport: EmailTransport,
@@ -46,7 +46,7 @@ export class PasswordChangeService {
     }
 
     try {
-      await this.auth.updateUser(uid, { password: input.newPassword });
+      await this.identity.updateUser(uid, { password: input.newPassword });
     } catch (err) {
       // Stryker disable next-line StringLiteral: log-only diagnostic message; the throw below is the behaviour under test.
       this.logger.error(`[profile] password updateUser failed uid=${uid}: ${String(err)}`);
@@ -64,10 +64,10 @@ export class PasswordChangeService {
     // Best-effort for the same reason: the password is already changed, so a
     // revocation failure must not surface as a failed request. The stale
     // sessions age out; the user holds the new password either way.
-    // revokeAllUserSessions (not a bare revoke) closes the same-second
-    // cookie-minting gap — see its doc comment.
+    // revokeAllSessions (not a bare revoke) closes the same-second
+    // cookie-minting gap — see its doc comment on the port.
     try {
-      await revokeAllUserSessions(this.auth, uid);
+      await this.identity.revokeAllSessions(uid);
     } catch (err) {
       this.logger.error(`[profile] password-change revoke failed uid=${uid}: ${String(err)}`);
     }

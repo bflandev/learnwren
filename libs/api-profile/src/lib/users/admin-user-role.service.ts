@@ -1,8 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { revokeAllUserSessions } from '@learnwren/api-auth';
+import { IDENTITY_PROVIDER, type IdentityProvider } from '@learnwren/api-auth';
 import { DOCUMENT_STORE, type DocumentStore, type Transaction } from '@learnwren/api-document-store';
-import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
   AdminUserRoleResponse,
@@ -20,10 +19,7 @@ import {
   UserHasCoursesException,
   UserNotFoundException,
 } from './errors/admin-users.exception';
-import {
-  resolvePendingInstructorApplication,
-  type PromotionFirestoreLike,
-} from '../instructor-application/instructor-promotion';
+import { resolvePendingInstructorApplication } from '../instructor-application/instructor-promotion';
 import { INSTRUCTOR_APPLICATIONS_COLLECTION } from '../instructor-application/instructor-applications.constants';
 import { resolveStatus } from './user-status';
 
@@ -41,12 +37,12 @@ const COURSE_IDS_IN_ERROR = 10;
  *     suspend/delete cannot interleave with the role write — a SUSPENDED user
  *     can no longer be promoted, and a delete's tombstone can no longer be
  *     overwritten by a plain role write.
- *  2. Auth side effects run after the transaction commits:
- *     - promote: setCustomUserClaims(INSTRUCTOR) + resolve a PENDING
- *       instructor application to APPROVED.
- *     - demote: setCustomUserClaims(STUDENT) FIRST (any new token mints as
- *       STUDENT), then revokeRefreshTokens (kills live INSTRUCTOR sessions —
- *       the session guard verifies with checkRevoked=true).
+ *  2. Identity side effects run after the transaction commits:
+ *     - promote: setRole(INSTRUCTOR) + resolve a PENDING instructor
+ *       application to APPROVED.
+ *     - demote: setRole(STUDENT) FIRST (any new token mints as STUDENT),
+ *       then revokeAllSessions (kills live INSTRUCTOR sessions — the
+ *       session guard verifies with checkRevoked=true).
  *  Side-effect failure: best-effort role revert, then re-throw as INTERNAL so
  *  the admin can retry.
  */
@@ -56,7 +52,7 @@ export class AdminUserRoleService {
 
   constructor(
     @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
-    @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
+    @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
     private readonly repo: AdminUsersRepository,
   ) {}
 
@@ -65,12 +61,8 @@ export class AdminUserRoleService {
     await this.claimRoleInTxn(uid, 'STUDENT', 'INSTRUCTOR', updatedAt);
 
     try {
-      await this.auth.setCustomUserClaims(uid, { role: 'INSTRUCTOR' });
-      await resolvePendingInstructorApplication(
-        uid,
-        this.firestore as unknown as PromotionFirestoreLike,
-        updatedAt,
-      );
+      await this.identity.setRole(uid, 'INSTRUCTOR');
+      await resolvePendingInstructorApplication(uid, this.firestore, updatedAt);
     } catch (err) {
       await this.bestEffortRevertRole(uid, 'STUDENT');
       this.logger.error(`Promotion of uid=${uid} failed: ${(err as Error).message}`);
@@ -91,11 +83,11 @@ export class AdminUserRoleService {
 
     try {
       // 1. Claim downgrade first: any token minted from now on is STUDENT.
-      await this.auth.setCustomUserClaims(uid, { role: 'STUDENT' });
+      await this.identity.setRole(uid, 'STUDENT');
       // 2. Revoke: invalidates already-issued INSTRUCTOR session cookies (the
-      //    session guard verifies with checkRevoked=true). revokeAllUserSessions
+      //    session guard verifies with checkRevoked=true). revokeAllSessions
       //    (not a bare revoke) closes the same-second cookie-minting gap.
-      await revokeAllUserSessions(this.auth, uid);
+      await this.identity.revokeAllSessions(uid);
     } catch (err) {
       // A partial failure may leave Auth/Firestore role state out of sync (and,
       // worst case, refresh tokens un-revoked). Revert the role claim so the
@@ -192,12 +184,12 @@ export class AdminUserRoleService {
    * Undo the role claim after a failed side effect so the admin can retry.
    * Reverts BOTH sides: the Firestore doc AND the Auth custom claim.
    * Authorization is claim-based, so reverting only the doc after a
-   * successful setCustomUserClaims would leave a fail-open divergence — a
+   * successful setRole would leave a fail-open divergence — a
    * "STUDENT" in the directory whose next login mints an INSTRUCTOR session.
    */
   private async bestEffortRevertRole(uid: UserId, role: UserRole): Promise<void> {
     try {
-      await this.auth.setCustomUserClaims(uid, { role });
+      await this.identity.setRole(uid, role);
     } catch (revertErr) {
       this.logger.error(`role-claim revert failed for uid=${uid}: ${String(revertErr)}`);
     }

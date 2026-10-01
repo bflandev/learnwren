@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { IDENTITY_PROVIDER, type IdentityProvider } from '@learnwren/api-auth';
 import { DOCUMENT_STORE, type DocumentStore, type Transaction } from '@learnwren/api-document-store';
-import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import { nowIso } from '@learnwren/shared-data-models';
 import type { AdminUserStatusResponse, UserId } from '@learnwren/shared-data-models';
 
@@ -29,21 +29,21 @@ const USERS = 'users';
  *     last-admin check — the loser's transaction is retried after the winner
  *     commits the SUSPENDED write, which now causes countActiveAdmins to return
  *     ≤1 and throws LastAdminException.
- *  2. auth.updateUser(disabled:true) — blocks new sign-ins immediately.
- *  3. auth.revokeRefreshTokens — kills all live sessions; the session guard
- *     uses verifySessionCookie(cookie, true) so revoked sessions are rejected.
+ *  2. identity.updateUser(disabled:true) — blocks new sign-ins immediately.
+ *  3. identity.revokeAllSessions — kills all live sessions; the session guard
+ *     verifies with checkRevoked so revoked sessions are rejected.
  *  Side-effect failure: best-effort status revert, then re-throw as INTERNAL.
  *
  * Security ordering — unsuspend:
  *  1. ALL validation (USER_NOT_FOUND, status-transition) and the status CLAIM
  *     happen inside a single Firestore transaction.
- *  2. auth.updateUser(disabled:false) — re-enables sign-in.
- *  NOTE: No revokeRefreshTokens on unsuspend — there are no live sessions to
+ *  2. identity.updateUser(disabled:false) — re-enables sign-in.
+ *  NOTE: No revokeAllSessions on unsuspend — there are no live sessions to
  *        kill (the account was disabled). The user must sign in again.
  *
  * Why no per-request status check is needed after suspend:
  *   FirebaseSessionGuard calls verifySessionCookie(cookie, /* checkRevoked= *\/ true).
- *   Once revokeRefreshTokens is called, the token's validSince advances and the
+ *   Once revokeAllSessions is called, the token's validSince advances and the
  *   revoked cookie fails that check, returning 401. The Firebase-disabled flag also
  *   blocks new sign-ins immediately. Together these two signals make a per-request
  *   Firestore status read redundant and avoid an extra read on every API call.
@@ -56,7 +56,7 @@ export class AdminUserStatusService {
 
   constructor(
     @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
-    @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
+    @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
     private readonly repo: AdminUsersRepository,
   ) {}
 
@@ -97,9 +97,9 @@ export class AdminUserStatusService {
     // Side effects: disable Auth account + kill live sessions.
     let authDisabled = false;
     try {
-      await this.auth.updateUser(targetUid, { disabled: true });
+      await this.identity.updateUser(targetUid, { disabled: true });
       authDisabled = true;
-      await this.auth.revokeRefreshTokens(targetUid);
+      await this.identity.revokeAllSessions(targetUid);
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message text only — no observable behaviour to assert.
       this.logger.error(`suspend side-effect failed for uid=${targetUid}: ${String(err)}; reverting status`);
@@ -109,7 +109,7 @@ export class AdminUserStatusService {
         // otherwise the user is stranded (logins fail, unsuspend rejected
         // because Firestore already says ACTIVE).
         try {
-          await this.auth.updateUser(targetUid, { disabled: false });
+          await this.identity.updateUser(targetUid, { disabled: false });
         } catch (reEnableErr) {
           this.logger.error(`auth re-enable also failed for uid=${targetUid}: ${String(reEnableErr)}`);
         }
@@ -146,10 +146,10 @@ export class AdminUserStatusService {
       );
     });
 
-    // Re-enable auth account. No revokeRefreshTokens — the account was disabled
+    // Re-enable auth account. No revokeAllSessions — the account was disabled
     // (no active sessions exist). User must sign in fresh.
     try {
-      await this.auth.updateUser(targetUid, { disabled: false });
+      await this.identity.updateUser(targetUid, { disabled: false });
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message text only — no observable behaviour to assert.
       this.logger.error(`unsuspend side-effect failed for uid=${targetUid}: ${String(err)}; reverting status`);

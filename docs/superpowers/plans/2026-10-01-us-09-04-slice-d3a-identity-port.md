@@ -106,7 +106,7 @@ Anything that does not fit a row is reported, not improvised. Production behavio
 **Interfaces:**
 - Produces everything below. Later tasks import the port from `./identity/identity-provider.port` inside `api-auth`, or from `@learnwren/api-auth` elsewhere. Test helpers come from `@learnwren/api-auth/testing`.
 
-- [ ] **Step 1: Write the port, errors and `publicUrl`**
+- [x] **Step 1: Write the port, errors and `publicUrl`**
 
 `libs/api-auth/src/lib/identity/identity-provider.port.ts`:
 
@@ -228,7 +228,7 @@ describe('publicUrl', () => {
 });
 ```
 
-- [ ] **Step 2: Write the contract suite**
+- [x] **Step 2: Write the contract suite**
 
 Each case uses unique emails, so the suite can share one Auth emulator. `revocation: false` turns off the cases the Firebase Auth **emulator** cannot show, because it ignores `checkRevoked` (memory: `project_us_08_01_slice_b_role_management.md`). Real Firebase, and every self-hosted adapter, pass `true`.
 
@@ -397,7 +397,7 @@ export function describeIdentityProviderContract(
 }
 ```
 
-- [ ] **Step 3: Write the in-memory adapter and its spec**
+- [x] **Step 3: Write the in-memory adapter and its spec**
 
 `libs/api-auth/src/testing/in-memory-identity-provider.ts`:
 
@@ -541,7 +541,7 @@ export { describeIdentityProviderContract, type IdentityContractOptions } from '
 export { createInMemoryIdentityProvider, type InMemoryIdentityProvider } from './in-memory-identity-provider';
 ```
 
-- [ ] **Step 4: Wire the paths and exports**
+- [x] **Step 4: Wire the paths and exports**
 
 - `tsconfig.base.json` paths, after `@learnwren/api-auth`: `"@learnwren/api-auth/testing": ["./libs/api-auth/src/testing/index.ts"],`
 - `libs/api-auth/tsconfig.lib.json`: add `"src/testing/**"` to `exclude`. `libs/api-auth/tsconfig.spec.json`: add `"src/testing/**/*.ts"` to `include`. Copy D1's `api-document-store` pattern exactly; read both files there.
@@ -562,7 +562,7 @@ export { EmailInUseError } from './lib/identity/identity.errors';
 export { publicUrl } from './lib/identity/public-url';
 ```
 
-- [ ] **Step 5: Update spec §3.4 and §3.6**
+- [x] **Step 5: Update spec §3.4 and §3.6**
 
 In `docs/superpowers/specs/2026-10-01-us-09-04-slice-d-auth-and-data-design.md`:
 - §3.4: replace the operation sketch with the port as built: the `IdentityProvider` interface above in a code block, plus one paragraph on why `verifyPassword` returns an opaque `PasswordProof` (Firebase mints session cookies only from an ID token) and why `endSession`/`revokeAllSessions` own the same-second retry (Firebase-only).
@@ -571,12 +571,12 @@ In `docs/superpowers/specs/2026-10-01-us-09-04-slice-d-auth-and-data-design.md`:
 
 Keep the DRAFT banner.
 
-- [ ] **Step 6: Run tests, typecheck, lint**
+- [x] **Step 6: Run tests, typecheck, lint**
 
 Run: `NX_DAEMON=false pnpm nx sync && NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-auth`
 Expected: PASS. The in-memory contract runs 15 cases (12, plus 3 revocation).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add tsconfig.base.json libs/api-auth/tsconfig.lib.json libs/api-auth/tsconfig.spec.json libs/api-auth/src/index.ts libs/api-auth/src/lib/identity libs/api-auth/src/testing docs/superpowers/specs/2026-10-01-us-09-04-slice-d-auth-and-data-design.md
@@ -596,7 +596,7 @@ git commit -m "feat(api-auth): IdentityProvider port, contract suite and in-memo
 - Consumes: Task 1's port, errors, `publicUrl` and contract; `FIREBASE_AUTH` / `FirebaseAuthHandle` from `@learnwren/api-firebase`; `FirebaseAuthRestClient` (`signInWithPassword({email,password})` → `{ idToken, localId }`, which already maps bad credentials to `InvalidCredentialsException`).
 - Produces: `FirebaseIdentityProvider` (`@Injectable`), and `AuthModule` providing and exporting `IDENTITY_PROVIDER` (`useExisting: FirebaseIdentityProvider`).
 
-- [ ] **Step 1: Write the adapter**
+- [x] **Step 1: Write the adapter**
 
 `libs/api-auth/src/lib/identity/firebase-identity-provider.ts`. The logic is moved verbatim from `session-cookie.service.ts` (mint and logout loop) and `revoke-sessions.ts` (double revoke), so keep their comments:
 
@@ -789,7 +789,7 @@ export class FirebaseIdentityProvider implements IdentityProvider {
 
 The old `revokeFromCookie` logged `logout silent (cookie invalid)` and `logout uid=…`. `verifySession`'s warn now covers the first. Add the `[auth] logout uid=${claims.uid}` log on the success return in `endSession` so log output stays equivalent.
 
-- [ ] **Step 2: Move the existing Firebase-specific tests into the adapter's unit spec**
+- [x] **Step 2: Move the existing Firebase-specific tests into the adapter's unit spec**
 
 `firebase-identity-provider.spec.ts` gets a hand-mocked `auth` (the `vi.fn` style of today's `session-cookie.service.spec.ts`) and a mocked `FirebaseAuthRestClient`. **Move, don't drop,** every behavioural test from:
 - `session-cookie.service.spec.ts`: the mint and logout-loop tests, now against `createSession` and `endSession`.
@@ -807,7 +807,7 @@ Then add one test per translation:
 
 Keep the existing Stryker annotations where the moved code keeps them.
 
-- [ ] **Step 3: Write the emulator contract spec**
+- [x] **Step 3: Write the emulator contract spec**
 
 `firebase-identity-provider.contract.spec.ts`:
 
@@ -837,11 +837,11 @@ describe.skipIf(!emulator)('Firebase identity adapter against the Auth emulator'
 
 If the emulator rate-limits user creation, keep each case's user count low. Do not weaken assertions; report it instead.
 
-- [ ] **Step 4: Provide it from `AuthModule`**
+- [x] **Step 4: Provide it from `AuthModule`**
 
 In `libs/api-auth/src/lib/auth.module.ts`, add `FirebaseIdentityProvider` to `providers`, plus `{ provide: IDENTITY_PROVIDER, useExisting: FirebaseIdentityProvider }`. Add `IDENTITY_PROVIDER` to `exports`. Nothing consumes it yet.
 
-- [ ] **Step 5: Run unit tests, then the emulator contract**
+- [x] **Step 5: Run unit tests, then the emulator contract**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-auth api`
 Expected: PASS (emulator contract skipped).
@@ -852,7 +852,7 @@ Expected: PASS, with `firebase-identity-provider.contract.spec.ts` running 12 ca
 
 If a case fails only for Firebase, the in-memory adapter or the contract describes non-Firebase behaviour. Firebase is the reference: fix the in-memory adapter. If the contract is wrong about Firebase, report it with evidence.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add libs/api-auth/src/lib/identity/firebase-identity-provider.ts libs/api-auth/src/lib/identity/firebase-identity-provider.spec.ts libs/api-auth/src/lib/identity/firebase-identity-provider.contract.spec.ts libs/api-auth/src/lib/auth.module.ts
@@ -874,7 +874,7 @@ git commit -m "feat(api-auth): FirebaseIdentityProvider behind IDENTITY_PROVIDER
   - `SessionCookieService.revokeFromCookie(cookie: string | undefined): Promise<void>` (→ `identity.endSession`; no-op when there is no cookie).
   - `PasswordVerificationService.verifyPassword(email, password): Promise<PasswordProof>`. **The return type changes from the ID token string.** Callers that ignored the value are unaffected.
 
-- [ ] **Step 1: Apply the recipe and these specifics**
+- [x] **Step 1: Apply the recipe and these specifics**
 
 - `session-cookie.service.ts`: inject `IDENTITY_PROVIDER`. `mint(proof)` calls `identity.createSession(proof)` in try/catch → log + `InternalAuthException`, and returns `{ cookie: session.token, maxAgeSeconds: session.maxAgeSeconds }`. `revokeFromCookie(cookie)` returns early if there is no cookie, else `await identity.endSession(cookie)`. Delete the constants, the loop and the sleep (they moved in Task 2).
 - `password-verification.service.ts`: replace `restClient.signInWithPassword(...)` → `result.idToken` with `return await this.identity.verifyPassword(email, password)`. Return type `Promise<PasswordProof>`. Keep the `InvalidCredentialsException` catch and the lockout logic byte-identical otherwise. Update the doc comment ("returns the Firebase ID token" → "returns a PasswordProof").
@@ -892,12 +892,12 @@ git commit -m "feat(api-auth): FirebaseIdentityProvider behind IDENTITY_PROVIDER
 - `firebase-session.guard.ts`: `const claims = await this.identity.verifySession(cookie)`. If null, warn `[auth] guard rejected reason=invalid` → `UnauthenticatedException`. Otherwise `req.user = { uid: claims.uid as UserId, email: claims.email, role: claims.role as UserRole, emailVerified: claims.emailVerified }`. Keep the class name. Renaming it touches every controller, and D3b can do that if it wants.
 - Specs: apply the recipe. Prefer `createInMemoryIdentityProvider()` where a test sets up users and asserts outcomes, and `vi.fn` port mocks where it asserts calls or failures. Every existing assertion about **behaviour** (status codes, error classes, rollback calls, emails sent, cookie values) must survive, translated. Only assertions about Firebase call shapes change.
 
-- [ ] **Step 2: Run tests, typecheck, lint**
+- [x] **Step 2: Run tests, typecheck, lint**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-auth api api-profile`
 Expected: PASS. `api-profile` still compiles: it uses `PasswordVerificationService.verifyPassword` only for its side effect. If its types break, fix the call sites with recipe rows and report it.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Stage each changed file by path, then:
 
@@ -916,7 +916,7 @@ git commit -m "refactor(api-auth): auth, recovery, sessions and the guard go thr
 **Interfaces:**
 - Consumes: `IDENTITY_PROVIDER`, `IdentityProvider`, `EmailInUseError`, `publicUrl` from `@learnwren/api-auth`; `createInMemoryIdentityProvider` from `@learnwren/api-auth/testing`.
 
-- [ ] **Step 1: Apply the recipe and these specifics**
+- [x] **Step 1: Apply the recipe and these specifics**
 
 - `password-change.service.ts`: `auth.updateUser(uid, { password })` → `identity.updateUser`; `revokeAllUserSessions(auth, uid)` → `identity.revokeAllSessions(uid)`. Keep the failure handling exactly.
 - `email-change.service.ts`:
@@ -936,11 +936,11 @@ git commit -m "refactor(api-auth): auth, recovery, sessions and the guard go thr
 - `tools/promote-to-instructor.ts`: pass a structural adapter, `{ setRole: (uid, role) => auth.setCustomUserClaims(uid, { role }) }`, where it passed `auth`. Leave `tools/promote-to-admin.ts` alone (it does not use the shared helper).
 - Specs: apply the recipe. The `admin-user-status` and `admin-user-delete` specs that asserted `revokeRefreshTokens` now assert `identity.revokeAllSessions`.
 
-- [ ] **Step 2: Check the tool still runs**
+- [x] **Step 2: Check the tool still runs**
 
 The tools are not Nx projects, so typecheck and smoke-run them. Run `pnpm exec tsc --noEmit -p tsconfig.base.json tools/promote-to-instructor.ts` if that works in this repo; otherwise run `pnpm exec tsx tools/promote-to-instructor.ts` with no argument and expect the usage message, not a module or type error. Report what you ran.
 
-- [ ] **Step 3: Run tests, typecheck, lint**
+- [x] **Step 3: Run tests, typecheck, lint**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-profile api-auth api`
 Expected: PASS.
@@ -948,7 +948,7 @@ Expected: PASS.
 Then: `grep -rnE "FIREBASE_AUTH|FirebaseAuthHandle|setCustomUserClaims|revokeRefreshTokens|generate\w*Link|isFirebaseError|auth/user-not-found|auth/email-already-exists" libs/api-profile/src libs/api-auth/src --include='*.ts' | grep -v 'identity/firebase-identity-provider' | grep -v '\.spec\.ts'`
 Expected: only `libs/api-auth/src/lib/revoke-sessions.ts` and `firebase-error.util.ts` (deleted in Task 5), and the `FirebaseAuthRestClient` file.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Stage each changed file by path, then:
 
@@ -968,21 +968,21 @@ password-change and demote paths already closed. Emulator behaviour unchanged."
 - Delete: `libs/api-auth/src/lib/revoke-sessions.ts`, `revoke-sessions.spec.ts`, `firebase-error.util.ts`, `firebase-error.util.spec.ts`
 - Modify: `libs/api-auth/src/index.ts`, `eslint.config.mjs`, the per-project opt-out blocks D1 added (`libs/api-firebase`, `libs/api-document-store`, `apps/api-e2e`, `apps/web-e2e` eslint configs; read them), `.github/workflows/ci.yml`, `stryker.api-auth.config.mjs` if it exists (else none), `docs/quality/mutation-report-api-auth.md`
 
-- [ ] **Step 1: Delete the superseded files and exports**
+- [x] **Step 1: Delete the superseded files and exports**
 
 First prove nothing imports them: `grep -rn "revoke-sessions\|revokeAllUserSessions\|isAuthEmulator\|firebase-error.util\|isFirebaseError" libs apps tools --include='*.ts'` must list only the files being deleted and `libs/api-auth/src/index.ts`. Then `git rm` the four files and remove `export { isAuthEmulator, revokeAllUserSessions } …` from `src/index.ts`.
 
-- [ ] **Step 2: Extend the lint guard**
+- [x] **Step 2: Extend the lint guard**
 
 D1's root `no-restricted-imports` rule in `eslint.config.mjs` lists restricted `paths`. Add an entry: `{ name: '@learnwren/api-firebase', importNames: ['FIREBASE_AUTH', 'FirebaseAuthHandle'], message: 'Inject IDENTITY_PROVIDER from @learnwren/api-auth.' }`. If D1's rule already has an `@learnwren/api-firebase` entry for `FIRESTORE`, merge into it so the restriction lists all four names.
 
 `libs/api-auth` needs a scoped exception for `src/lib/identity/firebase-identity-provider.ts` only. Add a block to `libs/api-auth/eslint.config.mjs` with `files: ['src/lib/identity/firebase-identity-provider.ts']` that re-declares `no-restricted-imports` without the `FIREBASE_AUTH` names but keeps the Firestore ones. Nx lints with a per-project cwd, so a project-relative glob works there (memory, D1). Probe-prove both directions: a temporary `FIREBASE_AUTH` import in `api-profile` must fail lint, and the adapter must pass. Revert the probe and confirm `git status --short` is clean.
 
-- [ ] **Step 3: CI**
+- [x] **Step 3: CI**
 
 In `.github/workflows/ci.yml`, job `e2e`, extend the emulator one-shot command so `api-auth`'s contract runs against the Auth emulator: insert `pnpm nx run api-auth:test --skip-nx-cache &&` before `pnpm nx e2e api-e2e`. The job already runs `emulators:exec` with all emulators. Update the step name and comment.
 
-- [ ] **Step 4: Full verification**
+- [x] **Step 4: Full verification**
 
 Probe ports 3333 4200 8080 9099 9199 4000 4400 per the run-e2e skill.
 
@@ -994,11 +994,11 @@ pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e web-e2e'
 
 Expected: everything green. The `api-auth` Firebase contract runs (not skipped). api-e2e runs 222 tests with the 2 pre-existing `test.skip`, and web-e2e runs 57. If an e2e test fails, rerun that spec once, report both runs, and never change app code to make e2e pass.
 
-- [ ] **Step 5: Mutation**
+- [x] **Step 5: Mutation**
 
 Follow the mutation-round skill. Run Stryker for `api-auth` (and for `api-profile` if its config exists and its changed files are in scope) **inside** `firebase emulators:exec --only auth`, so the Firebase contract kills adapter mutants. If a `stryker.api-auth.config.mjs` exists, note whether CI's mutation job needs the same emulator wrapping D2 gave `api-document-store` (it does if the adapter's mutants only die under the emulator). If so, extend D2's `if [ "$LIB" = … ]` branch to include `api-auth`, with Java gated the same way. Reach the repo's 100% adjusted standard on the changed files. Prefer real tests; use `// Stryker disable next-line <Mutator>: equivalent — <reason>` (Stryker honours it) only with a concrete reason. Regenerate `docs/quality/mutation-report-api-auth.md` (and `-api-profile.md` if run) the way D1 and D2 did, never no-arg `report.mjs` from the worktree.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add libs/api-auth/src/index.ts eslint.config.mjs .github/workflows/ci.yml

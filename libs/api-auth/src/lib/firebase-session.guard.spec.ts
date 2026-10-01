@@ -1,6 +1,7 @@
 import { ExecutionContext } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { IdentityProvider } from './identity/identity-provider.port';
 import { FirebaseSessionGuard } from './firebase-session.guard';
 
 function buildContext(cookies: Record<string, string> | undefined): ExecutionContext {
@@ -13,42 +14,40 @@ function buildContext(cookies: Record<string, string> | undefined): ExecutionCon
   } as unknown as ExecutionContext;
 }
 
-function buildAuth(verify: ReturnType<typeof vi.fn>) {
-  return { verifySessionCookie: verify };
+function buildIdentity(verifySession: ReturnType<typeof vi.fn>): IdentityProvider {
+  return { verifySession } as unknown as IdentityProvider;
 }
 
 describe('FirebaseSessionGuard', () => {
   it('throws UNAUTHENTICATED when no cookie is present', async () => {
-    const verify = vi.fn();
-    const guard = new FirebaseSessionGuard(buildAuth(verify) as never);
+    const verifySession = vi.fn();
+    const guard = new FirebaseSessionGuard(buildIdentity(verifySession));
     await expect(guard.canActivate(buildContext({}))).rejects.toMatchObject({
       code: 'UNAUTHENTICATED',
     });
-    expect(verify).not.toHaveBeenCalled();
+    expect(verifySession).not.toHaveBeenCalled();
   });
 
-  it('throws UNAUTHENTICATED when verifySessionCookie rejects', async () => {
-    const verify = vi.fn(async () => {
-      throw new Error('expired');
-    });
-    const guard = new FirebaseSessionGuard(buildAuth(verify) as never);
+  it('throws UNAUTHENTICATED when identity.verifySession resolves null', async () => {
+    const verifySession = vi.fn(async () => null);
+    const guard = new FirebaseSessionGuard(buildIdentity(verifySession));
     await expect(
       guard.canActivate(buildContext({ __session: 'bad' })),
     ).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
   });
 
   it('attaches request.user on a valid cookie and returns true', async () => {
-    const verify = vi.fn(async () => ({
+    const verifySession = vi.fn(async () => ({
       uid: 'uid-1',
       email: 'a@b.c',
       role: 'STUDENT',
-      email_verified: true,
+      emailVerified: true,
     }));
-    const guard = new FirebaseSessionGuard(buildAuth(verify) as never);
+    const guard = new FirebaseSessionGuard(buildIdentity(verifySession));
     const ctx = buildContext({ __session: 'good.cookie' });
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
-    expect(verify).toHaveBeenCalledWith('good.cookie', true);
+    expect(verifySession).toHaveBeenCalledWith('good.cookie');
 
     const req = ctx.switchToHttp().getRequest<{ user?: unknown }>();
     expect(req.user).toEqual({
@@ -62,25 +61,25 @@ describe('FirebaseSessionGuard', () => {
   it('throws UNAUTHENTICATED when req.cookies is undefined entirely (not just empty)', async () => {
     // The guard uses `req.cookies?.[NAME]` — if cookie-parser middleware didn't
     // run, req.cookies is undefined, not {}. The optional-chain must handle it.
-    const verify = vi.fn();
-    const guard = new FirebaseSessionGuard(buildAuth(verify) as never);
+    const verifySession = vi.fn();
+    const guard = new FirebaseSessionGuard(buildIdentity(verifySession));
     await expect(guard.canActivate(buildContext(undefined))).rejects.toMatchObject({
       code: 'UNAUTHENTICATED',
     });
-    expect(verify).not.toHaveBeenCalled();
+    expect(verifySession).not.toHaveBeenCalled();
   });
 
-  it('defaults user.email to the empty string when decoded.email is missing', async () => {
-    // Service-account-issued cookies sometimes lack `email`. The guard must
-    // populate req.user.email with '' rather than undefined so downstream
-    // controllers can rely on the field being a string.
-    const verify = vi.fn(async () => ({
+  it('passes through email as the empty string when the port claims it so (no undefined downstream)', async () => {
+    // SessionClaims.email is a required string on the port; the adapter
+    // already normalizes a missing Firebase claim to ''. The guard must not
+    // re-introduce undefined by mangling the field.
+    const verifySession = vi.fn(async () => ({
       uid: 'uid-1',
-      // no email field
+      email: '',
       role: 'STUDENT',
-      email_verified: false,
+      emailVerified: false,
     }));
-    const guard = new FirebaseSessionGuard(buildAuth(verify) as never);
+    const guard = new FirebaseSessionGuard(buildIdentity(verifySession));
     const ctx = buildContext({ __session: 'no.email.cookie' });
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
