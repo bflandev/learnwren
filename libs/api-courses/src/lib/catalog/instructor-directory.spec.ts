@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { UserId } from '@learnwren/shared-data-models';
 
-import { createFakeFirestore } from '../testing/fake-firestore';
+import { createInMemoryDocumentStore } from '@learnwren/api-document-store';
 import { InstructorDirectory } from './instructor-directory';
 
 describe('InstructorDirectory.instructorRefsFor', () => {
   it('returns photoUrl and biography when present on the user doc', async () => {
-    const firestore = createFakeFirestore({
+    const firestore = createInMemoryDocumentStore({
       'users/u-1': {
         id: 'u-1',
         displayName: 'Ada',
@@ -28,7 +28,7 @@ describe('InstructorDirectory.instructorRefsFor', () => {
   });
 
   it('omits photoUrl and biography when absent', async () => {
-    const firestore = createFakeFirestore({
+    const firestore = createInMemoryDocumentStore({
       'users/u-1': { id: 'u-1', displayName: 'Ada', role: 'STUDENT' },
     });
     const directory = new InstructorDirectory(firestore as never);
@@ -39,7 +39,7 @@ describe('InstructorDirectory.instructorRefsFor', () => {
   });
 
   it('returns fallback ref for unknown ids', async () => {
-    const firestore = createFakeFirestore({});
+    const firestore = createInMemoryDocumentStore({});
     const directory = new InstructorDirectory(firestore as never);
 
     const refs = await directory.instructorRefsFor(['u-ghost'] as UserId[]);
@@ -48,7 +48,7 @@ describe('InstructorDirectory.instructorRefsFor', () => {
   });
 
   it('deduplicates ids and reads each user at most once', async () => {
-    const firestore = createFakeFirestore({
+    const firestore = createInMemoryDocumentStore({
       'users/u-1': { id: 'u-1', displayName: 'Ada', role: 'STUDENT' },
     });
 

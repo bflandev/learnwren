@@ -8,7 +8,7 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import { CoursesException } from '../errors/courses.exception';
-import { createFakeFirestore } from '../testing/fake-firestore';
+import { createInMemoryDocumentStore } from '@learnwren/api-document-store';
 import { CoursesRepository } from '../courses.repository';
 import { InstructorDirectory } from './instructor-directory';
 import { CatalogService } from './catalog.service';
@@ -33,7 +33,7 @@ function makeService(
 ): CatalogService {
   const seed: Record<string, Record<string, unknown>> = { ...users };
   for (const c of courses) seed[`courses/${c.id}`] = { ...c } as Record<string, unknown>;
-  const firestore = createFakeFirestore(seed);
+  const firestore = createInMemoryDocumentStore(seed);
   const repo = new CoursesRepository(firestore as never);
   const directory = new InstructorDirectory(firestore as never);
   return new CatalogService(repo, directory);
@@ -322,7 +322,7 @@ describe('CatalogService.search', () => {
 
 describe('CatalogService.getCourseDetail', () => {
   it('assembles the detail payload with the module outline and lesson count', async () => {
-    const firestore = createFakeFirestore({
+    const firestore = createInMemoryDocumentStore({
       'courses/c-1': {
         id: 'c-1',
         title: 'Course One',
@@ -355,7 +355,7 @@ describe('CatalogService.getCourseDetail', () => {
   });
 
   it('exposes lesson IDs on the outline so /learn can link to them', async () => {
-    const firestore = createFakeFirestore({
+    const firestore = createInMemoryDocumentStore({
       'courses/c-1': {
         id: 'c-1',
         title: 'Course One',
@@ -491,7 +491,7 @@ describe('CatalogService — instructor avatar projection', () => {
   it('dedupes instructor reads across N courses on a page', async () => {
     // Build the firestore directly so we can wrap doc().get() with a counting
     // proxy — same pattern as instructor-directory.spec.ts.
-    const baseFirestore = createFakeFirestore({
+    const baseFirestore = createInMemoryDocumentStore({
       'courses/c-1': {
         id: 'c-1',
         title: 'c-1',
@@ -558,7 +558,7 @@ describe('CatalogService — instructor avatar projection', () => {
   });
 
   it('getCourseDetail includes instructorId, instructorPhotoUrl, instructorBiography', async () => {
-    const firestore = createFakeFirestore({
+    const firestore = createInMemoryDocumentStore({
       'courses/c-1': {
         id: 'c-1',
         title: 'Course One',
@@ -616,7 +616,7 @@ describe('CatalogService — instructor avatar projection', () => {
   });
 
   it('getCourseDetail normalises empty/absent biography to undefined', async () => {
-    const firestore = createFakeFirestore({
+    const firestore = createInMemoryDocumentStore({
       'courses/c-1': {
         id: 'c-1',
         title: 'Course One',

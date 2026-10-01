@@ -2,7 +2,8 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AuthenticatedRequest } from '@learnwren/api-auth';
-import { FIREBASE_AUTH, FIRESTORE } from '@learnwren/api-firebase';
+import { FIREBASE_AUTH } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE } from '@learnwren/api-document-store';
 import type {
   Course,
   CourseId,
@@ -70,7 +71,7 @@ async function buildController(service: CoursesService): Promise<CoursesControll
       { provide: CoursesRepository, useValue: {} },
       { provide: InstructorRoleGuard, useValue: { canActivate: () => true } },
       { provide: CourseOwnerGuard, useValue: { canActivate: () => true } },
-      { provide: FIRESTORE, useValue: {} },
+      { provide: DOCUMENT_STORE, useValue: {} },
       { provide: FIREBASE_AUTH, useValue: {} },
     ],
   })

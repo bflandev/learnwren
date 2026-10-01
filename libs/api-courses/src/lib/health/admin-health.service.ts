@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { FIRESTORE, type FirestoreHandle } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
 import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 import { nowIso } from '@learnwren/shared-data-models';
 import type {
@@ -26,7 +26,7 @@ function failureDetail(reason: unknown): string {
 @Injectable()
 export class AdminHealthService {
   constructor(
-    @Inject(FIRESTORE) private readonly db: FirestoreHandle,
+    @Inject(DOCUMENT_STORE) private readonly db: DocumentStore,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     @Inject(HEALTH_CONFIG) private readonly config: HealthConfig,
     private readonly videos: VideoRepository,

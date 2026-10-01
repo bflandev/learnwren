@@ -8,7 +8,8 @@ import {
   LessonNotFoundException,
   ModuleNotFoundException,
 } from '../errors/courses.exception';
-import { FIREBASE_AUTH, FIRESTORE } from '@learnwren/api-firebase';
+import { FIREBASE_AUTH } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE } from '@learnwren/api-document-store';
 import type {
   CourseId,
   Lesson,
@@ -68,7 +69,7 @@ async function buildController(
     providers: [
       { provide: VideoService, useValue: videoSvc },
       { provide: CoursesRepository, useValue: coursesRepo },
-      { provide: FIRESTORE, useValue: {} },
+      { provide: DOCUMENT_STORE, useValue: {} },
       { provide: FIREBASE_AUTH, useValue: {} },
     ],
   })

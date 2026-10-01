@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { FIRESTORE, type FirestoreHandle, readStoredUserProfiles } from '@learnwren/api-firebase';
+import {
+  DOCUMENT_STORE,
+  type DocumentStore,
+  readStoredUserProfiles,
+} from '@learnwren/api-document-store';
 import type {
   Course,
   CourseRosterRow,
@@ -23,7 +27,7 @@ export class RosterService {
   constructor(
     private readonly courses: CoursesRepository,
     private readonly enrollments: EnrollmentRepository,
-    @Inject(FIRESTORE) private readonly firestore: FirestoreHandle,
+    @Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore,
   ) {}
 
   /** Owner-only roster of ACTIVE enrollees with computed completion. */

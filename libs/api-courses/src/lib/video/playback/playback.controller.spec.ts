@@ -2,7 +2,8 @@ import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
-import { FIREBASE_AUTH, FIRESTORE } from '@learnwren/api-firebase';
+import { FIREBASE_AUTH } from '@learnwren/api-firebase';
+import { DOCUMENT_STORE } from '@learnwren/api-document-store';
 import type { Video, VideoId } from '@learnwren/shared-data-models';
 
 import { CaptionsService } from '../captions/captions.service';
@@ -53,7 +54,7 @@ async function buildController(
       { provide: CaptionsService, useValue: captionsSvc },
       { provide: VideoStorageAdapter, useValue: {} },
       { provide: VIDEO_CONFIG, useValue: { playbackSignedUrlTtlSec: 14400 } },
-      { provide: FIRESTORE, useValue: {} },
+      { provide: DOCUMENT_STORE, useValue: {} },
       { provide: FIREBASE_AUTH, useValue: {} },
     ],
   })
@@ -175,7 +176,7 @@ describe('PlaybackController.segment (US-09-04 Slice B)', () => {
         { provide: CaptionsService, useValue: {} },
         { provide: VideoStorageAdapter, useValue: storage },
         { provide: VIDEO_CONFIG, useValue: { playbackSignedUrlTtlSec: 14400 } },
-        { provide: FIRESTORE, useValue: {} },
+        { provide: DOCUMENT_STORE, useValue: {} },
         { provide: FIREBASE_AUTH, useValue: {} },
       ],
     })
