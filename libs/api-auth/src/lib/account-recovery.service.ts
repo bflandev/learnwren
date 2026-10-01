@@ -87,16 +87,9 @@ export class AccountRecoveryService {
     // sending to a typo'd address that happened to match the brute-force
     // attempt. Any failure (unknown user, provider error) is treated the
     // same: the lock is in place regardless, so stay silent.
-    let user: IdentityUser | null;
-    // Stryker disable BlockStatement: equivalent — emptying the catch still
-    // returns via `if (!user) return` below, since `user` is left `undefined`
-    // (falsy) when the try body throws before assigning it.
-    try {
-      user = await this.identity.getUserByEmail(email);
-    } catch {
-      return;
-    }
-    // Stryker restore BlockStatement
+    // Stryker disable next-line ArrowFunction: equivalent — null vs undefined
+    // are both falsy, so the `if (!user) return` below behaves identically.
+    const user: IdentityUser | null = await this.identity.getUserByEmail(email).catch(() => null);
     if (!user) return;
     const to = user.email;
 

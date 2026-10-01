@@ -121,7 +121,7 @@ export class AdminInstructorApplicationService {
     // Best-effort: the promotion is already committed, so a notification failure
     // must not fail the request (that would mislead the admin into retrying).
     try {
-      await this.email.sendInstructorApplicationApprovedEmail({ to: user.email ?? '' });
+      await this.email.sendInstructorApplicationApprovedEmail({ to: user.email });
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
       this.logger.error(`[admin] approval notice failed uid=${uid}: ${String(err)}`);
@@ -158,7 +158,7 @@ export class AdminInstructorApplicationService {
     try {
       const user = await this.identity.getUser(uid);
       if (!user) throw new Error('user not found');
-      await this.email.sendInstructorApplicationDeclinedEmail({ to: user.email ?? '' });
+      await this.email.sendInstructorApplicationDeclinedEmail({ to: user.email });
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
       this.logger.error(`[admin] decline notice failed uid=${uid}: ${String(err)}`);

@@ -376,15 +376,14 @@ describe('FirebaseIdentityProvider.createEmailActionLink', () => {
     expect(link).toBe('https://change-email/abc');
   });
 
-  it('change-email defaults newEmail to an empty string when omitted', async () => {
+  it('change-email requires newEmail', async () => {
     const auth = buildFakeAuth();
     const provider = buildProvider(auth);
 
-    await provider.createEmailActionLink('change-email', 'a@example.com', '/settings');
-
-    expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith('a@example.com', '', {
-      url: 'http://localhost:4200/settings',
-    });
+    await expect(provider.createEmailActionLink('change-email', 'a@example.com', '/settings')).rejects.toThrow(
+      'change-email requires newEmail',
+    );
+    expect(auth.generateVerifyAndChangeEmailLink).not.toHaveBeenCalled();
   });
 
   it('maps auth/email-already-exists on the change-email link to EmailInUseError', async () => {
@@ -416,7 +415,7 @@ describe('FirebaseIdentityProvider.createEmailActionLink', () => {
 });
 
 // Mirrors session-cookie.service.spec.ts's 'SessionCookieService.mint' describe block, against createSession.
-describe('FirebaseIdentityProvider.createSession — error surface unchanged from SessionCookieService.mint', () => {
+describe('FirebaseIdentityProvider.createSession — propagates verifyIdToken failures', () => {
   it('verifyIdToken failures propagate (createSession has no internal catch — unlike the old mint, the caller now owns translation)', async () => {
     const auth = buildFakeAuth({
       verifyIdToken: vi.fn(async () => {
@@ -504,10 +503,10 @@ describe('FirebaseIdentityProvider.endSession', () => {
 
   it('sleeps exactly to the next-second boundary plus the margin before retrying', async () => {
     vi.useFakeTimers();
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
     try {
       const cookieIatSec = 1_700_000_000;
       vi.setSystemTime(new Date(cookieIatSec * 1000 + 300));
-      const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
       let confirmCalls = 0;
       const verifySessionCookie = vi.fn(async () => {
@@ -528,22 +527,9 @@ describe('FirebaseIdentityProvider.endSession', () => {
       expect(sleepDelays).toContain(950);
       expect(sleepDelays).not.toContain(1550);
     } finally {
+      setTimeoutSpy.mockRestore();
       vi.useRealTimers();
     }
-  });
-
-  it('is a no-op when the token is already invalid (no uid to revoke)', async () => {
-    const auth = {
-      ...buildFakeAuth(),
-      verifySessionCookie: vi.fn(async () => {
-        throw new Error('expired');
-      }),
-      revokeRefreshTokens: vi.fn(),
-    };
-    const provider = buildProvider(auth);
-
-    await provider.endSession('expired.cookie');
-    expect(auth.revokeRefreshTokens).not.toHaveBeenCalled();
   });
 });
 

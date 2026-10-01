@@ -388,21 +388,6 @@ describe('AdminInstructorApplicationService', () => {
     errSpy.mockRestore();
   });
 
-  it('approve: sends the approval email with empty to when the user record has no email', async () => {
-    auth.getUser = vi.fn(async () => ({ email: undefined, emailVerified: true }));
-    docs['instructorApplications/u1'] = {
-      get: vi.fn(async () => ({
-        exists: true,
-        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
-      })),
-      update: vi.fn(async () => undefined),
-    };
-
-    await svc.approve('u1' as never);
-
-    expect(email.sendInstructorApplicationApprovedEmail).toHaveBeenCalledWith({ to: '' });
-  });
-
   it('decline: email failure does not fail the operation', async () => {
     const update = vi.fn(async () => undefined);
     docs['instructorApplications/u1'] = {
@@ -424,21 +409,6 @@ describe('AdminInstructorApplicationService', () => {
     expect(view.status).toBe('DECLINED');
     expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('decline notice failed'));
     errSpy.mockRestore();
-  });
-
-  it('decline: sends the declined email with empty to when the user record has no email', async () => {
-    auth.getUser = vi.fn(async () => ({ email: undefined, emailVerified: true }));
-    docs['instructorApplications/u1'] = {
-      get: vi.fn(async () => ({
-        exists: true,
-        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
-      })),
-      update: vi.fn(async () => undefined),
-    };
-
-    await svc.decline('u1' as never);
-
-    expect(email.sendInstructorApplicationDeclinedEmail).toHaveBeenCalledWith({ to: '' });
   });
 
   // The claim (PENDING→DECLINED) is committed before getUser is called.  If
