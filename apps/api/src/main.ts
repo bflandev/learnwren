@@ -161,6 +161,9 @@ if (isFunctionsRuntime) {
     assertProdSafeEnv();
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
     configureApp(app);
+    // Without this, Nest never calls onApplicationShutdown on SIGTERM/SIGINT,
+    // so PostgresDocumentStore never closes its pool on restart/redeploy.
+    app.enableShutdownHooks();
     const port = process.env['PORT'] || 3333;
     await app.listen(port);
     Logger.log(

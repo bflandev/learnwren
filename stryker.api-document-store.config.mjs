@@ -3,8 +3,11 @@
 // user-profile.reader and DI wiring (US-09-04 Slice D1).
 // Excluded: index.ts barrel re-exports; src/testing/** (shared contract suite, test code).
 // Run inside the Firestore emulator (`firebase emulators:exec --only firestore`)
-// so firestore-document-store.contract.spec.ts can kill mutants in the
-// Firestore wrapper classes.
+// with LEARNWREN_TEST_POSTGRES_URL set, so both
+// firestore-document-store.contract.spec.ts and
+// postgres-document-store.contract.spec.ts run and can kill mutants in their
+// respective adapter wrapper classes. CI's mutation job provides both (the
+// Firestore emulator wrapper and a Postgres service container).
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
   packageManager: 'pnpm',
