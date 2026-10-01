@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -288,6 +289,12 @@ describe('AuthService.register', () => {
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
     expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
+    expect(firestore._delete).toHaveBeenCalled();
+    // Pins the collection name for the orphaned users/{uid} doc delete — a
+    // StringLiteral mutant turning 'users' into '' would be invisible to a
+    // plain toHaveBeenCalledWith('users'), since other call sites in the same
+    // flow also legitimately pass 'users'.
+    expect(firestore.collection).not.toHaveBeenCalledWith('');
   });
 
   it('accepts a displayName at the 80-character boundary', async () => {
@@ -808,6 +815,11 @@ describe('AuthService.login — lazy heal of a stale users/{uid}.email', () => {
 
     expect(update).toHaveBeenCalledWith({ email: 'new@example.com', updatedAt: expect.any(String) });
     expect(result.email).toBe('new@example.com');
+    // Pins the collection name for the email-sync write — a StringLiteral
+    // mutant turning 'users' into '' would be invisible to a plain
+    // toHaveBeenCalledWith('users'), since loadUserProfile's own 'users'
+    // call in the same login() flow would still satisfy it.
+    expect(fs.collection).not.toHaveBeenCalledWith('');
   });
 
   it('does not touch the doc when the emails already match', async () => {
@@ -820,7 +832,23 @@ describe('AuthService.login — lazy heal of a stale users/{uid}.email', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('does not touch the doc when the doc has no email field (docEmail undefined)', async () => {
+    // Pins the `!authEmail || !docEmail` half of the guard independently of
+    // the `authEmail === docEmail` half: a defined authEmail against an
+    // undefined docEmail is never equal, so only the undefined-docEmail
+    // clause stops the sync. A mutant dropping that clause (while keeping
+    // the equality check) would call update here.
+    const identity = identityWithEmail('new@example.com');
+    const { fs, update } = fsWithUserEmail(undefined as unknown as string);
+    const { repo: attempts } = buildAttemptsMock();
+    const service = await buildLoginModule(identity, fs, attempts);
+
+    await service.login(validInput);
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('a failed email sync must NOT fail the login (best-effort)', async () => {
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const identity = identityWithEmail('new@example.com');
     const { fs, update } = fsWithUserEmail('old@example.com', async () => {
       throw new Error('firestore down');
@@ -832,6 +860,9 @@ describe('AuthService.login — lazy heal of a stale users/{uid}.email', () => {
     expect(update).toHaveBeenCalled();
     expect(result.uid).toBe('uid-123');
     expect(result.cookie).toBe('COOKIE-VALUE');
+    // The catch body ran (warn emitted) — kills emptying the catch block.
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('login email sync failed'));
+    warnSpy.mockRestore();
   });
 });
 

@@ -412,7 +412,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Set up Java 21
-        if: matrix.lib == 'api-document-store'
+        if: matrix.lib == 'api-document-store' || matrix.lib == 'api-auth'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -442,6 +442,12 @@ jobs:
           if [ "$LIB" = "api-document-store" ]; then
             # Its Firestore contract needs the emulator; the Postgres contract uses the service container.
             pnpm exec firebase emulators:exec --only firestore --project demo-learnwren "$CMD"
+          elif [ "$LIB" = "api-auth" ]; then
+            # FirebaseIdentityProvider's contract spec (firebase-identity-provider.contract.spec.ts)
+            # only runs when FIREBASE_AUTH_EMULATOR_HOST is set, and without it
+            # some adapter branches (e.g. updateUser) show NoCoverage — wrap in
+            # the Auth emulator only (this lib never touches Firestore/Postgres).
+            pnpm exec firebase emulators:exec --only auth --project demo-learnwren "$CMD"
           else
             eval "$CMD"
           fi

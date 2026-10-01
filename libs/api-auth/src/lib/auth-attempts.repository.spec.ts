@@ -288,6 +288,31 @@ describe('AuthAttemptsRepository.recordFailure', () => {
     expect(doc['firstFailureAt']).not.toBe(stale);
   });
 
+  it('does NOT reset an active lock even when firstFailureAt is outside the failure window', async () => {
+    // Pins the `!data.lockedUntil &&` half of the window-reset guard
+    // independently of the firstFailureAt/window check: lockedUntil is still
+    // in the future (an active lock) while firstFailureAt is stale. A
+    // LogicalOperator mutant turning the leading `&&` into `||` would reset
+    // (and so clear) an active lock here.
+    const future = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const stale = new Date(Date.now() - 16 * 60 * 1000).toISOString();
+    const fs = buildFakeFirestore({
+      'hash-1': {
+        failedCount: 3,
+        firstFailureAt: stale,
+        lockedUntil: future,
+        unlockTokenHash: sha256Hex('existing'),
+      },
+    });
+    const repo = await buildRepo(fs);
+    const result = await repo.recordFailure('hash-1');
+    expect(result.locked).toBe(true);
+    const doc = fs._docs.get('hash-1')!;
+    // A reset would re-stamp firstFailureAt and restart the count at 1.
+    expect(doc['firstFailureAt']).toBe(stale);
+    expect(doc['failedCount']).toBe(4);
+  });
+
   it('still locks when firstFailureAt is exactly at the 15-minute boundary (window is >, not >=)', async () => {
     vi.useFakeTimers();
     const frozen = new Date('2026-05-06T12:00:00.000Z');

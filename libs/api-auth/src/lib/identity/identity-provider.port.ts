@@ -10,6 +10,9 @@ import type { UserRole } from '@learnwren/shared-data-models';
  * email, a wrong password or a disabled account (one generic answer, so the
  * response never reveals which). Lookups resolve null for an unknown user.
  */
+// Stryker disable next-line StringLiteral: equivalent — the Symbol.for() registry
+// key is never read back; IDENTITY_PROVIDER is used only by reference (DI token
+// identity), so any key string yields an indistinguishable symbol.
 export const IDENTITY_PROVIDER = Symbol.for('learnwren.api-auth.identity-provider');
 
 /** Session lifetime: 5 days (unchanged from the Firebase session cookie). */

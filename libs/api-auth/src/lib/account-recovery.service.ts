@@ -88,11 +88,15 @@ export class AccountRecoveryService {
     // attempt. Any failure (unknown user, provider error) is treated the
     // same: the lock is in place regardless, so stay silent.
     let user: IdentityUser | null;
+    // Stryker disable BlockStatement: equivalent — emptying the catch still
+    // returns via `if (!user) return` below, since `user` is left `undefined`
+    // (falsy) when the try body throws before assigning it.
     try {
       user = await this.identity.getUserByEmail(email);
     } catch {
       return;
     }
+    // Stryker restore BlockStatement
     if (!user) return;
     const to = user.email;
 

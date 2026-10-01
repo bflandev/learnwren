@@ -152,6 +152,19 @@ describe('FirebaseIdentityProvider.getUser / getUserByEmail', () => {
     expect(await provider.getUser('missing')).toBeNull();
   });
 
+  it('getUser defaults email to an empty string when the record has none', async () => {
+    const auth = buildFakeAuth({
+      getUser: vi.fn(async () => ({ uid: 'uid-123', emailVerified: false })),
+    });
+    const provider = buildProvider(auth);
+
+    expect(await provider.getUser('uid-123')).toEqual({
+      uid: 'uid-123',
+      email: '',
+      emailVerified: false,
+    });
+  });
+
   it('getUser rethrows other codes', async () => {
     const boom = err('auth/internal-error');
     const auth = buildFakeAuth({
@@ -162,6 +175,20 @@ describe('FirebaseIdentityProvider.getUser / getUserByEmail', () => {
     const provider = buildProvider(auth);
 
     await expect(provider.getUser('uid-123')).rejects.toBe(boom);
+  });
+
+  it('getUser tolerates a non-object thrown value without a TypeError', async () => {
+    // authCode() reads `err?.code`: on `undefined` the `?.` short-circuits to
+    // `undefined` instead of throwing. Without the `?.` this rethrow would be
+    // a TypeError, not the original (falsy) thrown value.
+    const auth = buildFakeAuth({
+      getUser: vi.fn(async () => {
+        throw undefined;
+      }),
+    });
+    const provider = buildProvider(auth);
+
+    await expect(provider.getUser('uid-123')).rejects.toBeUndefined();
   });
 
   it('getUserByEmail resolves the user', async () => {
@@ -347,6 +374,17 @@ describe('FirebaseIdentityProvider.createEmailActionLink', () => {
       url: 'http://localhost:4200/settings',
     });
     expect(link).toBe('https://change-email/abc');
+  });
+
+  it('change-email defaults newEmail to an empty string when omitted', async () => {
+    const auth = buildFakeAuth();
+    const provider = buildProvider(auth);
+
+    await provider.createEmailActionLink('change-email', 'a@example.com', '/settings');
+
+    expect(auth.generateVerifyAndChangeEmailLink).toHaveBeenCalledWith('a@example.com', '', {
+      url: 'http://localhost:4200/settings',
+    });
   });
 
   it('maps auth/email-already-exists on the change-email link to EmailInUseError', async () => {
@@ -576,5 +614,13 @@ describe('InvalidCredentialsException passthrough (verifyPassword translation li
     await expect(provider.verifyPassword('a@example.com', 'wrong')).rejects.toBeInstanceOf(
       InvalidCredentialsException,
     );
+  });
+});
+
+describe('EmailInUseError', () => {
+  it('carries a stable name and message', () => {
+    const e = new EmailInUseError();
+    expect(e.name).toBe('EmailInUseError');
+    expect(e.message).toBe('Email already in use');
   });
 });
