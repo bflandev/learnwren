@@ -43,4 +43,14 @@ describe.skipIf(!url)('Postgres adapter against a real database', () => {
   it('generates Firestore-shaped ids', () => {
     expect(new PostgresDocumentStore(pool).collection('x').doc().id).toMatch(/^[A-Za-z0-9]{20}$/);
   });
+
+  // ponytail: Firestore keeps \u0000 in a string; Postgres jsonb cannot store it at all
+  // (the write 500s), so the Postgres adapter strips it — invisible control data, not content.
+  it('strips U+0000 from stored strings (jsonb cannot hold it)', async () => {
+    const store = new PostgresDocumentStore(pool);
+    const ref = store.collection('pgnul').doc('d1');
+    await ref.set({ s: 'a\u0000b' });
+    expect((await ref.get()).data()).toEqual({ s: 'ab' });
+    await store.recursiveDelete(store.collection('pgnul'));
+  });
 });

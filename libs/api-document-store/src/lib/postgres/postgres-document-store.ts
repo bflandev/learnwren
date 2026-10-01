@@ -41,7 +41,10 @@ export function isRetryableTxnError(err: unknown): boolean {
   return code === SERIALIZATION_FAILURE || code === DEADLOCK_DETECTED;
 }
 
-const encode = (data: DocData): string => JSON.stringify(stripUndefined(data));
+// ponytail: Firestore keeps \u0000 in a string; Postgres jsonb cannot store it at all
+// (the write 500s), so strip it here — invisible control data, not content worth keeping.
+const dropNul = (_key: string, value: unknown): unknown => (typeof value === 'string' ? value.replaceAll('\u0000', '') : value);
+const encode = (data: DocData): string => JSON.stringify(stripUndefined(data), dropNul);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function upsert(db: Queryable, path: string, data: DocData): Promise<void> {

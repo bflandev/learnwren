@@ -9,7 +9,13 @@ import { PostgresDocumentStore } from './postgres/postgres-document-store';
 
 const logger = new Logger('DocumentStore');
 
-export const defaultPool = (url: string): Pool => new Pool({ connectionString: url });
+// ponytail: pg's pool default is max 10 connections; a transaction body must never read
+// through the pool itself (PublishService's video reads do, by design, outside a txn) —
+// exhaustion now errors after this timeout instead of hanging the request forever.
+const POOL_CONNECT_TIMEOUT_MS = 10_000;
+
+export const defaultPool = (url: string): Pool =>
+  new Pool({ connectionString: url, connectionTimeoutMillis: POOL_CONNECT_TIMEOUT_MS });
 
 /** Picks the adapter from LEARNWREN_DATA_STORE (spec §3.1). Postgres creates its schema before the app serves. */
 export async function makeDocumentStore(

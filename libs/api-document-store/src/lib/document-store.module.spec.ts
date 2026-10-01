@@ -83,4 +83,10 @@ describe('defaultPool', () => {
     expect(pool.options.connectionString).toBe('postgres://h/db');
     await pool.end();
   });
+
+  it('sets a connect timeout so an unreachable database errors instead of hanging forever', async () => {
+    const pool = defaultPool('postgres://h/db');
+    expect(pool.options.connectionTimeoutMillis).toBe(10_000);
+    await pool.end();
+  });
 });

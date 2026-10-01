@@ -288,6 +288,23 @@ export function describeDocumentStoreContract(label: string, makeStore: () => Do
         );
         expect((await ref.get()).data()).toEqual({ n: 3 });
       });
+
+      it('concurrent create-if-absent transactions: exactly one wins', async () => {
+        const ref = col('t').doc('claim');
+        const results = await Promise.all(
+          ['a', 'b', 'c'].map((tag) =>
+            store.runTransaction(async (txn) => {
+              const snap = await txn.get(ref);
+              if (snap.exists) return false;
+              txn.set(ref, { owner: tag });
+              return true;
+            }),
+          ),
+        );
+        expect(results.filter(Boolean)).toHaveLength(1);
+        const winnerTag = ['a', 'b', 'c'][results.indexOf(true)];
+        expect((await ref.get()).data()).toEqual({ owner: winnerTag });
+      });
     });
   });
 }
