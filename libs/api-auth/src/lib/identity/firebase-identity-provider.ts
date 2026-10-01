@@ -145,7 +145,7 @@ export class FirebaseIdentityProvider implements IdentityProvider {
     if (!claims) return;
     for (let attempt = 0; attempt < LOGOUT_REVOKE_MAX_ATTEMPTS; attempt++) {
       await this.auth.revokeRefreshTokens(claims.uid);
-      if (!(await this.verifySession(token))) {
+      if (await this.isRevoked(token)) {
         // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
         this.logger.log(`[auth] logout uid=${claims.uid}`);
         return;
@@ -154,6 +154,20 @@ export class FirebaseIdentityProvider implements IdentityProvider {
     }
     // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
     this.logger.error(`[auth] logout could not confirm cookie revocation uid=${claims.uid}`);
+  }
+
+  /**
+   * Non-logging companion to verifySession, for the endSession confirm loop:
+   * a rejection there is the EXPECTED outcome of a successful revoke, not an
+   * anomaly, so logging it on every logout would be noise.
+   */
+  private async isRevoked(token: string): Promise<boolean> {
+    try {
+      await this.auth.verifySessionCookie(token, true);
+      return false;
+    } catch {
+      return true;
+    }
   }
 
   /**

@@ -1,17 +1,12 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FIREBASE_AUTH } from '@learnwren/api-firebase';
 import { DOCUMENT_STORE } from '@learnwren/api-document-store';
 
 import { AccountRecoveryService } from './account-recovery.service';
 import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { AuthService } from './auth.service';
 import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
-import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
-import { PasswordPolicyService } from './password-policy.service';
-import { PasswordVerificationService } from './password-verification.service';
-import { SessionCookieService } from './session-cookie.service';
 import {
   AccountLockedException,
   EmailAlreadyExistsException,
@@ -24,17 +19,11 @@ import {
   PasswordTooLongException,
   WeakPasswordException,
 } from './errors/auth.exception';
-
-interface FakeAuth {
-  createUser: ReturnType<typeof vi.fn>;
-  setCustomUserClaims: ReturnType<typeof vi.fn>;
-  generateEmailVerificationLink: ReturnType<typeof vi.fn>;
-  deleteUser: ReturnType<typeof vi.fn>;
-  verifyIdToken: ReturnType<typeof vi.fn>;
-  createSessionCookie: ReturnType<typeof vi.fn>;
-  verifySessionCookie?: ReturnType<typeof vi.fn>;
-  revokeRefreshTokens?: ReturnType<typeof vi.fn>;
-}
+import { EmailInUseError } from './identity/identity.errors';
+import { IDENTITY_PROVIDER, type IdentityProvider } from './identity/identity-provider.port';
+import { PasswordPolicyService } from './password-policy.service';
+import { PasswordVerificationService } from './password-verification.service';
+import { SessionCookieService } from './session-cookie.service';
 
 interface FakeFirestore {
   collection: ReturnType<typeof vi.fn>;
@@ -42,21 +31,22 @@ interface FakeFirestore {
   _delete?: ReturnType<typeof vi.fn>;
 }
 
-function buildFakeAuth(overrides: Partial<FakeAuth> = {}): FakeAuth {
+function buildIdentity(overrides: Partial<IdentityProvider> = {}): IdentityProvider {
   return {
-    createUser: vi.fn(async () => ({ uid: 'uid-123' })),
-    setCustomUserClaims: vi.fn(async () => undefined),
-    generateEmailVerificationLink: vi.fn(async () => 'https://verify/abc'),
+    createUser: vi.fn(async () => 'uid-123'),
+    getUser: vi.fn(async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true })),
+    getUserByEmail: vi.fn(async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true })),
+    updateUser: vi.fn(async () => undefined),
     deleteUser: vi.fn(async () => undefined),
-    verifyIdToken: vi.fn(async () => ({
-      uid: 'uid-123',
-      email: 'alice@example.com',
-      role: 'STUDENT',
-      email_verified: false,
-    })),
-    createSessionCookie: vi.fn(async () => 'COOKIE-VALUE'),
+    setRole: vi.fn(async () => undefined),
+    verifyPassword: vi.fn(async () => ({ uid: 'uid-123' })),
+    createSession: vi.fn(async () => ({ token: 'COOKIE-VALUE', maxAgeSeconds: 5 * 24 * 60 * 60 })),
+    verifySession: vi.fn(async () => null),
+    endSession: vi.fn(async () => undefined),
+    revokeAllSessions: vi.fn(async () => undefined),
+    createEmailActionLink: vi.fn(async () => 'https://verify/abc'),
     ...overrides,
-  };
+  } as unknown as IdentityProvider;
 }
 
 function buildFakeFirestore(overrides: { setShouldFail?: boolean } = {}): FakeFirestore {
@@ -71,17 +61,6 @@ function buildFakeFirestore(overrides: { setShouldFail?: boolean } = {}): FakeFi
   return { collection, _set: set, _delete: del };
 }
 
-function buildFakeRestClient(idToken = 'ID-TOKEN') {
-  return {
-    signInWithPassword: vi.fn(async () => ({
-      idToken,
-      localId: 'uid-123',
-      email: 'alice@example.com',
-      registered: true,
-    })),
-  };
-}
-
 function buildEmailTransportMock(): EmailTransport {
   return {
     sendUnlockEmail: vi.fn(async () => undefined),
@@ -91,10 +70,9 @@ function buildEmailTransportMock(): EmailTransport {
 }
 
 async function buildModule(
-  auth: FakeAuth,
+  identity: IdentityProvider,
   firestore: FakeFirestore,
-  rest: ReturnType<typeof buildFakeRestClient> = buildFakeRestClient(),
-) {
+): Promise<AuthService> {
   const moduleRef = await Test.createTestingModule({
     providers: [
       AuthService,
@@ -103,9 +81,8 @@ async function buildModule(
       AuthAttemptsRepository,
       AccountRecoveryService,
       SessionCookieService,
-      { provide: FIREBASE_AUTH, useValue: auth },
+      { provide: IDENTITY_PROVIDER, useValue: identity },
       { provide: DOCUMENT_STORE, useValue: firestore },
-      { provide: FirebaseAuthRestClient, useValue: rest },
       { provide: EMAIL_TRANSPORT, useValue: buildEmailTransportMock() },
     ],
   }).compile();
@@ -125,29 +102,21 @@ describe('AuthService.register', () => {
   };
 
   it('happy path: end-to-end register returns cookie + role + uid', async () => {
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const rest = buildFakeRestClient('ID-TOKEN-1');
-    const service = await buildModule(auth, firestore, rest);
+    const service = await buildModule(identity, firestore);
 
     const result = await service.register(validInput);
 
-    expect(auth.createUser).toHaveBeenCalledWith({
+    expect(identity.createUser).toHaveBeenCalledWith({
       email: validInput.email,
       password: validInput.password,
       displayName: validInput.displayName,
     });
     expect(firestore._set).toHaveBeenCalled();
-    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('uid-123', { role: 'STUDENT' });
-    expect(rest.signInWithPassword).toHaveBeenCalledWith({
-      email: validInput.email,
-      password: validInput.password,
-    });
-    expect(auth.verifyIdToken).toHaveBeenCalledWith('ID-TOKEN-1', true);
-    expect(auth.createSessionCookie).toHaveBeenCalledWith(
-      'ID-TOKEN-1',
-      expect.objectContaining({ expiresIn: 5 * 24 * 60 * 60 * 1000 }),
-    );
+    expect(identity.setRole).toHaveBeenCalledWith('uid-123', 'STUDENT');
+    expect(identity.verifyPassword).toHaveBeenCalledWith(validInput.email, validInput.password);
+    expect(identity.createSession).toHaveBeenCalledWith({ uid: 'uid-123' });
     expect(result).toMatchObject({
       uid: 'uid-123',
       email: validInput.email,
@@ -158,80 +127,66 @@ describe('AuthService.register', () => {
     });
   });
 
-  it('rollback: mintSessionCookie verifyIdToken failure produces InternalAuthException + delete', async () => {
-    // Inside mintSessionCookie, a failed verifyIdToken must rethrow as
+  it('rollback: auto-login createSession failure produces InternalAuthException + delete', async () => {
+    // Inside SessionCookieService.mint, a failed createSession must rethrow as
     // InternalAuthException. A BlockStatement mutant emptying that catch
     // would let register return without a cookie or with an unrelated error.
-    const auth = buildFakeAuth({
-      verifyIdToken: vi.fn(async () => {
-        throw new Error('verifyIdToken failed');
+    const identity = buildIdentity({
+      createSession: vi.fn(async () => {
+        throw new Error('createSession failed');
       }),
     });
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
-    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+    expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
   });
 
-  it('rollback: mintSessionCookie createSessionCookie failure produces InternalAuthException + delete', async () => {
-    const auth = buildFakeAuth({
-      createSessionCookie: vi.fn(async () => {
-        throw new Error('createSessionCookie failed');
-      }),
-    });
-    const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
-
-    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
-    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
-  });
-
-  it('rollback: signInWithPassword failure deletes the just-created user', async () => {
-    const auth = buildFakeAuth();
-    const firestore = buildFakeFirestore();
-    const rest = {
-      signInWithPassword: vi.fn(async () => {
+  it('rollback: verifyPassword failure deletes the just-created user', async () => {
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => {
         throw new InternalAuthException();
       }),
-    };
-    const service = await buildModule(auth, firestore, rest as never);
+    });
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
-    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+    expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
   });
 
   it('rejects with WeakPasswordException before any SDK call when password fails policy', async () => {
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register({ ...validInput, password: 'short' })).rejects.toBeInstanceOf(
       WeakPasswordException,
     );
-    expect(auth.createUser).not.toHaveBeenCalled();
+    expect(identity.createUser).not.toHaveBeenCalled();
   });
 
   it('rejects with InvalidDisplayNameException for an empty display name', async () => {
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register({ ...validInput, displayName: '   ' })).rejects.toBeInstanceOf(
       InvalidDisplayNameException,
     );
-    expect(auth.createUser).not.toHaveBeenCalled();
+    expect(identity.createUser).not.toHaveBeenCalled();
   });
 
   it('rejects with InvalidEmailException for a malformed email', async () => {
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register({ ...validInput, email: 'not-an-email' })).rejects.toBeInstanceOf(
       InvalidEmailException,
     );
-    expect(auth.createUser).not.toHaveBeenCalled();
+    expect(identity.createUser).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -242,118 +197,95 @@ describe('AuthService.register', () => {
   ])('rejects with InvalidEmailException — %s', async (_label, badEmail) => {
     // Pins the EMAIL_REGEX anchors `^...$` so a Regex mutant dropping either
     // anchor is caught — it would otherwise accept emails with surrounding text.
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register({ ...validInput, email: badEmail })).rejects.toBeInstanceOf(
       InvalidEmailException,
     );
-    expect(auth.createUser).not.toHaveBeenCalled();
+    expect(identity.createUser).not.toHaveBeenCalled();
   });
 
   it('rejects with InvalidDisplayNameException when displayName exceeds 80 characters', async () => {
-    // Pins the upper bound: a ConditionalExpression mutant that strips this
-    // guard would let arbitrarily long names through to Firebase.
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
     const tooLong = 'a'.repeat(81);
 
     await expect(
       service.register({ ...validInput, displayName: tooLong }),
     ).rejects.toBeInstanceOf(InvalidDisplayNameException);
-    expect(auth.createUser).not.toHaveBeenCalled();
+    expect(identity.createUser).not.toHaveBeenCalled();
   });
 
   it('rejects with EmailTooLongException when the email exceeds 254 characters', async () => {
-    // The @MaxLength(254) DTO decorator was removed; the service now owns this
-    // guard and emits the typed code instead of a generic pipe BAD_REQUEST.
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
     const longEmail = `${'a'.repeat(250)}@x.co`; // 255 chars, valid format
 
     await expect(
       service.register({ ...validInput, email: longEmail }),
     ).rejects.toBeInstanceOf(EmailTooLongException);
-    expect(auth.createUser).not.toHaveBeenCalled();
+    expect(identity.createUser).not.toHaveBeenCalled();
   });
 
   it('rejects with PasswordTooLongException when the password exceeds 256 characters', async () => {
-    // The @MaxLength(256) DTO decorator was removed; the service now owns this
-    // guard. The password is otherwise policy-valid, so only the length check
-    // can reject it.
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
     const longPassword = `Aa1!${'a'.repeat(260)}`; // 264 chars, satisfies complexity
 
     await expect(
       service.register({ ...validInput, password: longPassword }),
     ).rejects.toBeInstanceOf(PasswordTooLongException);
-    expect(auth.createUser).not.toHaveBeenCalled();
+    expect(identity.createUser).not.toHaveBeenCalled();
   });
 
   it('accepts an email at the 254-character boundary', async () => {
-    // Lower-bound counterpart for EMAIL_MAX: email.length === 254 is valid; the
-    // guard is `> EMAIL_MAX`, not `>=`. An EqualityOperator mutant flipping it
-    // to `>=` would wrongly reject a maximal-but-legal address.
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const rest = buildFakeRestClient();
-    const service = await buildModule(auth, firestore, rest);
+    const service = await buildModule(identity, firestore);
     const boundaryEmail = `${'a'.repeat(249)}@x.co`; // exactly 254 chars, valid format
     expect(boundaryEmail.length).toBe(254);
 
     await expect(
       service.register({ ...validInput, email: boundaryEmail }),
     ).resolves.toMatchObject({ uid: 'uid-123' });
-    expect(auth.createUser).toHaveBeenCalled();
+    expect(identity.createUser).toHaveBeenCalled();
   });
 
   it('accepts a password at the 256-character boundary', async () => {
-    // Lower-bound counterpart for PASSWORD_MAX: password.length === 256 is valid;
-    // the guard is `> PASSWORD_MAX`, not `>=`. An EqualityOperator mutant flipping
-    // it to `>=` would reject a maximal-but-legal password.
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const rest = buildFakeRestClient();
-    const service = await buildModule(auth, firestore, rest);
+    const service = await buildModule(identity, firestore);
     const boundaryPassword = `Aa1!${'a'.repeat(252)}`; // exactly 256 chars, satisfies complexity
     expect(boundaryPassword.length).toBe(256);
 
     await expect(
       service.register({ ...validInput, password: boundaryPassword }),
     ).resolves.toMatchObject({ uid: 'uid-123' });
-    expect(auth.createUser).toHaveBeenCalled();
+    expect(identity.createUser).toHaveBeenCalled();
   });
 
   it('swallows a deleteUser failure during rollback and still rejects with the triggering error', async () => {
-    // bestEffortDeleteUser wraps auth.deleteUser in try/catch so a failed
-    // rollback cleanup never masks the original failure. A BlockStatement mutant
-    // emptying that catch would be invisible unless we drive deleteUser to throw
-    // AND assert register still rejects with the Firestore-write error (not the
-    // deleteUser error) — proving the catch ran.
-    const auth = buildFakeAuth({
+    const identity = buildIdentity({
       deleteUser: vi.fn(async () => {
         throw new Error('deleteUser exploded');
       }),
     });
     const firestore = buildFakeFirestore({ setShouldFail: true });
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
-    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+    expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
   });
 
   it('accepts a displayName at the 80-character boundary', async () => {
-    // Lower-bound counterpart: displayName.length === 80 is valid; the guard
-    // is `> DISPLAY_NAME_MAX`, not `>=`.
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const rest = buildFakeRestClient();
-    const service = await buildModule(auth, firestore, rest);
+    const service = await buildModule(identity, firestore);
     const justFits = 'a'.repeat(80);
 
     await expect(
@@ -361,12 +293,8 @@ describe('AuthService.register', () => {
     ).resolves.toMatchObject({ uid: 'uid-123' });
   });
 
-  it('maps a non-email-already-exists Firebase error to InternalAuthException with rollback skipped', async () => {
-    // The catch branches on `err.code === 'auth/email-already-exists'` —
-    // mutants flipping this to `true` or `||` would either misclassify any
-    // failure as duplicate-email or strip the magic-code guard. Send a
-    // different code through and assert it falls through to internal error.
-    const auth = buildFakeAuth({
+  it('maps a non-EmailInUseError failure to InternalAuthException with rollback skipped', async () => {
+    const identity = buildIdentity({
       createUser: vi.fn(async () => {
         const e = new Error('quota');
         (e as unknown as { code: string }).code = 'auth/quota-exceeded';
@@ -374,36 +302,29 @@ describe('AuthService.register', () => {
       }),
     });
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
     // No user was created, so no rollback to call.
-    expect(auth.deleteUser).not.toHaveBeenCalled();
+    expect(identity.deleteUser).not.toHaveBeenCalled();
   });
 
   it('does not crash when a non-object value is thrown by createUser', async () => {
-    // `isFirebaseError` checks `typeof err === 'object' && err !== null`.
-    // Without those guards, `'code' in err` would TypeError on a primitive
-    // throw — register would reject with a TypeError instead of
-    // InternalAuthException.
-    const auth = buildFakeAuth({
+    const identity = buildIdentity({
       createUser: vi.fn(async () => {
         throw 'string-not-error';
       }),
     });
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
   });
 
   it('writes the user doc to `users/{uid}` with role STUDENT and the validated email/displayName', async () => {
-    // Pins both the collection path and the doc shape: ObjectLiteral / String
-    // mutants would either drop fields from the set payload or change the
-    // collection name (e.g. `''` instead of `'users'`).
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await service.register(validInput);
 
@@ -419,111 +340,101 @@ describe('AuthService.register', () => {
     );
   });
 
-  it('grants the STUDENT custom claim and sends the verification link to the registered email', async () => {
-    // Pins setCustomUserClaims args (the `'STUDENT'` string) and the
-    // generateEmailVerificationLink options object (its url field).
-    const auth = buildFakeAuth();
+  it('grants the STUDENT role and sends the verification link to the registered email', async () => {
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await service.register(validInput);
 
-    expect(auth.setCustomUserClaims).toHaveBeenCalledWith('uid-123', { role: 'STUDENT' });
-    expect(auth.generateEmailVerificationLink).toHaveBeenCalledWith(
-      validInput.email,
-      { url: 'http://localhost:4200/login' },
-    );
+    expect(identity.setRole).toHaveBeenCalledWith('uid-123', 'STUDENT');
+    expect(identity.createEmailActionLink).toHaveBeenCalledWith('verify-email', validInput.email, '/login');
   });
 
-  it('maps auth/email-already-exists to EmailAlreadyExistsException with no rollback', async () => {
-    const auth = buildFakeAuth({
+  it('maps EmailInUseError to EmailAlreadyExistsException with no rollback', async () => {
+    const identity = buildIdentity({
       createUser: vi.fn(async () => {
-        const e = new Error('exists');
-        (e as unknown as { code: string }).code = 'auth/email-already-exists';
-        throw e;
+        throw new EmailInUseError();
       }),
     });
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(EmailAlreadyExistsException);
-    expect(auth.deleteUser).not.toHaveBeenCalled();
+    expect(identity.deleteUser).not.toHaveBeenCalled();
   });
 
-  it('rolls back the Auth user when Firestore write fails', async () => {
-    const auth = buildFakeAuth();
+  it('rolls back the identity user when Firestore write fails', async () => {
+    const identity = buildIdentity();
     const firestore = buildFakeFirestore({ setShouldFail: true });
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
-    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+    expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
   });
 
-  it('rolls back the Auth user when setCustomUserClaims fails', async () => {
-    const auth = buildFakeAuth({
-      setCustomUserClaims: vi.fn(async () => {
+  it('rolls back the identity user when setRole fails', async () => {
+    const identity = buildIdentity({
+      setRole: vi.fn(async () => {
         throw new Error('claim failure');
       }),
     });
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
-    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+    expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
   });
 
-  it('rollback also deletes the orphaned users/{uid} doc when setCustomUserClaims fails', async () => {
-    // The Firestore doc was written before the claim failed; deleting only the
-    // Auth account would orphan users/{uid} forever (the uid can never log in).
-    const auth = buildFakeAuth({
-      setCustomUserClaims: vi.fn(async () => {
+  it('rollback also deletes the orphaned users/{uid} doc when setRole fails', async () => {
+    const identity = buildIdentity({
+      setRole: vi.fn(async () => {
         throw new Error('claim failure');
       }),
     });
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
     expect(firestore._delete).toHaveBeenCalledTimes(1);
   });
 
   it('rollback also deletes the orphaned users/{uid} doc when auto-login fails', async () => {
-    const auth = buildFakeAuth();
-    const firestore = buildFakeFirestore();
-    const rest = {
-      signInWithPassword: vi.fn(async () => {
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => {
         throw new InternalAuthException();
       }),
-    };
-    const service = await buildModule(auth, firestore, rest as never);
+    });
+    const firestore = buildFakeFirestore();
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
-    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+    expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
     expect(firestore._delete).toHaveBeenCalledTimes(1);
   });
 
   it('swallows a Firestore doc-delete failure during rollback and still rejects with the triggering error', async () => {
-    const auth = buildFakeAuth({
-      setCustomUserClaims: vi.fn(async () => {
+    const identity = buildIdentity({
+      setRole: vi.fn(async () => {
         throw new Error('claim failure');
       }),
     });
     const firestore = buildFakeFirestore();
     firestore._delete!.mockRejectedValue(new Error('firestore delete exploded'));
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
-    expect(auth.deleteUser).toHaveBeenCalledWith('uid-123');
+    expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
   });
 
-  it('does NOT roll back when only generateEmailVerificationLink fails; returns 201 with emailVerificationSent: false', async () => {
-    const auth = buildFakeAuth({
-      generateEmailVerificationLink: vi.fn(async () => {
+  it('does NOT roll back when only createEmailActionLink fails; returns 201 with emailVerificationSent: false', async () => {
+    const identity = buildIdentity({
+      createEmailActionLink: vi.fn(async () => {
         throw new Error('smtp down');
       }),
     });
     const firestore = buildFakeFirestore();
-    const service = await buildModule(auth, firestore);
+    const service = await buildModule(identity, firestore);
 
     const result = await service.register(validInput);
     expect(result).toMatchObject({
@@ -534,14 +445,12 @@ describe('AuthService.register', () => {
       maxAgeSeconds: 5 * 24 * 60 * 60,
       emailVerificationSent: false,
     });
-    expect(auth.deleteUser).not.toHaveBeenCalled();
+    expect(identity.deleteUser).not.toHaveBeenCalled();
   });
 });
 
 describe('AuthService.getMe', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(() => vi.clearAllMocks());
 
   it('reads the users/{uid} doc and returns the merged shape', async () => {
     const docData = {
@@ -556,8 +465,8 @@ describe('AuthService.getMe', () => {
     const docFn = vi.fn(() => ({ get }));
     const collectionFn = vi.fn(() => ({ doc: docFn }));
     const firestore = { collection: collectionFn, _set: vi.fn() } as unknown as FakeFirestore;
-    const auth = buildFakeAuth();
-    const service = await buildModule(auth, firestore);
+    const identity = buildIdentity();
+    const service = await buildModule(identity, firestore);
 
     const result = await service.getMe('uid-xyz', { email: 'me@example.com', emailVerified: true });
 
@@ -577,8 +486,8 @@ describe('AuthService.getMe', () => {
     const docFn = vi.fn(() => ({ get }));
     const collectionFn = vi.fn(() => ({ doc: docFn }));
     const firestore = { collection: collectionFn, _set: vi.fn() } as unknown as FakeFirestore;
-    const auth = buildFakeAuth();
-    const service = await buildModule(auth, firestore);
+    const identity = buildIdentity();
+    const service = await buildModule(identity, firestore);
 
     await expect(
       service.getMe('uid-missing', { email: 'x@y.z', emailVerified: false }),
@@ -597,8 +506,8 @@ describe('AuthService.getMe', () => {
     const docFn = vi.fn(() => ({ get }));
     const collectionFn = vi.fn(() => ({ doc: docFn }));
     const firestore = { collection: collectionFn, _set: vi.fn() } as unknown as FakeFirestore;
-    const auth = buildFakeAuth();
-    const service = await buildModule(auth, firestore);
+    const identity = buildIdentity();
+    const service = await buildModule(identity, firestore);
 
     const me = await service.getMe('u1', { email: 'a@b.com', emailVerified: true });
 
@@ -616,8 +525,8 @@ describe('AuthService.getMe', () => {
     const docFn = vi.fn(() => ({ get }));
     const collectionFn = vi.fn(() => ({ doc: docFn }));
     const firestore = { collection: collectionFn, _set: vi.fn() } as unknown as FakeFirestore;
-    const auth = buildFakeAuth();
-    const service = await buildModule(auth, firestore);
+    const identity = buildIdentity();
+    const service = await buildModule(identity, firestore);
 
     const me = await service.getMe('u1', { email: 'a@b.com', emailVerified: true });
 
@@ -650,9 +559,8 @@ function buildAttemptsMock(): {
 }
 
 async function buildLoginModule(
-  auth: FakeAuth,
+  identity: IdentityProvider,
   firestore: FakeFirestore,
-  rest: ReturnType<typeof buildFakeRestClient>,
   attempts: AuthAttemptsRepository,
   emailTransport: EmailTransport = buildEmailTransportMock(),
 ): Promise<AuthService> {
@@ -663,9 +571,8 @@ async function buildLoginModule(
       PasswordVerificationService,
       AccountRecoveryService,
       SessionCookieService,
-      { provide: FIREBASE_AUTH, useValue: auth },
+      { provide: IDENTITY_PROVIDER, useValue: identity },
       { provide: DOCUMENT_STORE, useValue: firestore },
-      { provide: FirebaseAuthRestClient, useValue: rest },
       { provide: AuthAttemptsRepository, useValue: attempts },
       { provide: EMAIL_TRANSPORT, useValue: emailTransport },
     ],
@@ -675,7 +582,6 @@ async function buildLoginModule(
 
 function fsWithUser(uid = 'uid-123', role = 'STUDENT', displayName = 'Alice'): FakeFirestore {
   const fs = buildFakeFirestore();
-  // patch get() to return the user doc
   fs.collection = vi.fn(() => ({
     doc: vi.fn(() => ({
       get: vi.fn(async () => ({
@@ -694,48 +600,19 @@ describe('AuthService.login', () => {
   const validInput = { email: 'alice@example.com', password: 'Aa1!aaaaaaaa' };
 
   it('happy path: returns uid + role + cookie and clears lockout doc', async () => {
-    const auth = buildFakeAuth({
-      verifyIdToken: vi.fn(async () => ({
-        uid: 'uid-123',
-        email: 'alice@example.com',
-        role: 'STUDENT',
-        email_verified: true,
-      })),
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => ({ uid: 'uid-123' })),
+      getUser: vi.fn(async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true })),
     });
     const firestore = fsWithUser();
-    const rest = buildFakeRestClient('ID-TOKEN');
-    rest.signInWithPassword = vi.fn(async () => ({
-      idToken: 'ID-TOKEN',
-      localId: 'uid-123',
-      email: 'alice@example.com',
-      registered: true,
-    }));
-    // Override: REST returns user record we then look up via admin to get emailVerified
-    auth.verifyIdToken = vi.fn(async () => ({
-      uid: 'uid-123',
-      email: 'alice@example.com',
-      role: 'STUDENT',
-      email_verified: true,
-    }));
-    // Add a getUser admin call (for emailVerified read).
-    (auth as unknown as { getUser: ReturnType<typeof vi.fn> }).getUser = vi.fn(async () => ({
-      uid: 'uid-123',
-      email: 'alice@example.com',
-      emailVerified: true,
-      displayName: 'Alice',
-    }));
-
     const { repo: attempts, spies } = buildAttemptsMock();
-    const service = await buildLoginModule(auth, firestore, rest, attempts);
+    const service = await buildLoginModule(identity, firestore, attempts);
 
     const result = await service.login(validInput);
 
     expect(spies.emailHash).toHaveBeenCalledWith('alice@example.com');
     expect(spies.read).toHaveBeenCalledWith('HASH');
-    expect(rest.signInWithPassword).toHaveBeenCalledWith({
-      email: validInput.email,
-      password: validInput.password,
-    });
+    expect(identity.verifyPassword).toHaveBeenCalledWith(validInput.email, validInput.password);
     expect(spies.clear).toHaveBeenCalledWith('HASH');
     expect(result).toMatchObject({
       uid: 'uid-123',
@@ -756,26 +633,24 @@ describe('AuthService.login', () => {
       unlockToken: 'tok',
     } as never));
 
-    const auth = buildFakeAuth();
+    const identity = buildIdentity();
     const firestore = fsWithUser();
-    const rest = buildFakeRestClient();
-    const service = await buildLoginModule(auth, firestore, rest, attempts);
+    const service = await buildLoginModule(identity, firestore, attempts);
 
     await expect(service.login(validInput)).rejects.toBeInstanceOf(AccountLockedException);
-    expect(rest.signInWithPassword).not.toHaveBeenCalled();
+    expect(identity.verifyPassword).not.toHaveBeenCalled();
     expect(spies.recordFailure).not.toHaveBeenCalled();
   });
 
   it('throws INVALID_CREDENTIALS and increments counter on bad password', async () => {
     const { repo: attempts, spies } = buildAttemptsMock();
-    const auth = buildFakeAuth();
-    const firestore = fsWithUser();
-    const rest = {
-      signInWithPassword: vi.fn(async () => {
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => {
         throw new InvalidCredentialsException();
       }),
-    } as unknown as FirebaseAuthRestClient;
-    const service = await buildLoginModule(auth, firestore, rest, attempts);
+    });
+    const firestore = fsWithUser();
+    const service = await buildLoginModule(identity, firestore, attempts);
 
     await expect(service.login(validInput)).rejects.toBeInstanceOf(InvalidCredentialsException);
     expect(spies.recordFailure).toHaveBeenCalledWith('HASH');
@@ -790,69 +665,52 @@ describe('AuthService.login', () => {
       lockedUntil,
     }));
 
-    const auth = buildFakeAuth();
-    const firestore = fsWithUser();
-    const rest = {
-      signInWithPassword: vi.fn(async () => {
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => {
         throw new InvalidCredentialsException();
       }),
-    } as unknown as FirebaseAuthRestClient;
-    const service = await buildLoginModule(auth, firestore, rest, attempts);
+    });
+    const firestore = fsWithUser();
+    const service = await buildLoginModule(identity, firestore, attempts);
 
     await expect(service.login(validInput)).rejects.toBeInstanceOf(AccountLockedException);
   });
 
-  it('reads the user doc at users/{uid} and verifies the ID token with checkRevoked=true', async () => {
-    // Pins both collection name and the verifyIdToken second arg. A
-    // BooleanLiteral mutant flipping `true` to `false` would silently disable
-    // revocation checking — a security regression.
-    const auth = buildFakeAuth({
-      verifyIdToken: vi.fn(async () => ({
-        uid: 'uid-123',
-        email: 'alice@example.com',
-        role: 'STUDENT',
-        email_verified: true,
-      })),
+  it('reads the user doc at users/{uid} and looks up the identity by the proof uid', async () => {
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => ({ uid: 'uid-123' })),
+      getUser: vi.fn(async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true })),
     });
-    (auth as unknown as { getUser: ReturnType<typeof vi.fn> }).getUser = vi.fn(async () => ({
-      uid: 'uid-123',
-      email: 'alice@example.com',
-      emailVerified: true,
-      displayName: 'Alice',
-    }));
     const firestore = fsWithUser();
-    const rest = buildFakeRestClient('ID-TOKEN');
     const { repo: attempts } = buildAttemptsMock();
-    const service = await buildLoginModule(auth, firestore, rest, attempts);
+    const service = await buildLoginModule(identity, firestore, attempts);
 
     await service.login(validInput);
 
-    // verifyIdToken is called twice: once for the email-verification gate at
-    // login (must be checkRevoked=true) and once inside SessionCookieService.mint.
-    // Pin the first call specifically — a BooleanLiteral mutant flipping the
-    // gate's `true` to `false` would silently disable revocation checking.
-    expect(auth.verifyIdToken).toHaveBeenNthCalledWith(1, 'ID-TOKEN', true);
+    expect(identity.getUser).toHaveBeenCalledWith('uid-123');
     expect(firestore.collection).toHaveBeenCalledWith('users');
   });
 
-  it('throws InternalAuthException when the user doc is missing on login', async () => {
-    // The `if (!userDoc.exists)` guard rejects logins for users that exist in
-    // Firebase Auth but not Firestore. A ConditionalExpression mutant flipping
-    // it to `false` would let a malformed account return a session.
-    const auth = buildFakeAuth({
-      verifyIdToken: vi.fn(async () => ({
-        uid: 'uid-orphan',
-        email: 'alice@example.com',
-        role: 'STUDENT',
-        email_verified: true,
-      })),
+  it('throws InternalAuthException when identity.getUser resolves null (identity missing)', async () => {
+    // A null user from the identity provider is an internal error, not
+    // EMAIL_NOT_VERIFIED — the password check already succeeded.
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => ({ uid: 'uid-ghost' })),
+      getUser: vi.fn(async () => null),
     });
-    (auth as unknown as { getUser: ReturnType<typeof vi.fn> }).getUser = vi.fn(async () => ({
-      uid: 'uid-orphan',
-      email: 'alice@example.com',
-      emailVerified: true,
-      displayName: 'Alice',
-    }));
+    const firestore = fsWithUser();
+    const { repo: attempts } = buildAttemptsMock();
+    const service = await buildLoginModule(identity, firestore, attempts);
+
+    await expect(service.login(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    expect(identity.createSession).not.toHaveBeenCalled();
+  });
+
+  it('throws InternalAuthException when the user doc is missing on login', async () => {
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => ({ uid: 'uid-orphan' })),
+      getUser: vi.fn(async () => ({ uid: 'uid-orphan', email: 'alice@example.com', emailVerified: true })),
+    });
     const fs = buildFakeFirestore();
     fs.collection = vi.fn(() => ({
       doc: vi.fn(() => ({
@@ -860,26 +718,21 @@ describe('AuthService.login', () => {
         set: fs._set,
       })),
     })) as unknown as FakeFirestore['collection'];
-    const rest = buildFakeRestClient('ID-TOKEN');
     const { repo: attempts } = buildAttemptsMock();
-    const service = await buildLoginModule(auth, fs, rest, attempts);
+    const service = await buildLoginModule(identity, fs, attempts);
 
     await expect(service.login(validInput)).rejects.toBeInstanceOf(InternalAuthException);
   });
 
-  it('propagates a non-InvalidCredentials error from REST without incrementing failure counter', async () => {
-    // The `if (err instanceof InvalidCredentialsException)` branch records a
-    // failure attempt; a ConditionalExpression mutant flipping it to `true`
-    // would record a failure for any upstream error (e.g. transient network).
+  it('propagates a non-InvalidCredentials error from identity.verifyPassword without incrementing failure counter', async () => {
     const { repo: attempts, spies } = buildAttemptsMock();
-    const auth = buildFakeAuth();
-    const firestore = fsWithUser();
-    const rest = {
-      signInWithPassword: vi.fn(async () => {
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => {
         throw new InternalAuthException();
       }),
-    } as unknown as FirebaseAuthRestClient;
-    const service = await buildLoginModule(auth, firestore, rest, attempts);
+    });
+    const firestore = fsWithUser();
+    const service = await buildLoginModule(identity, firestore, attempts);
 
     await expect(service.login(validInput)).rejects.toBeInstanceOf(InternalAuthException);
     expect(spies.recordFailure).not.toHaveBeenCalled();
@@ -887,28 +740,17 @@ describe('AuthService.login', () => {
 
   it('throws EMAIL_NOT_VERIFIED without incrementing the counter when emailVerified=false', async () => {
     const { repo: attempts, spies } = buildAttemptsMock();
-    const auth = buildFakeAuth({
-      verifyIdToken: vi.fn(async () => ({
-        uid: 'uid-123',
-        email: 'alice@example.com',
-        role: 'STUDENT',
-        email_verified: false,
-      })),
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => ({ uid: 'uid-123' })),
+      getUser: vi.fn(async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: false })),
     });
-    (auth as unknown as { getUser: ReturnType<typeof vi.fn> }).getUser = vi.fn(async () => ({
-      uid: 'uid-123',
-      email: 'alice@example.com',
-      emailVerified: false,
-      displayName: 'Alice',
-    }));
     const firestore = fsWithUser();
-    const rest = buildFakeRestClient('ID-TOKEN');
-    const service = await buildLoginModule(auth, firestore, rest, attempts);
+    const service = await buildLoginModule(identity, firestore, attempts);
 
     await expect(service.login(validInput)).rejects.toBeInstanceOf(EmailNotVerifiedException);
     expect(spies.recordFailure).not.toHaveBeenCalled();
     expect(spies.clear).not.toHaveBeenCalled();
-    expect(auth.createSessionCookie).not.toHaveBeenCalled();
+    expect(identity.createSession).not.toHaveBeenCalled();
   });
 });
 
@@ -917,23 +759,12 @@ describe('AuthService.login — lazy heal of a stale users/{uid}.email', () => {
 
   const validInput = { email: 'new@example.com', password: 'Aa1!aaaaaaaa' };
 
-  /** Auth stub whose canonical (post-change) email is `authEmail`. */
-  function authWithEmail(authEmail: string): FakeAuth {
-    const auth = buildFakeAuth({
-      verifyIdToken: vi.fn(async () => ({
-        uid: 'uid-123',
-        email: authEmail,
-        role: 'STUDENT',
-        email_verified: true,
-      })),
+  /** Identity stub whose canonical (post-change) email is `authEmail`. */
+  function identityWithEmail(authEmail: string): IdentityProvider {
+    return buildIdentity({
+      verifyPassword: vi.fn(async () => ({ uid: 'uid-123' })),
+      getUser: vi.fn(async () => ({ uid: 'uid-123', email: authEmail, emailVerified: true })),
     });
-    (auth as unknown as { getUser: ReturnType<typeof vi.fn> }).getUser = vi.fn(async () => ({
-      uid: 'uid-123',
-      email: authEmail,
-      emailVerified: true,
-      displayName: 'Alice',
-    }));
-    return auth;
   }
 
   /** Firestore stub with a full user doc (including email) and an update spy. */
@@ -956,11 +787,11 @@ describe('AuthService.login — lazy heal of a stale users/{uid}.email', () => {
     return { fs, update };
   }
 
-  it('syncs the doc email (+updatedAt) when Firebase Auth email differs — verify link opened without a session', async () => {
-    const auth = authWithEmail('new@example.com');
+  it('syncs the doc email (+updatedAt) when the identity email differs — verify link opened without a session', async () => {
+    const identity = identityWithEmail('new@example.com');
     const { fs, update } = fsWithUserEmail('old@example.com');
     const { repo: attempts } = buildAttemptsMock();
-    const service = await buildLoginModule(auth, fs, buildFakeRestClient('ID-TOKEN'), attempts);
+    const service = await buildLoginModule(identity, fs, attempts);
 
     const result = await service.login(validInput);
 
@@ -969,22 +800,22 @@ describe('AuthService.login — lazy heal of a stale users/{uid}.email', () => {
   });
 
   it('does not touch the doc when the emails already match', async () => {
-    const auth = authWithEmail('same@example.com');
+    const identity = identityWithEmail('same@example.com');
     const { fs, update } = fsWithUserEmail('same@example.com');
     const { repo: attempts } = buildAttemptsMock();
-    const service = await buildLoginModule(auth, fs, buildFakeRestClient('ID-TOKEN'), attempts);
+    const service = await buildLoginModule(identity, fs, attempts);
 
     await service.login({ ...validInput, email: 'same@example.com' });
     expect(update).not.toHaveBeenCalled();
   });
 
   it('a failed email sync must NOT fail the login (best-effort)', async () => {
-    const auth = authWithEmail('new@example.com');
+    const identity = identityWithEmail('new@example.com');
     const { fs, update } = fsWithUserEmail('old@example.com', async () => {
       throw new Error('firestore down');
     });
     const { repo: attempts } = buildAttemptsMock();
-    const service = await buildLoginModule(auth, fs, buildFakeRestClient('ID-TOKEN'), attempts);
+    const service = await buildLoginModule(identity, fs, attempts);
 
     const result = await service.login(validInput);
     expect(update).toHaveBeenCalled();
@@ -1005,13 +836,13 @@ describe('AuthService.login — lock-fired email send', () => {
       lockedUntil,
     }));
 
-    const auth = buildFakeAuth();
-    const firestore = fsWithUser();
-    const rest = {
-      signInWithPassword: vi.fn(async () => {
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => {
         throw new InvalidCredentialsException();
       }),
-    } as unknown as FirebaseAuthRestClient;
+      getUserByEmail: vi.fn(async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true })),
+    });
+    const firestore = fsWithUser();
 
     const sendUnlockEmail = vi.fn(async () => undefined);
     const emailTransport = {
@@ -1019,12 +850,7 @@ describe('AuthService.login — lock-fired email send', () => {
       sendUnlockEmail,
     } as unknown as EmailTransport;
 
-    // Resolve email from emailHash by mocking auth.getUserByEmail
-    (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
-      async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true }),
-    );
-
-    const service = await buildLoginModule(auth, firestore, rest, attempts, emailTransport);
+    const service = await buildLoginModule(identity, firestore, attempts, emailTransport);
 
     await expect(
       service.login({ email: 'alice@example.com', password: 'pw' }),
@@ -1038,10 +864,6 @@ describe('AuthService.login — lock-fired email send', () => {
   });
 
   it('does NOT send an unlock email when the locked-out email maps to no user', async () => {
-    // sendUnlockEmail catches getUserByEmail and returns. A BlockStatement
-    // mutant emptying the catch block would skip the early return and call
-    // sendUnlockEmail with `to=undefined`, sending mail nowhere (or worse,
-    // spraying it through the transport).
     const { repo: attempts, spies } = buildAttemptsMock();
     const lockedUntil = new Date(Date.now() + 15 * 60_000);
     spies.recordFailure = vi.fn(async () => ({
@@ -1050,28 +872,22 @@ describe('AuthService.login — lock-fired email send', () => {
       lockedUntil,
     }));
 
-    const auth = buildFakeAuth();
-    const firestore = fsWithUser();
-    const rest = {
-      signInWithPassword: vi.fn(async () => {
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => {
         throw new InvalidCredentialsException();
       }),
-    } as unknown as FirebaseAuthRestClient;
+      // The brute-force attempt was against a typo'd address: the port
+      // contract resolves null for an unknown user.
+      getUserByEmail: vi.fn(async () => null),
+    });
+    const firestore = fsWithUser();
     const sendUnlockEmail = vi.fn(async () => undefined);
     const emailTransport = {
       ...buildEmailTransportMock(),
       sendUnlockEmail,
     } as unknown as EmailTransport;
 
-    // The brute-force attempt was against a typo'd address: getUserByEmail
-    // throws auth/user-not-found.
-    (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
-      async () => {
-        throw Object.assign(new Error('not found'), { code: 'auth/user-not-found' });
-      },
-    );
-
-    const service = await buildLoginModule(auth, firestore, rest, attempts, emailTransport);
+    const service = await buildLoginModule(identity, firestore, attempts, emailTransport);
 
     await expect(
       service.login({ email: 'typo@example.com', password: 'pw' }),
@@ -1089,24 +905,21 @@ describe('AuthService.login — lock-fired email send', () => {
       lockedUntil,
     }));
 
-    const auth = buildFakeAuth();
-    const firestore = fsWithUser();
-    const rest = {
-      signInWithPassword: vi.fn(async () => {
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => {
         throw new InvalidCredentialsException();
       }),
-    } as unknown as FirebaseAuthRestClient;
+      getUserByEmail: vi.fn(async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true })),
+    });
+    const firestore = fsWithUser();
     const emailTransport = {
       ...buildEmailTransportMock(),
       sendUnlockEmail: vi.fn(async () => {
         throw new Error('SMTP down');
       }),
     } as unknown as EmailTransport;
-    (auth as unknown as { getUserByEmail: ReturnType<typeof vi.fn> }).getUserByEmail = vi.fn(
-      async () => ({ uid: 'uid-123', email: 'alice@example.com', emailVerified: true }),
-    );
 
-    const service = await buildLoginModule(auth, firestore, rest, attempts, emailTransport);
+    const service = await buildLoginModule(identity, firestore, attempts, emailTransport);
 
     await expect(
       service.login({ email: 'alice@example.com', password: 'pw' }),

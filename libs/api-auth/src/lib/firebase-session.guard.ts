@@ -1,9 +1,9 @@
 import { CanActivate, ExecutionContext, Inject, Injectable, Logger } from '@nestjs/common';
 
-import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import type { UserId, UserRole } from '@learnwren/shared-data-models';
 
 import { UnauthenticatedException } from './errors/auth.exception';
+import { IDENTITY_PROVIDER, type IdentityProvider } from './identity/identity-provider.port';
 import { SessionCookieHelper } from './session-cookie.helper';
 import type { AuthenticatedRequest } from './types/authenticated-request';
 
@@ -13,7 +13,7 @@ export class FirebaseSessionGuard implements CanActivate {
   private readonly logger = new Logger('FirebaseSessionGuard');
 
   constructor(
-    @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
+    @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -26,19 +26,19 @@ export class FirebaseSessionGuard implements CanActivate {
       throw new UnauthenticatedException();
     }
 
-    try {
-      const decoded = await this.auth.verifySessionCookie(cookie, true);
-      req.user = {
-        uid: decoded.uid as UserId,
-        email: decoded['email'] ?? '',
-        role: decoded['role'] as UserRole,
-        emailVerified: Boolean(decoded['email_verified']),
-      };
-      return true;
-    } catch (err) {
+    const claims = await this.identity.verifySession(cookie);
+    if (!claims) {
       // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
-      this.logger.warn(`[auth] guard rejected reason=invalid: ${String(err)}`);
+      this.logger.warn('[auth] guard rejected reason=invalid');
       throw new UnauthenticatedException();
     }
+
+    req.user = {
+      uid: claims.uid as UserId,
+      email: claims.email,
+      role: claims.role as UserRole,
+      emailVerified: claims.emailVerified,
+    };
+    return true;
   }
 }

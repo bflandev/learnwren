@@ -1,18 +1,17 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { auth as adminAuth } from 'firebase-admin';
 
-import { FIREBASE_AUTH, type FirebaseAuthHandle } from '@learnwren/api-firebase';
 import type { UserId } from '@learnwren/shared-data-models';
 
 import { AuthAttemptsRepository } from './auth-attempts.repository';
 import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport/email-transport';
-import { isFirebaseError } from './firebase-error.util';
 import {
   InternalAuthException,
   InvalidUnlockTokenException,
   TooManyRequestsException,
   UnlockTokenExpiredException,
 } from './errors/auth.exception';
+import { IDENTITY_PROVIDER, type IdentityProvider, type IdentityUser } from './identity/identity-provider.port';
+import { publicUrl } from './identity/public-url';
 
 @Injectable()
 export class AccountRecoveryService {
@@ -20,7 +19,7 @@ export class AccountRecoveryService {
   private readonly logger = new Logger('AccountRecoveryService');
 
   constructor(
-    @Inject(FIREBASE_AUTH) private readonly auth: FirebaseAuthHandle,
+    @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
     private readonly attempts: AuthAttemptsRepository,
     @Inject(EMAIL_TRANSPORT) private readonly emailTransport: EmailTransport,
   ) {}
@@ -31,18 +30,16 @@ export class AccountRecoveryService {
     const throttle = await this.attempts.recordResendVerification(emailHash);
     if (throttle.throttled) throw new TooManyRequestsException();
 
-    const userRecord = await this.findUserOrNullForEnumerationResistance(email);
-    if (!userRecord) return;
-    if (userRecord.emailVerified) {
+    const user = await this.findUserOrNullForEnumerationResistance(email);
+    if (!user) return;
+    if (user.emailVerified) {
       // Already verified — silent success (don't leak verification status).
       return;
     }
 
     // Stryker disable next-line StringLiteral: `tag` flows only into log lines (dispatchOutboundEmail) — log-only, no behavioral effect
     await this.dispatchOutboundEmail('resend-verification', emailHash, async () => {
-      const verificationUrl = await this.auth.generateEmailVerificationLink(email, {
-        url: this.continueUrl('/login'),
-      });
+      const verificationUrl = await this.identity.createEmailActionLink('verify-email', email, '/login');
       await this.emailTransport.sendVerificationEmail({ to: email, verificationUrl });
     });
   }
@@ -53,14 +50,12 @@ export class AccountRecoveryService {
     const throttle = await this.attempts.recordPasswordResetRequest(emailHash);
     if (throttle.throttled) throw new TooManyRequestsException();
 
-    const userRecord = await this.findUserOrNullForEnumerationResistance(email);
-    if (!userRecord) return;
+    const user = await this.findUserOrNullForEnumerationResistance(email);
+    if (!user) return;
 
     // Stryker disable next-line StringLiteral: `tag` flows only into log lines (dispatchOutboundEmail) — log-only, no behavioral effect
     await this.dispatchOutboundEmail('password-reset', emailHash, async () => {
-      const resetUrl = await this.auth.generatePasswordResetLink(email, {
-        url: this.continueUrl('/login?reset=ok'),
-      });
+      const resetUrl = await this.identity.createEmailActionLink('reset-password', email, '/login?reset=ok');
       await this.emailTransport.sendPasswordResetEmail({ to: email, resetUrl });
     });
     // Note: deliberate no-op on lockout state. See spec §1.5 / §E.2(ii).
@@ -88,23 +83,24 @@ export class AccountRecoveryService {
     unlockToken: string,
     unlockAvailableAt: Date,
   ): Promise<void> {
-    // Resolve the canonical email address from Firebase to avoid sending to
-    // a typo'd address that happened to match the brute-force attempt.
-    let to: string;
+    // Resolve the canonical email address via the identity provider to avoid
+    // sending to a typo'd address that happened to match the brute-force
+    // attempt. Any failure (unknown user, provider error) is treated the
+    // same: the lock is in place regardless, so stay silent.
+    let user: IdentityUser | null;
     try {
-      const userRecord = await this.auth.getUserByEmail(email);
-      to = userRecord.email!;
+      user = await this.identity.getUserByEmail(email);
     } catch {
-      // The lock fired against a non-existent account (typo or malicious
-      // probing). Don't send an email anywhere; lock is in place regardless.
       return;
     }
+    if (!user) return;
+    const to = user.email;
 
     // Stryker disable BlockStatement: the best-effort catch only logs then swallows the send error, so emptying it is indistinguishable from the original — equivalent. (Stryker associates a `} catch` block mutant with the try-open line, so it cannot be targeted by a next-line directive in isolation; this minimal region is the narrowest that reaches it. The try-body emptying is still locked by the "sends the unlock email" spec, which asserts sendUnlockEmail is invoked.)
     try {
       await this.emailTransport.sendUnlockEmail({
         to,
-        unlockUrl: `${this.continueUrl('/auth/unlock')}?token=${unlockToken}`,
+        unlockUrl: `${publicUrl('/auth/unlock')}?token=${unlockToken}`,
         unlockAvailableAt,
       });
     } catch (err) {
@@ -121,9 +117,7 @@ export class AccountRecoveryService {
    */
   async sendInitialVerificationEmail(email: string, uid: UserId): Promise<boolean> {
     try {
-      const verificationUrl = await this.auth.generateEmailVerificationLink(email, {
-        url: this.continueUrl('/login'),
-      });
+      const verificationUrl = await this.identity.createEmailActionLink('verify-email', email, '/login');
       await this.emailTransport.sendVerificationEmail({ to: email, verificationUrl });
       return true;
     } catch (err) {
@@ -135,19 +129,11 @@ export class AccountRecoveryService {
 
   /**
    * getUserByEmail with the standard enumeration-resistant adapter: a missing
-   * user becomes `null` so the caller can early-return silent success without
-   * having to spell out the `auth/user-not-found` branch each time. Any other
-   * Firebase error is rethrown untouched.
+   * user resolves `null` (the port's contract) so the caller can early-return
+   * silent success without having to spell out the branch each time.
    */
-  private async findUserOrNullForEnumerationResistance(
-    email: string,
-  ): Promise<adminAuth.UserRecord | null> {
-    try {
-      return await this.auth.getUserByEmail(email);
-    } catch (err) {
-      if (isFirebaseError(err) && err.code === 'auth/user-not-found') return null;
-      throw err;
-    }
+  private async findUserOrNullForEnumerationResistance(email: string): Promise<IdentityUser | null> {
+    return this.identity.getUserByEmail(email);
   }
 
   /**
@@ -170,10 +156,5 @@ export class AccountRecoveryService {
       this.logger.error(`[auth] ${tag} send failed emailHash=${emailHash}: ${String(err)}`);
       throw new InternalAuthException();
     }
-  }
-
-  private continueUrl(path: string): string {
-    const base = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
-    return `${base}${path}`;
   }
 }

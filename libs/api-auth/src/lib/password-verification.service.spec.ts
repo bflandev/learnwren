@@ -6,19 +6,20 @@ import {
   InvalidCredentialsException,
   InternalAuthException,
 } from './errors/auth.exception';
+import type { IdentityProvider } from './identity/identity-provider.port';
 
 const EMAIL = 'alice@example.com';
 const PASSWORD = 'Aa1!aaaaaaaa';
+const PROOF = { uid: 'uid-123' };
 
 function makeService(overrides: {
-  signIn?: ReturnType<typeof vi.fn>;
+  verifyPassword?: ReturnType<typeof vi.fn>;
   read?: ReturnType<typeof vi.fn>;
   recordFailure?: ReturnType<typeof vi.fn>;
 } = {}) {
-  const restClient = {
-    signInWithPassword:
-      overrides.signIn ?? vi.fn(async () => ({ idToken: 'ID-TOKEN' })),
-  };
+  const identity = {
+    verifyPassword: overrides.verifyPassword ?? vi.fn(async () => PROOF),
+  } as unknown as IdentityProvider;
   const attempts = {
     emailHash: vi.fn(() => 'HASH'),
     read: overrides.read ?? vi.fn(async () => null),
@@ -29,46 +30,43 @@ function makeService(overrides: {
     sendUnlockEmail: vi.fn(async () => undefined),
   };
   const svc = new PasswordVerificationService(
-    restClient as never,
+    identity,
     attempts as never,
     recovery as never,
   );
-  return { svc, restClient, attempts, recovery };
+  return { svc, identity, attempts, recovery };
 }
 
 describe('PasswordVerificationService.verifyPassword', () => {
-  it('returns the ID token on success without recording a failure', async () => {
-    const { svc, restClient, attempts } = makeService();
+  it('returns the PasswordProof on success without recording a failure', async () => {
+    const { svc, identity, attempts } = makeService();
 
-    await expect(svc.verifyPassword(EMAIL, PASSWORD)).resolves.toBe('ID-TOKEN');
+    await expect(svc.verifyPassword(EMAIL, PASSWORD)).resolves.toEqual(PROOF);
 
     expect(attempts.emailHash).toHaveBeenCalledWith(EMAIL);
-    expect(restClient.signInWithPassword).toHaveBeenCalledWith({
-      email: EMAIL,
-      password: PASSWORD,
-    });
+    expect(identity.verifyPassword).toHaveBeenCalledWith(EMAIL, PASSWORD);
     expect(attempts.recordFailure).not.toHaveBeenCalled();
     expect(attempts.clear).not.toHaveBeenCalled();
   });
 
-  it('rejects with AccountLockedException BEFORE calling Firebase when a lock window is active', async () => {
+  it('rejects with AccountLockedException BEFORE calling the identity provider when a lock window is active', async () => {
     const future = new Date(Date.now() + 60_000).toISOString();
     const read = vi.fn(async () => ({ failedCount: 3, lockedUntil: future }));
-    const { svc, restClient, attempts } = makeService({ read });
+    const { svc, identity, attempts } = makeService({ read });
 
     await expect(svc.verifyPassword(EMAIL, PASSWORD)).rejects.toBeInstanceOf(
       AccountLockedException,
     );
     expect(read).toHaveBeenCalledWith('HASH');
-    expect(restClient.signInWithPassword).not.toHaveBeenCalled();
+    expect(identity.verifyPassword).not.toHaveBeenCalled();
     expect(attempts.recordFailure).not.toHaveBeenCalled();
   });
 
   it('records a failure and rethrows on INVALID_CREDENTIALS below the threshold', async () => {
-    const signIn = vi.fn(async () => {
+    const verifyPassword = vi.fn(async () => {
       throw new InvalidCredentialsException();
     });
-    const { svc, attempts, recovery } = makeService({ signIn });
+    const { svc, attempts, recovery } = makeService({ verifyPassword });
 
     await expect(svc.verifyPassword(EMAIL, PASSWORD)).rejects.toBeInstanceOf(
       InvalidCredentialsException,
@@ -79,7 +77,7 @@ describe('PasswordVerificationService.verifyPassword', () => {
 
   it('sends the unlock email and throws AccountLockedException when the failure trips the lock', async () => {
     const lockedUntil = new Date(Date.now() + 15 * 60_000);
-    const signIn = vi.fn(async () => {
+    const verifyPassword = vi.fn(async () => {
       throw new InvalidCredentialsException();
     });
     const recordFailure = vi.fn(async () => ({
@@ -87,7 +85,7 @@ describe('PasswordVerificationService.verifyPassword', () => {
       unlockToken: 'utok',
       lockedUntil,
     }));
-    const { svc, recovery } = makeService({ signIn, recordFailure });
+    const { svc, recovery } = makeService({ verifyPassword, recordFailure });
 
     const err = await svc.verifyPassword(EMAIL, PASSWORD).catch((e: unknown) => e);
 
@@ -99,10 +97,10 @@ describe('PasswordVerificationService.verifyPassword', () => {
   });
 
   it('propagates a non-credentials error without recording a failure', async () => {
-    const signIn = vi.fn(async () => {
+    const verifyPassword = vi.fn(async () => {
       throw new InternalAuthException();
     });
-    const { svc, attempts } = makeService({ signIn });
+    const { svc, attempts } = makeService({ verifyPassword });
 
     await expect(svc.verifyPassword(EMAIL, PASSWORD)).rejects.toBeInstanceOf(
       InternalAuthException,

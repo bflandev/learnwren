@@ -1,12 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { AccountRecoveryService } from './account-recovery.service';
 import { AuthAttemptsRepository } from './auth-attempts.repository';
-import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import {
   AccountLockedException,
   InvalidCredentialsException,
 } from './errors/auth.exception';
+import { IDENTITY_PROVIDER, type IdentityProvider, type PasswordProof } from './identity/identity-provider.port';
 
 /**
  * Lockout-honoring password verification, shared by login and the profile
@@ -22,7 +22,7 @@ export class PasswordVerificationService {
   private readonly logger = new Logger('PasswordVerificationService');
 
   constructor(
-    private readonly restClient: FirebaseAuthRestClient,
+    @Inject(IDENTITY_PROVIDER) private readonly identity: IdentityProvider,
     private readonly attempts: AuthAttemptsRepository,
     private readonly recovery: AccountRecoveryService,
   ) {}
@@ -33,18 +33,17 @@ export class PasswordVerificationService {
    *    without contacting Firebase;
    *  - records INVALID_CREDENTIALS failures toward the lockout, dispatching
    *    the unlock email when the threshold trips;
-   *  - returns the Firebase ID token on success.
+   *  - returns a PasswordProof on success.
    *
    * Does NOT clear the failure counter on success — call clearFailures() once
    * the caller's flow has fully succeeded.
    */
-  async verifyPassword(email: string, password: string): Promise<string> {
+  async verifyPassword(email: string, password: string): Promise<PasswordProof> {
     const emailHash = this.attempts.emailHash(email);
     await this.throwIfAccountLocked(emailHash);
 
     try {
-      const result = await this.restClient.signInWithPassword({ email, password });
-      return result.idToken;
+      return await this.identity.verifyPassword(email, password);
     } catch (err) {
       if (!(err instanceof InvalidCredentialsException)) throw err;
 
