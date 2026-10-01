@@ -126,7 +126,7 @@ One table for every collection:
 
 ```sql
 CREATE TABLE IF NOT EXISTS documents (
-  path       text PRIMARY KEY,  -- 'courses/c1/modules/m1'
+  path       text COLLATE "C" PRIMARY KEY,  -- 'courses/c1/modules/m1'
   parent     text NOT NULL,     -- 'courses/c1/modules'  (collection path)
   collection text NOT NULL,     -- 'modules'             (for collectionGroup)
   id         text NOT NULL,     -- 'm1'                  (the DOCUMENT_ID column)
@@ -135,6 +135,11 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE INDEX IF NOT EXISTS documents_parent ON documents (parent);
 CREATE INDEX IF NOT EXISTS documents_collection ON documents (collection);
 ```
+
+`path` is `COLLATE "C"` so its primary-key index matches `recursiveDelete`'s
+`path = $1 OR path LIKE $2`: under the database's default collation (e.g.
+`en_US.utf8`), a leading-constant LIKE pattern can't use a non-C index and
+falls back to a sequential scan.
 
 No GIN index: no query uses `@>` containment. (ponytail: no index on `data`;
 add expression indexes per hot field if a collection grows large enough for
@@ -252,11 +257,17 @@ Each slice merges to `main` on its own with every suite green.
 - Postgres is used as a document store: no foreign keys, no relational
   constraints beyond the primary key. Integrity rules stay in the api, as with
   Firestore.
-- `orderBy` on JSONB compares JSON values; numbers and strings sort correctly,
-  mixed types in one field would not. No field in the code mixes types.
-- None of the above need NULL ordering (`NULLS FIRST`/`LAST`): documents
-  missing the orderBy field are excluded by the `WHERE data ? 'a'` clause,
-  matching Firestore, so no NULL ever reaches `ORDER BY`.
+- `orderBy` sorts numbers numerically, before everything else, then text
+  bytewise (`COLLATE "C"`, matching Firestore's UTF-8-byte string order). No
+  field in the code mixes types within one orderBy clause.
+- A field holding JSON `null` passes the `WHERE data ? 'a'` existence filter
+  (the key exists even though its value is null) and sorts LAST ascending in
+  Postgres (`NULLS LAST` is the default), but FIRST in Firestore. No call
+  site orders on a nullable field, so this never bites in practice.
+- All collections share one table, so broad SERIALIZABLE reads can escalate
+  to relation-level SIRead locks and conflict across unrelated collections;
+  the internal transaction retry absorbs it at single-process scale. The
+  upgrade path is expression indexes on hot fields.
 - One api process (inherited from Slices B and C).
 - No data migration from emulator-backed installs.
 - Expired sessions and email tokens stay in the table until read.

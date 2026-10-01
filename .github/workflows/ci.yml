@@ -410,6 +410,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Set up Java 21
+        if: matrix.lib == 'api-document-store'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
