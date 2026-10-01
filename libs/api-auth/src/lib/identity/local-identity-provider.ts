@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type { DocRef, DocumentStore } from '@learnwren/api-document-store';
 import type { UserRole } from '@learnwren/shared-data-models';
 
@@ -61,12 +62,22 @@ const normalizeEmail = (email: string): string => email.toLowerCase();
  * swept; add a cleanup job if the collections grow large.
  */
 export class LocalIdentityProvider implements IdentityProvider {
+  // Stryker disable next-line StringLiteral: Logger category name — log-only, no behavioral effect
+  private static readonly logger = new Logger('LocalIdentityProvider');
   private readonly issuedProofs = new WeakSet<object>();
 
   constructor(
     private readonly store: DocumentStore,
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    // Warm the memoised dummy hash at boot so the first unknown-email login
+    // costs the same scrypt work as every later one, instead of paying for it
+    // (plus losing the timing-safety it exists to provide) on that first call.
+    // Caught here so a failure can never surface as an unhandled rejection.
+    void dummyPasswordHash().catch((err: unknown) =>
+      LocalIdentityProvider.logger.error(`failed to warm dummy password hash: ${String(err)}`),
+    );
+  }
 
   private userRef(uid: string): DocRef {
     return this.store.collection(LOCAL_COLLECTIONS.users).doc(uid);
@@ -235,6 +246,12 @@ export class LocalIdentityProvider implements IdentityProvider {
       txn.delete(actionRef);
       return action.uid;
     });
+    // ponytail: revoked after commit, not inside the SERIALIZABLE txn above — the revoke
+    // is a query (collection().where(uid).get()) followed by a batch delete, which is
+    // costly to run inside a serializable transaction (extra conflict surface, held
+    // locks) for a path that only needs to be correct, not atomic, with the password
+    // change. Consequence: if this post-commit call fails, the password has already
+    // changed but old sessions survive until they expire naturally.
     if (kind === 'reset-password') await this.revokeAllSessions(uid);
   }
 }

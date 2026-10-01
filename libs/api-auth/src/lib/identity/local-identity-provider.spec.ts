@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { createInMemoryDocumentStore } from '@learnwren/api-document-store';
 
 import { EmailActionInvalidError } from './identity.errors';
@@ -134,6 +135,29 @@ describe('LocalIdentityProvider', () => {
       const dummy = await passwordHash.dummyPasswordHash();
       await expect(idp.verifyPassword('nobody@example.test', PASSWORD)).rejects.toThrow();
       expect(passwordHash.verifyPasswordHash).toHaveBeenCalledWith(PASSWORD, dummy);
+    });
+
+    it('warms the dummy password hash on construction, so the first unknown-email login is not the slow one', async () => {
+      const spy = vi.spyOn(passwordHash, 'dummyPasswordHash');
+      new LocalIdentityProvider(store, () => t);
+      await Promise.resolve();
+      expect(spy).toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('logs instead of throwing when the constructor-time dummy-hash warm-up rejects', async () => {
+      const spy = vi
+        .spyOn(passwordHash, 'dummyPasswordHash')
+        .mockRejectedValueOnce(new Error('boom'));
+      const loggerSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+      expect(() => new LocalIdentityProvider(store, () => t)).not.toThrow();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('failed to warm dummy password hash'));
+      spy.mockRestore();
+      loggerSpy.mockRestore();
     });
   });
 });

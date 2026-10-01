@@ -30,3 +30,4 @@ export {
 } from './lib/identity/identity-provider.port';
 export { EmailInUseError, EmailActionInvalidError } from './lib/identity/identity.errors';
 export { publicUrl } from './lib/identity/public-url';
+export { LocalIdentityProvider } from './lib/identity/local-identity-provider';
