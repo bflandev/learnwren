@@ -16,6 +16,7 @@ import {
   UploadCompletionInProgressException,
   UploadObjectMissingException,
   UploadObjectSizeMismatchException,
+  UploadSessionMissingException,
   VideoException,
   VideoNotFoundException,
   VideoNotReadyException,
@@ -150,6 +151,15 @@ describe('upload completion in-progress exception', () => {
     expect(ex.code).toBe('UPLOAD_COMPLETION_IN_PROGRESS');
     expect(ex.status).toBe(409);
     expect(ex.message).toBe('Upload completion is already being processed.');
+  });
+});
+
+describe('upload session missing exception', () => {
+  it('UploadSessionMissingException → 409 UPLOAD_SESSION_MISSING with a restart hint', () => {
+    const ex = new UploadSessionMissingException();
+    expect(ex.code).toBe('UPLOAD_SESSION_MISSING');
+    expect(ex.status).toBe(409);
+    expect(ex.message).toBe('No open upload session for this video; start the upload again.');
   });
 });
 

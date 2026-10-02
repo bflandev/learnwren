@@ -103,7 +103,7 @@ function assertAudience(payload: IdTokenPayload, expected: string | undefined): 
   // RFC 7519 allows aud to be a string OR an array — accept the expected
   // audience anywhere in the array, not just position 0.
   const matches = Array.isArray(payload.aud)
-    ? expected !== undefined && payload.aud.includes(expected)
+    ? payload.aud.some((aud) => aud === expected)
     : payload.aud === expected;
   if (!matches) {
     throw new PubSubWrongAudienceException();

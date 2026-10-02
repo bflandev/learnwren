@@ -137,6 +137,21 @@ describe('CategoriesRepository', () => {
     });
   });
 
+  describe('getInTxn', () => {
+    it('reads the category through the caller transaction, null when absent', async () => {
+      const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
+      const repo = await buildRepo(fake);
+
+      const [hit, miss] = await fake.runTransaction(async (t) => [
+        await repo.getInTxn(t, 'DESIGN' as CategoryId),
+        await repo.getInTxn(t, 'NOPE' as CategoryId),
+      ]);
+
+      expect(hit).toEqual(makeCategory());
+      expect(miss).toBeNull();
+    });
+  });
+
   describe('create', () => {
     it('writes the category with timestamps and returns it', async () => {
       const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });

@@ -209,7 +209,6 @@ export class VideoService {
             actualSizeBytes: actualSize,
             nowIso: nowIso(),
           })
-          // Stryker disable next-line BlockStatement: log-only catch body; the .catch already swallows the rejection regardless
           .catch((e: unknown) => {
             // Stryker disable next-line StringLiteral: log-only message, no behavior
             this.logger.warn(`loser markFailed failed for ${vid}: ${(e as Error).message}`);

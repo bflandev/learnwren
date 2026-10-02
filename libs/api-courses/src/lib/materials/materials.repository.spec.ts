@@ -99,6 +99,15 @@ describe('MaterialsRepository', () => {
     ).rejects.toBeInstanceOf(MaterialNotFoundException);
   });
 
+  it('update rethrows any other store error unchanged (only NOT_FOUND maps to the typed 404)', async () => {
+    const boom = new Error('unavailable');
+    const db = {
+      collection: () => ({ doc: () => ({ update: async () => Promise.reject(boom) }) }),
+    };
+    const repo = new MaterialsRepository(db as never);
+    await expect(repo.update('m1' as MaterialId, { displayName: 'x' })).rejects.toBe(boom);
+  });
+
   it('delete removes the document', async () => {
     const repo = new MaterialsRepository(createInMemoryDocumentStore() as never);
     await repo.create(material('m1', 'l1'));

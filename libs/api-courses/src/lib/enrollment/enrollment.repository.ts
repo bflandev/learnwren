@@ -179,8 +179,8 @@ export class EnrollmentRepository {
       // Rollup denominator, read inside the transaction (and before the
       // write — Firestore requires all reads first) so a concurrently added
       // lesson forces a retry rather than a wrong permanent stamp. Skipped
-      // when already stamped: no restamping, so no read needed.
-      const allLessonIds = existing.completedAt == null ? await listAllLessonIds(t) : [];
+      // (null) when already stamped: no restamping, so no read needed.
+      const allLessonIds = existing.completedAt == null ? await listAllLessonIds(t) : null;
 
       if (existingRow) {
         progress[idx] = { ...existingRow, completedAt: completedAtIso };
@@ -195,8 +195,10 @@ export class EnrollmentRepository {
       // cleared (completing "the course as it was" is final by design).
       const doneByLesson = new Map(progress.map((p) => [p.lessonId, p.completedAt != null]));
       const allComplete =
-        allLessonIds.length > 0 && allLessonIds.every((id) => doneByLesson.get(id) === true);
-      if (allComplete && existing.completedAt == null) {
+        allLessonIds !== null &&
+        allLessonIds.length > 0 &&
+        allLessonIds.every((id) => doneByLesson.get(id) === true);
+      if (allComplete) {
         update['completedAt'] = completedAtIso;
       }
 
@@ -342,6 +344,7 @@ export class EnrollmentRepository {
 
       const allLessonIds = await listAllLessonIds(t);
       const doneByLesson = new Map(
+        // Stryker disable next-line ArrayDeclaration: equivalent — the fallback only feeds the lessonId→done map; a non-row element ('Stryker was here') yields key undefined, which no real lesson id equals, so the rollup reads exactly as with [].
         (existing.progress ?? []).map((p) => [p.lessonId, p.completedAt != null]),
       );
       const allComplete =

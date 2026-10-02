@@ -126,6 +126,32 @@ describe('VideoRepository — simple reads and writes', () => {
     expect(found!.id).toBe('v-live');
   });
 
+  it.each([
+    ['live doc stored first', 'v-a-live', 'v-b-failed'],
+    ['FAILED doc stored first', 'v-b-live', 'v-a-failed'],
+  ])(
+    'getVideoByLesson ranks a newer FAILED doc below an older live doc (%s)',
+    async (_label, liveId, failedId) => {
+      // Both storage orders: the sort compares (later, earlier), so each order
+      // pins a different side of the FAILED-rank subtraction.
+      const fake = createInMemoryDocumentStore({
+        [`videos/${liveId}`]: makeVideo({
+          id: liveId as VideoId,
+          state: 'READY',
+          createdAt: '2026-05-12T00:00:00.000Z' as ISODateString,
+        }),
+        [`videos/${failedId}`]: makeVideo({
+          id: failedId as VideoId,
+          state: 'FAILED',
+          createdAt: '2026-05-13T00:00:00.000Z' as ISODateString,
+        }),
+      });
+      const repo = await buildRepo(fake);
+
+      expect((await repo.getVideoByLesson('l1' as LessonId))!.id).toBe(liveId);
+    },
+  );
+
   it('getVideoByLesson picks the newest doc when all candidates share a state', async () => {
     const fake = createInMemoryDocumentStore({
       'videos/v-old': makeVideo({

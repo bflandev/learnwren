@@ -714,7 +714,16 @@ describe('VideoService.completeUpload — finalize-txn failure cleanup', () => {
       { sleep: async () => undefined },
     );
 
+    const warn = vi
+      .spyOn((svc as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn')
+      .mockImplementation(() => undefined);
+
     await expect(svc.completeUpload('v1' as VideoId)).rejects.toThrow(/Video disappeared/);
+    // Each swallowed cleanup failure leaves an operator-visible warning.
+    expect(warn.mock.calls.map((c) => c[0])).toEqual([
+      expect.stringMatching(/orphaned-job cancel failed .*cancel boom/),
+      expect.stringMatching(/releaseUploadCompletionClaim failed for v1: release boom/),
+    ]);
   });
 
   it('marks the loser FAILED (double-finalize race) instead of leaving it claimable forever', async () => {
@@ -766,10 +775,14 @@ describe('VideoService.completeUpload — finalize-txn failure cleanup', () => {
       transcoder as never,
       { sleep: async () => undefined },
     );
+    const warn = vi
+      .spyOn((svc as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn')
+      .mockImplementation(() => undefined);
 
     await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(
       LessonAlreadyHasVideoException,
     );
+    expect(warn).toHaveBeenCalledWith('loser markFailed failed for v1: mark boom');
   });
 });
 

@@ -1,9 +1,20 @@
 # Mutation Test Report — `libs/api-profile`
 
-> Generated 2026-10-02T11:15:07.378Z
+> Generated 2026-10-02T16:56:55.154Z
 
-**Headline mutation score: 99.79%** (killed=938, survived=2, no-cov=0, ignored=48). Score on covered mutants only: 99.79%. Adjusted (equivalent candidates excluded): 99.79%.
+**Headline mutation score: 100.00%** (killed=940, survived=0, no-cov=0, ignored=48). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
 
+## Mutation sweep (2026-10-02)
+
+Full-config run: **100%** (940 killed, 0 survived), up from 99.79% (2 survivors).
+
+- `instructor-application.service.ts:77` (`if (existing.exists)` → `true`): the spec's
+  hand-rolled store returned `{}` from `data()` for a missing doc, so the mutant read
+  `undefined` status and fell through. The fake now returns `undefined` for a missing doc,
+  as the real store does, and every fresh-submit test kills it.
+- `admin-users.repository.ts:159` (`stillActive` → `true`): new test where the in-txn
+  re-read finds the enrollment WITHDRAWN (withdrawn between the query and the purge):
+  the doc is deleted and the course count is not decremented a second time.
 
 Target band: unclassified.
 
@@ -11,13 +22,12 @@ Target band: unclassified.
 
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
-| `src/lib/instructor-application/instructor-application.service.ts` | 98.4% | 60 | 1 | 0 |
-| `src/lib/users/admin-users.repository.ts` | 99.0% | 101 | 1 | 0 |
 | `src/lib/email/email-change.service.ts` | 100.0% | 95 | 0 | 0 |
 | `src/lib/email/email.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
 | `src/lib/instructor-application/admin-instructor-application.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
 | `src/lib/instructor-application/admin-instructor-application.service.ts` | 100.0% | 77 | 0 | 0 |
 | `src/lib/instructor-application/instructor-application.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
+| `src/lib/instructor-application/instructor-application.service.ts` | 100.0% | 61 | 0 | 0 |
 | `src/lib/password/password-change.service.ts` | 100.0% | 38 | 0 | 0 |
 | `src/lib/password/password.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
 | `src/lib/picture/picture.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
@@ -26,6 +36,7 @@ Target band: unclassified.
 | `src/lib/users/admin-user-delete.service.ts` | 100.0% | 60 | 0 | 0 |
 | `src/lib/users/admin-user-status.service.ts` | 100.0% | 82 | 0 | 0 |
 | `src/lib/users/admin-users.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
+| `src/lib/users/admin-users.repository.ts` | 100.0% | 102 | 0 | 0 |
 | `src/lib/email/email-change.controller.ts` | 100.0% | 7 | 0 | 0 |
 | `src/lib/instructor-application/admin-instructor-application.controller.ts` | 100.0% | 3 | 0 | 0 |
 | `src/lib/instructor-application/admin-promotion.ts` | 100.0% | 16 | 0 | 0 |
@@ -46,33 +57,7 @@ Target band: unclassified.
 
 ## Survivor clusters — gaps to close
 
-### `src/lib/instructor-application/instructor-application.service.ts` — 1 surviving mutant
-
-**Cluster 1** (lines 77 — `if()`): 1 mutant surviving — ConditionalExpression×1
-
-Sample mutation:
-```diff
-- if (existing.exists) {
-+ <replaced with: true>
-```
-
-_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `instructor-application.service.ts:77` in `if` with assertions that distinguish the outcomes.
-
-### `src/lib/users/admin-users.repository.ts` — 1 surviving mutant
-
-**Cluster 2** (lines 159 — `stillActive()`): 1 mutant surviving — ConditionalExpression×1
-
-Sample mutation:
-```diff
-- const stillActive = (enrollmentSnap.data() as Enrollment).status === 'ACTIVE';
-+ <replaced with: true>
-```
-
-_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `admin-users.repository.ts:159` in `stillActive` with assertions that distinguish the outcomes.
+_No actionable survivors after filtering equivalent candidates._
 
 ## Equivalent-mutant candidates (excluded from adjusted score)
 
