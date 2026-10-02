@@ -49,6 +49,7 @@ async function buildController(
             resendVerification: vi.fn(async () => undefined),
             requestPasswordReset: vi.fn(async () => undefined),
             unlock: vi.fn(async () => undefined),
+            applyEmailAction: vi.fn(async () => undefined),
           } as Partial<AccountRecoveryService>),
       },
       {
@@ -218,6 +219,39 @@ describe('AuthController.unlock', () => {
       recovery: { unlock } as Partial<AccountRecoveryService>,
     });
     await expect(ctrl.unlock({ token: 'tok' } as never)).rejects.toBe(ex);
+  });
+});
+
+describe('AuthController.emailAction', () => {
+  it('delegates { mode, token, newPassword } to the service and returns 204', async () => {
+    const applyEmailAction = vi.fn(async () => undefined);
+    const ctrl = await buildController({} as never, undefined, {
+      recovery: { applyEmailAction } as Partial<AccountRecoveryService>,
+    });
+
+    await expect(
+      ctrl.emailAction({
+        mode: 'reset-password',
+        token: 'tok',
+        newPassword: 'Str0ng!Passw0rd',
+      } as never),
+    ).resolves.toBeUndefined();
+
+    expect(applyEmailAction).toHaveBeenCalledWith('reset-password', 'tok', 'Str0ng!Passw0rd');
+  });
+
+  it('propagates a thrown exception from the service', async () => {
+    const ex = new InvalidUnlockTokenException();
+    const applyEmailAction = vi.fn(async () => {
+      throw ex;
+    });
+    const ctrl = await buildController({} as never, undefined, {
+      recovery: { applyEmailAction } as Partial<AccountRecoveryService>,
+    });
+
+    await expect(
+      ctrl.emailAction({ mode: 'verify-email', token: 'tok' } as never),
+    ).rejects.toBe(ex);
   });
 });
 

@@ -95,6 +95,10 @@ describe('RegisterConfirmPageComponent — resend logic', () => {
     expect(build().cmp.cooldownActive()).toBe(false);
   });
 
+  it('shows no resend error before any resend', () => {
+    expect(build().cmp.resendError()).toBe(false);
+  });
+
   it('cooldownActive is true immediately after a resend', async () => {
     const { cmp } = build();
     await cmp.resend();

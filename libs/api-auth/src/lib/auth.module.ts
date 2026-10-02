@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
 
 import { AccountRecoveryService } from './account-recovery.service';
 import { AuthAttemptsRepository } from './auth-attempts.repository';
@@ -12,6 +13,7 @@ import { FirebaseAuthRestClient } from './firebase-auth-rest-client';
 import { FirebaseSessionGuard } from './firebase-session.guard';
 import { FirebaseIdentityProvider } from './identity/firebase-identity-provider';
 import { IDENTITY_PROVIDER } from './identity/identity-provider.port';
+import { makeIdentityProvider, readIdentityConfigFromEnv } from './identity/identity.config';
 import { AdminRoleGuard } from './admin-role.guard';
 import { InstructorRoleGuard } from './instructor-role.guard';
 import { PasswordPolicyService } from './password-policy.service';
@@ -27,6 +29,12 @@ import { SessionCookieService } from './session-cookie.service';
     AuthAttemptsRepository,
     AuthExceptionFilter,
     ConsoleEmailTransport, // fallback class registration; factory chooses concrete impl
+    // ponytail: FirebaseAuthRestClient and FirebaseIdentityProvider are still
+    // built in local mode too — harmless, since neither touches the network
+    // until called, and the emulator-mode FIREBASE_WEB_API_KEY defaults to
+    // 'fake-api-key'. Combining local with LEARNWREN_FIREBASE_TARGET=production
+    // is unsupported (it would demand a real web API key); make these
+    // conditional only if that combination is ever needed.
     FirebaseAuthRestClient,
     FirebaseIdentityProvider,
     AdminRoleGuard,
@@ -42,7 +50,9 @@ import { SessionCookieService } from './session-cookie.service';
     },
     {
       provide: IDENTITY_PROVIDER,
-      useExisting: FirebaseIdentityProvider,
+      inject: [FirebaseIdentityProvider, DOCUMENT_STORE],
+      useFactory: (firebase: FirebaseIdentityProvider, store: DocumentStore) =>
+        makeIdentityProvider(readIdentityConfigFromEnv(process.env), firebase, store),
     },
   ],
   exports: [

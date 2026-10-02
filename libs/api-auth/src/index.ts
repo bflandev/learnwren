@@ -28,5 +28,6 @@ export {
   type MintedSession,
   type EmailActionKind,
 } from './lib/identity/identity-provider.port';
-export { EmailInUseError } from './lib/identity/identity.errors';
+export { EmailInUseError, EmailActionInvalidError } from './lib/identity/identity.errors';
 export { publicUrl } from './lib/identity/public-url';
+export { LocalIdentityProvider } from './lib/identity/local-identity-provider';

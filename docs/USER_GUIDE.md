@@ -217,6 +217,14 @@ To protect against password guessing:
 3. Open the reset link (Auth emulator inbox in emulator mode), set a new password, and
    sign in again.
 
+> **Self-hosted (local identity) installs.** With `LEARNWREN_IDENTITY=local`, every email
+> link (verify email, reset password, change email) opens Learn Wren's own page at
+> `/auth/action` instead of a Firebase page. Verify and change-email links apply as soon
+> as the page opens; a reset link shows a new-password form. Links are single-use and
+> expire after 24 hours (verify) or 1 hour (reset, change email). A reset or an email
+> change signs you out everywhere and cancels any other pending reset or change-email
+> link; so does changing your password. Logging out ends only the current browser's session in this mode.
+
 ### Editing your profile
 
 Every logged-in user can update their **display name**, **biography**, and
@@ -861,6 +869,7 @@ Production runs on Firebase Hosting (web) + Cloud Functions gen2 (api) — see
 | `POST` | `/auth/resend-verification` | `{ email }` | `202`. Re-sends verification email; 60s throttle; enumeration-resistant. |
 | `POST` | `/auth/request-password-reset` | `{ email }` | `202`. Sends Firebase reset email; 60s throttle; enumeration-resistant. |
 | `POST` | `/auth/unlock` | `{ token }` | `204`. Redeems a one-time unlock token. |
+| `POST` | `/auth/email-action` | `{ mode, token, newPassword? }` | `204`. Redeems a local-identity email link (`verify-email`, `reset-password`, `change-email`). `400 TOKEN_INVALID_OR_EXPIRED` / `WEAK_PASSWORD` / `PASSWORD_TOO_LONG`, `409 EMAIL_ALREADY_EXISTS`. Firebase mode always answers `TOKEN_INVALID_OR_EXPIRED`. |
 | `POST` | `/auth/logout` | — | `204`. Clears the cookie and revokes refresh tokens. Idempotent. |
 | `GET`  | `/auth/me` | — (cookie) | `{ uid, email, displayName, role, emailVerified }`. Guarded by `FirebaseSessionGuard`. |
 

@@ -1,0 +1,66 @@
+<section class="w-full max-w-md space-y-3 rounded-lg border border-line bg-bg-2 p-6">
+  @switch (state().kind) {
+    @case ('pending') {
+      <p class="text-sm text-ink-2">Working on it…</p>
+    }
+    @case ('verified') {
+      <h1 class="text-xl">Email verified</h1>
+      <p>
+        <a routerLink="/login" class="text-ochre hover:underline">Continue to sign in</a>
+      </p>
+    }
+    @case ('taken') {
+      <h1 class="text-xl">That email address is already in use</h1>
+      <p>
+        <a routerLink="/login" class="text-ochre hover:underline">Back to sign in</a>
+      </p>
+    }
+    @case ('invalid') {
+      <h1 class="text-xl">This link is invalid or has expired</h1>
+      <p class="space-x-2">
+        <a routerLink="/login" class="text-ochre hover:underline">Back to sign in</a>
+        <a routerLink="/forgot-password" class="text-ochre hover:underline">Reset password</a>
+      </p>
+    }
+    @case ('error') {
+      <hlm-alert severity="error">Something went wrong. Please try again.</hlm-alert>
+    }
+    @case ('resetForm') {
+      <h1 class="mb-4 text-xl">Set a new password</h1>
+      <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-3">
+        <hlm-form-field>
+          <label hlmLabel for="reset-password-new-password">New password</label>
+          <input
+            hlmInput
+            hlmFormFieldControl
+            id="reset-password-new-password"
+            type="password"
+            formControlName="password"
+            autocomplete="new-password"
+            required
+          />
+          @if (passwordHints().length > 0) {
+            <ul hlmFormFieldHint class="list-inside list-disc">
+              @for (hint of passwordHints(); track hint) {
+                <li>{{ hint }}</li>
+              }
+            </ul>
+          }
+        </hlm-form-field>
+
+        @if (error()) {
+          <hlm-alert severity="error">{{ error() }}</hlm-alert>
+        }
+
+        <button hlmBtn type="submit" class="w-full" [disabled]="form.invalid || busy()">
+          @if (busy()) {
+            <hlm-spinner size="sm" />
+            Setting password…
+          } @else {
+            Set new password
+          }
+        </button>
+      </form>
+    }
+  }
+</section>

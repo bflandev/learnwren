@@ -17,6 +17,7 @@ import type { Request, Response } from 'express';
 import { AccountRecoveryService } from './account-recovery.service';
 import { AuthExceptionFilter } from './auth.exception-filter';
 import { AuthService, type MeResponse } from './auth.service';
+import { EmailActionDto } from './dto/email-action.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
@@ -122,6 +123,12 @@ export class AuthController {
   @HttpCode(204)
   async unlock(@Body() dto: UnlockDto): Promise<void> {
     await this.recovery.unlock(dto.token);
+  }
+
+  @Post('email-action')
+  @HttpCode(204)
+  async emailAction(@Body() dto: EmailActionDto): Promise<void> {
+    await this.recovery.applyEmailAction(dto.mode, dto.token, dto.newPassword);
   }
 
   @Post('logout')

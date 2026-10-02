@@ -1,7 +1,7 @@
 import type { UserRole } from '@learnwren/shared-data-models';
 
 import { InvalidCredentialsException } from '../lib/errors/auth.exception';
-import { EmailInUseError } from '../lib/identity/identity.errors';
+import { EmailActionInvalidError, EmailInUseError } from '../lib/identity/identity.errors';
 import {
   SESSION_MAX_AGE_SECONDS,
   type EmailActionKind,
@@ -19,6 +19,12 @@ interface StoredUser {
   role?: UserRole;
 }
 
+interface StoredAction {
+  uid: string;
+  kind: EmailActionKind;
+  newEmail?: string;
+}
+
 export interface InMemoryIdentityProvider extends IdentityProvider {
   /** uid → user, for test assertions. Passwords are plain text: TEST ONLY. */
   readonly __users: Map<string, StoredUser>;
@@ -30,6 +36,7 @@ export interface InMemoryIdentityProvider extends IdentityProvider {
 export function createInMemoryIdentityProvider(): InMemoryIdentityProvider {
   const users = new Map<string, StoredUser>();
   const sessions = new Map<string, string>(); // token → uid
+  const actions = new Map<string, StoredAction>(); // token → action
   const links: string[] = [];
   // Proofs this adapter minted via verifyPassword — createSession accepts only these (F2).
   const issuedProofs = new WeakSet<object>();
@@ -108,10 +115,39 @@ export function createInMemoryIdentityProvider(): InMemoryIdentityProvider {
     async createEmailActionLink(kind: EmailActionKind, email, continuePath, newEmail) {
       if (kind === 'change-email' && !newEmail) throw new Error('change-email requires newEmail');
       if (kind === 'change-email' && byEmail(newEmail as string)) throw new EmailInUseError();
-      const query = new URLSearchParams({ kind, email, continue: continuePath, ...(newEmail ? { newEmail } : {}) });
-      const link = `http://in-memory.test/action?${query.toString()}`;
+      const user = byEmail(email);
+      if (!user) throw new Error('in-memory identity: no user for email');
+      const token = `action-${++seq}`;
+      actions.set(token, { uid: user.uid, kind, ...(newEmail ? { newEmail } : {}) });
+      const link = `http://in-memory.test/auth/action?mode=${kind}&token=${token}`;
       links.push(link);
       return link;
+    },
+    async applyEmailAction(kind, token, newPassword) {
+      const action = actions.get(token);
+      if (!action || action.kind !== kind) throw new EmailActionInvalidError();
+      if (kind === 'verify-email') {
+        users.set(action.uid, { ...mustGet(action.uid), emailVerified: true });
+        actions.delete(token);
+        return;
+      }
+      if (kind === 'reset-password') {
+        if (!newPassword) throw new EmailActionInvalidError();
+        users.set(action.uid, { ...mustGet(action.uid), password: newPassword });
+        dropSessionsOf(action.uid);
+        actions.delete(token);
+        return;
+      }
+      // kind is narrowed to 'change-email' here — the only remaining union member.
+      const newEmail = action.newEmail as string;
+      const existing = byEmail(newEmail);
+      if (existing && existing.uid !== action.uid) throw new EmailInUseError();
+      users.set(action.uid, { ...mustGet(action.uid), email: normalizeEmail(newEmail), emailVerified: true });
+      actions.delete(token);
+      // Mirrors LocalIdentityProvider: a changed email invalidates any pending reset-password link.
+      for (const [pendingToken, pending] of actions) {
+        if (pending.uid === action.uid && pending.kind === 'reset-password') actions.delete(pendingToken);
+      }
     },
   };
 }

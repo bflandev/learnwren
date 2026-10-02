@@ -218,8 +218,10 @@ jobs:
       # The contract runs need FIRESTORE_EMULATOR_HOST / FIREBASE_AUTH_EMULATOR_HOST,
       # which emulators:exec sets; --skip-nx-cache stops a cached emulator-less
       # run being replayed. LEARNWREN_TEST_POSTGRES_URL points the Postgres
-      # contract at the service container. api-auth's run exercises the
-      # FirebaseIdentityProvider contract spec against the Auth emulator.
+      # contract at the service container, so api-auth's run exercises both
+      # IdentityProvider adapters: FirebaseIdentityProvider against the Auth
+      # emulator, and LocalIdentityProvider (local (postgres)) against this
+      # Postgres service — the same storage the self-hosted deploy uses.
       - name: Run the identity + DocumentStore contracts (Auth, Firestore, Postgres) and api-e2e
         run: pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx run api-auth:test --skip-nx-cache && pnpm nx run api-document-store:test --skip-nx-cache && pnpm nx e2e api-e2e'
 
@@ -446,7 +448,10 @@ jobs:
             # FirebaseIdentityProvider's contract spec (firebase-identity-provider.contract.spec.ts)
             # only runs when FIREBASE_AUTH_EMULATOR_HOST is set, and without it
             # some adapter branches (e.g. updateUser) show NoCoverage — wrap in
-            # the Auth emulator only (this lib never touches Firestore/Postgres).
+            # the Auth emulator. LocalIdentityProvider's contract (local (postgres))
+            # needs no emulator, just LEARNWREN_TEST_POSTGRES_URL above, which
+            # emulators:exec inherits into the wrapped command's environment —
+            # so this one run kills mutants on both IdentityProvider adapters.
             pnpm exec firebase emulators:exec --only auth --project demo-learnwren "$CMD"
           else
             eval "$CMD"

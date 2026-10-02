@@ -1,4 +1,10 @@
-export { AuthService, type LoginResult, type UnlockResult } from './lib/auth.service';
+export {
+  AuthService,
+  type LoginResult,
+  type UnlockResult,
+  type EmailActionResult,
+  type EmailActionErrorCode,
+} from './lib/auth.service';
 export { authGuard } from './lib/auth.guard';
 export { withCredentialsInterceptor } from './lib/with-credentials.interceptor';
 export { LoginPageComponent } from './lib/login-page/login-page.component';
@@ -6,6 +12,7 @@ export { RegisterPageComponent } from './lib/register-page/register-page.compone
 export { RegisterConfirmPageComponent } from './lib/register-confirm-page/register-confirm-page.component';
 export { ForgotPasswordPageComponent } from './lib/forgot-password-page/forgot-password-page.component';
 export { UnlockPageComponent } from './lib/unlock-page/unlock-page.component';
+export { EmailActionPageComponent } from './lib/email-action-page/email-action-page.component';
 export { passwordPolicyValidator, PASSWORD_REQUIREMENT_PROSE } from './lib/password-policy.validator';
 export type { PolicyRequirement } from './lib/password-policy.validator';
 export type { AuthenticatedUser } from './lib/types/authenticated-user';

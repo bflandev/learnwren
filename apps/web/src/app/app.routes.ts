@@ -3,6 +3,7 @@ import { Route } from '@angular/router';
 
 import {
   authGuard,
+  EmailActionPageComponent,
   ForgotPasswordPageComponent,
   LoginPageComponent,
   RegisterConfirmPageComponent,
@@ -36,6 +37,10 @@ export const appRoutes: Route[] = [
   {
     path: 'auth/unlock',
     component: UnlockPageComponent,
+  },
+  {
+    path: 'auth/action',
+    component: EmailActionPageComponent,
   },
   {
     path: 'dashboard',
