@@ -269,4 +269,63 @@ describe('EmailActionPageComponent', () => {
       await submitPromise;
     });
   });
+
+  describe('error mapping and hints', () => {
+    async function initWith(mode: string, body: unknown, status: number) {
+      const tb = setup({ mode, token: 'TOK' });
+      const httpMock = tb.inject(HttpTestingController);
+      const fixture = tb.createComponent(EmailActionPageComponent);
+      const initPromise = fixture.componentInstance.ngOnInit();
+      httpMock.expectOne('/api/auth/email-action').flush(body, { status, statusText: 'X' });
+      await initPromise;
+      return fixture.componentInstance;
+    }
+
+    async function submitWith(body: unknown) {
+      const tb = setup({ mode: 'reset-password', token: 'TOK' });
+      const httpMock = tb.inject(HttpTestingController);
+      const fixture = tb.createComponent(EmailActionPageComponent);
+      fixture.detectChanges();
+      fixture.componentInstance.form.controls.password.setValue('Brand-New-Pass-42!');
+      const submitPromise = fixture.componentInstance.submit();
+      httpMock.expectOne('/api/auth/email-action').flush(body, { status: 400, statusText: 'Bad Request' });
+      await submitPromise;
+      return fixture.componentInstance;
+    }
+
+    it('change-email shows error (not taken) on a non-conflict failure', async () => {
+      const c = await initWith('change-email', { error: { code: 'INTERNAL' } }, 500);
+      expect(c.state()).toEqual({ kind: 'error' });
+    });
+
+    it('joins unmet WEAK_PASSWORD rules with "; " in one message', async () => {
+      const c = await submitWith({
+        error: { code: 'WEAK_PASSWORD', details: { unmetRequirements: ['MIN_LENGTH', 'DIGIT'] } },
+      });
+      expect(c.error()).toMatch(/^Password must include: .+; .+\.$/);
+    });
+
+    it('WEAK_PASSWORD without unmet rules falls back to the generic message', async () => {
+      const c = await submitWith({ error: { code: 'WEAK_PASSWORD' } });
+      expect(c.error()).toBe('Something went wrong. Please try again.');
+    });
+
+    it('PASSWORD_TOO_LONG shows the length limit', async () => {
+      const c = await submitWith({ error: { code: 'PASSWORD_TOO_LONG' } });
+      expect(c.error()).toBe('Password must be 256 characters or fewer.');
+    });
+
+    it('the password field starts empty and hints track the policy', () => {
+      const tb = setup({ mode: 'reset-password', token: 'TOK' });
+      const fixture = tb.createComponent(EmailActionPageComponent);
+      fixture.detectChanges();
+      const c = fixture.componentInstance;
+      expect(c.form.controls.password.value).toBe('');
+      c.form.controls.password.setValue('short');
+      expect(c.passwordHints().length).toBeGreaterThan(0);
+      expect(c.passwordHints().every((h) => typeof h === 'string' && h.length > 0)).toBe(true);
+      c.form.controls.password.setValue('Brand-New-Pass-42!');
+      expect(c.passwordHints()).toEqual([]);
+    });
+  });
 });

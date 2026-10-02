@@ -361,23 +361,25 @@ describe('AccountRecoveryService.applyEmailAction', () => {
     expect(identity.applyEmailAction).not.toHaveBeenCalled();
   });
 
-  it('calls identity.applyEmailAction with no password for verify-email', async () => {
+  it('calls identity.applyEmailAction with no password for verify-email, even if one is supplied', async () => {
     const { service, identity } = await build();
-    await service.applyEmailAction('verify-email', 'tok-1');
+    // A newPassword on a non-reset mode must never reach the identity provider.
+    await service.applyEmailAction('verify-email', 'tok-1', 'Str0ng!Passw0rd');
     expect(identity.applyEmailAction).toHaveBeenCalledWith('verify-email', 'tok-1', undefined);
   });
 
-  it('calls identity.applyEmailAction with no password for change-email', async () => {
+  it('calls identity.applyEmailAction with no password for change-email, even if one is supplied', async () => {
     const { service, identity } = await build();
-    await service.applyEmailAction('change-email', 'tok-2');
+    await service.applyEmailAction('change-email', 'tok-2', 'Str0ng!Passw0rd');
     expect(identity.applyEmailAction).toHaveBeenCalledWith('change-email', 'tok-2', undefined);
   });
 
-  it('throws WeakPasswordException and never calls identity when reset-password has no newPassword', async () => {
+  it('throws WeakPasswordException with MIN_LENGTH unmet when reset-password has no newPassword', async () => {
     const { service, identity } = await build();
-    await expect(service.applyEmailAction('reset-password', 'tok-3')).rejects.toBeInstanceOf(
-      WeakPasswordException,
-    );
+    const err = await service.applyEmailAction('reset-password', 'tok-3').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WeakPasswordException);
+    // An absent newPassword must be treated as '' (too short), not any other placeholder.
+    expect((err as WeakPasswordException).details?.unmetRequirements).toContain('MIN_LENGTH');
     expect(identity.applyEmailAction).not.toHaveBeenCalled();
   });
 

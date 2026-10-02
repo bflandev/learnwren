@@ -136,7 +136,11 @@ export class LocalIdentityProvider implements IdentityProvider {
   async updateUser(uid: string, changes: { password?: string; disabled?: boolean; emailVerified?: boolean }): Promise<void> {
     const patch: Partial<StoredUser> = {
       ...(changes.password !== undefined ? { passwordHash: await hashPassword(changes.password) } : {}),
+      // Stryker disable next-line ConditionalExpression: equivalent — every adapter's
+      // update() strips undefined-valued keys (DocumentStore spec §3.2), so including
+      // `{ disabled: undefined }` unconditionally has the same observable effect as omitting it.
       ...(changes.disabled !== undefined ? { disabled: changes.disabled } : {}),
+      // Stryker disable next-line ConditionalExpression: equivalent — same reason as disabled above.
       ...(changes.emailVerified !== undefined ? { emailVerified: changes.emailVerified } : {}),
     };
     await this.userRef(uid).update(patch);
@@ -196,6 +200,8 @@ export class LocalIdentityProvider implements IdentityProvider {
 
   async revokeAllSessions(uid: string): Promise<void> {
     const snap = await this.store.collection(LOCAL_COLLECTIONS.sessions).where('uid', '==', uid).get();
+    // Stryker disable next-line ConditionalExpression: equivalent — a zero-write batch.commit()
+    // is a no-op (nothing to delete), so skipping it changes only cost, not behaviour.
     if (snap.empty) return;
     const batch = this.store.batch();
     for (const doc of snap.docs) batch.delete(doc.ref);
@@ -266,6 +272,7 @@ export class LocalIdentityProvider implements IdentityProvider {
       .where('uid', '==', uid)
       .where('kind', '==', 'reset-password' satisfies EmailActionKind)
       .get();
+    // Stryker disable next-line ConditionalExpression: equivalent — same reason as revokeAllSessions above.
     if (snap.empty) return;
     const batch = this.store.batch();
     for (const doc of snap.docs) batch.delete(doc.ref);

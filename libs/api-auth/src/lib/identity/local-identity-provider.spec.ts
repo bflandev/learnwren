@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { createInMemoryDocumentStore } from '@learnwren/api-document-store';
 
-import { EmailActionInvalidError } from './identity.errors';
+import { EmailActionInvalidError, EmailInUseError } from './identity.errors';
 import { SESSION_MAX_AGE_SECONDS } from './identity-provider.port';
 import { sha256Hex } from './opaque-token';
 import * as passwordHash from './password-hash';
@@ -158,6 +158,109 @@ describe('LocalIdentityProvider', () => {
       expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('failed to warm dummy password hash'));
       spy.mockRestore();
       loggerSpy.mockRestore();
+    });
+  });
+
+  describe('session and action edge cases', () => {
+    it('TTLs are exactly 24h for verify-email and 1h for reset-password and change-email', () => {
+      expect(EMAIL_ACTION_TTL_MS['verify-email']).toBe(24 * 60 * 60 * 1000);
+      expect(EMAIL_ACTION_TTL_MS['reset-password']).toBe(60 * 60 * 1000);
+      expect(EMAIL_ACTION_TTL_MS['change-email']).toBe(60 * 60 * 1000);
+    });
+
+    it('a second createSession on the same proof rejects with the exact "not issued" message', async () => {
+      await idp.createUser({ email: 'ivy@example.test', password: PASSWORD, displayName: 'Ivy' });
+      const proof = await idp.verifyPassword('ivy@example.test', PASSWORD);
+      await idp.createSession(proof);
+      await expect(idp.createSession(proof)).rejects.toThrow('Password proof was not issued by this identity provider');
+    });
+
+    it('verifySession returns null when the session is valid but the user was deleted', async () => {
+      const uid = await idp.createUser({ email: 'jack@example.test', password: PASSWORD, displayName: 'Jack' });
+      const session = await idp.createSession(await idp.verifyPassword('jack@example.test', PASSWORD));
+      await idp.deleteUser(uid);
+      expect(await idp.verifySession(session.token)).toBeNull();
+    });
+
+    it('a session expiring exactly now is rejected (boundary is <=, not <)', async () => {
+      await idp.createUser({ email: 'kim@example.test', password: PASSWORD, displayName: 'Kim' });
+      const session = await idp.createSession(await idp.verifyPassword('kim@example.test', PASSWORD));
+      t += SESSION_MAX_AGE_SECONDS * 1000; // land exactly on expiresAt
+      expect(await idp.verifySession(session.token)).toBeNull();
+    });
+
+    it('createEmailActionLink("change-email") without newEmail rejects with the exact message', async () => {
+      await idp.createUser({ email: 'lee@example.test', password: PASSWORD, displayName: 'Lee' });
+      await expect(idp.createEmailActionLink('change-email', 'lee@example.test', '/x')).rejects.toThrow(
+        'change-email requires newEmail',
+      );
+    });
+
+    it('createEmailActionLink for an unknown email rejects with the exact message', async () => {
+      await expect(idp.createEmailActionLink('verify-email', 'nobody@example.test', '/login')).rejects.toThrow(
+        'No account for that email',
+      );
+    });
+
+    it('applyEmailAction("reset-password") with no newPassword rejects with EmailActionInvalidError, not a hashing error', async () => {
+      await idp.createUser({ email: 'mona@example.test', password: PASSWORD, displayName: 'Mona' });
+      const link = await idp.createEmailActionLink('reset-password', 'mona@example.test', '/x');
+      const token = new URL(link).searchParams.get('token') ?? '';
+      await expect(idp.applyEmailAction('reset-password', token)).rejects.toBeInstanceOf(EmailActionInvalidError);
+    });
+
+    it('applyEmailAction rejects when the account is deleted after the link was sent', async () => {
+      const uid = await idp.createUser({ email: 'nora@example.test', password: PASSWORD, displayName: 'Nora' });
+      const link = await idp.createEmailActionLink('verify-email', 'nora@example.test', '/login');
+      const token = new URL(link).searchParams.get('token') ?? '';
+      await idp.deleteUser(uid);
+      await expect(idp.applyEmailAction('verify-email', token)).rejects.toBeInstanceOf(EmailActionInvalidError);
+    });
+
+    it('a change-email target taken between link creation and redemption raises EmailInUseError', async () => {
+      await idp.createUser({ email: 'owen@example.test', password: PASSWORD, displayName: 'Owen' });
+      const link = await idp.createEmailActionLink('change-email', 'owen@example.test', '/x', 'taken@example.test');
+      const token = new URL(link).searchParams.get('token') ?? '';
+      await idp.createUser({ email: 'taken@example.test', password: PASSWORD, displayName: 'Taken' });
+      await expect(idp.applyEmailAction('change-email', token)).rejects.toBeInstanceOf(EmailInUseError);
+    });
+
+    it('an email-action token expiring exactly now is rejected (boundary is <=, not <)', async () => {
+      await idp.createUser({ email: 'quinn@example.test', password: PASSWORD, displayName: 'Quinn' });
+      const link = await idp.createEmailActionLink('verify-email', 'quinn@example.test', '/login');
+      const token = new URL(link).searchParams.get('token') ?? '';
+      t += EMAIL_ACTION_TTL_MS['verify-email']; // land exactly on expiresAt
+      await expect(idp.applyEmailAction('verify-email', token)).rejects.toBeInstanceOf(EmailActionInvalidError);
+    });
+
+    it('verifySession returns null for a session whose user doc vanished without session cleanup', async () => {
+      const uid = await idp.createUser({ email: 'orphan@example.test', password: PASSWORD, displayName: 'Orphan' });
+      const session = await idp.createSession(await idp.verifyPassword('orphan@example.test', PASSWORD));
+      store.__store.delete(`authUsers/${uid}`);
+      expect(await idp.verifySession(session.token)).toBeNull();
+    });
+
+    it('applyEmailAction hashes newPassword only for reset-password', async () => {
+      await idp.createUser({ email: 'rex@example.test', password: PASSWORD, displayName: 'Rex' });
+      const link = await idp.createEmailActionLink('verify-email', 'rex@example.test', '/login');
+      const spy = vi.spyOn(passwordHash, 'hashPassword');
+      await idp.applyEmailAction('verify-email', new URL(link).searchParams.get('token') ?? '', 'Ignored-Pass-42!');
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('verify-email leaves existing sessions and pending reset-password links untouched', async () => {
+      await idp.createUser({ email: 'pia@example.test', password: PASSWORD, displayName: 'Pia' });
+      const session = await idp.createSession(await idp.verifyPassword('pia@example.test', PASSWORD));
+      const resetLink = await idp.createEmailActionLink('reset-password', 'pia@example.test', '/x');
+      const resetToken = new URL(resetLink).searchParams.get('token') ?? '';
+      const verifyLink = await idp.createEmailActionLink('verify-email', 'pia@example.test', '/login');
+      await idp.applyEmailAction('verify-email', new URL(verifyLink).searchParams.get('token') ?? '');
+
+      expect(await idp.verifySession(session.token)).not.toBeNull();
+      await expect(
+        idp.applyEmailAction('reset-password', resetToken, 'Brand-New-Pass-42!'),
+      ).resolves.toBeUndefined();
     });
   });
 });

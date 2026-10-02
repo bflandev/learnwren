@@ -283,6 +283,12 @@ describe('AuthService.applyEmailAction', () => {
     expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
   });
 
+  it('returns INTERNAL on an error response with no body', async () => {
+    const promise = svc.applyEmailAction('verify-email', 'X');
+    httpMock.expectOne('/api/auth/email-action').flush(null, { status: 502, statusText: 'Bad Gateway' });
+    expect(await promise).toEqual({ ok: false, code: 'INTERNAL' });
+  });
+
   it('returns INTERNAL on a non-HttpErrorResponse failure', async () => {
     const promise = svc.applyEmailAction('verify-email', 'X');
     httpMock.expectOne('/api/auth/email-action').error(new ProgressEvent('network'));
@@ -439,6 +445,21 @@ describe('AuthService — non-HttpErrorResponse errors are never read as API bod
       providers: [{ provide: HttpClient, useValue: http }],
     });
     expect(await TestBed.inject(AuthService).unlock('TOK')).toEqual({
+      ok: false,
+      code: 'INTERNAL',
+    });
+  });
+
+  it('applyEmailAction maps a non-HttpErrorResponse to INTERNAL even if it mimics an email-action error', async () => {
+    const http = {
+      post: vi.fn(() =>
+        throwError(() => ({ error: { error: { code: 'TOKEN_INVALID_OR_EXPIRED' } } })),
+      ),
+    };
+    TestBed.configureTestingModule({
+      providers: [{ provide: HttpClient, useValue: http }],
+    });
+    expect(await TestBed.inject(AuthService).applyEmailAction('verify-email', 'TOK')).toEqual({
       ok: false,
       code: 'INTERNAL',
     });

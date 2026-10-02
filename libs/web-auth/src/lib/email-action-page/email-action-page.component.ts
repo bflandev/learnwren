@@ -37,7 +37,7 @@ const EMAIL_ACTION_MODES: readonly EmailActionMode[] = [
 ];
 
 function isEmailActionMode(value: string | null): value is EmailActionMode {
-  return (EMAIL_ACTION_MODES as readonly string[]).includes(value ?? '');
+  return (EMAIL_ACTION_MODES as readonly (string | null)[]).includes(value);
 }
 
 @Component({
@@ -64,6 +64,8 @@ export class EmailActionPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
 
   private mode: EmailActionMode | null = null;
+  // Stryker disable next-line StringLiteral: equivalent — submit() is only reachable from
+  // the resetForm state, which ngOnInit enters only after assigning the real token.
   private token = '';
 
   readonly state = signal<ActionState>({ kind: 'pending' });
@@ -84,8 +86,9 @@ export class EmailActionPageComponent implements OnInit {
   readonly passwordHints = computed<string[]>(() => {
     void this.passwordStatus();
     const errors = this.form.controls.password.errors;
-    const policy = errors?.['passwordPolicy'] as { unmet?: PolicyRequirement[] } | undefined;
-    if (!policy?.unmet?.length) return [];
+    // The validator emits passwordPolicy only when unmet is non-empty.
+    const policy = errors?.['passwordPolicy'] as { unmet: PolicyRequirement[] } | undefined;
+    if (!policy) return [];
     return policy.unmet.map((r) => PASSWORD_REQUIREMENT_PROSE[r]);
   });
 
@@ -117,7 +120,7 @@ export class EmailActionPageComponent implements OnInit {
       }
       return;
     }
-    this.state.set(this.toErrorState(mode, result));
+    this.state.set(this.toErrorState(result));
   }
 
   async submit(): Promise<void> {
@@ -144,14 +147,16 @@ export class EmailActionPageComponent implements OnInit {
     }
   }
 
-  private toErrorState(mode: EmailActionMode, result: Extract<EmailActionResult, { ok: false }>): ActionState {
+  private toErrorState(result: Extract<EmailActionResult, { ok: false }>): ActionState {
     if (result.code === 'TOKEN_INVALID_OR_EXPIRED') return { kind: 'invalid' };
-    if (mode === 'change-email' && result.code === 'EMAIL_ALREADY_EXISTS') return { kind: 'taken' };
+    // ponytail: the api sends EMAIL_ALREADY_EXISTS only for change-email.
+    if (result.code === 'EMAIL_ALREADY_EXISTS') return { kind: 'taken' };
     return { kind: 'error' };
   }
 
   private toMessage(result: Extract<EmailActionResult, { ok: false }>): string {
-    if (result.code === 'WEAK_PASSWORD' && result.unmet?.length) {
+    // Only WEAK_PASSWORD carries unmet requirements.
+    if (result.unmet?.length) {
       const list = result.unmet
         .map((r) => PASSWORD_REQUIREMENT_PROSE[r as PolicyRequirement] ?? r)
         .join('; ');
