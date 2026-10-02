@@ -53,7 +53,9 @@ test('initiate sends a verification email to the new address (202)', async ({ re
     `${API_BASE}/auth/_test/last-email?to=${encodeURIComponent(newEmail)}&kind=email-change`,
   );
   expect(outbox.status()).toBe(200);
-  expect((await outbox.json()).url).toContain('oobCode');
+  // An action link carries a one-time code: Firebase's oobCode or local's token.
+  const params = new URL((await outbox.json()).url).searchParams;
+  expect(params.get('oobCode') ?? params.get('token')).toBeTruthy();
 });
 
 test('wrong current password is rejected with CURRENT_PASSWORD_INVALID', async ({ request }) => {
@@ -101,10 +103,16 @@ test('confirm finalizes the swap, forces re-login, and login follows the new add
   const confirm = await request.post(`${API_BASE}/profile/email/confirm`, {
     headers: { Cookie: cookieHeader },
   });
-  expect(confirm.status()).toBe(200);
-  expect(await confirm.json()).toMatchObject({ changed: true, email: newEmail });
-  // The server must clear the session cookie so the client is forced to re-login.
-  expect(confirm.headers()['set-cookie']).toContain('Max-Age=0');
+  if (process.env['LEARNWREN_IDENTITY'] === 'local') {
+    // Local identity revokes every session when the link is redeemed, so the old
+    // cookie is already dead here; users/{uid}.email syncs on the next login.
+    expect(confirm.status()).toBe(401);
+  } else {
+    expect(confirm.status()).toBe(200);
+    expect(await confirm.json()).toMatchObject({ changed: true, email: newEmail });
+    // The server must clear the session cookie so the client is forced to re-login.
+    expect(confirm.headers()['set-cookie']).toContain('Max-Age=0');
+  }
 
   // New address now authenticates successfully.
   const newLogin = await request.post(`${API_BASE}/auth/login`, {
@@ -118,7 +126,7 @@ test('confirm finalizes the swap, forces re-login, and login follows the new add
   });
   expect(oldLogin.status()).toBe(401);
 
-  // Firestore users doc reflects the new address.
+  // The users doc reflects the new address.
   const doc = await seam.getDoc<{ email?: string }>(`users/${uid}`);
   expect(doc?.email).toBe(newEmail);
 });

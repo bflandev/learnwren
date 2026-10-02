@@ -168,7 +168,7 @@ jobs:
         run: pnpm exec nx run web-e2e:perf
 
   e2e:
-    name: api-e2e (Firebase emulators)
+    name: api-e2e (Firebase emulators; Postgres + local identity)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -184,6 +184,20 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # S3-compatible store for the no-emulator run: without the Storage
+      # emulator, video and material bytes go to S3, as in the Compose stack.
+      objectstore:
+        image: rustfs/rustfs:1.0.0
+        env:
+          RUSTFS_ACCESS_KEY: learnwren
+          RUSTFS_SECRET_KEY: learnwren-e2e
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -sf http://127.0.0.1:9000/health || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 24
     env:
       LEARNWREN_TEST_POSTGRES_URL: postgres://postgres:learnwren@localhost:5432/learnwren_test
 
@@ -224,6 +238,19 @@ jobs:
       # Postgres service — the same storage the self-hosted deploy uses.
       - name: Run the identity + DocumentStore contracts (Auth, Firestore, Postgres) and api-e2e
         run: pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx run api-auth:test --skip-nx-cache && pnpm nx run api-document-store:test --skip-nx-cache && pnpm nx e2e api-e2e'
+
+      # The same suite on the self-hosted backend, with no emulators running:
+      # Postgres documents, local identity, S3 object storage (the services above).
+      - name: api-e2e on postgres + local identity (no emulators)
+        env:
+          LEARNWREN_DATA_STORE: postgres
+          LEARNWREN_IDENTITY: local
+          LEARNWREN_POSTGRES_URL: postgres://postgres:learnwren@localhost:5432/learnwren_test
+          LEARNWREN_OBJECT_STORAGE: s3
+          LEARNWREN_S3_ENDPOINT: http://localhost:9000
+          LEARNWREN_S3_ACCESS_KEY: learnwren
+          LEARNWREN_S3_SECRET_KEY: learnwren-e2e
+        run: pnpm nx e2e api-e2e --skip-nx-cache
 
   web-e2e:
     name: web-e2e (Firebase emulators)

@@ -391,8 +391,10 @@ test('course delete cascades: video, material, cover, enrollment all removed', a
     videoId: string;
     uploadSessionUri: string;
   };
+  // The jar now holds the student's cookie; S3 mode's upload URI is an api
+  // route behind the owner guard, so send the instructor's explicitly.
   await request.put(uploadSessionUri, {
-    headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
+    headers: { ...iHdr, 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
     data: FIXTURE_BYTES,
   });
   await request.post(`${API_BASE}/videos/${videoId}/upload-complete`, { headers: iHdr });
