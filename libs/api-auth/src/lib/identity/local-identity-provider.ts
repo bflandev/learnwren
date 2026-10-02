@@ -162,6 +162,7 @@ export class LocalIdentityProvider implements IdentityProvider {
       await batch.commit();
     }
     await this.revokeAllSessions(uid);
+    await this.deleteUserDocs(LOCAL_COLLECTIONS.actions, uid, () => true);
   }
 
   async setRole(uid: string, role: UserRole): Promise<void> {
@@ -181,6 +182,7 @@ export class LocalIdentityProvider implements IdentityProvider {
   async createSession(proof: PasswordProof): Promise<MintedSession> {
     if (!this.issuedProofs.has(proof)) throw new Error('Password proof was not issued by this identity provider');
     this.issuedProofs.delete(proof);
+    await this.sweepExpired(LOCAL_COLLECTIONS.sessions, proof.uid);
     const token = newOpaqueToken();
     const session: StoredSession = { uid: proof.uid, expiresAt: this.now() + SESSION_MAX_AGE_SECONDS * 1000 };
     await this.sessionRef(token).set(session);
@@ -205,13 +207,7 @@ export class LocalIdentityProvider implements IdentityProvider {
   }
 
   async revokeAllSessions(uid: string): Promise<void> {
-    const snap = await this.store.collection(LOCAL_COLLECTIONS.sessions).where('uid', '==', uid).get();
-    // Stryker disable next-line ConditionalExpression: equivalent — a zero-write batch.commit()
-    // is a no-op (nothing to delete), so skipping it changes only cost, not behaviour.
-    if (snap.empty) return;
-    const batch = this.store.batch();
-    for (const doc of snap.docs) batch.delete(doc.ref);
-    await batch.commit();
+    await this.deleteUserDocs(LOCAL_COLLECTIONS.sessions, uid, () => true);
   }
 
   async createEmailActionLink(kind: EmailActionKind, email: string, _continuePath: string, newEmail?: string): Promise<string> {
@@ -219,6 +215,7 @@ export class LocalIdentityProvider implements IdentityProvider {
     const found = await this.findByEmail(email);
     if (!found) throw new Error('No account for that email');
     if (kind === 'change-email' && (await this.emailRef(newEmail as string).get()).exists) throw new EmailInUseError();
+    await this.sweepExpired(LOCAL_COLLECTIONS.actions, found.uid);
     const token = newOpaqueToken();
     const action: StoredAction = {
       uid: found.uid,
@@ -276,12 +273,26 @@ export class LocalIdentityProvider implements IdentityProvider {
   }
 
   private async invalidatePendingActions(uid: string, kinds: readonly EmailActionKind[]): Promise<void> {
-    const snap = await this.store.collection(LOCAL_COLLECTIONS.actions).where('uid', '==', uid).get();
-    const stale = snap.docs.filter((doc) => kinds.includes((doc.data() as StoredAction).kind));
-    // Stryker disable next-line ConditionalExpression: equivalent — same reason as revokeAllSessions above.
-    if (stale.length === 0) return;
+    await this.deleteUserDocs(LOCAL_COLLECTIONS.actions, uid, (action: StoredAction) => kinds.includes(action.kind));
+  }
+
+  /** Expired sessions or links of one user. */
+  private async sweepExpired(collection: string, uid: string): Promise<void> {
+    const now = this.now();
+    await this.deleteUserDocs(collection, uid, (doc: { expiresAt: number }) => doc.expiresAt <= now);
+  }
+
+  // ponytail: housekeeping is per user, piggy-backed on login and link issue, so no
+  // scheduler is needed. Ceiling: expired rows of users who never return stay until
+  // the account is deleted; add a periodic expiresAt sweep if that table ever matters.
+  private async deleteUserDocs<T>(collection: string, uid: string, shouldDelete: (data: T) => boolean): Promise<void> {
+    const snap = await this.store.collection(collection).where('uid', '==', uid).get();
+    const doomed = snap.docs.filter((doc) => shouldDelete(doc.data() as T));
+    // Stryker disable next-line ConditionalExpression: equivalent — a zero-write batch.commit()
+    // is a no-op (nothing to delete), so skipping it changes only cost, not behaviour.
+    if (doomed.length === 0) return;
     const batch = this.store.batch();
-    for (const doc of stale) batch.delete(doc.ref);
+    for (const doc of doomed) batch.delete(doc.ref);
     await batch.commit();
   }
 }

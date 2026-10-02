@@ -322,4 +322,54 @@ describe('LocalIdentityProvider', () => {
       ).resolves.toBeUndefined();
     });
   });
+  describe('housekeeping', () => {
+    const countIn = (collection: string): number =>
+      [...store.__store.keys()].filter((path) => path.startsWith(`${collection}/`)).length;
+    const login = async (email: string) => idp.createSession(await idp.verifyPassword(email, PASSWORD));
+
+    it("a new login removes that user's expired sessions and keeps live ones", async () => {
+      await idp.createUser({ email: 'xan@example.test', password: PASSWORD, displayName: 'Xan' });
+      await login('xan@example.test');
+      t += SESSION_MAX_AGE_SECONDS * 1000; // first session now expired
+      const live = await login('xan@example.test');
+      expect(countIn('authSessions')).toBe(1);
+      const third = await login('xan@example.test');
+      expect(countIn('authSessions')).toBe(2);
+      expect(await idp.verifySession(live.token)).not.toBeNull();
+      expect(await idp.verifySession(third.token)).not.toBeNull();
+    });
+
+    it("a new login leaves other users' expired sessions alone", async () => {
+      await idp.createUser({ email: 'yul@example.test', password: PASSWORD, displayName: 'Yul' });
+      await idp.createUser({ email: 'zed@example.test', password: PASSWORD, displayName: 'Zed' });
+      await login('yul@example.test');
+      t += SESSION_MAX_AGE_SECONDS * 1000;
+      await login('zed@example.test');
+      expect(countIn('authSessions')).toBe(2);
+    });
+
+    it("issuing a link removes that user's expired links and keeps live ones", async () => {
+      await idp.createUser({ email: 'abe@example.test', password: PASSWORD, displayName: 'Abe' });
+      await idp.createEmailActionLink('reset-password', 'abe@example.test', '/x');
+      await idp.createEmailActionLink('verify-email', 'abe@example.test', '/login');
+      t += EMAIL_ACTION_TTL_MS['reset-password']; // reset expired, verify still live
+      await idp.createEmailActionLink('verify-email', 'abe@example.test', '/login');
+      expect(countIn('authEmailActions')).toBe(2);
+    });
+
+    it('a link whose user doc vanished without cleanup is rejected as invalid', async () => {
+      const uid = await idp.createUser({ email: 'cy@example.test', password: PASSWORD, displayName: 'Cy' });
+      const link = await idp.createEmailActionLink('verify-email', 'cy@example.test', '/login');
+      store.__store.delete(`authUsers/${uid}`);
+      const token = new URL(link).searchParams.get('token') ?? '';
+      await expect(idp.applyEmailAction('verify-email', token)).rejects.toBeInstanceOf(EmailActionInvalidError);
+    });
+
+    it('deleting a user removes their pending links', async () => {
+      const uid = await idp.createUser({ email: 'bea@example.test', password: PASSWORD, displayName: 'Bea' });
+      await idp.createEmailActionLink('verify-email', 'bea@example.test', '/login');
+      await idp.deleteUser(uid);
+      expect(countIn('authEmailActions')).toBe(0);
+    });
+  });
 });
