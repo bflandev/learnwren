@@ -12,6 +12,7 @@ import { CategoriesException } from './categories.exception';
  */
 @Catch(CategoriesException, AuthException, HttpException)
 export class CategoriesExceptionFilter implements ExceptionFilter {
+  // Stryker disable next-line StringLiteral: the Logger category name is a cosmetic log label with no behavioral effect; nothing observable depends on its exact value.
   private readonly logger = new Logger('CategoriesExceptionFilter');
 
   catch(exception: unknown, host: ArgumentsHost): void {

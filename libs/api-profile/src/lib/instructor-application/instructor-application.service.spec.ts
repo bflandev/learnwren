@@ -22,7 +22,11 @@ function makeFirestore(initial: DocState) {
     state.data = { ...value };
   });
   const doc = {
-    get: vi.fn(async () => ({ exists: state.exists, data: () => state.data })),
+    get: vi.fn(async () => ({
+      exists: state.exists,
+      // Mirrors the real store: a missing doc has no data.
+      data: () => (state.exists ? state.data : undefined),
+    })),
     set: setFn,
   };
   const collection = vi.fn(() => ({ doc: vi.fn(() => doc) }));

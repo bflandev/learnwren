@@ -515,6 +515,27 @@ describe('AdminUsersRepository', () => {
     expect(rec.updates).toEqual([]);
   });
 
+  it('deletes but does NOT decrement when the in-txn re-read finds the enrollment WITHDRAWN', async () => {
+    // Withdrawn between the query and the transaction: withdraw already
+    // decremented, so the purge must not decrement again.
+    const { handle, rec } = fakeFirestore({
+      enrollmentDocs: [
+        { id: 'u1__c1', data: { userId: 'u1', courseId: 'c1', status: 'ACTIVE' } },
+      ],
+      enrollmentSnapshots: {
+        u1__c1: {
+          exists: true,
+          data: () => ({ userId: 'u1', courseId: 'c1', status: 'WITHDRAWN' }),
+        },
+      },
+      coursesById: { c1: { id: 'c1', enrollmentCount: 5 } },
+    });
+    const repo = new AdminUsersRepository(handle);
+    await repo.deleteAllEnrollmentsForUser('u1' as UserId);
+    expect(rec.docDeletes).toContain('enrollments/u1__c1');
+    expect(rec.updates).toEqual([]);
+  });
+
   it('does NOT decrement for WITHDRAWN enrollments (already decremented at withdraw)', async () => {
     const { handle, rec } = fakeFirestore({
       enrollmentDocs: [

@@ -1079,6 +1079,18 @@ describe('EnrollmentRepository.stampCompleted', () => {
     expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBeUndefined();
   });
 
+  it('does not stamp when the only lesson has a progress row that is not completed', async () => {
+    const { repo, db } = repoWith({
+      [`enrollments/${ID}`]: activeEnrollment({
+        progress: [{ lessonId: 'l1' as LessonId, completedAt: null, lastWatchedSeconds: 30 }],
+      }),
+    });
+    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString, async () => [
+      'l1' as LessonId,
+    ]);
+    expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBeUndefined();
+  });
+
   it('does not stamp when the lesson list is empty', async () => {
     const { repo, db } = repoWith({
       [`enrollments/${ID}`]: activeEnrollment({ progress: [] }),

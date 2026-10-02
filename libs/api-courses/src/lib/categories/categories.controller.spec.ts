@@ -63,7 +63,11 @@ describe('AdminCategoriesController', () => {
     } catch (e) {
       err = e;
     }
-    expect(err).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
+    expect(err).toMatchObject({
+      code: 'VALIDATION_FAILED',
+      status: 400,
+      message: 'reassignTo must be a single category id.',
+    });
     expect(svc.remove).not.toHaveBeenCalled();
   });
 });

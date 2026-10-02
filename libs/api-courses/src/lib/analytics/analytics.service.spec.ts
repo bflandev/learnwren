@@ -204,6 +204,21 @@ describe('AnalyticsService', () => {
     expect(l2.averageWatchedSeconds).toBe(999);
   });
 
+  it('keeps the FIRST progress row when an enrolment carries duplicate rows for a lesson', async () => {
+    // Pins `if (!byLesson.has(...))`: forcing it true would let the later
+    // duplicate overwrite the first and flip both numbers below.
+    enrollments.listActiveByCourse.mockResolvedValue([
+      enrollment('A', '2026-05-30T00:00:00.000Z', [
+        { lessonId: 'l1', completed: true, seconds: 40 },
+        { lessonId: 'l1', completed: false, seconds: 7 },
+      ]),
+    ]);
+    const view = await service.getAnalytics(course);
+    const l1 = view.lessons.find((l) => l.lessonId === 'l1')!;
+    expect(l1.completionRatePercent).toBe(100);
+    expect(l1.averageWatchedSeconds).toBe(40);
+  });
+
   it('treats a row with completedAt === null as not completed (kills != → ==)', async () => {
     // One enrolled student with an l1 row that is watched but NOT completed.
     // completionRatePercent must be 0; a flipped equality would count it as 1.

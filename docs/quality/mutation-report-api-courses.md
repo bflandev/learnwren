@@ -1,11 +1,54 @@
 # Mutation Test Report — `libs/api-courses`
 
-> Generated 2026-10-02T11:23:22.873Z
+> Generated 2026-10-02T17:02:52.024Z
 
-**Headline mutation score: 99.31%** (killed=3474, survived=18, no-cov=6, ignored=109). Score on covered mutants only: 99.48%. Adjusted (equivalent candidates excluded): 99.43%.
-
+**Headline mutation score: 99.89%** (killed=3491, survived=4, no-cov=0, ignored=112). Score on covered mutants only: 99.89%. Adjusted (equivalent candidates excluded): 99.89%.
 
 Target band: core domain logic — 75–85% target.
+
+## Mutation sweep (2026-10-02)
+
+Full-config run: **99.89%** raw (3491 killed incl. 5 timeouts, 4 survived, 0 no-coverage,
+112 ignored), up from 99.31% (18 survived, 6 no-coverage). Every survivor listed under
+"Survivor clusters" below is a proven equivalent (see next section); every other mutant
+from the earlier full run is now killed. No product bug was found. Behaviour-preserving
+restructures, each done so the mutants become killable rather than excused:
+
+- `enrollment.repository.ts` `markLessonComplete`: the lesson list is `null` (not `[]`)
+  when the enrollment is already stamped, and the redundant `&& existing.completedAt == null`
+  on the stamp check is gone. The existing stamped/unstamped tests now kill the ternary.
+- `pubsub-push.guard.ts` `assertAudience`: `expected !== undefined && aud.includes(expected)`
+  became `aud.some((a) => a === expected)`. The `undefined` guard was dead
+  (`assertConfigComplete` rejects a missing audience first).
+- `video.service.ts`: removed a `next-line BlockStatement` disable that never attached;
+  the three log-only cleanup catches are now killed by asserting the operator warnings.
+
+New or tightened tests: categories exception-filter spec (new; validation flag), getInTxn,
+admin-categories message, analytics first-duplicate-row, getVideoByLesson FAILED ranking
+in both storage orders, stampCompleted with an incomplete row, materials `update`
+rethrowing non-NOT_FOUND errors, UploadSessionMissingException message. Annotated as
+equivalent: the categories filter Logger name and the `existing.progress ?? []` fallback
+in `stampCompleted`.
+
+### Proven equivalents left unannotated (4)
+
+- `catalog/catalog.service.ts:137` BlockStatement on the NEWEST `else` block: input comes
+  from `listPublished()`, already ordered `publishedAt` desc, so dropping the re-sort
+  leaves the order unchanged. Stryker's `next-line` disable does not attach to an `else`
+  block, and the region form would reclassify sibling mutants.
+- `video/captions/webvtt.validator.ts:2` Regex ×2 (`(?:\d{2}:)?` → `(?:\d:)?` and
+  `(?:\D{2}:)?`): `CUE_TIMING` is unanchored and the hours group is optional, so any
+  string the original matches still matches the mutant from `MM:SS.mmm`, and the mutant
+  can only match strings that contain a valid `MM:SS.mmm --> ...` substring, which the
+  original matches too.
+- `video/captions/webvtt.validator.ts:11` Regex (`|$` dropped): a body that is exactly
+  `WEBVTT` has no cue, so `CUE_TIMING.test` returns false on both paths.
+  The webvtt mutants stay unannotated on purpose: a disable on those lines would also
+  hide about 22 co-located killed mutants.
+
+The earlier residuals (video-storage module-load `catch {}`, video.config `'fake'`
+perTest NoCoverage) no longer appear: the first became `resolveBinary` and both files
+now score 100%.
 
 ## Full run and scoped run — US-09-04 Slice D3c (2026-10-02)
 
@@ -54,21 +97,14 @@ lifecycle. The full-lib table below predates this slice.
 
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
-| `src/lib/categories/categories.exception-filter.ts` | 0.0% | 0 | 0 | 4 |
 | `src/lib/video/captions/webvtt.validator.ts` | 91.2% | 31 | 3 | 0 |
-| `src/lib/categories/admin-categories.controller.ts` | 92.3% | 12 | 1 | 0 |
-| `src/lib/materials/materials.repository.ts` | 94.7% | 18 | 1 | 0 |
-| `src/lib/video/video.service.ts` | 98.2% | 163 | 3 | 0 |
-| `src/lib/enrollment/enrollment.repository.ts` | 98.3% | 228 | 3 | 1 |
-| `src/lib/video/video.repository.ts` | 98.4% | 185 | 3 | 0 |
-| `src/lib/video/errors/video.exception.ts` | 98.5% | 67 | 1 | 0 |
-| `src/lib/analytics/analytics.service.ts` | 98.8% | 81 | 1 | 0 |
-| `src/lib/video/webhook/pubsub-push.guard.ts` | 98.8% | 82 | 1 | 0 |
-| `src/lib/categories/categories.repository.ts` | 98.9% | 94 | 0 | 1 |
 | `src/lib/catalog/catalog.service.ts` | 99.0% | 104 | 1 | 0 |
 | `src/lib/analytics/analytics.controller.ts` | 100.0% | 5 | 0 | 0 |
+| `src/lib/analytics/analytics.service.ts` | 100.0% | 82 | 0 | 0 |
+| `src/lib/categories/categories.exception-filter.ts` | 100.0% | 3 | 0 | 0 |
 | `src/lib/courses.service.ts` | 100.0% | 89 | 0 | 0 |
 | `src/lib/cover/cover.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
+| `src/lib/enrollment/enrollment.repository.ts` | 100.0% | 230 | 0 | 0 |
 | `src/lib/health/admin-health.service.ts` | 100.0% | 113 | 0 | 0 |
 | `src/lib/learn/learn.controller.ts` | 100.0% | 44 | 0 | 0 |
 | `src/lib/learn/learn.exception-filter.ts` | 100.0% | 3 | 0 | 0 |
@@ -82,12 +118,16 @@ lifecycle. The full-lib table below predates this slice.
 | `src/lib/video/transcoder/gcp-transcoder.adapter.ts` | 100.0% | 61 | 0 | 0 |
 | `src/lib/video/video-storage.adapter.ts` | 100.0% | 126 | 0 | 0 |
 | `src/lib/video/video.exception-filter.ts` | 100.0% | 3 | 0 | 0 |
+| `src/lib/video/video.repository.ts` | 100.0% | 188 | 0 | 0 |
+| `src/lib/video/video.service.ts` | 100.0% | 166 | 0 | 0 |
 | `src/lib/video/webhook/transcoder-events.controller.ts` | 100.0% | 16 | 0 | 0 |
 | `src/lib/catalog/catalog.controller.ts` | 100.0% | 4 | 0 | 0 |
 | `src/lib/catalog/instructor-directory.ts` | 100.0% | 14 | 0 | 0 |
 | `src/lib/catalog/parse-course-id.pipe.ts` | 100.0% | 13 | 0 | 0 |
+| `src/lib/categories/admin-categories.controller.ts` | 100.0% | 13 | 0 | 0 |
 | `src/lib/categories/categories.controller.ts` | 100.0% | 1 | 0 | 0 |
 | `src/lib/categories/categories.exception.ts` | 100.0% | 16 | 0 | 0 |
+| `src/lib/categories/categories.repository.ts` | 100.0% | 95 | 0 | 0 |
 | `src/lib/categories/categories.service.ts` | 100.0% | 39 | 0 | 0 |
 | `src/lib/course-owner.guard.ts` | 100.0% | 13 | 0 | 0 |
 | `src/lib/courses.controller.ts` | 100.0% | 24 | 0 | 0 |
@@ -112,6 +152,7 @@ lifecycle. The full-lib table below predates this slice.
 | `src/lib/materials/materials-storage.adapter.ts` | 100.0% | 31 | 0 | 0 |
 | `src/lib/materials/materials.config.ts` | 100.0% | 55 | 0 | 0 |
 | `src/lib/materials/materials.controller.ts` | 100.0% | 14 | 0 | 0 |
+| `src/lib/materials/materials.repository.ts` | 100.0% | 19 | 0 | 0 |
 | `src/lib/materials/webhook/materials-proxy.controller.ts` | 100.0% | 48 | 0 | 0 |
 | `src/lib/publish/publish-eligibility.ts` | 100.0% | 57 | 0 | 0 |
 | `src/lib/publish/publish.service.ts` | 100.0% | 66 | 0 | 0 |
@@ -119,6 +160,7 @@ lifecycle. The full-lib table below predates this slice.
 | `src/lib/roster/roster.service.ts` | 100.0% | 34 | 0 | 0 |
 | `src/lib/video/captions/captions.controller.ts` | 100.0% | 6 | 0 | 0 |
 | `src/lib/video/captions/captions.service.ts` | 100.0% | 17 | 0 | 0 |
+| `src/lib/video/errors/video.exception.ts` | 100.0% | 68 | 0 | 0 |
 | `src/lib/video/hls-naming.ts` | 100.0% | 16 | 0 | 0 |
 | `src/lib/video/playback/current-video.decorator.ts` | 100.0% | 6 | 0 | 0 |
 | `src/lib/video/playback/enrollment-or-owner.guard.ts` | 100.0% | 28 | 0 | 0 |
@@ -137,79 +179,14 @@ lifecycle. The full-lib table below predates this slice.
 | `src/lib/video/video.config.ts` | 100.0% | 155 | 0 | 0 |
 | `src/lib/video/video.controller.ts` | 100.0% | 12 | 0 | 0 |
 | `src/lib/video/webhook/fake-transcoder.controller.ts` | 100.0% | 29 | 0 | 0 |
+| `src/lib/video/webhook/pubsub-push.guard.ts` | 100.0% | 83 | 0 | 0 |
 | `src/lib/categories/categories.seed.ts` | 100.0% | 13 | 0 | 0 |
 
 ## Survivor clusters — gaps to close
 
-### `src/lib/enrollment/enrollment.repository.ts` — 4 surviving mutants
-
-**Cluster 1** (lines 183 — `listAllLessonIds()`): 1 mutant surviving — ArrayDeclaration×1
-
-Sample mutation:
-```diff
-- const allLessonIds = existing.completedAt == null ? await listAllLessonIds(t) : [];
-+ <replaced with: ["Stryker was here"]>
-```
-
-_Diagnosis._ An array literal could be replaced with `[]` and tests pass. The contents (length, ordering, item shape) are not pinned.
-
-_Recommended test._ Assert on the array length / object shape returned at `enrollment.repository.ts:183` in `listAllLessonIds`, not just truthiness.
-
-**Cluster 2** (lines 199 — `if()`): 1 mutant surviving — ConditionalExpression×1
-
-Sample mutation:
-```diff
-- if (allComplete && existing.completedAt == null) {
-+ <replaced with: true>
-```
-
-_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `enrollment.repository.ts:199` in `if` with assertions that distinguish the outcomes.
-
-**Cluster 3** (lines 345 — `stamp()`): 2 mutants surviving — ArrayDeclaration×1, ConditionalExpression×1
-
-Sample mutation:
-```diff
-- (existing.progress ?? []).map((p) => [p.lessonId, p.completedAt != null]),
-+ <replaced with: ["Stryker was here"]>
-```
-
-_Diagnosis._ An array literal could be replaced with `[]` and tests pass. The contents (length, ordering, item shape) are not pinned.
-
-_Recommended test._ Assert on the array length / object shape returned at `enrollment.repository.ts:345` in `stamp`, not just truthiness.
-
-### `src/lib/categories/categories.exception-filter.ts` — 3 surviving mutants
-
-**Cluster 4** (lines 17–19 — `catch()`): 3 mutants surviving — BlockStatement×1, ObjectLiteral×1, BooleanLiteral×1
-
-Sample mutation:
-```diff
-- catch(exception: unknown, host: ArgumentsHost): void {
-+ <replaced with: {}>
-```
-
-_Diagnosis._ An entire block could be deleted without test failure: the side effect inside it is not observed. Assert on the change it makes (state, mock call, returned value).
-
-_Recommended test._ Add an assertion on the side effect of the block/function at `categories.exception-filter.ts:17` in `catch` — verify state change, mock invocation, or returned value.
-
-### `src/lib/video/video.repository.ts` — 3 surviving mutants
-
-**Cluster 5** (lines 84 — `getVideoByLesson()`): 3 mutants surviving — ConditionalExpression×2, StringLiteral×1
-
-Sample mutation:
-```diff
-- const failedRank = Number(a.state === 'FAILED') - Number(b.state === 'FAILED');
-+ <replaced with: false>
-```
-
-_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `video.repository.ts:84` in `getVideoByLesson` with assertions that distinguish the outcomes.
-
 ### `src/lib/video/captions/webvtt.validator.ts` — 3 surviving mutants
 
-**Cluster 6** (lines 2): 2 mutants surviving — Regex×2
+**Cluster 1** (lines 2): 2 mutants surviving — Regex×2
 
 Sample mutation:
 ```diff
@@ -221,7 +198,7 @@ _Diagnosis._ A regex literal could be replaced with `/.*/` and tests pass. Asser
 
 _Recommended test._ Inspect `webvtt.validator.ts:2` and add an assertion that distinguishes the original from the surviving mutation.
 
-**Cluster 7** (lines 11 — `slice()`): 1 mutant surviving — Regex×1
+**Cluster 2** (lines 11 — `slice()`): 1 mutant surviving — Regex×1
 
 Sample mutation:
 ```diff
@@ -233,37 +210,9 @@ _Diagnosis._ A regex literal could be replaced with `/.*/` and tests pass. Asser
 
 _Recommended test._ Inspect `webvtt.validator.ts:11` in `slice` and add an assertion that distinguishes the original from the surviving mutation.
 
-### `src/lib/categories/categories.repository.ts` — 1 surviving mutant
-
-**Cluster 8** (lines 78–81 — `get()`): 1 mutant surviving — BlockStatement×1
-
-Sample mutation:
-```diff
-- ): Promise<CourseCategoryDoc | null> {
-+ <replaced with: {}>
-```
-
-_Diagnosis._ An entire block could be deleted without test failure: the side effect inside it is not observed. Assert on the change it makes (state, mock call, returned value).
-
-_Recommended test._ Add an assertion on the side effect of the block/function at `categories.repository.ts:78` in `get` — verify state change, mock invocation, or returned value.
-
-### `src/lib/analytics/analytics.service.ts` — 1 surviving mutant
-
-**Cluster 9** (lines 57 — `for()`): 1 mutant surviving — ConditionalExpression×1
-
-Sample mutation:
-```diff
-- if (!byLesson.has(p.lessonId)) byLesson.set(p.lessonId, p);
-+ <replaced with: true>
-```
-
-_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `analytics.service.ts:57` in `for` with assertions that distinguish the outcomes.
-
 ### `src/lib/catalog/catalog.service.ts` — 1 surviving mutant
 
-**Cluster 10** (lines 137–140 — `if()`): 1 mutant surviving — BlockStatement×1
+**Cluster 3** (lines 137–140 — `if()`): 1 mutant surviving — BlockStatement×1
 
 Sample mutation:
 ```diff
@@ -275,72 +224,9 @@ _Diagnosis._ An entire block could be deleted without test failure: the side eff
 
 _Recommended test._ Add an assertion on the side effect of the block/function at `catalog.service.ts:137` in `if` — verify state change, mock invocation, or returned value.
 
-### `src/lib/categories/admin-categories.controller.ts` — 1 surviving mutant
-
-**Cluster 11** (lines 47 — `if()`): 1 mutant surviving — StringLiteral×1
-
-Sample mutation:
-```diff
-- throw new CategoryValidationException('reassignTo must be a single category id.');
-+ <replaced with: "">
-```
-
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
-
-_Recommended test._ Add an assertion that pins the literal value at `admin-categories.controller.ts:47` in `if`. If it's a log message, classify as equivalent.
-
-### `src/lib/materials/materials.repository.ts` — 1 surviving mutant
-
-**Cluster 12** (lines 44 — `if()`): 1 mutant surviving — ConditionalExpression×1
-
-Sample mutation:
-```diff
-- if (err instanceof DocumentNotFoundError) {
-+ <replaced with: true>
-```
-
-_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `materials.repository.ts:44` in `if` with assertions that distinguish the outcomes.
-
-### `src/lib/video/errors/video.exception.ts` — 1 surviving mutant
-
-**Cluster 13** (lines 150 — `constructor()`): 1 mutant surviving — StringLiteral×1
-
-Sample mutation:
-```diff
-- 'No open upload session for this video; start the upload again.',
-+ <replaced with: "">
-```
-
-_Diagnosis._ A string literal could be replaced with the empty string and tests still pass — the test doesn't assert on this value.
-
-_Recommended test._ Add an assertion that pins the literal value at `video.exception.ts:150` in `constructor`. If it's a log message, classify as equivalent.
-
-### `src/lib/video/webhook/pubsub-push.guard.ts` — 1 surviving mutant
-
-**Cluster 14** (lines 106 — `assertAudience()`): 1 mutant surviving — ConditionalExpression×1
-
-Sample mutation:
-```diff
-- ? expected !== undefined && payload.aud.includes(expected)
-+ <replaced with: true>
-```
-
-_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `pubsub-push.guard.ts:106` in `assertAudience` with assertions that distinguish the outcomes.
-
 ## Equivalent-mutant candidates (excluded from adjusted score)
 
-4 mutants flagged as likely equivalent — these are excluded from the **adjusted** score above. Reviewer should confirm each before treating the adjusted score as authoritative:
-
-| File:line | Mutator | Reason |
-|-----------|---------|--------|
-| `src/lib/categories/categories.exception-filter.ts:15` | StringLiteral | Logger name passed to `new Logger(...)` — observability, not behavior. |
-| `src/lib/video/video.service.ts:196` | BlockStatement | Catch block contains only logging — emptying it preserves the silent-swallow behavior. |
-| `src/lib/video/video.service.ts:213` | BlockStatement | Catch block contains only logging — emptying it preserves the silent-swallow behavior. |
-| `src/lib/video/video.service.ts:219` | BlockStatement | Catch block contains only logging — emptying it preserves the silent-swallow behavior. |
+_None._
 
 ## Caveats
 
