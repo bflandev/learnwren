@@ -3,9 +3,13 @@
 # working default for a single machine; see docs/self-hosting.md.
 #
 #   web         nginx: the Angular build, /api → api
-#   api         NestJS: ffmpeg video pipeline, S3 client, public-image route
+#   api         NestJS: built-in accounts, ffmpeg video pipeline, S3 client,
+#               public-image route
+#   postgres    the data store (never published to the host)
 #   objectstore S3-compatible object store (RustFS; never published to the host)
-#   emulators   Firebase Auth + Firestore emulators (the remaining Firebase pieces)
+#
+# No Firebase anywhere: data lives in Postgres, accounts are the api's own
+# (LEARNWREN_IDENTITY=local) and files live in the object store.
 
 x-buckets: &buckets
   LEARNWREN_VIDEO_SOURCE_BUCKET: learnwren-source
@@ -15,26 +19,19 @@ x-buckets: &buckets
   LEARNWREN_PICTURE_BUCKET: learnwren-pictures
 
 services:
-  emulators:
-    build:
-      context: .
-      target: emulators
-    # Loopback-only by default: the Emulator UI, Firestore and Auth ports have
-    # no authentication.
-    ports:
-      - "${LEARNWREN_ADMIN_BIND:-127.0.0.1}:4000:4000"
-      - "${LEARNWREN_ADMIN_BIND:-127.0.0.1}:8080:8080"
-      - "${LEARNWREN_ADMIN_BIND:-127.0.0.1}:9099:9099"
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: "${LEARNWREN_POSTGRES_PASSWORD:-learnwren-change-me}"
+      POSTGRES_DB: learnwren
     volumes:
-      - emulator-data:/data
-    # Data is exported to the volume on shutdown; give the JVM time to flush.
-    stop_grace_period: 60s
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d learnwren"]
       interval: 5s
       timeout: 5s
       retries: 24
-      start_period: 20s
+      start_period: 10s
     restart: unless-stopped
 
   objectstore:
@@ -60,17 +57,18 @@ services:
     build:
       context: .
       target: api
-    # Shares the emulators' network namespace so the api reaches Auth and
-    # Firestore on 127.0.0.1 (its built-in default). It still resolves the
-    # other services (objectstore) by name on the compose network.
-    network_mode: "service:emulators"
     depends_on:
-      emulators:
+      postgres:
         condition: service_healthy
       objectstore:
         condition: service_healthy
     environment:
       <<: *buckets
+      LEARNWREN_DATA_STORE: postgres
+      LEARNWREN_IDENTITY: local
+      LEARNWREN_POSTGRES_URL: "postgres://postgres:${LEARNWREN_POSTGRES_PASSWORD:-learnwren-change-me}@postgres:5432/learnwren"
+      # First admin: this account becomes ADMIN when it logs in after verifying.
+      LEARNWREN_BOOTSTRAP_ADMIN_EMAIL: "${LEARNWREN_BOOTSTRAP_ADMIN_EMAIL:-}"
       LEARNWREN_PUBLIC_URL: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}"
       LEARNWREN_CORS_ORIGINS: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}"
       # Real video: ffmpeg transcodes in-process and segments are served
@@ -111,5 +109,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  emulator-data:
+  postgres-data:
   objectstore-data:
