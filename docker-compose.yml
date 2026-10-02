@@ -20,8 +20,9 @@
 # work (the service is gone from this file); use
 #     docker rm -f <project>-emulators-1
 #
-# First run: register the LEARNWREN_BOOTSTRAP_ADMIN_EMAIL account before the
-# web port is reachable by anyone else. See docs/self-hosting.md "First run".
+# First run: set LEARNWREN_WEB_BIND=127.0.0.1 (or firewall the port) until you
+# have registered the LEARNWREN_BOOTSTRAP_ADMIN_EMAIL account; whoever
+# registers it first becomes ADMIN. See docs/self-hosting.md "First run".
 
 x-buckets: &buckets
   LEARNWREN_VIDEO_SOURCE_BUCKET: learnwren-source
@@ -115,7 +116,7 @@ services:
       context: .
       target: web
     ports:
-      - "${LEARNWREN_WEB_PORT:-8000}:80"
+      - "${LEARNWREN_WEB_BIND:-0.0.0.0}:${LEARNWREN_WEB_PORT:-8000}:80"
     depends_on:
       - api
     restart: unless-stopped

@@ -39,8 +39,8 @@ curl http://localhost:8000/api/health   # {"status":"ok",...}
 reset a password, log in as admin, create a course, upload a video, play it).
 It creates real accounts, including an ADMIN (it sets the bootstrap email to a
 throwaway address), so **run it only on a fresh stack**, never on an install
-that has users. It refuses to start if the stack's api is already running;
-give it a project of its own instead, for example
+that has users. It refuses to start if the stack already has an api
+container (running or stopped); give it a project of its own instead, for example
 `COMPOSE_PROJECT_NAME=lw-smoke docker/smoke.sh --down`. (`--force` overrides
 the check, for a stack you are happy to throw away.)
 
@@ -63,11 +63,14 @@ the two public buckets (covers, profile pictures) are served anonymously at
 1. **Name your admin.** In `.env`, set `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL` to the
    address you will register with. Also set `LEARNWREN_POSTGRES_PASSWORD` now
    (see [Configuration](#configuration)); changing it later needs extra steps.
-2. **Start the stack and register, before anyone else can reach it.** Run
-   `docker compose up -d`, then register at http://localhost:8000/register
-   straight away, while the web port is still closed to other machines (by
-   your firewall, or because you have not yet pointed `LEARNWREN_HOST` or a
-   proxy at it). Whoever registers that address first gets the admin account.
+2. **Start the stack and register, before anyone else can reach it.**
+   Whoever registers that address first gets the admin account, and Compose
+   publishes the web port on every network interface. Setting or leaving
+   `LEARNWREN_HOST` changes nothing here. For the first run, set
+   `LEARNWREN_WEB_BIND=127.0.0.1` in `.env` so only this machine can connect
+   (or block the port in your firewall). Run `docker compose up -d` and
+   register at http://localhost:8000/register. Once you are admin, clear
+   `LEARNWREN_WEB_BIND` and run `docker compose up -d` again.
    **If registration says the address is already in use, stop: do not verify
    any link.** Someone else registered it. Wipe the new install with
    `docker compose down -v` and start again.
@@ -108,6 +111,7 @@ and are read by `docker-compose.yml`. Restart to apply: `docker compose up -d`.
 | :--- | :--- | :--- |
 | `LEARNWREN_HOST` | `localhost` | Hostname browsers use. Must resolve to this machine from the browser **and** from inside the containers, because the api mints video-upload URLs on it. |
 | `LEARNWREN_WEB_PORT` | `8000` | Host port for the web app. |
+| `LEARNWREN_WEB_BIND` | `0.0.0.0` | Host address the web port listens on. `127.0.0.1` keeps it to this machine (use it for the first run). |
 | `LEARNWREN_S3_ACCESS_KEY` / `LEARNWREN_S3_SECRET_KEY` | `learnwren` / `learnwren-change-me` | Object store root credentials, used by the api. **Change the secret** on any machine other people can reach. |
 | `LEARNWREN_POSTGRES_PASSWORD` | `learnwren-change-me` | Password for the bundled PostgreSQL. **Change it before the first `docker compose up`.** Postgres keeps it in its volume, so a later change also needs `ALTER USER postgres PASSWORD ...` in the database. Use only letters, digits, `-` and `_`: it goes into a URL. |
 | `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL` | unset | The account with this email becomes ADMIN when it logs in verified. See [First run](#first-run). Clear it afterwards. |
