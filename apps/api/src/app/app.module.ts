@@ -8,6 +8,7 @@ import { AuthModule } from '@learnwren/api-auth';
 import { CoursesModule, VideoModule } from '@learnwren/api-courses';
 import { ProfileModule } from '@learnwren/api-profile';
 
+import { TestSeamModule } from './test-seam/test-seam.module';
 import { AppController } from './app.controller';
 import { resolveThrottleTiers } from './throttle.config';
 
@@ -34,6 +35,8 @@ import { resolveThrottleTiers } from './throttle.config';
     CoursesModule,
     VideoModule,
     ProfileModule,
+    // Test-only setup seam for api-e2e (see test-seam.controller.ts).
+    ...(process.env['LEARNWREN_TEST_OUTBOX_ENABLED'] === '1' ? [TestSeamModule] : []),
   ],
   controllers: [AppController],
   providers: [
