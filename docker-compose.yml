@@ -82,8 +82,11 @@ services:
       LEARNWREN_POSTGRES_URL: "postgres://postgres:${LEARNWREN_POSTGRES_PASSWORD:-learnwren-change-me}@postgres:5432/learnwren"
       # First admin: this account becomes ADMIN when it logs in after verifying.
       LEARNWREN_BOOTSTRAP_ADMIN_EMAIL: "${LEARNWREN_BOOTSTRAP_ADMIN_EMAIL:-}"
-      LEARNWREN_PUBLIC_URL: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}"
-      LEARNWREN_CORS_ORIGINS: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}"
+      # The origin browsers use: emailed links, CORS and the public image URLs.
+      # Set LEARNWREN_PUBLIC_URL in .env behind an HTTPS proxy. Compose cannot
+      # reference another variable here, so the same default repeats below.
+      LEARNWREN_PUBLIC_URL: "${LEARNWREN_PUBLIC_URL:-http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}}"
+      LEARNWREN_CORS_ORIGINS: "${LEARNWREN_PUBLIC_URL:-http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}}"
       # Real video: ffmpeg transcodes in-process and segments are served
       # through /api (no signing credentials needed). See docs/self-hosting.md.
       LEARNWREN_VIDEO_TRANSCODER: ffmpeg
@@ -100,8 +103,8 @@ services:
       LEARNWREN_MATERIALS_STORAGE_FAKE: "false"
       # Public images are served by the api from these two buckets only.
       LEARNWREN_PUBLIC_BUCKETS: learnwren-covers,learnwren-pictures
-      LEARNWREN_COVER_PUBLIC_BASE_URL: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}/api/media/learnwren-covers"
-      LEARNWREN_PICTURE_PUBLIC_BASE_URL: "http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}/api/media/learnwren-pictures"
+      LEARNWREN_COVER_PUBLIC_BASE_URL: "${LEARNWREN_PUBLIC_URL:-http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}}/api/media/learnwren-covers"
+      LEARNWREN_PICTURE_PUBLIC_BASE_URL: "${LEARNWREN_PUBLIC_URL:-http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}}/api/media/learnwren-pictures"
       LEARNWREN_EMAIL_TRANSPORT: "${LEARNWREN_EMAIL_TRANSPORT:-console}"
       LEARNWREN_EMAIL_FROM: "${LEARNWREN_EMAIL_FROM:-noreply@learnwren.local}"
       SMTP_HOST: "${SMTP_HOST:-}"

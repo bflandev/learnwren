@@ -69,8 +69,7 @@ the two public buckets (covers, profile pictures) are served anonymously at
    `LEARNWREN_HOST` changes nothing here. For the first run, set
    `LEARNWREN_WEB_BIND=127.0.0.1` in `.env` so only this machine can connect
    (or block the port in your firewall). Run `docker compose up -d` and
-   register at http://localhost:8000/register. Once you are admin, clear
-   `LEARNWREN_WEB_BIND` and run `docker compose up -d` again.
+   register at http://localhost:8000/register. Keep the bind until step 4.
    **If registration says the address is already in use, stop: do not verify
    any link.** Someone else registered it. Wipe the new install with
    `docker compose down -v` and start again.
@@ -81,7 +80,8 @@ the two public buckets (covers, profile pictures) are served anonymously at
    Verify only the link for the account you just registered.
 4. **Log in.** You are now an ADMIN. The api promotes the account on login
    when its email matches the variable (exact match, ignoring case) and is
-   verified. Then **clear `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL`** and run
+   verified. Then **clear `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL`** (and
+   `LEARNWREN_WEB_BIND`, if you set it in step 2) and run
    `docker compose up -d` again. Any later admins you promote in the
    **Admin** area, so you do not need the variable again.
 
@@ -109,8 +109,9 @@ and are read by `docker-compose.yml`. Restart to apply: `docker compose up -d`.
 
 | Variable | Default | Purpose |
 | :--- | :--- | :--- |
-| `LEARNWREN_HOST` | `localhost` | Hostname browsers use. Must resolve to this machine from the browser **and** from inside the containers, because the api mints video-upload URLs on it. |
+| `LEARNWREN_HOST` | `localhost` | Hostname browsers use. It needs to resolve only from the browser; the api builds links and image URLs on it but never fetches them. |
 | `LEARNWREN_WEB_PORT` | `8000` | Host port for the web app. |
+| `LEARNWREN_PUBLIC_URL` | `http://LEARNWREN_HOST:LEARNWREN_WEB_PORT` | The origin browsers use, with no trailing slash. Emailed links (verify, reset, email change), CORS and cover/profile image URLs are built on it. Set it to your proxy's address (for example `https://learn.example.com`) when you serve over HTTPS. |
 | `LEARNWREN_WEB_BIND` | `0.0.0.0` | Host address the web port listens on. `127.0.0.1` keeps it to this machine (use it for the first run). |
 | `LEARNWREN_S3_ACCESS_KEY` / `LEARNWREN_S3_SECRET_KEY` | `learnwren` / `learnwren-change-me` | Object store root credentials, used by the api. **Change the secret** on any machine other people can reach. |
 | `LEARNWREN_POSTGRES_PASSWORD` | `learnwren-change-me` | Password for the bundled PostgreSQL. **Change it before the first `docker compose up`.** Postgres keeps it in its volume, so a later change also needs `ALTER USER postgres PASSWORD ...` in the database. Use only letters, digits, `-` and `_`: it goes into a URL. |
@@ -128,7 +129,10 @@ web port needs to be reachable. Nothing else is published to the host.
 the web port is. Their credentials sit in `.env`, so change
 `LEARNWREN_POSTGRES_PASSWORD` and `LEARNWREN_S3_SECRET_KEY` from the defaults.
 Put the web port behind a TLS-terminating reverse proxy of your own (the stack
-serves plain HTTP and sets no HSTS header). The session cookie is always
+serves plain HTTP and sets no HSTS header), and set `LEARNWREN_PUBLIC_URL` to
+the proxy's `https://` origin. Otherwise emailed links and image URLs still
+point at plain-HTTP `LEARNWREN_HOST:LEARNWREN_WEB_PORT`, sending reset tokens
+in clear. The session cookie is always
 marked `Secure`, so login over plain HTTP works only on `localhost` in some
 browsers (Chrome and Firefox; Safari refuses even there). Use HTTPS for
 anything beyond a quick local trial.
