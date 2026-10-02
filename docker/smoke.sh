@@ -8,11 +8,11 @@
 #
 # Usage: docker/smoke.sh [--down] [--force]
 #   --down   tears the stack down afterwards (volumes are kept)
-#   --force  runs even though the stack's api is already running
+#   --force  runs even though the stack already has an api container
 #
 # It creates real accounts (the first becomes ADMIN) and restarts the api with
 # the smoke account as bootstrap admin, so it refuses to run against a stack
-# that is already up: run it under its own COMPOSE_PROJECT_NAME, never against
+# that already exists: run it under its own COMPOSE_PROJECT_NAME, never against
 # a live install. Needs: sh, curl, sed, grep, od.
 # The test video is made with the ffmpeg bundled in the api image.
 set -eu
@@ -27,8 +27,8 @@ for arg in "$@"; do
     *) echo "usage: docker/smoke.sh [--down] [--force]" >&2; exit 2 ;;
   esac
 done
-if [ -z "$FORCE" ] && [ -n "$(docker compose ps -q api 2>/dev/null)" ]; then
-  echo "smoke: the api of project ${COMPOSE_PROJECT_NAME:-$(basename "$PWD")} is already running." >&2
+if [ -z "$FORCE" ] && [ -n "$(docker compose ps -aq api 2>/dev/null)" ]; then
+  echo "smoke: project ${COMPOSE_PROJECT_NAME:-$(basename "$PWD")} already has an api container (running or stopped)." >&2
   echo "smoke: this script would restart it with a smoke admin account. Use another" >&2
   echo "smoke: COMPOSE_PROJECT_NAME, or pass --force if this stack is disposable." >&2
   exit 1
