@@ -26,7 +26,9 @@ RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force \
   # @ffprobe-installer ships its binary without the execute bit; the api runs
   # as `node` and cannot repair a root-owned file at runtime.
   && chmod -R a+rX node_modules/@ffprobe-installer node_modules/@ffmpeg-installer
-ENV PORT=3333
+# production: the test seams 404 and their env flags refuse to boot, and any
+# setting Compose forgets fails loudly instead of falling back to a dev fake.
+ENV NODE_ENV=production PORT=3333
 EXPOSE 3333
 USER node
 CMD ["node", "main.js"]

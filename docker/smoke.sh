@@ -6,13 +6,33 @@
 # video, wait for ffmpeg to transcode it, and fetch the playlist, key and one
 # segment. Exit 0 = the stack works end to end.
 #
-# Usage: docker/smoke.sh [--down]   (--down tears the stack down afterwards)
+# Usage: docker/smoke.sh [--down] [--force]
+#   --down   tears the stack down afterwards (volumes are kept)
+#   --force  runs even though the stack's api is already running
 #
-# It creates real accounts (the first becomes ADMIN), so run it against a
-# fresh stack, not one with users in it. Needs: sh, curl, sed, grep, od.
+# It creates real accounts (the first becomes ADMIN) and restarts the api with
+# the smoke account as bootstrap admin, so it refuses to run against a stack
+# that is already up: run it under its own COMPOSE_PROJECT_NAME, never against
+# a live install. Needs: sh, curl, sed, grep, od.
 # The test video is made with the ffmpeg bundled in the api image.
 set -eu
 cd "$(dirname "$0")/.."
+
+DOWN=
+FORCE=
+for arg in "$@"; do
+  case "$arg" in
+    --down) DOWN=1 ;;
+    --force) FORCE=1 ;;
+    *) echo "usage: docker/smoke.sh [--down] [--force]" >&2; exit 2 ;;
+  esac
+done
+if [ -z "$FORCE" ] && [ -n "$(docker compose ps -q api 2>/dev/null)" ]; then
+  echo "smoke: the api of project ${COMPOSE_PROJECT_NAME:-$(basename "$PWD")} is already running." >&2
+  echo "smoke: this script would restart it with a smoke admin account. Use another" >&2
+  echo "smoke: COMPOSE_PROJECT_NAME, or pass --force if this stack is disposable." >&2
+  exit 1
+fi
 
 PORT="${LEARNWREN_WEB_PORT:-8000}"
 BASE="http://localhost:${PORT}"
@@ -154,7 +174,11 @@ req POST "/courses/$CID/modules/$MID/lessons/$LID/video/upload-session" \
 expect 201 "create upload session"
 VID=$(field videoId)
 UPLOAD_PATH=$(field uploadSessionUri | sed -E 's#^(https?://[^/]+)?/api##')
-# Explicit type: curl's default (form-urlencoded) would be eaten by the body parser.
+# A chunk sent as JSON is eaten by the body parser: the api must refuse it at
+# once, not hold the connection open until nginx times out.
+STATUS=$(curl -sS -o "$TMP/body" -w '%{http_code}' --max-time 10 -X PUT -H "Cookie: $COOKIE" \
+  -H 'Content-Type: application/json' -H 'Content-Range: bytes 0-1/2' --data '{}' "$API$UPLOAD_PATH") || STATUS=timeout
+expect 400 "upload chunk sent as JSON"
 STATUS=$(curl -sS -o "$TMP/body" -w '%{http_code}' -X PUT -H "Cookie: $COOKIE" \
   -H 'Content-Type: application/octet-stream' -H "Content-Range: bytes 0-$((SIZE - 1))/$SIZE" --data-binary "@$VIDEO" "$API$UPLOAD_PATH")
 expect 200 "upload video bytes"
@@ -191,4 +215,4 @@ expect 200 "segment $SEGMENT"
 [ "$(wc -c < "$TMP/body" | tr -d ' ')" -gt 0 ] || fail "empty segment"
 
 echo "smoke: ok ($BASE, project ${COMPOSE_PROJECT_NAME:-default})"
-if [ "${1:-}" = "--down" ]; then docker compose down; fi
+if [ -n "$DOWN" ]; then docker compose down; fi
