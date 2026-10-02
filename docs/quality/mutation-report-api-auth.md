@@ -1,8 +1,8 @@
 # Mutation Test Report — `libs/api-auth`
 
-> Generated 2026-10-02T01:13:53.517Z
+> Generated 2026-10-02T03:23:06.101Z
 
-**Headline mutation score: 100.00%** (killed=785, survived=0, no-cov=0, ignored=71). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
+**Headline mutation score: 100.00%** (killed=795, survived=0, no-cov=0, ignored=69). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
 
 
 Target band: auth / billing / auth-adjacent — 90%+ target.
@@ -18,7 +18,7 @@ Target band: auth / billing / auth-adjacent — 90%+ target.
 | `src/lib/firebase-session.guard.ts` | 100.0% | 12 | 0 | 0 |
 | `src/lib/identity/firebase-identity-provider.ts` | 100.0% | 103 | 0 | 0 |
 | `src/lib/identity/identity-provider.port.ts` | 100.0% | 3 | 0 | 0 |
-| `src/lib/identity/local-identity-provider.ts` | 100.0% | 172 | 0 | 0 |
+| `src/lib/identity/local-identity-provider.ts` | 100.0% | 182 | 0 | 0 |
 | `src/lib/password-verification.service.ts` | 100.0% | 15 | 0 | 0 |
 | `src/lib/session-cookie.service.ts` | 100.0% | 8 | 0 | 0 |
 | `src/lib/admin-role.guard.ts` | 100.0% | 8 | 0 | 0 |
