@@ -70,6 +70,17 @@ describe('MaterialsProxyController.upload', () => {
     expect(storage.stored.get('materials/m1/source.pdf')).toBe('PDF-PAYLOAD');
   });
 
+  it('keeps a fully received body readable when the request closes before the store has read it', async () => {
+    const storage = makeStorage();
+    storage.putStream.mockImplementationOnce(async (input: { path: string; body: Readable }) => {
+      await new Promise((resolve) => setTimeout(resolve, 20)); // req ends and closes while the body sits unread
+      storage.stored.set(input.path, await drain(input.body));
+    });
+    const req = Readable.from([Buffer.from('PDF-PAYLOAD')]);
+    await expect(ctrlWith(storage).upload('m1' as MaterialId, req as never)).resolves.toEqual({ ok: true });
+    expect(storage.stored.get('materials/m1/source.pdf')).toBe('PDF-PAYLOAD');
+  });
+
   it('accepts the material content type the browser sends: the JSON body parser leaves it unread', async () => {
     const storage = makeStorage();
     const req = await throughJsonParser(Buffer.from('PDF-PAYLOAD'), 'application/pdf');
