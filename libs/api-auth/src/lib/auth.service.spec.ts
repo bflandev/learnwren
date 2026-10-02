@@ -2,7 +2,8 @@ import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DOCUMENT_STORE } from '@learnwren/api-document-store';
+import { createInMemoryDocumentStore, DOCUMENT_STORE } from '@learnwren/api-document-store';
+import { createInMemoryIdentityProvider } from '../testing';
 
 import { AccountRecoveryService } from './account-recovery.service';
 import { AuthAttemptsRepository } from './auth-attempts.repository';
@@ -982,5 +983,111 @@ describe('AuthService.login — lock-fired email send', () => {
     await expect(
       service.login({ email: 'alice@example.com', password: 'pw' }),
     ).rejects.toBeInstanceOf(AccountLockedException);
+  });
+});
+
+describe('AuthService.login — bootstrap admin (LEARNWREN_BOOTSTRAP_ADMIN_EMAIL)', () => {
+  const PASSWORD = 'Aa1!aaaaaaaa';
+  const ENV_KEY = 'LEARNWREN_BOOTSTRAP_ADMIN_EMAIL';
+
+  beforeEach(() => {
+    process.env[ENV_KEY] = 'Boss@Example.test';
+  });
+  afterEach(() => {
+    delete process.env[ENV_KEY];
+    vi.restoreAllMocks();
+  });
+
+  async function setup(opts: { email?: string; verified?: boolean; role?: 'STUDENT' | 'ADMIN' } = {}) {
+    const { email = 'boss@example.test', verified = true, role = 'STUDENT' } = opts;
+    const identity = createInMemoryIdentityProvider();
+    const uid = await identity.createUser({ email, password: PASSWORD, displayName: 'Boss' });
+    await identity.updateUser(uid, { emailVerified: verified });
+    await identity.setRole(uid, role);
+    const store = createInMemoryDocumentStore({
+      [`users/${uid}`]: { id: uid, email, displayName: 'Boss', role },
+    });
+    const setRole = vi.spyOn(identity, 'setRole');
+    const { repo } = buildAttemptsMock();
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        PasswordPolicyService,
+        PasswordVerificationService,
+        AccountRecoveryService,
+        SessionCookieService,
+        { provide: IDENTITY_PROVIDER, useValue: identity },
+        { provide: DOCUMENT_STORE, useValue: store },
+        { provide: AuthAttemptsRepository, useValue: repo },
+        { provide: EMAIL_TRANSPORT, useValue: buildEmailTransportMock() },
+      ],
+    }).compile();
+    const service = moduleRef.get(AuthService);
+    const doc = async () => (await store.collection('users').doc(uid).get()).data() as { role: string; updatedAt?: string };
+    return { service, identity, uid, setRole, doc, email };
+  }
+
+  it('promotes the verified matching account (case-insensitive) to ADMIN in identity and users doc', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { service, identity, uid, setRole, doc } = await setup();
+
+    const result = await service.login({ email: 'boss@example.test', password: PASSWORD });
+
+    expect(result.role).toBe('ADMIN');
+    expect(setRole).toHaveBeenCalledTimes(1);
+    expect(setRole).toHaveBeenCalledWith(uid, 'ADMIN');
+    expect(identity.__users.get(uid)?.role).toBe('ADMIN');
+    expect(await doc()).toMatchObject({ role: 'ADMIN', updatedAt: expect.any(String) });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(`[auth] bootstrap admin promoted uid=${uid}`);
+  });
+
+  it('promotes when the identity provider reports the email in mixed case', async () => {
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { service, identity, uid } = await setup();
+    const real = identity.getUser.bind(identity);
+    vi.spyOn(identity, 'getUser').mockImplementation(async (id) => {
+      const user = await real(id);
+      return user && { ...user, email: 'BOSS@Example.TEST' };
+    });
+    const result = await service.login({ email: 'boss@example.test', password: PASSWORD });
+    expect(result.role).toBe('ADMIN');
+    expect(identity.__users.get(uid)?.role).toBe('ADMIN');
+  });
+
+  it('leaves a different email untouched', async () => {
+    const { service, setRole, doc } = await setup({ email: 'other@example.test' });
+    const result = await service.login({ email: 'other@example.test', password: PASSWORD });
+    expect(result.role).toBe('STUDENT');
+    expect(setRole).not.toHaveBeenCalled();
+    expect((await doc()).role).toBe('STUDENT');
+  });
+
+  it('does not promote an unverified bootstrap account', async () => {
+    const { service, setRole, doc } = await setup({ verified: false });
+    await expect(service.login({ email: 'boss@example.test', password: PASSWORD })).rejects.toBeInstanceOf(
+      EmailNotVerifiedException,
+    );
+    expect(setRole).not.toHaveBeenCalled();
+    expect((await doc()).role).toBe('STUDENT');
+  });
+
+  it('writes nothing and logs nothing when the account is already ADMIN', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { service, setRole, doc } = await setup({ role: 'ADMIN' });
+    const result = await service.login({ email: 'boss@example.test', password: PASSWORD });
+    expect(result.role).toBe('ADMIN');
+    expect(setRole).not.toHaveBeenCalled();
+    expect((await doc()).updatedAt).toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it.each([['unset', undefined], ['blank', '   ']])('does not promote when the env var is %s', async (_n, value) => {
+    if (value === undefined) delete process.env[ENV_KEY];
+    else process.env[ENV_KEY] = value;
+    const { service, setRole } = await setup();
+    const result = await service.login({ email: 'boss@example.test', password: PASSWORD });
+    expect(result.role).toBe('STUDENT');
+    expect(setRole).not.toHaveBeenCalled();
   });
 });

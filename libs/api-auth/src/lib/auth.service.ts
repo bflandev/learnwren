@@ -10,6 +10,7 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import { AccountRecoveryService } from './account-recovery.service';
+import { readBootstrapAdminEmail } from './bootstrap-admin';
 import { assertAcceptablePassword, PasswordPolicyService } from './password-policy.service';
 import { PasswordVerificationService } from './password-verification.service';
 import { SessionCookieService, type MintedSession } from './session-cookie.service';
@@ -201,6 +202,7 @@ export class AuthService {
     // count toward the same lockout.
     const proof = await this.passwordVerification.verifyPassword(input.email, input.password);
     const identityUser = await this.requireVerifiedUser(proof);
+    await this.promoteBootstrapAdmin(identityUser);
 
     const session = await this.sessionCookies.mint(proof);
     await this.passwordVerification.clearFailures(input.email);
@@ -219,6 +221,25 @@ export class AuthService {
       cookie: session.cookie,
       maxAgeSeconds: session.maxAgeSeconds,
     };
+  }
+
+  /**
+   * First-admin bootstrap for self-hosted installs: the verified account whose
+   * email matches LEARNWREN_BOOTSTRAP_ADMIN_EMAIL becomes ADMIN on login. Only
+   * ever promotes; demoting it later through the admin UI sticks until the env
+   * var is changed, because the next login promotes again. Firebase mode applies
+   * it too, but its session claim is frozen at mint, so the role there shows
+   * from the following login.
+   */
+  private async promoteBootstrapAdmin(user: IdentityUser): Promise<void> {
+    const target = readBootstrapAdminEmail(process.env);
+    if (!target || user.email.toLowerCase() !== target) return;
+    const profile = await this.loadUserProfile(user.uid);
+    if (profile.role === 'ADMIN') return;
+    await this.identity.setRole(user.uid, 'ADMIN');
+    await this.firestore.collection('users').doc(user.uid).update({ role: 'ADMIN', updatedAt: nowIso() });
+    // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
+    this.logger.warn(`[auth] bootstrap admin promoted uid=${user.uid}`);
   }
 
   /**
