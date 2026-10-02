@@ -93,7 +93,7 @@ D3c switches e2e, the tools and Compose.
   - Contract option `emailActions: boolean`.
   - An in-memory link format matching the local one: `…?mode=<kind>&token=<token>`.
 
-- [ ] **Step 1: Shared type, port operation, error**
+- [x] **Step 1: Shared type, port operation, error**
 
 Append to `libs/shared-data-models/src/lib/auth.ts` (and export it from the lib's `index.ts` if `auth.ts` exports are listed there explicitly):
 
@@ -132,7 +132,7 @@ export class EmailActionInvalidError extends Error {
 
 Export `EmailActionInvalidError` from `libs/api-auth/src/index.ts`.
 
-- [ ] **Step 2: Contract cases (write first, watch them fail on in-memory)**
+- [x] **Step 2: Contract cases (write first, watch them fail on in-memory)**
 
 In `testing/identity-provider.contract.ts`:
 - Add `readonly emailActions: boolean;` to `IdentityContractOptions`, with JSDoc: "False for an adapter whose links are handled elsewhere (Firebase)".
@@ -202,7 +202,7 @@ Import `EmailActionInvalidError`. Update both existing callers of `describeIdent
 
 Run `NX_DAEMON=false pnpm nx test api-auth` and expect the new cases to FAIL on in-memory, with `applyEmailAction` missing and the link format wrong.
 
-- [ ] **Step 3: In-memory adapter**
+- [x] **Step 3: In-memory adapter**
 
 In `testing/in-memory-identity-provider.ts`:
 - `createEmailActionLink` mints `const token = \`action-${++seq}\``, records `actions.set(token, { uid, kind, newEmail })` (a new `Map`), and returns `http://in-memory.test/auth/action?mode=${kind}&token=${token}`. It still pushes the link to `__links`, and keeps the existing change-email `EmailInUseError` and missing-`newEmail` checks. `uid` comes from the user found by email. Throw `Error('in-memory identity: no user for email')` if there is none.
@@ -214,7 +214,7 @@ In `testing/in-memory-identity-provider.ts`:
 - On a wrong-kind or `EmailInUseError` rejection, do not consume the token, so the contract's "wrong kind, then the right kind" case passes. Only a successful apply deletes it.
 - `in-memory-identity-provider.spec.ts` asserts the old link format (`kind=reset-password`); update it to `mode=reset-password` and also assert a `token` parameter is present.
 
-- [ ] **Step 4: Firebase adapter**
+- [x] **Step 4: Firebase adapter**
 
 In `firebase-identity-provider.ts`:
 
@@ -227,7 +227,7 @@ In `firebase-identity-provider.ts`:
 
 Add a unit test to `firebase-identity-provider.spec.ts`: rejects with `EmailActionInvalidError` for every kind.
 
-- [ ] **Step 5: Run tests, typecheck, lint; Firebase contract on the emulator**
+- [x] **Step 5: Run tests, typecheck, lint; Firebase contract on the emulator**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-auth shared-data-models api api-profile`
 Expected: PASS, with the in-memory contract now including 5 email-action cases.
@@ -236,7 +236,7 @@ Probe 9099/4000/4400, then run:
 `pnpm exec firebase emulators:exec --only auth --project demo-learnwren 'NX_DAEMON=false pnpm nx run api-auth:test --skip-nx-cache'`
 Expected: PASS (Firebase skips the email-action block).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add <each changed file by path>
@@ -258,7 +258,7 @@ git commit -m "feat(api-auth): applyEmailAction on the identity port; contract p
   - `newOpaqueToken(): string`
   - `sha256Hex(value: string): string`
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 `password-hash.spec.ts`:
 
@@ -325,7 +325,7 @@ describe('opaque tokens', () => {
 
 Run and expect FAIL (modules missing).
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
 
 `password-hash.ts`:
 
@@ -401,7 +401,7 @@ export function sha256Hex(value: string): string {
 }
 ```
 
-- [ ] **Step 3: Run tests, typecheck, lint; commit**
+- [x] **Step 3: Run tests, typecheck, lint; commit**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-auth`
 Expected: PASS.
@@ -422,7 +422,7 @@ git commit -m "feat(api-auth): scrypt password hashing and opaque tokens for loc
 - Consumes: the port, errors, `publicUrl`, `SESSION_MAX_AGE_SECONDS`, Task 2 helpers, and `DocumentStore` / `DocRef` from `@learnwren/api-document-store` (`createInMemoryDocumentStore` and `PostgresDocumentStore` in tests).
 - Produces: `class LocalIdentityProvider implements IdentityProvider`, constructed as `new LocalIdentityProvider(store: DocumentStore, now: () => number = Date.now)`; exported constants `LOCAL_COLLECTIONS`, `EMAIL_ACTION_TTL_MS`.
 
-- [ ] **Step 1: Contract spec (fails until the adapter exists)**
+- [x] **Step 1: Contract spec (fails until the adapter exists)**
 
 `local-identity-provider.contract.spec.ts`:
 
@@ -454,7 +454,7 @@ describe.skipIf(!url)('local identity on Postgres', () => {
 
 If `api-auth` → `api-document-store` is a new project dependency, `pnpm nx sync` adds the reference. Check module boundaries: both are `scope:api`, so it is allowed. Confirm there is no import cycle: `api-document-store` must not import `api-auth`.
 
-- [ ] **Step 2: Implement the adapter**
+- [x] **Step 2: Implement the adapter**
 
 `local-identity-provider.ts`:
 
@@ -703,7 +703,7 @@ export class LocalIdentityProvider implements IdentityProvider {
 
 `EmailInUseError` inside the change-email transaction rejects the transaction, so nothing changes and the action is not consumed. This matches the contract.
 
-- [ ] **Step 3: Unit spec for what the contract cannot see**
+- [x] **Step 3: Unit spec for what the contract cannot see**
 
 `local-identity-provider.spec.ts` uses `createInMemoryDocumentStore()` and an injectable clock (`let t = 1_000_000; const idp = new LocalIdentityProvider(store, () => t)`). It covers:
 - **At rest:**
@@ -719,14 +719,14 @@ export class LocalIdentityProvider implements IdentityProvider {
 - **Links:** carry `publicUrl('/auth/action')` and both params (set `LEARNWREN_PUBLIC_URL` in the test and restore it after).
 - **Timing guard:** `verifyPassword` for an unknown email calls `verifyPasswordHash` with the dummy hash. Spy via `vi.mock('./password-hash', …)` partial, or assert by timing-free means. Prefer a module spy that records the second argument equals `await dummyPasswordHash()`.
 
-- [ ] **Step 4: Run (the controller has the test Postgres running)**
+- [x] **Step 4: Run (the controller has the test Postgres running)**
 
 Run: `LEARNWREN_TEST_POSTGRES_URL=postgres://postgres:learnwren@127.0.0.1:55432/learnwren_test NX_DAEMON=false pnpm nx test api-auth --skip-nx-cache`
 Expected: PASS, with both `local (in-memory store)` and `local (postgres)` contracts running all cases: 14 base + 4 revocation + 5 email actions.
 
 Then: `NX_DAEMON=false pnpm nx run-many -t typecheck lint -p api-auth`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add libs/api-auth/src/lib/identity/local-identity-provider.ts libs/api-auth/src/lib/identity/local-identity-provider.spec.ts libs/api-auth/src/lib/identity/local-identity-provider.contract.spec.ts <tsconfig files nx sync changed>
@@ -747,7 +747,7 @@ git commit -m "feat(api-auth): LocalIdentityProvider on the DocumentStore port, 
   - `readIdentityConfigFromEnv(env: Record<string, string | undefined>): IdentityKind`
   - `makeIdentityProvider(kind: IdentityKind, firebase: FirebaseIdentityProvider, store: DocumentStore): IdentityProvider`
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 `identity.config.spec.ts` covers:
 - default → `'firebase'`;
@@ -758,7 +758,7 @@ git commit -m "feat(api-auth): LocalIdentityProvider on the DocumentStore port, 
 
 The module spec tests `makeIdentityProvider('firebase', firebaseFake, store)` returns the Firebase instance, and `('local', …)` returns a `LocalIdentityProvider`.
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
 
 `identity.config.ts`:
 
@@ -794,7 +794,7 @@ Add a `ponytail:` comment. `FirebaseIdentityProvider` and `FirebaseAuthRestClien
 
 `DOCUMENT_STORE` is global (from `DocumentStoreModule`), so `AuthModule` can inject it.
 
-- [ ] **Step 3: `.env.example`**
+- [x] **Step 3: `.env.example`**
 
 After the data-store block, in the file's style:
 
@@ -805,7 +805,7 @@ After the data-store block, in the file's style:
 # LEARNWREN_IDENTITY=firebase
 ```
 
-- [ ] **Step 4: Run, boot-check, commit**
+- [x] **Step 4: Run, boot-check, commit**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-auth api`. Expected: PASS.
 
@@ -829,7 +829,7 @@ git commit -m "feat(api-auth): LEARNWREN_IDENTITY selects Firebase or local iden
 **Interfaces:**
 - Produces: `AccountRecoveryService.applyEmailAction(mode: string, token: string, newPassword?: string): Promise<void>`; the endpoint `POST /api/auth/email-action` → 204.
 
-- [ ] **Step 1: Write the failing service and controller tests**
+- [x] **Step 1: Write the failing service and controller tests**
 
 `account-recovery.service.spec.ts`, with the identity mocked with `vi.fn`, or `createInMemoryIdentityProvider` where outcomes matter:
 - a `mode` not in `verify-email | reset-password | change-email` → `EmailActionTokenInvalidException`, and the identity is never called;
@@ -847,7 +847,7 @@ Never log the token.
 
 `auth.controller.spec.ts`: `POST email-action` delegates `{ mode, token, newPassword }` to the service and returns 204.
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
 
 DTO, type guards only (no length decorators, per memory `feedback_nest_validationpipe_dto_short_circuit.md`):
 
@@ -879,7 +879,7 @@ Controller:
 
 `AccountRecoveryService.applyEmailAction` implements the tested behaviour. `AuthController` is already on `PUBLIC_ALLOWLIST`, and the global `ThrottlerGuard` rate-limits it like `unlock`. Confirm `apps/api/src/controller-guard-coverage.spec.ts` still passes.
 
-- [ ] **Step 3: Run, commit**
+- [x] **Step 3: Run, commit**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p api-auth shared-data-models api web-auth web`. Web compiles against the widened union.
 
@@ -902,7 +902,7 @@ git commit -m "feat(api-auth): POST /api/auth/email-action applies local email-a
   - `AuthService.applyEmailAction(mode, token, newPassword?): Promise<EmailActionResult>`, where `EmailActionResult = { ok: true } | { ok: false; code: string; unmet?: string[] }` (mirror `UnlockResult`; map HTTP error bodies to `code` exactly as `unlock` does).
   - `EmailActionPageComponent` (selector `app-email-action-page`).
 
-- [ ] **Step 1: Behaviour, as tests first (`email-action-page.component.spec.ts`)**
+- [x] **Step 1: Behaviour, as tests first (`email-action-page.component.spec.ts`)**
 
 - Missing `mode` or `token`, or an unknown `mode` → `invalid` state, with no POST.
 - `verify-email` → POSTs on init (state `pending`); ok → `verified` state (heading "Email verified", link "Continue to sign in" → `/login`); `TOKEN_INVALID_OR_EXPIRED` → `invalid` state (heading "This link is invalid or has expired", with links to `/login` and `/forgot-password`); any other error → `error` alert.
@@ -915,12 +915,12 @@ git commit -m "feat(api-auth): POST /api/auth/email-action applies local email-a
   - The submit button is disabled while submitting.
 - Accessibility: one `h1` per state; the form field has a programmatic label; errors are announced (reuse the register page's pattern).
 
-- [ ] **Step 2: Implement the component, service method and route**
+- [x] **Step 2: Implement the component, service method and route**
 
 - Component: standalone, signals, `templateUrl` (memory: a separate `.html` keeps Stryker off templates).
 - `apps/web/src/app/app.routes.ts`: add `{ path: 'auth/action', component: EmailActionPageComponent }` next to `auth/unlock`. Export the component from `libs/web-auth/src/index.ts`. `apps/web/tsconfig.spec.json` already references `web-auth`; confirm with `nx typecheck web`.
 
-- [ ] **Step 3: Route inventory (a11y and responsive gates)**
+- [x] **Step 3: Route inventory (a11y and responsive gates)**
 
 In `apps/web-e2e/src/_helpers/route-inventory.ts`, after the `unlock` entry, add two guest entries:
 - `{ name: 'email action (verify)', path: '/auth/action?mode=verify-email&token=x', role: 'guest' }`
@@ -935,7 +935,7 @@ NX_DAEMON=false pnpm nx run web-e2e:responsive
 
 Probe 4200 first, and use `WEB_PORT=4300` if 4200 belongs to another project. Both must pass with the new routes included (zero violations, no overflow).
 
-- [ ] **Step 4: Run, commit**
+- [x] **Step 4: Run, commit**
 
 Run: `NX_DAEMON=false pnpm nx run-many -t test typecheck lint -p web-auth web`. Expected: PASS.
 
@@ -948,7 +948,7 @@ git commit -m "feat(web-auth): /auth/action page for verify, reset and change-em
 
 ### Task 7: Security review, local end-to-end smoke, CI, mutation, full verification
 
-- [ ] **Step 1: Local end-to-end smoke (the real proof)**
+- [x] **Step 1: Local end-to-end smoke (the real proof)**
 
 Probe ports 3333 8080 9099 9199 4000 4400 55432 (the test Postgres is up). The Auth emulator is not needed. The api's Firebase Admin still initialises in emulator mode without contacting it.
 
@@ -972,7 +972,7 @@ Using `curl` with a cookie jar:
 
 Paste the transcript. Stop the api, killing only your PIDs, and re-probe. If a step fails, report BLOCKED with the transcript. Do not patch around it in the smoke.
 
-- [ ] **Step 2: Security review**
+- [x] **Step 2: Security review**
 
 Dispatch the `security-reviewer` agent (read-only) on the branch diff, focused on:
 - password hashing parameters and constant-time comparison;
@@ -985,15 +985,15 @@ Dispatch the `security-reviewer` agent (read-only) on the branch diff, focused o
 
 Fix every Critical and High finding in this task, each with a test. Record Medium and Low findings in the report.
 
-- [ ] **Step 3: CI**
+- [x] **Step 3: CI**
 
 In `.github/workflows/ci.yml`, job `e2e`: the Postgres service and `LEARNWREN_TEST_POSTGRES_URL` already exist from D2. `api-auth:test` already runs there, so the `local (postgres)` contract now runs automatically. Confirm it, then update the step comment. In the `mutation` job, `api-auth` runs inside the Auth emulator and already has Postgres. Confirm the local adapter's Postgres contract runs there too.
 
-- [ ] **Step 4: Mutation**
+- [x] **Step 4: Mutation**
 
 Follow the mutation-round skill. Run `api-auth` Stryker inside `firebase emulators:exec --only auth`, with `LEARNWREN_TEST_POSTGRES_URL` set, and `web-auth` Stryker plainly, sequentially. Target 100% adjusted on the new and changed files. Prefer real tests to annotations. Regenerate `docs/quality/mutation-report-api-auth.md` and `-web-auth.md` from full-config runs only.
 
-- [ ] **Step 5: Full verification**
+- [x] **Step 5: Full verification**
 
 ```bash
 NX_DAEMON=false pnpm nx run-many -t lint test typecheck build
@@ -1004,7 +1004,7 @@ pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e web-e2e'
 
 Expected: all green on the Firebase defaults. api-e2e runs 222 tests with 2 pre-existing skips. web-e2e runs 57 tests, plus any new ones.
 
-- [ ] **Step 6: Commit** each logical piece by path (security fixes, mutation tests and reports, CI comment).
+- [x] **Step 6: Commit** each logical piece by path (security fixes, mutation tests and reports, CI comment).
 
 ---
 
