@@ -1,10 +1,8 @@
 // NOTE: Run `pnpm emulators` and `pnpm start:api` before executing this suite.
 import { expect, test } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
-import { API_BASE, initAdmin } from './_helpers/auth';
-
-initAdmin();
+import { API_BASE } from './_helpers/auth';
+import { seam } from './_helpers/seam';
 
 /** Seed a course document straight into Firestore at the given status. */
 async function seedCourse(
@@ -14,11 +12,7 @@ async function seedCourse(
 ): Promise<string> {
   const id = `cat-e2e-${status}-${suffix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(id)
-    .set({
+  await seam.setDoc(`courses/${id}`, {
       id,
       title: `Catalog ${suffix}`,
       description: 'catalog e2e course',
@@ -95,22 +89,8 @@ test('GET /catalog/search rejects an empty query with 400 and the canonical enve
 
 test('GET /catalog/:cid returns detail for a published course', async ({ request }) => {
   const id = await seedCourse('detail', 'PUBLISHED');
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(id)
-    .collection('modules')
-    .doc('m-1')
-    .set({ id: 'm-1', title: 'Module 1', order: 0 });
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(id)
-    .collection('modules')
-    .doc('m-1')
-    .collection('lessons')
-    .doc('l-1')
-    .set({ id: 'l-1', title: 'Lesson 1', order: 0 });
+  await seam.setDoc(`courses/${id}/modules/m-1`, { id: 'm-1', title: 'Module 1', order: 0 });
+  await seam.setDoc(`courses/${id}/modules/m-1/lessons/l-1`, { id: 'l-1', title: 'Lesson 1', order: 0 });
 
   const res = await request.get(`${API_BASE}/catalog/${id}`);
   expect(res.status()).toBe(200);

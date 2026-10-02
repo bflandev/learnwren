@@ -4,13 +4,10 @@ import * as path from 'node:path';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
   withAnonRequest,
 } from './_helpers/auth';
-
-initAdmin();
 
 const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'small-video.mp4');
 const FIXTURE_BYTES = fs.readFileSync(FIXTURE_PATH);

@@ -1,15 +1,12 @@
 // NOTE: Run `pnpm emulators` and `pnpm start:api` before executing this suite.
 import { expect, test } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
 } from './_helpers/auth';
-
-initAdmin();
+import { seam } from './_helpers/seam';
 
 // ──────────────────────── Seed helpers ────────────────────────
 
@@ -20,11 +17,7 @@ async function seedCourse(args: {
 }): Promise<string> {
   const id = `learn-e2e-${args.status}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(id)
-    .set({
+  await seam.setDoc(`courses/${id}`, {
       id,
       title: 'Learn e2e course',
       description: 'course',
@@ -42,13 +35,7 @@ async function seedCourse(args: {
 async function seedModule(courseId: string): Promise<string> {
   const mid = `learn-e2e-mod-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(courseId)
-    .collection('modules')
-    .doc(mid)
-    .set({
+  await seam.setDoc(`courses/${courseId}/modules/${mid}`, {
       id: mid,
       courseId,
       title: 'M1',
@@ -71,11 +58,7 @@ async function seedLesson(args: {
   let videoId: string | null = null;
   if (args.videoState) {
     const vid = `learn-e2e-vid-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-    await admin
-      .firestore()
-      .collection('videos')
-      .doc(vid)
-      .set({
+    await seam.setDoc(`videos/${vid}`, {
         id: vid,
         ownerInstructorId: 'learn-e2e-instructor',
         courseId: args.courseId,
@@ -88,15 +71,7 @@ async function seedLesson(args: {
     videoId = vid;
   }
 
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(args.courseId)
-    .collection('modules')
-    .doc(args.moduleId)
-    .collection('lessons')
-    .doc(lid)
-    .set({
+  await seam.setDoc(`courses/${args.courseId}/modules/${args.moduleId}/lessons/${lid}`, {
       id: lid,
       moduleId: args.moduleId,
       title: 'L1',
@@ -117,11 +92,7 @@ async function seedEnrollment(args: {
 }): Promise<void> {
   const enrollmentId = `${args.userId}__${args.courseId}`;
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('enrollments')
-    .doc(enrollmentId)
-    .set({
+  await seam.setDoc(`enrollments/${enrollmentId}`, {
       id: enrollmentId,
       userId: args.userId,
       courseId: args.courseId,

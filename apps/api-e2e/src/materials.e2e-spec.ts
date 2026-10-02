@@ -1,14 +1,11 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
 } from './_helpers/auth';
-
-initAdmin();
+import { seam } from './_helpers/seam';
 
 const PDF_BYTES = Buffer.from('%PDF-1.4\nfake pdf payload for e2e\n%%EOF');
 
@@ -242,11 +239,7 @@ test('deleting the lesson cascades to its materials', async ({ request }) => {
  */
 async function publishViaAdmin(courseId: string): Promise<void> {
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(courseId)
-    .update({ status: 'PUBLISHED', publishedAt: now, updatedAt: now });
+  await seam.updateDoc(`courses/${courseId}`, { status: 'PUBLISHED', publishedAt: now, updatedAt: now });
 }
 
 /** Seed an enrollment doc directly (composite ID `${userId}__${courseId}`). */
@@ -257,11 +250,7 @@ async function seedEnrollmentDoc(args: {
 }): Promise<void> {
   const enrollmentId = `${args.userId}__${args.courseId}`;
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('enrollments')
-    .doc(enrollmentId)
-    .set({
+  await seam.setDoc(`enrollments/${enrollmentId}`, {
       id: enrollmentId,
       userId: args.userId,
       courseId: args.courseId,

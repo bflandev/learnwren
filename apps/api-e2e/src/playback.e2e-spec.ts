@@ -1,17 +1,14 @@
 import { expect, test } from '@playwright/test';
-import * as admin from 'firebase-admin';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
   withAnonRequest,
 } from './_helpers/auth';
-
-initAdmin();
+import { seam } from './_helpers/seam';
 
 // ──────────────────────── Firestore seed helpers ────────────────────────
 // These helpers write a READY video straight into Firestore (via the Admin
@@ -27,11 +24,7 @@ async function seedCourse(args: {
 }): Promise<string> {
   const id = `pb-e2e-${args.status}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(id)
-    .set({
+  await seam.setDoc(`courses/${id}`, {
       id,
       title: 'Playback e2e course',
       description: 'course',
@@ -57,20 +50,10 @@ async function seedLessonWithReadyVideo(args: {
   const now = new Date().toISOString();
 
   const mid = `pb-e2e-mod-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(args.courseId)
-    .collection('modules')
-    .doc(mid)
-    .set({ id: mid, courseId: args.courseId, title: 'M1', order: 0, createdAt: now, updatedAt: now });
+  await seam.setDoc(`courses/${args.courseId}/modules/${mid}`, { id: mid, courseId: args.courseId, title: 'M1', order: 0, createdAt: now, updatedAt: now });
 
   const vid = `pb-e2e-vid-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await admin
-    .firestore()
-    .collection('videos')
-    .doc(vid)
-    .set({
+  await seam.setDoc(`videos/${vid}`, {
       id: vid,
       ownerInstructorId: args.instructorId,
       courseId: args.courseId,
@@ -91,15 +74,7 @@ async function seedLessonWithReadyVideo(args: {
     });
 
   const lid = `pb-e2e-les-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(args.courseId)
-    .collection('modules')
-    .doc(mid)
-    .collection('lessons')
-    .doc(lid)
-    .set({
+  await seam.setDoc(`courses/${args.courseId}/modules/${mid}/lessons/${lid}`, {
       id: lid,
       moduleId: mid,
       videoId: vid,

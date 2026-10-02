@@ -1,5 +1,5 @@
 import { expect, request as apiRequest, type APIRequestContext } from '@playwright/test';
-import * as admin from 'firebase-admin';
+import { seam } from './seam';
 
 export const API_BASE = 'http://localhost:3333/api';
 
@@ -18,14 +18,6 @@ export async function withAnonRequest<T>(
     return await fn(anon);
   } finally {
     await anon.dispose();
-  }
-}
-
-export function initAdmin(): void {
-  if (admin.apps.length === 0) {
-    process.env['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099';
-    process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
-    admin.initializeApp({ projectId: 'demo-learnwren' });
   }
 }
 
@@ -70,10 +62,9 @@ export async function registerAndPromoteInstructor(
   expect(reg.status()).toBe(201);
   const { uid } = (await reg.json()) as { uid: string };
 
-  // Mark verified + promote to INSTRUCTOR via Admin SDK
-  await admin.auth().updateUser(uid, { emailVerified: true });
-  await admin.auth().setCustomUserClaims(uid, { role: 'INSTRUCTOR' });
-  await admin.firestore().collection('users').doc(uid).update({ role: 'INSTRUCTOR' });
+  // Mark verified + promote to INSTRUCTOR via the test seam
+  await seam.markEmailVerified(uid);
+  await seam.setRole(uid, 'INSTRUCTOR');
 
   // Log in to get a fresh session cookie with the new claim
   const login = await postWithRetryOn429(request, `${API_BASE}/auth/login`, {
@@ -119,9 +110,8 @@ export async function registerAndPromoteAdmin(
   expect(reg.status()).toBe(201);
   const { uid } = (await reg.json()) as { uid: string };
 
-  await admin.auth().updateUser(uid, { emailVerified: true });
-  await admin.auth().setCustomUserClaims(uid, { role: 'ADMIN' });
-  await admin.firestore().collection('users').doc(uid).update({ role: 'ADMIN' });
+  await seam.markEmailVerified(uid);
+  await seam.setRole(uid, 'ADMIN');
 
   const login = await postWithRetryOn429(request, `${API_BASE}/auth/login`, { email, password });
   expect(login.status()).toBe(200);
@@ -129,4 +119,25 @@ export async function registerAndPromoteAdmin(
   const match = setCookie!.match(/__session=([^;]+)/);
   expect(match).not.toBeNull();
   return { uid, cookieHeader: `__session=${match![1]}` };
+}
+
+/**
+ * Redeem an emailed action link the way a browser would. The Firebase emulator
+ * applies the code on a GET of its hosted link; the local identity adapter's
+ * link points at the web app, whose page posts mode+token to /auth/email-action.
+ */
+export async function redeemEmailLink(
+  request: import('@playwright/test').APIRequestContext,
+  url: string,
+): Promise<void> {
+  const link = new URL(url);
+  if (link.searchParams.has('oobCode')) {
+    const res = await request.get(url, { maxRedirects: 0 });
+    expect(res.status()).toBeLessThan(400);
+    return;
+  }
+  const res = await request.post(`${API_BASE}/auth/email-action`, {
+    data: { mode: link.searchParams.get('mode'), token: link.searchParams.get('token') },
+  });
+  expect(res.status()).toBe(204);
 }

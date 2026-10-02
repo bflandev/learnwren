@@ -1,15 +1,12 @@
 import { expect, test } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
   withAnonRequest,
 } from './_helpers/auth';
-
-initAdmin();
+import { seam } from './_helpers/seam';
 
 function uniqueId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
@@ -24,18 +21,17 @@ async function seedCourseWithModule(
   const cid = uniqueId('notify-e2e');
   const mid = `${cid}-m1`;
   const now = new Date().toISOString();
-  const db = admin.firestore();
-  await db.collection('courses').doc(cid).set({
+  await seam.setDoc(`courses/${cid}`, {
     id: cid, title: 'Notify e2e course', description: 'course', instructorId,
     status, enrollmentCount: 0, ...(status === 'PUBLISHED' ? { publishedAt: now } : {}),
     createdAt: now, updatedAt: now,
   });
-  await db.collection('courses').doc(cid).collection('modules').doc(mid).set({
+  await seam.setDoc(`courses/${cid}/modules/${mid}`, {
     id: mid, courseId: cid, title: 'New Module', order: 0, createdAt: now, updatedAt: now,
   });
   if (withLesson) {
     const lid = `${mid}-l1`;
-    await db.collection('courses').doc(cid).collection('modules').doc(mid).collection('lessons').doc(lid).set({
+    await seam.setDoc(`courses/${cid}/modules/${mid}/lessons/${lid}`, {
       id: lid, moduleId: mid, title: 'Lesson 1', order: 0, createdAt: now, updatedAt: now,
     });
   }
@@ -57,11 +53,10 @@ test('owner notifies enrolled students; the module is stamped and the student is
   expect(res.status()).toBe(200);
   expect((await res.json()).notifiedCount).toBe(1);
 
-  const moduleSnap = await admin
-    .firestore().collection('courses').doc(cid).collection('modules').doc(mid).get();
-  expect(moduleSnap.data()?.['studentsNotifiedAt']).toBeTruthy();
+  const moduleDoc = await seam.getDoc(`courses/${cid}/modules/${mid}`);
+  expect(moduleDoc?.['studentsNotifiedAt']).toBeTruthy();
 
-  const studentEmail = (await admin.firestore().collection('users').doc(student.uid).get()).data()?.['email'] as string;
+  const studentEmail = await seam.getEmail(student.uid);
   const outbox = await request.get(
     `${API_BASE}/auth/_test/last-email?to=${encodeURIComponent(studentEmail)}&kind=new-module`,
   );
@@ -125,9 +120,8 @@ test('a demoted instructor (now STUDENT) is forbidden even on their own course m
   const instructor = await registerAndPromoteInstructor(request);
   const { cid, mid } = await seedCourseWithModule(instructor.uid);
 
-  await admin.auth().setCustomUserClaims(instructor.uid, { role: 'STUDENT' });
-  await admin.firestore().collection('users').doc(instructor.uid).update({ role: 'STUDENT' });
-  const email = (await admin.auth().getUser(instructor.uid)).email!;
+  await seam.setRole(instructor.uid, 'STUDENT');
+  const email = await seam.getEmail(instructor.uid);
   const relogin = await request.post(`${API_BASE}/auth/login`, {
     data: { email, password: 'Aa1!aaaaaaaa' },
   });

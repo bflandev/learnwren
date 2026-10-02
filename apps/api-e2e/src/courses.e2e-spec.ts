@@ -1,17 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import * as admin from 'firebase-admin';
 import { expect, test } from '@playwright/test';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
 } from './_helpers/auth';
-
-initAdmin();
+import { seam } from './_helpers/seam';
 
 const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'small-video.mp4');
 const FIXTURE_BYTES = fs.readFileSync(FIXTURE_PATH);
@@ -433,7 +430,7 @@ test('course delete cascades: video, material, cover, enrollment all removed', a
 
   // 5. Publish the course (required for student enrollment).
   //    Drive directly via admin SDK to avoid needing a full publish-gate roundtrip.
-  await admin.firestore().collection('courses').doc(course.id).update({ status: 'PUBLISHED', publishedAt: new Date().toISOString() });
+  await seam.updateDoc(`courses/${course.id}`, { status: 'PUBLISHED', publishedAt: new Date().toISOString() });
 
   // 6. Student enrolls.
   const enrollRes = await request.post(`${API_BASE}/enrollments`, {

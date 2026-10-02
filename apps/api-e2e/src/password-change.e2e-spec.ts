@@ -1,9 +1,7 @@
 import { expect, test } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
-import { API_BASE, initAdmin, uniqueEmail } from './_helpers/auth';
-
-initAdmin();
+import { API_BASE, uniqueEmail } from './_helpers/auth';
+import { seam } from './_helpers/seam';
 
 const PASSWORD = 'Aa1!aaaaaaaa';
 const NEW_PASSWORD = 'Bb2@bbbbbbbb';
@@ -23,7 +21,7 @@ async function registerVerifiedSession(
   });
   expect(reg.status()).toBe(201);
   const { uid } = (await reg.json()) as { uid: string };
-  await admin.auth().updateUser(uid, { emailVerified: true });
+  await seam.markEmailVerified(uid);
   const login = await request.post(`${API_BASE}/auth/login`, {
     data: { email, password: PASSWORD },
   });

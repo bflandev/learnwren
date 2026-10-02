@@ -1,15 +1,12 @@
 // NOTE: Run `pnpm emulators` and `pnpm start:api` before executing this suite.
 import { expect, test } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
 } from './_helpers/auth';
-
-initAdmin();
+import { seam } from './_helpers/seam';
 
 /** Seed a course document straight into Firestore. */
 async function seedCourse(
@@ -19,11 +16,7 @@ async function seedCourse(
 ): Promise<string> {
   const id = `enr-e2e-${status}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(id)
-    .set({
+  await seam.setDoc(`courses/${id}`, {
       id,
       title: 'Enrollment e2e course',
       description: 'course',
@@ -45,13 +38,7 @@ async function seedModuleWithLessons(
 ): Promise<{ moduleId: string; lessonIds: string[] }> {
   const now = new Date().toISOString();
   const moduleId = `enr-e2e-mod-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(courseId)
-    .collection('modules')
-    .doc(moduleId)
-    .set({
+  await seam.setDoc(`courses/${courseId}/modules/${moduleId}`, {
       id: moduleId,
       courseId,
       title: 'M1',
@@ -63,15 +50,7 @@ async function seedModuleWithLessons(
   const lessonIds: string[] = [];
   for (let i = 0; i < lessonCount; i++) {
     const lessonId = `enr-e2e-les-${Date.now()}-${Math.floor(Math.random() * 1e6)}-${i}`;
-    await admin
-      .firestore()
-      .collection('courses')
-      .doc(courseId)
-      .collection('modules')
-      .doc(moduleId)
-      .collection('lessons')
-      .doc(lessonId)
-      .set({
+    await seam.setDoc(`courses/${courseId}/modules/${moduleId}/lessons/${lessonId}`, {
         id: lessonId,
         moduleId,
         title: `L${i}`,
@@ -88,11 +67,7 @@ async function seedModuleWithLessons(
 async function seedMaterial(courseId: string, ownerInstructorId: string): Promise<string> {
   const id = `enr-e2e-mat-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('materials')
-    .doc(id)
-    .set({
+  await seam.setDoc(`materials/${id}`, {
       id,
       ownerInstructorId,
       courseId,
@@ -131,8 +106,8 @@ test('enroll then read status reflects ACTIVE and increments the course counter'
   expect(view.enrollment.status).toBe('ACTIVE');
   expect(view.isOwner).toBe(false);
 
-  const courseSnap = await admin.firestore().collection('courses').doc(courseId).get();
-  expect(courseSnap.data()?.['enrollmentCount']).toBe(5);
+  const courseSnap = await seam.getDoc(`courses/${courseId}`);
+  expect(courseSnap?.['enrollmentCount']).toBe(5);
 });
 
 test('unenroll soft-deletes the enrollment and re-enroll restores it', async ({ request }) => {

@@ -1,24 +1,20 @@
 // NOTE: Run `pnpm emulators` and `pnpm start:api` before executing this suite.
 import { expect, test } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
   withAnonRequest,
 } from './_helpers/auth';
-
-initAdmin();
+import { seam } from './_helpers/seam';
 
 async function seedCourseWithReadyVideo(
   instructorId: string,
 ): Promise<{ cid: string; lessonIds: string[] }> {
   const cid = `analytics-e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const now = new Date().toISOString();
-  const db = admin.firestore();
-  await db.collection('courses').doc(cid).set({
+  await seam.setDoc(`courses/${cid}`, {
     id: cid,
     title: 'Analytics e2e course',
     description: 'course',
@@ -30,7 +26,7 @@ async function seedCourseWithReadyVideo(
     updatedAt: now,
   });
   const mid = `${cid}-m1`;
-  await db.collection('courses').doc(cid).collection('modules').doc(mid).set({
+  await seam.setDoc(`courses/${cid}/modules/${mid}`, {
     id: mid,
     courseId: cid,
     title: 'Module 1',
@@ -41,18 +37,11 @@ async function seedCourseWithReadyVideo(
   const lessonIds = [`${cid}-l1`, `${cid}-l2`];
   for (let i = 0; i < lessonIds.length; i += 1) {
     const lid = lessonIds[i] as string;
-    await db
-      .collection('courses')
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .collection('lessons')
-      .doc(lid)
-      .set({ id: lid, moduleId: mid, title: `Lesson ${i + 1}`, order: i, createdAt: now, updatedAt: now });
+    await seam.setDoc(`courses/${cid}/modules/${mid}/lessons/${lid}`, { id: lid, moduleId: mid, title: `Lesson ${i + 1}`, order: i, createdAt: now, updatedAt: now });
   }
   // A READY video for l1 with a known duration; l2 has no video.
   const vid = `${cid}-v1`;
-  await db.collection('videos').doc(vid).set({
+  await seam.setDoc(`videos/${vid}`, {
     id: vid,
     ownerInstructorId: instructorId,
     courseId: cid,
@@ -130,9 +119,8 @@ test('a demoted instructor (now STUDENT) is forbidden even on their own course',
   const instructor = await registerAndPromoteInstructor(request);
   const { cid } = await seedCourseWithReadyVideo(instructor.uid);
 
-  await admin.auth().setCustomUserClaims(instructor.uid, { role: 'STUDENT' });
-  await admin.firestore().collection('users').doc(instructor.uid).update({ role: 'STUDENT' });
-  const email = (await admin.auth().getUser(instructor.uid)).email!;
+  await seam.setRole(instructor.uid, 'STUDENT');
+  const email = await seam.getEmail(instructor.uid);
   const relogin = await request.post(`${API_BASE}/auth/login`, {
     data: { email, password: 'Aa1!aaaaaaaa' },
   });

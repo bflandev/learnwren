@@ -1,21 +1,18 @@
 // NOTE: Run `pnpm emulators` and `pnpm start:api` before executing this suite.
 import { test, expect, request as apiRequest } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
-  initAdmin,
   registerStudent,
   registerAndPromoteInstructor,
   registerAndPromoteAdmin,
 } from './_helpers/auth';
-
-test.beforeAll(() => initAdmin());
+import { seam } from './_helpers/seam';
 
 async function seedPublishedCourse(instructorId: string): Promise<string> {
   const cid = `admin-users-e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const now = new Date().toISOString();
-  await admin.firestore().collection('courses').doc(cid).set({
+  await seam.setDoc(`courses/${cid}`, {
     id: cid,
     title: 'Admin Users e2e course',
     description: 'course',
@@ -270,7 +267,7 @@ test('suspended user cannot sign in (disabled flag)', async () => {
     const reg = await ctx.post(`${API_BASE}/auth/register`, { data: { email, password, displayName: 'S' } });
     expect(reg.status()).toBe(201);
     const { uid } = (await reg.json()) as { uid: string };
-    await admin.auth().updateUser(uid, { emailVerified: true });
+    await seam.markEmailVerified(uid);
 
     // Admin suspends the user (disables the Auth account).
     const adminSession = await registerAndPromoteAdmin(ctx);
@@ -344,7 +341,7 @@ test('delete a student with an enrollment → 204; detail 404; directory exclude
     // Seed a course + enroll the student.
     const cid = `delete-e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     const now = new Date().toISOString();
-    await admin.firestore().collection('courses').doc(cid).set({
+    await seam.setDoc(`courses/${cid}`, {
       id: cid,
       title: 'Delete e2e course',
       description: 'course',
@@ -373,11 +370,8 @@ test('delete a student with an enrollment → 204; detail 404; directory exclude
     // Directory should not include the deleted user (query by uid — use search).
     // We cannot guarantee the deleted user appears on page 1, but we can verify
     // the detail 404 already. Enrollment cleanup is verified via Firestore directly.
-    const enrollSnap = await admin.firestore()
-      .collection('enrollments')
-      .where('userId', '==', student.uid)
-      .get();
-    expect(enrollSnap.empty).toBe(true);
+    const enrollDocs = await seam.query('enrollments', 'userId', student.uid);
+    expect(enrollDocs).toHaveLength(0);
   } finally {
     await ctx.dispose();
   }
