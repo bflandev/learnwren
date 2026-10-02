@@ -1262,12 +1262,12 @@ Target a single project by invoking Nx directly, e.g. `pnpm nx test api-courses`
 
 Every story in EP-01 through EP-08 is implemented. EP-09 (non-functional
 requirements) is partly done: US-09-02 (security), US-09-03 (accessibility),
-and US-09-05 (mobile responsiveness) are shipped; US-09-01 (performance) is
+US-09-04 (self-hosting, Slices A–D, 2026-10-02) and US-09-05 (mobile
+responsiveness) are shipped; US-09-01 (performance) is
 partly gated (see the table above and `README.md`) — the catalogue's
 2-second load criterion is measured but not met, and the TTFB and
-100-concurrent-user criteria are deferred pending a production load harness;
-**US-09-04 (self-hosting) is not built.** The remaining gaps below are
-deliberate scope cuts inside shipped features:
+100-concurrent-user criteria are deferred pending a production load harness.
+The remaining gaps below are deliberate scope cuts inside shipped features:
 
 - **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll
   are live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than

@@ -17,14 +17,16 @@ emulator runs and no cloud account is needed.
 | Requirement | Notes |
 | :--- | :--- |
 | Docker Engine 24+ with Compose v2 | `docker compose version` must work. Docker Desktop on macOS/Windows is fine. |
-| 4 GB free RAM, 3 GB free disk plus your media | The build stage installs the workspace and compiles both apps; Uploaded files and the database live in Docker volumes. |
+| 4 GB free RAM, 3 GB free disk plus your media | The build stage installs the workspace and compiles both apps. Uploaded files and the database live in Docker volumes. |
 | A checkout of this repository | `git clone` it; images are built from source. |
 
 ## Quick start
 
 ```bash
-cp .env.example .env      # then edit it: see "First run" below
-docker compose up -d      # builds two images on first run (several minutes)
+cp .env.example .env      # 1. copy
+# 2. edit .env: set LEARNWREN_POSTGRES_PASSWORD and LEARNWREN_BOOTSTRAP_ADMIN_EMAIL
+#    (see "First run"); do this BEFORE the next line
+docker compose up -d      # 3. builds two images on first run (several minutes)
 ```
 
 Then open **http://localhost:8000**. Check the wiring:
@@ -99,7 +101,7 @@ and are read by `docker-compose.yml`. Restart to apply: `docker compose up -d`.
 | `LEARNWREN_S3_ACCESS_KEY` / `LEARNWREN_S3_SECRET_KEY` | `learnwren` / `learnwren-change-me` | Object store root credentials, used by the api. **Change the secret** on any machine other people can reach. |
 | `LEARNWREN_POSTGRES_PASSWORD` | `learnwren-change-me` | Password for the bundled PostgreSQL. **Change it before the first `docker compose up`.** Postgres keeps it in its volume, so a later change also needs `ALTER USER postgres PASSWORD ...` in the database. Use only letters, digits, `-` and `_`: it goes into a URL. |
 | `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL` | unset | The account with this email becomes ADMIN when it logs in verified. See [First run](#first-run). Clear it afterwards. |
-| `LEARNWREN_EMAIL_TRANSPORT` | `console` | `console` logs every email, with its link (verify, reset, change email, unlock, notifications), to `docker compose logs api`; `smtp` sends them via `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`. |
+| `LEARNWREN_EMAIL_TRANSPORT` | `console` | `console` logs every email (and any link in it) to `docker compose logs api`; `smtp` sends them via `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`. |
 | `LEARNWREN_EMAIL_FROM` | `noreply@learnwren.local` | Sender address. |
 | `LEARNWREN_STORAGE_QUOTA_GB` | unset | Enables the admin health dashboard's quota bar and alert. |
 
@@ -113,8 +115,9 @@ the web port is. Their credentials sit in `.env`, so change
 `LEARNWREN_POSTGRES_PASSWORD` and `LEARNWREN_S3_SECRET_KEY` from the defaults.
 Put the web port behind a TLS-terminating reverse proxy of your own (the stack
 serves plain HTTP and sets no HSTS header). The session cookie is always
-marked `Secure`, so over plain HTTP on any host other than `localhost`
-browsers will not keep a login: use TLS for anything beyond one machine.
+marked `Secure`, so login over plain HTTP works only on `localhost` in some
+browsers (Chrome and Firefox; Safari refuses even there). Use HTTPS for
+anything beyond a quick local trial.
 
 ## Data, backup, upgrade
 
@@ -166,8 +169,8 @@ Everything in the user guide works in this stack. Know these limits:
   (see above).
 - **Accounts are built in.** Passwords are stored as scrypt hashes in
   PostgreSQL. Logout ends only the current browser's session; a password
-  reset, email change, suspension or deletion ends every session of the
-  account. Expired sessions and email links are removed per user (on that
+  reset, password change, email change, suspension or deletion ends every
+  session of the account. Expired sessions and email links are removed per user (on that
   user's next login or link, or when the account is deleted), with no
   scheduler, so rows of users who never return stay until their account is
   deleted.
