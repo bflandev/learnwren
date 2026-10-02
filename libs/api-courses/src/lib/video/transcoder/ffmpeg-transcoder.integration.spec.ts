@@ -99,9 +99,9 @@ describe('FfmpegTranscoderAdapter with the real ffmpeg', () => {
     expect(variant).toMatch(/#EXT-X-KEY:METHOD=AES-128,URI="[^"]+",IV=0x[0-9a-fA-F]{32}/);
     expect(variant).toContain('#EXT-X-ENDLIST');
 
-    // Decrypt the first segment with the key and the playlist's IV, then probe
-    // the plain MPEG-TS. Probing the encrypted playlist through ffprobe's HLS
-    // demuxer crashes the linux-x64 static ffprobe build that CI installs.
+    // Decrypt the first segment with the key and the playlist's IV, then decode
+    // every frame with ffmpeg. Not ffprobe: the linux-x64 static ffprobe build
+    // CI installs segfaults on any MPEG-TS input (it reads mp4 fine).
     const ivHex = /IV=0x([0-9a-fA-F]{32})/.exec(variant)?.[1];
     const firstSegment = files.find((f) => /^hls_360p\d{10}\.ts$/.test(f));
     if (ivHex === undefined || firstSegment === undefined) throw new Error('playlist has no IV or no segment');
@@ -109,10 +109,7 @@ describe('FfmpegTranscoderAdapter with the real ffmpeg', () => {
     const encrypted = await readFile(join(outDir, firstSegment));
     const plainPath = join(root, 'segment.ts');
     await writeFile(plainPath, Buffer.concat([decipher.update(encrypted), decipher.final()]));
-    const { stdout } = await pExecFile(ffprobePath, [
-      '-v', 'error', '-print_format', 'json', '-show_streams', plainPath,
-    ]);
-    const probed = JSON.parse(stdout) as { streams: { codec_type: string; height?: number }[] };
-    expect(probed.streams.find((s) => s.codec_type === 'video')?.height).toBe(360);
+    const { stderr } = await pExecFile(ffmpegPath, ['-hide_banner', '-i', plainPath, '-f', 'null', '-']);
+    expect(stderr).toMatch(/Stream #\S+.*Video: h264.*, 640x360/);
   }, 120_000);
 });
