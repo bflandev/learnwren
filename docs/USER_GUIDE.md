@@ -61,7 +61,7 @@ This guide covers **every feature wired up today**, in three parts:
 | Non-functional | Accessibility: axe-core sweep + keyboard journeys (US-09-03) | Built (2026-08-07) |
 | Non-functional | Mobile responsiveness: header collapse + overflow gate (US-09-05) | Built (2026-08-07) |
 | Non-functional | Performance: landing/catalogue/course-detail/learn-page load time + video click-to-play gate (US-09-01) | Partly built (2026-08-08) — catalogue's 2-second load target not yet met; see README |
-| Non-functional | Self-hosting: single-command Docker Compose stack, `.env.example`, deployment guide, real ffmpeg video pipeline, S3-compatible object storage (US-09-04) | Partly built (2026-09-26) — Slices A+B+C; only auth and data still on the Firebase emulators; see [`self-hosting.md`](./self-hosting.md) |
+| Non-functional | Self-hosting: single-command Docker Compose stack, `.env.example`, deployment guide, real ffmpeg video pipeline, S3-compatible object storage, PostgreSQL and built-in accounts (US-09-04) | Built (2026-10-02) — Slices A–D: Compose runs on PostgreSQL, built-in accounts, S3-compatible storage and ffmpeg, with no emulators; see [`self-hosting.md`](./self-hosting.md) |
 
 ---
 

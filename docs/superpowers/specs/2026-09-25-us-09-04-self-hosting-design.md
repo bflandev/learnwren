@@ -6,7 +6,7 @@
 
 **Date:** 2026-09-25
 **Story:** [US-09-04](../../epics/09-non-functional-requirements.md#us-09-04-open-source-and-self-hosting) (EP-09, Non-Functional Requirements)
-**Status:** Slice A shipped (Docker Compose packaging of emulator mode).
+**Status:** Slice A shipped (Docker Compose packaging of emulator mode). *Superseded by D3c (2026-10-02): Compose no longer runs the emulators, `network_mode`, `docker/firebase.json` and `LEARNWREN_ADMIN_BIND` are gone; see `docs/self-hosting.md`.*
 
 ---
 
