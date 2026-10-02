@@ -1,8 +1,8 @@
 # Mutation Test Report — `libs/api-profile`
 
-> Generated 2026-10-01T16:05:51.979Z
+> Generated 2026-10-02T11:15:07.378Z
 
-**Headline mutation score: 99.78%** (killed=926, survived=2, no-cov=0, ignored=48). Score on covered mutants only: 99.78%. Adjusted (equivalent candidates excluded): 99.78%.
+**Headline mutation score: 99.79%** (killed=938, survived=2, no-cov=0, ignored=48). Score on covered mutants only: 99.79%. Adjusted (equivalent candidates excluded): 99.79%.
 
 
 Target band: unclassified.
@@ -16,7 +16,7 @@ Target band: unclassified.
 | `src/lib/email/email-change.service.ts` | 100.0% | 95 | 0 | 0 |
 | `src/lib/email/email.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
 | `src/lib/instructor-application/admin-instructor-application.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
-| `src/lib/instructor-application/admin-instructor-application.service.ts` | 100.0% | 81 | 0 | 0 |
+| `src/lib/instructor-application/admin-instructor-application.service.ts` | 100.0% | 77 | 0 | 0 |
 | `src/lib/instructor-application/instructor-application.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
 | `src/lib/password/password-change.service.ts` | 100.0% | 38 | 0 | 0 |
 | `src/lib/password/password.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
@@ -28,6 +28,7 @@ Target band: unclassified.
 | `src/lib/users/admin-users.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
 | `src/lib/email/email-change.controller.ts` | 100.0% | 7 | 0 | 0 |
 | `src/lib/instructor-application/admin-instructor-application.controller.ts` | 100.0% | 3 | 0 | 0 |
+| `src/lib/instructor-application/admin-promotion.ts` | 100.0% | 16 | 0 | 0 |
 | `src/lib/instructor-application/instructor-application.controller.ts` | 100.0% | 3 | 0 | 0 |
 | `src/lib/instructor-application/instructor-promotion.ts` | 100.0% | 17 | 0 | 0 |
 | `src/lib/password/password-change.controller.ts` | 100.0% | 3 | 0 | 0 |

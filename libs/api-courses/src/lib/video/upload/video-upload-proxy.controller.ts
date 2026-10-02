@@ -13,6 +13,9 @@ import { VideoUploadSessions, type VideoUploadSession } from './video-upload-ses
 /** S3 rejects multipart parts under 5 MiB except the last one. */
 export const MIN_PART_BYTES = 5 * 1024 * 1024;
 
+/** Largest chunk the proxy will buffer; matches nginx's client_max_body_size. The browser sends 8 MiB. */
+export const MAX_CHUNK_BYTES = 64 * 1024 * 1024;
+
 const CONTENT_RANGE = /^bytes (\d+)-(\d+)\/(\d+)$/;
 
 export function parseContentRange(header: string | undefined): { start: number; last: number; total: number } {
@@ -25,11 +28,34 @@ export function parseContentRange(header: string | undefined): { start: number; 
   return { start, last, total };
 }
 
-function collect(req: Request): Promise<Buffer> {
+/**
+ * Read exactly `expected` bytes. A body that a parser already read (any JSON
+ * content type) would never emit 'end', so it is refused up front; a body
+ * that runs long is cut off, and a client that hangs up is refused, so no
+ * request can hold the promise (and its socket) open.
+ */
+function collect(req: Request, expected: number): Promise<Buffer> {
+  if (req.readableEnded) {
+    return Promise.reject(
+      new UploadChunkInvalidException('request body was already read; send the chunk as application/octet-stream'),
+    );
+  }
+  // The client can hang up while the guards run: 'close' has then already fired.
+  if (req.destroyed) return Promise.reject(new UploadChunkInvalidException('request aborted'));
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on('data', (c: Buffer) => chunks.push(c));
+    let size = 0;
+    req.on('data', (c: Buffer) => {
+      chunks.push(c);
+      size += c.length;
+      if (size > expected) {
+        req.destroy();
+        reject(new UploadChunkInvalidException('body is longer than Content-Range'));
+      }
+    });
     req.on('end', () => resolve(Buffer.concat(chunks)));
+    // After 'end' the promise is settled and this reject is a no-op.
+    req.on('close', () => reject(new UploadChunkInvalidException('request aborted')));
     req.on('error', reject);
   });
 }
@@ -55,8 +81,12 @@ export class VideoUploadProxyController {
     const range = parseContentRange(req.headers['content-range']);
     const session = this.sessions.get(vid);
     if (!session) throw new UploadSessionMissingException();
-    const body = await collect(req);
-    if (body.length !== range.last - range.start + 1) {
+    const expected = range.last - range.start + 1;
+    if (expected > MAX_CHUNK_BYTES) {
+      throw new UploadChunkInvalidException(`chunk must be at most ${MAX_CHUNK_BYTES} bytes`);
+    }
+    const body = await collect(req, expected);
+    if (body.length !== expected) {
       throw new UploadChunkInvalidException('body length does not match Content-Range');
     }
     if (range.last < session.received) {

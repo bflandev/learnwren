@@ -64,3 +64,9 @@ export class UploadObjectSizeMismatchException extends MaterialException {
     );
   }
 }
+
+export class UploadBodyInvalidException extends MaterialException {
+  constructor(detail: string) {
+    super('UPLOAD_BODY_INVALID', `Invalid upload body: ${detail}.`, 400, { detail });
+  }
+}

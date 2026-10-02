@@ -1,17 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
-import * as admin from 'firebase-admin';
+import { seam } from './_helpers/seam';
 
 const API_BASE = 'http://localhost:3333/api';
 
-if (admin.apps.length === 0) {
-  process.env['FIREBASE_AUTH_EMULATOR_HOST'] = '127.0.0.1:9099';
-  process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
-  admin.initializeApp({ projectId: 'demo-learnwren' });
-}
-
 async function markEmailVerified(uid: string): Promise<void> {
-  await admin.auth().updateUser(uid, { emailVerified: true });
+  await seam.markEmailVerified(uid);
 }
 
 async function readUnlockTokenFromOutbox(
@@ -169,8 +163,7 @@ test('lockout flow: 3 wrong passwords → 423 → unlock token works → login s
   const unlockToken = await readUnlockTokenFromOutbox(request, email);
   expect(unlockToken).toBeTruthy();
   // The plaintext token must NOT be persisted to Firestore — only its hash.
-  const snap = await admin.firestore().collection('auth_attempts').doc(emailHash(email)).get();
-  const stored = snap.data() as { unlockToken?: string; unlockTokenHash?: string };
+  const stored = (await seam.getDoc(`auth_attempts/${emailHash(email)}`)) as { unlockToken?: string; unlockTokenHash?: string };
   expect(stored?.unlockToken).toBeUndefined();
   expect(stored?.unlockTokenHash).toBeTruthy();
   expect(stored?.unlockTokenHash).not.toBe(unlockToken);

@@ -7,7 +7,7 @@
 **Date:** 2026-10-01
 **Story:** [US-09-04](../../epics/09-non-functional-requirements.md#us-09-04-open-source-and-self-hosting) (EP-09, Non-Functional Requirements)
 **Builds on:** [Slice A](./2026-09-25-us-09-04-self-hosting-design.md) (Compose), [Slice B](./2026-09-25-us-09-04-slice-b-ffmpeg-video-design.md) (ffmpeg video), [Slice C](./2026-09-26-us-09-04-slice-c-object-storage-design.md) (object storage)
-**Status:** Design approved 2026-10-01. D0 (design), D1 (DocumentStore port, Firestore + in-memory adapters), D2 (PostgreSQL adapter, `LEARNWREN_DATA_STORE`) D3a (IdentityProvider port, Firebase + in-memory adapters) and D3b (local identity adapter, `LEARNWREN_IDENTITY`, `/auth/action`) shipped 2026-10-01; D3c not built.
+**Status:** Design approved 2026-10-01. D0 (design), D1 (DocumentStore port, Firestore + in-memory adapters), D2 (PostgreSQL adapter, `LEARNWREN_DATA_STORE`) D3a (IdentityProvider port, Firebase + in-memory adapters) and D3b (local identity adapter, `LEARNWREN_IDENTITY`, `/auth/action`) shipped 2026-10-01; D3c (Compose on Postgres + local identity, bootstrap admin, tools and api-e2e on both backends) shipped 2026-10-02.
 
 ---
 

@@ -3,9 +3,7 @@ import { join } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { API_BASE, initAdmin, registerAndPromoteInstructor } from './_helpers/auth';
-
-initAdmin();
+import { API_BASE, registerAndPromoteInstructor } from './_helpers/auth';
 
 test('instructor uploads, replaces, then removes a cover image', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);

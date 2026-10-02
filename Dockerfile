@@ -1,11 +1,10 @@
 # syntax=docker/dockerfile:1
-# Self-hosting images for Learn Wren (US-09-04). Three targets, one build
+# Self-hosting images for Learn Wren (US-09-04). Two runtime targets, one build
 # context; docker-compose.yml picks the target per service.
 #
 #   builder   — installs the workspace and builds web + api once
 #   api       — NestJS api in listen mode (node dist/apps/api/main.js)
 #   web       — nginx serving the Angular build, proxying /api to the api
-#   emulators — Firebase Emulator Suite (Auth, Firestore, UI); files live in MinIO
 
 # ---------------------------------------------------------------------------
 FROM node:22-bookworm-slim AS builder
@@ -27,7 +26,9 @@ RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force \
   # @ffprobe-installer ships its binary without the execute bit; the api runs
   # as `node` and cannot repair a root-owned file at runtime.
   && chmod -R a+rX node_modules/@ffprobe-installer node_modules/@ffmpeg-installer
-ENV PORT=3333
+# production: the test seams 404 and their env flags refuse to boot, and any
+# setting Compose forgets fails loudly instead of falling back to a dev fake.
+ENV NODE_ENV=production PORT=3333
 EXPOSE 3333
 USER node
 CMD ["node", "main.js"]
@@ -39,24 +40,3 @@ ENV NGINX_ENVSUBST_FILTER=^LEARNWREN_
 COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=builder /src/dist/apps/web/browser /usr/share/nginx/html
 EXPOSE 80
-
-# ---------------------------------------------------------------------------
-# The Firestore emulator is a JVM; firebase-tools needs Java 21+. Start from a
-# JRE image and copy the node binary in rather than apt-installing a JDK.
-FROM eclipse-temurin:21-jre-noble AS emulators
-COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
-COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
-RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
-  && npm install -g --no-audit --no-fund firebase-tools@15.16.0 \
-  && npm cache clean --force \
-  # Pre-download the emulator jars so first `compose up` works offline.
-  && firebase setup:emulators:firestore \
-  && firebase setup:emulators:ui
-WORKDIR /app
-COPY docker/firebase.json ./firebase.json
-COPY firestore.rules firestore.indexes.json ./
-COPY docker/emulators-entrypoint.sh /usr/local/bin/emulators-entrypoint
-RUN chmod +x /usr/local/bin/emulators-entrypoint
-VOLUME /data
-EXPOSE 4000 8080 9099
-ENTRYPOINT ["emulators-entrypoint"]

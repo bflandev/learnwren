@@ -4,13 +4,10 @@ import * as path from 'node:path';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
   withAnonRequest,
 } from './_helpers/auth';
-
-initAdmin();
 
 const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'small-video.mp4');
 const FIXTURE_BYTES = fs.readFileSync(FIXTURE_PATH);
@@ -146,8 +143,10 @@ test('401 unauthenticated, 403 wrong-role, 403 wrong-instructor, 409 already-has
       videoId: string;
       uploadSessionUri: string;
     };
+    // The owner's cookie rides along: S3 mode's upload URI is an api route
+    // behind the owner guard; the GCS session URI ignores it.
     await anon.put(uri1, {
-      headers: { 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
+      headers: { ...hdr, 'Content-Range': `bytes 0-${FIXTURE_BYTES.length - 1}/${FIXTURE_BYTES.length}` },
       data: FIXTURE_BYTES,
     });
     await anon.post(`${API_BASE}/videos/${firstVid}/upload-complete`, { headers: hdr });

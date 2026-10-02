@@ -2,55 +2,24 @@
 /**
  * tools/promote-to-instructor.ts
  *
- * Promote an existing, email-verified user to the INSTRUCTOR role. Sets the
- * Firebase Auth custom claim `role: 'INSTRUCTOR'` and the Firestore
- * `users/{uid}.role` field.
+ * Promote an existing, email-verified user to the INSTRUCTOR role (identity
+ * role plus `users/{uid}.role`; resolves a pending instructor application).
  *
  * Usage:
  *   pnpm tools:promote-to-instructor <email>
  *
- * Targets the local Firebase emulators by default (no setup needed beyond
+ * Backend follows LEARNWREN_DATA_STORE / LEARNWREN_IDENTITY (see backend-init).
+ * Firebase mode targets the local emulators by default (no setup needed beyond
  * `pnpm emulators`). To run against production, set
  * LEARNWREN_FIREBASE_TARGET=production together with
  * LEARNWREN_API_FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT_JSON_PATH.
  */
 
-import * as admin from 'firebase-admin';
-
+import { requireVerifiedUser } from '../libs/api-profile/src/lib/instructor-application/admin-promotion';
 import { promoteUserToInstructor } from '../libs/api-profile/src/lib/instructor-application/instructor-promotion';
-import type { PromotionFirestoreLike } from '../libs/api-profile/src/lib/instructor-application/instructor-promotion';
-import type { UserId, UserRole } from '@learnwren/shared-data-models';
+import type { UserId } from '@learnwren/shared-data-models';
 
-import { initFirebaseApp, resolveMode } from './firebase-admin-init';
-
-type AuthLike = Pick<admin.auth.Auth, 'getUserByEmail' | 'setCustomUserClaims'>;
-type FirestoreLike = Pick<admin.firestore.Firestore, 'collection'>;
-
-export async function promoteToInstructor(
-  email: string,
-  auth: AuthLike,
-  firestore: FirestoreLike,
-): Promise<void> {
-  const user = await auth.getUserByEmail(email);
-  if (!user.emailVerified) {
-    throw new Error(
-      `Refusing to promote ${email}: the account is not email-verified. ` +
-        'Have the user verify their email first.',
-    );
-  }
-
-  await promoteUserToInstructor(
-    user.uid as UserId,
-    { setRole: (uid: string, role: UserRole) => auth.setCustomUserClaims(uid, { role }) },
-    firestore as unknown as PromotionFirestoreLike,
-    new Date().toISOString(),
-  );
-
-  console.log(`[promote] Promoted ${email} (uid=${user.uid}) to INSTRUCTOR.`);
-  console.log(
-    '[promote] User must sign out and sign back in for the new role to take effect.',
-  );
-}
+import { initBackend } from './backend-init';
 
 async function main(): Promise<void> {
   const email = process.argv[2];
@@ -59,16 +28,24 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const mode = resolveMode();
-  console.log(`[promote] Target: ${mode}.`);
-
+  let exitCode = 0;
+  const backend = await initBackend().catch((err) => {
+    console.error(`[promote] Failed: ${err instanceof Error ? err.message : String(err)}`);
+    return process.exit(1);
+  });
+  console.log(`[promote] Target: ${backend.description}.`);
   try {
-    initFirebaseApp(mode);
-    await promoteToInstructor(email, admin.auth(), admin.firestore());
+    const user = await requireVerifiedUser(email, backend.identity);
+    await promoteUserToInstructor(user.uid as UserId, backend.identity, backend.store, new Date().toISOString());
+    console.log(`[promote] Promoted ${email} to INSTRUCTOR.`);
+    console.log('[promote] User must sign out and sign back in for the new role to take effect.');
   } catch (err) {
     console.error(`[promote] Failed: ${err instanceof Error ? err.message : String(err)}`);
-    process.exit(1);
+    exitCode = 1;
+  } finally {
+    await backend.close();
   }
+  process.exit(exitCode);
 }
 
 main().catch((err) => {

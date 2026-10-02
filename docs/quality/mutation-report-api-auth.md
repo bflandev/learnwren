@@ -1,8 +1,8 @@
 # Mutation Test Report — `libs/api-auth`
 
-> Generated 2026-10-02T03:23:06.101Z
+> Generated 2026-10-02T11:17:10.872Z
 
-**Headline mutation score: 100.00%** (killed=795, survived=0, no-cov=0, ignored=69). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
+**Headline mutation score: 100.00%** (killed=816, survived=0, no-cov=0, ignored=70). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
 
 
 Target band: auth / billing / auth-adjacent — 90%+ target.
@@ -13,7 +13,7 @@ Target band: auth / billing / auth-adjacent — 90%+ target.
 |------|-------|--------|----------|-------------|
 | `src/lib/account-recovery.service.ts` | 100.0% | 74 | 0 | 0 |
 | `src/lib/auth.exception-filter.ts` | 100.0% | 1 | 0 | 0 |
-| `src/lib/auth.service.ts` | 100.0% | 97 | 0 | 0 |
+| `src/lib/auth.service.ts` | 100.0% | 113 | 0 | 0 |
 | `src/lib/firebase-auth-rest-client.ts` | 100.0% | 29 | 0 | 0 |
 | `src/lib/firebase-session.guard.ts` | 100.0% | 12 | 0 | 0 |
 | `src/lib/identity/firebase-identity-provider.ts` | 100.0% | 103 | 0 | 0 |
@@ -24,6 +24,7 @@ Target band: auth / billing / auth-adjacent — 90%+ target.
 | `src/lib/admin-role.guard.ts` | 100.0% | 8 | 0 | 0 |
 | `src/lib/auth-attempts.repository.ts` | 100.0% | 116 | 0 | 0 |
 | `src/lib/auth.controller.ts` | 100.0% | 40 | 0 | 0 |
+| `src/lib/bootstrap-admin.ts` | 100.0% | 5 | 0 | 0 |
 | `src/lib/identity/identity.config.ts` | 100.0% | 27 | 0 | 0 |
 | `src/lib/identity/identity.errors.ts` | 100.0% | 4 | 0 | 0 |
 | `src/lib/identity/opaque-token.ts` | 100.0% | 5 | 0 | 0 |

@@ -3,9 +3,7 @@ import { join } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { API_BASE, initAdmin, registerStudent } from './_helpers/auth';
-
-initAdmin();
+import { API_BASE, registerStudent } from './_helpers/auth';
 
 // The cover fixture is a 1280x720 JPEG which comfortably exceeds the 256x256
 // minimum the profile picture service enforces.

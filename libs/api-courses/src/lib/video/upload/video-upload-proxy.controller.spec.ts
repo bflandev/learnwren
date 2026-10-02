@@ -1,11 +1,13 @@
+import { once } from 'node:events';
 import { Readable } from 'node:stream';
 
+import express from 'express';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ObjectStorage } from '@learnwren/api-object-storage';
 import type { VideoId } from '@learnwren/shared-data-models';
 
-import { MIN_PART_BYTES, parseContentRange, VideoUploadProxyController } from './video-upload-proxy.controller';
+import { MAX_CHUNK_BYTES, MIN_PART_BYTES, parseContentRange, VideoUploadProxyController } from './video-upload-proxy.controller';
 import { VideoUploadSessions } from './video-upload-sessions';
 
 const VID = 'v1' as VideoId;
@@ -24,6 +26,16 @@ function makeStorage() {
 function makeReq(body: Buffer, range?: string) {
   const req = Readable.from([body]) as unknown as { headers: Record<string, string | undefined> };
   req.headers = { 'content-range': range };
+  return req as never;
+}
+
+/** Run the app's JSON body parser over a chunk request, as main.ts does for every route. */
+async function throughJsonParser(body: Buffer, contentType: string, range: string) {
+  const req = Readable.from([body]) as unknown as { headers: Record<string, string | undefined> };
+  req.headers = { 'content-type': contentType, 'content-length': String(body.length), 'content-range': range };
+  await new Promise<void>((resolve, reject) =>
+    express.json({ limit: '100kb' })(req as never, {} as never, (err?: unknown) => (err ? reject(err) : resolve())),
+  );
   return req as never;
 }
 
@@ -129,6 +141,94 @@ describe('VideoUploadProxyController.chunk', () => {
     const pending = ctrl.chunk(VID, req as never, makeRes() as never);
     (req as unknown as Readable).emit('error', new Error('socket reset'));
     await expect(pending).rejects.toThrow('socket reset');
+  });
+
+  it('accepts an application/octet-stream chunk: the JSON body parser leaves it unread', async () => {
+    const { ctrl, storage } = make();
+    const req = await throughJsonParser(Buffer.from('abc'), 'application/octet-stream', 'bytes 0-2/3');
+    const res = makeRes();
+    await ctrl.chunk(VID, req, res as never);
+    expect(res.statusCode).toBe(200);
+    expect((storage.uploadPart.mock.calls[0]![0] as { body: Buffer }).body).toEqual(Buffer.from('abc'));
+  });
+
+  it('rejects at once (no hang) a chunk whose body a body parser already consumed, and stores nothing', async () => {
+    const { ctrl, sessions, storage } = make();
+    const req = await throughJsonParser(Buffer.from('{"a":1}'), 'application/json', 'bytes 0-6/7');
+    await expect(ctrl.chunk(VID, req, makeRes() as never)).rejects.toMatchObject({
+      code: 'UPLOAD_CHUNK_INVALID',
+      status: 400,
+      details: { detail: 'request body was already read; send the chunk as application/octet-stream' },
+    });
+    expect(storage.createMultipartUpload).not.toHaveBeenCalled();
+    expect(sessions.get(VID)?.received).toBe(0);
+  });
+
+  it('rejects a Content-Range longer than MAX_CHUNK_BYTES before reading the body', async () => {
+    const { ctrl, storage } = make();
+    const req = Readable.from([Buffer.alloc(3)]) as unknown as Readable & { headers: Record<string, string> };
+    req.headers = { 'content-range': `bytes 0-${MAX_CHUNK_BYTES}/${MAX_CHUNK_BYTES + 1}` };
+    await expect(ctrl.chunk(VID, req as never, makeRes() as never)).rejects.toMatchObject({
+      code: 'UPLOAD_CHUNK_INVALID',
+      details: { detail: `chunk must be at most ${MAX_CHUNK_BYTES} bytes` },
+    });
+    expect(req.readableFlowing).toBeNull();
+    expect(storage.createMultipartUpload).not.toHaveBeenCalled();
+  });
+
+  it('allows a Content-Range of exactly MAX_CHUNK_BYTES past the size cap', async () => {
+    const { ctrl } = make();
+    await expect(
+      ctrl.chunk(VID, makeReq(Buffer.alloc(0), `bytes 0-${MAX_CHUNK_BYTES - 1}/${MAX_CHUNK_BYTES}`), makeRes() as never),
+    ).rejects.toMatchObject({ details: { detail: 'body length does not match Content-Range' } });
+  });
+
+  it('stops reading and rejects once the body runs past the Content-Range, storing nothing', async () => {
+    const { ctrl, storage } = make();
+    const req = Readable.from([Buffer.alloc(2), Buffer.alloc(2), Buffer.alloc(2)]) as unknown as Readable & { headers: Record<string, string> };
+    req.headers = { 'content-range': 'bytes 0-2/3' };
+    await expect(ctrl.chunk(VID, req as never, makeRes() as never)).rejects.toMatchObject({
+      code: 'UPLOAD_CHUNK_INVALID',
+      details: { detail: 'body is longer than Content-Range' },
+    });
+    expect(req.destroyed).toBe(true);
+    expect(storage.createMultipartUpload).not.toHaveBeenCalled();
+  });
+
+  it('accepts a body that fills the Content-Range exactly across several data events', async () => {
+    const { ctrl, storage } = make();
+    const req = Readable.from([Buffer.from('ab'), Buffer.from('c')]) as unknown as Readable & { headers: Record<string, string> };
+    req.headers = { 'content-range': 'bytes 0-2/3' };
+    const res = makeRes();
+    await ctrl.chunk(VID, req as never, res as never);
+    expect(res.statusCode).toBe(200);
+    expect((storage.uploadPart.mock.calls[0]![0] as { body: Buffer }).body).toEqual(Buffer.from('abc'));
+  });
+
+  it('rejects when the client aborts mid-chunk, storing nothing', async () => {
+    const { ctrl, storage } = make();
+    const req = new Readable({ read() { /* driven manually */ } }) as Readable & { headers: Record<string, string> };
+    req.headers = { 'content-range': 'bytes 0-2/3' };
+    const pending = ctrl.chunk(VID, req as never, makeRes() as never);
+    const firstData = once(req, 'data');
+    req.push(Buffer.alloc(1));
+    await firstData;
+    req.destroy();
+    await expect(pending).rejects.toMatchObject({ code: 'UPLOAD_CHUNK_INVALID', details: { detail: 'request aborted' } });
+    expect(storage.createMultipartUpload).not.toHaveBeenCalled();
+  });
+
+  it('rejects at once a request the client hung up on before the handler ran', async () => {
+    const { ctrl, storage } = make();
+    const req = new Readable({ read() { /* never produces */ } }) as Readable & { headers: Record<string, string> };
+    req.headers = { 'content-range': 'bytes 0-2/3' };
+    req.destroy();
+    await once(req, 'close');
+    await expect(ctrl.chunk(VID, req as never, makeRes() as never)).rejects.toMatchObject({
+      code: 'UPLOAD_CHUNK_INVALID',
+      details: { detail: 'request aborted' },
+    });
+    expect(storage.createMultipartUpload).not.toHaveBeenCalled();
   });
 
   it('409s when no session is open', async () => {

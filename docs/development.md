@@ -112,9 +112,14 @@ All scripts run from the repo root and delegate to Nx.
 | `pnpm exec nx run web-e2e:responsive` | Hermetic 320/768/1280/2560px horizontal-overflow sweep + header collapse specs (US-09-05). Needs neither the emulators nor the api. |
 | `pnpm affected` | Lint + test + build + typecheck for projects affected by the branch. |
 | `pnpm crap` / `pnpm mutate` | Regenerate the CRAP-score and mutation reports (see `docs/quality/`). |
-| `pnpm tools:promote-to-instructor <email>` | Promote a verified user to the `INSTRUCTOR` role (emulator by default — see below). |
+| `pnpm tools:promote-to-instructor <email>` | Promote a verified user to the `INSTRUCTOR` role (emulator by default; `pnpm tools:promote-to-admin <email>` does the same for `ADMIN`; see below). |
 | `pnpm secrets:render` | Render `.env` from `.env.tpl` via 1Password (`op inject`). |
 | `pnpm secrets:run -- <cmd>` | Run `<cmd>` with secrets injected in-memory (`op run`). |
+
+Both promotion tools work on either backend, chosen by the same variables as
+the api. With `LEARNWREN_DATA_STORE=postgres` and `LEARNWREN_IDENTITY=local`
+(both required together) they use PostgreSQL (`LEARNWREN_POSTGRES_URL`) and the
+built-in accounts. Otherwise they use Firebase, as described next.
 
 `tools:promote-to-instructor` targets the local emulators by default, so it
 works with `pnpm emulators` running and needs no extra setup. To promote a user

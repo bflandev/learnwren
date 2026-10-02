@@ -1,16 +1,13 @@
 // NOTE: Run `pnpm emulators` and `pnpm start:api` before executing this suite.
 import { test, expect, request as apiRequest } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
-  initAdmin,
   registerStudent,
   registerAndPromoteInstructor,
   registerAndPromoteAdmin,
 } from './_helpers/auth';
-
-test.beforeAll(() => initAdmin());
+import { seam } from './_helpers/seam';
 
 async function applyAsStudent(
   request: import('@playwright/test').APIRequestContext,
@@ -28,7 +25,7 @@ test('admin sees, then approves, a pending application', async () => {
   try {
     const student = await registerStudent(ctx);
     await applyAsStudent(ctx, student.cookieHeader);
-    await admin.auth().updateUser(student.uid, { emailVerified: true });
+    await seam.markEmailVerified(student.uid);
 
     const adminSession = await registerAndPromoteAdmin(ctx);
     const hdr = { Cookie: adminSession.cookieHeader };
@@ -52,8 +49,8 @@ test('admin sees, then approves, a pending application', async () => {
     expect(again.status()).toBe(409);
     expect((await again.json()).error.code).toBe('APPLICATION_NOT_PENDING');
 
-    const userDoc = await admin.firestore().collection('users').doc(student.uid).get();
-    expect(userDoc.data()?.['role']).toBe('INSTRUCTOR');
+    const userDoc = await seam.getDoc(`users/${student.uid}`);
+    expect(userDoc?.['role']).toBe('INSTRUCTOR');
   } finally {
     await ctx.dispose();
   }

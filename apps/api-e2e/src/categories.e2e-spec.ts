@@ -1,16 +1,13 @@
 // NOTE: Run `pnpm emulators` and `pnpm start:api` before executing this suite.
 import { test, expect, request as apiRequest } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
-  initAdmin,
   registerStudent,
   registerAndPromoteInstructor,
   registerAndPromoteAdmin,
 } from './_helpers/auth';
-
-test.beforeAll(() => initAdmin());
+import { seam } from './_helpers/seam';
 
 interface CategoryBody {
   id: string;
@@ -151,8 +148,8 @@ test('admin creates, renames, and deletes categories with course reassignment', 
     expect(deleted.status()).toBe(200);
     expect(await deleted.json()).toEqual({ reassignedCourses: 1 });
 
-    const courseDoc = await admin.firestore().collection('courses').doc(courseId).get();
-    expect(courseDoc.data()?.['category']).toBe(catB.id);
+    const courseDoc = await seam.getDoc(`courses/${courseId}`);
+    expect(courseDoc?.['category']).toBe(catB.id);
 
     const afterDelete = (await (await ctx.get(`${API_BASE}/categories`)).json()) as CategoryBody[];
     expect(afterDelete.some((c) => c.id === catA.id)).toBe(false);

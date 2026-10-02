@@ -58,7 +58,7 @@ graph TD
 
 ## Deployment Backends
 
-Learn Wren runs on two sets of backends with one codebase. Every proprietary service sits behind a port with a cloud adapter and a self-hosted adapter, chosen by environment variable. Defaults select the cloud adapters, which the Firebase emulators also serve in local development.
+Learn Wren runs on two sets of backends with one codebase. Every proprietary service sits behind a port with a cloud adapter and a self-hosted adapter, chosen by environment variable. Defaults select the cloud adapters, which the Firebase emulators also serve in local development. The Docker Compose stack selects all four self-hosted adapters (`postgres`, `local`, `s3`, `ffmpeg`) and runs no emulators.
 
 | Port | Cloud adapter (learnwren.com) | Self-hosted adapter (Docker Compose) | Selector |
 | :--- | :--- | :--- | :--- |

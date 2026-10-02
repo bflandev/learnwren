@@ -66,6 +66,13 @@ export default defineConfig({
       // limit (100/10s) can trip mid-suite (CI-observed 429 on register).
       LEARNWREN_THROTTLE_BURST_LIMIT: '10000',
       LEARNWREN_THROTTLE_SUSTAINED_LIMIT: '50000',
+      // Backend selection for the postgres + local identity run; absent, the
+      // api defaults to Firestore + Firebase Auth (the emulator run).
+      ...Object.fromEntries(
+        ['LEARNWREN_DATA_STORE', 'LEARNWREN_IDENTITY', 'LEARNWREN_POSTGRES_URL']
+          .filter((k) => process.env[k])
+          .map((k) => [k, process.env[k] as string]),
+      ),
     },
   },
   projects: [

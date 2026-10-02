@@ -1,7 +1,7 @@
 // NOTE: Run `pnpm emulators` and `pnpm start:api` before executing this suite.
 import { test, expect, request as apiRequest } from '@playwright/test';
 
-import { API_BASE, initAdmin, registerAndPromoteAdmin, registerStudent } from './_helpers/auth';
+import { API_BASE, registerAndPromoteAdmin, registerStudent } from './_helpers/auth';
 
 // Mirrors AdminHealthReport from @learnwren/shared-data-models — the e2e app
 // doesn't have a project reference to that lib (see sibling specs, which
@@ -18,8 +18,6 @@ interface AdminHealthReport {
   alerts: Array<{ code: string; message: string }>;
   generatedAt: string;
 }
-
-test.beforeAll(() => initAdmin());
 
 test('admin receives a full health report', async () => {
   const ctx = await apiRequest.newContext();

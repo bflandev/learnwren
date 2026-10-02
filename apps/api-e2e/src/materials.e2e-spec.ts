@@ -1,14 +1,11 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
 } from './_helpers/auth';
-
-initAdmin();
+import { seam } from './_helpers/seam';
 
 const PDF_BYTES = Buffer.from('%PDF-1.4\nfake pdf payload for e2e\n%%EOF');
 
@@ -242,11 +239,7 @@ test('deleting the lesson cascades to its materials', async ({ request }) => {
  */
 async function publishViaAdmin(courseId: string): Promise<void> {
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('courses')
-    .doc(courseId)
-    .update({ status: 'PUBLISHED', publishedAt: now, updatedAt: now });
+  await seam.updateDoc(`courses/${courseId}`, { status: 'PUBLISHED', publishedAt: now, updatedAt: now });
 }
 
 /** Seed an enrollment doc directly (composite ID `${userId}__${courseId}`). */
@@ -257,11 +250,7 @@ async function seedEnrollmentDoc(args: {
 }): Promise<void> {
   const enrollmentId = `${args.userId}__${args.courseId}`;
   const now = new Date().toISOString();
-  await admin
-    .firestore()
-    .collection('enrollments')
-    .doc(enrollmentId)
-    .set({
+  await seam.setDoc(`enrollments/${enrollmentId}`, {
       id: enrollmentId,
       userId: args.userId,
       courseId: args.courseId,
@@ -341,4 +330,31 @@ test.describe('UC-04-02 — student download', () => {
     expect(() => new URL(absolute(body.downloadUrl))).not.toThrow();
     expect(typeof body.expiresAt).toBe('string');
   });
+});
+
+test('a material PUT whose body the JSON parser consumed is refused at once and stores nothing', async ({
+  request,
+}) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const hdr = { Cookie: instructor.cookieHeader };
+  const loc = await createCourseModuleLesson(request, hdr);
+  const json = Buffer.from(JSON.stringify({ pad: 'x'.repeat(30) }));
+  const created = await request.post(
+    `${API_BASE}/courses/${loc.courseId}/modules/${loc.moduleId}/lessons/${loc.lessonId}/materials/upload-url`,
+    { headers: hdr, data: { filename: 'notes.pdf', sizeBytes: json.length } },
+  );
+  const { materialId, uploadUrl } = (await created.json()) as { materialId: string; uploadUrl: string };
+
+  // Before the fix this request hung until the client gave up.
+  const put = await request.put(absolute(uploadUrl), {
+    headers: { ...hdr, 'Content-Type': 'application/json' },
+    data: json,
+    timeout: 5_000,
+  });
+  expect(put.status()).toBe(400);
+  expect(((await put.json()) as { error: { code: string } }).error.code).toBe('UPLOAD_BODY_INVALID');
+
+  const done = await request.post(`${API_BASE}/materials/${materialId}/complete`, { headers: hdr });
+  expect(done.status()).toBe(422);
+  expect(((await done.json()) as { error: { code: string } }).error.code).toBe('UPLOAD_OBJECT_MISSING');
 });

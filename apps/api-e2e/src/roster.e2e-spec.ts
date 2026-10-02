@@ -1,22 +1,18 @@
 // NOTE: Run `pnpm emulators` and `pnpm start:api` before executing this suite.
 import { expect, test } from '@playwright/test';
-import * as admin from 'firebase-admin';
 
 import {
   API_BASE,
-  initAdmin,
   registerAndPromoteInstructor,
   registerStudent,
   withAnonRequest,
 } from './_helpers/auth';
-
-initAdmin();
+import { seam } from './_helpers/seam';
 
 async function seedPublishedCourse(instructorId: string): Promise<{ cid: string; lessonIds: string[] }> {
   const cid = `roster-e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const now = new Date().toISOString();
-  const db = admin.firestore();
-  await db.collection('courses').doc(cid).set({
+  await seam.setDoc(`courses/${cid}`, {
     id: cid,
     title: 'Roster e2e course',
     description: 'course',
@@ -28,7 +24,7 @@ async function seedPublishedCourse(instructorId: string): Promise<{ cid: string;
     updatedAt: now,
   });
   const mid = `${cid}-m1`;
-  await db.collection('courses').doc(cid).collection('modules').doc(mid).set({
+  await seam.setDoc(`courses/${cid}/modules/${mid}`, {
     id: mid,
     courseId: cid,
     title: 'Module 1',
@@ -39,14 +35,7 @@ async function seedPublishedCourse(instructorId: string): Promise<{ cid: string;
   const lessonIds = [`${cid}-l1`, `${cid}-l2`];
   for (let i = 0; i < lessonIds.length; i += 1) {
     const lid = lessonIds[i] as string;
-    await db
-      .collection('courses')
-      .doc(cid)
-      .collection('modules')
-      .doc(mid)
-      .collection('lessons')
-      .doc(lid)
-      .set({
+    await seam.setDoc(`courses/${cid}/modules/${mid}/lessons/${lid}`, {
         id: lid,
         moduleId: mid,
         title: `Lesson ${i + 1}`,
@@ -116,9 +105,8 @@ test('a demoted instructor (now STUDENT) is forbidden even on their own course',
   // Demote out-of-band, then re-login so the fresh cookie carries the STUDENT
   // claim. InstructorRoleGuard must reject before CourseOwnerGuard (uid still
   // matches instructorId) would otherwise allow access.
-  await admin.auth().setCustomUserClaims(instructor.uid, { role: 'STUDENT' });
-  await admin.firestore().collection('users').doc(instructor.uid).update({ role: 'STUDENT' });
-  const email = (await admin.auth().getUser(instructor.uid)).email!;
+  await seam.setRole(instructor.uid, 'STUDENT');
+  const email = await seam.getEmail(instructor.uid);
   const relogin = await request.post(`${API_BASE}/auth/login`, {
     data: { email, password: 'Aa1!aaaaaaaa' },
   });

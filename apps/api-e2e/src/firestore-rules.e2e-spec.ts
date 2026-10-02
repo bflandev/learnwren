@@ -20,6 +20,11 @@ import {
 const PROJECT_ID = 'demo-learnwren-rules';
 let testEnv: RulesTestEnvironment;
 
+test.skip(
+  process.env['LEARNWREN_DATA_STORE'] === 'postgres',
+  'firestore.rules only applies to the Firestore backend',
+);
+
 test.beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
     projectId: PROJECT_ID,
