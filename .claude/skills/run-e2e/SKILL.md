@@ -33,7 +33,8 @@ pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e api-e2e'
 
 ## Suite conventions
 
-- Specs live in `apps/api-e2e/src/*.e2e-spec.ts`; shared helpers in `_helpers/auth` (`API_BASE`, `initAdmin`, `registerStudent`, `registerAndPromoteInstructor`, `registerAndPromoteAdmin`).
+- Specs live in `apps/api-e2e/src/*.e2e-spec.ts`; shared helpers in `_helpers/auth` (`API_BASE`, `registerStudent`, `registerAndPromoteInstructor`, `registerAndPromoteAdmin`, `redeemEmailLink`) and `_helpers/seam.ts` (`seam`, the `/api/_test` setup seam that replaced `initAdmin`).
+- **Postgres + local identity run:** the api `webServer` uses `reuseExistingServer` when not CI, so a local run silently reuses an api already on :3333 (often a Firestore one) — stop it first. That run also needs a RustFS/S3 store and the S3 env (`LEARNWREN_OBJECT_STORAGE=s3`, `LEARNWREN_S3_*`); copy the env from the e2e job in `.github/workflows/ci.yml`.
 - **api-e2e cannot import `@learnwren/shared-data-models`** (no tsconfig project ref) — declare inline structural types, like every sibling spec.
 - Each test creates its own `apiRequest.newContext()` and disposes it in `finally`.
 - The **Auth emulator ignores `checkRevoked`** — revocation behavior must be unit-asserted, not e2e-asserted.
