@@ -38,6 +38,7 @@
     "release:dry": "nx release --dry-run",
     "tools:promote-to-instructor": "tsx tools/promote-to-instructor.ts",
     "tools:promote-to-admin": "tsx tools/promote-to-admin.ts",
+    "tools:purge-withdrawn-enrollments": "tsx tools/purge-withdrawn-enrollments.ts",
     "secrets:render": "op inject -i .env.tpl -o .env",
     "secrets:render:deploy": "op inject -i .env.deploy.tpl -o .env.learn-wren",
     "secrets:run": "op run --env-file=.env.tpl"

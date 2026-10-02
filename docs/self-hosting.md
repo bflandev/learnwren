@@ -98,6 +98,11 @@ work against this stack when run from a checkout with `pnpm install` done, with
 first publish its port yourself (for example with a `ports:` entry on the
 `postgres` service in a compose override). Most installs never need this.
 
+The same setup runs `pnpm tools:purge-withdrawn-enrollments`, which deletes
+enrollments students left more than 90 days ago (their saved progress goes
+with them). Nothing runs it for you; schedule it daily with cron if you want
+the 90-day retention promise kept.
+
 Everything in [`USER_GUIDE.md`](./USER_GUIDE.md) Part 2 then applies,
 including video: upload a lesson video, wait for *Transcoding* to become
 *Ready* (about real-time for the first encode on a small server), and play it.

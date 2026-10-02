@@ -14,7 +14,7 @@ This document contains the fully-dressed Cockburn use cases for browsing, search
 >
 > **Deferred items (documented follow-ups, not spec drift):**
 > - The "Continue Learning" button and lesson player — EP-06.
-> - The 90-day hard-delete purge of `WITHDRAWN` enrollments — soft-delete and restore ship in Slice B; the scheduled purge does not.
+> - A built-in scheduler for the 90-day purge of `WITHDRAWN` enrollments — the purge itself shipped 2026-10-02 as the operator tool `pnpm tools:purge-withdrawn-enrollments`, which the operator schedules.
 > - Access revocation when a course is unpublished after enrollment — guards check ownership/active-enrollment but not current `Course.status` at playback time.
 >
 > See the [Specification Drift Report](../quality/spec-drift-report.md#ep-05--course-discovery-and-enrollment) for the historical record.

@@ -358,7 +358,9 @@ Slice A shipped UC-05-01..03 (browse, search, course-detail) — see
 Slice B shipped UC-05-04..05 (enrol, unenrol with 90-day progress retention) — see
 `2026-05-22-ep05-slice-b-enrolment-design.md`. The previously listed forward-hook
 drifts (inert `Enrollment` / `LessonProgress` types, missing endpoints) are now
-stale and resolved.
+stale and resolved. The 90-day purge of `WITHDRAWN` enrollments shipped 2026-10-02
+as the operator tool `pnpm tools:purge-withdrawn-enrollments`; the platform has no
+scheduler, so the operator runs it on one (cron, Cloud Scheduler).
 
 ---
 
