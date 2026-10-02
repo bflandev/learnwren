@@ -10,6 +10,11 @@
 #
 # No Firebase anywhere: data lives in Postgres, accounts are the api's own
 # (LEARNWREN_IDENTITY=local) and files live in the object store.
+#
+# Upgrading from an emulator-based install: data is NOT migrated. The new stack
+# starts with an empty Postgres; the old `emulator-data` volume is left
+# untouched. Start with `docker compose up -d --remove-orphans` so the old
+# emulators container (unauthenticated ports 4000/8080/9099) is stopped.
 
 x-buckets: &buckets
   LEARNWREN_VIDEO_SOURCE_BUCKET: learnwren-source
