@@ -331,3 +331,30 @@ test.describe('UC-04-02 — student download', () => {
     expect(typeof body.expiresAt).toBe('string');
   });
 });
+
+test('a material PUT whose body the JSON parser consumed is refused at once and stores nothing', async ({
+  request,
+}) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const hdr = { Cookie: instructor.cookieHeader };
+  const loc = await createCourseModuleLesson(request, hdr);
+  const json = Buffer.from(JSON.stringify({ pad: 'x'.repeat(30) }));
+  const created = await request.post(
+    `${API_BASE}/courses/${loc.courseId}/modules/${loc.moduleId}/lessons/${loc.lessonId}/materials/upload-url`,
+    { headers: hdr, data: { filename: 'notes.pdf', sizeBytes: json.length } },
+  );
+  const { materialId, uploadUrl } = (await created.json()) as { materialId: string; uploadUrl: string };
+
+  // Before the fix this request hung until the client gave up.
+  const put = await request.put(absolute(uploadUrl), {
+    headers: { ...hdr, 'Content-Type': 'application/json' },
+    data: json,
+    timeout: 5_000,
+  });
+  expect(put.status()).toBe(400);
+  expect(((await put.json()) as { error: { code: string } }).error.code).toBe('UPLOAD_BODY_INVALID');
+
+  const done = await request.post(`${API_BASE}/materials/${materialId}/complete`, { headers: hdr });
+  expect(done.status()).toBe(422);
+  expect(((await done.json()) as { error: { code: string } }).error.code).toBe('UPLOAD_OBJECT_MISSING');
+});

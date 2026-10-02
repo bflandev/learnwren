@@ -1,11 +1,13 @@
 import { Controller, Get, HttpCode, Inject, Param, Put, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
+import { pipeline, Readable, Transform } from 'node:stream';
+
 import type { Request, Response } from 'express';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
 import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 import type { MaterialId } from '@learnwren/shared-data-models';
 
-import { MaterialNotFoundException } from '../errors/material.exception';
+import { MaterialNotFoundException, UploadBodyInvalidException } from '../errors/material.exception';
 import { MaterialAccessGuard } from '../material-access.guard';
 import { MaterialOwnerGuard } from '../material-owner.guard';
 import { MaterialsExceptionFilter } from '../materials.exception-filter';
@@ -13,6 +15,29 @@ import { MaterialsRepository } from '../materials.repository';
 
 function sanitizeFilename(name: string): string {
   return name.replace(/["\\\r\n]/g, '_');
+}
+
+/**
+ * The request body, held to exactly the size declared when the upload URL was
+ * issued (1 byte to MATERIAL_MAX_SIZE_BYTES). An empty, short or long body
+ * errors the stream, so the store never finishes writing it.
+ */
+function exactBody(req: Request, expected: number): Readable {
+  if (req.readableEnded) {
+    throw new UploadBodyInvalidException('request body was already read; send the file with its own content type');
+  }
+  let seen = 0;
+  const counter = new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      seen += chunk.length;
+      done(seen > expected ? new UploadBodyInvalidException('body is longer than the declared size') : null, chunk);
+    },
+    flush(done) {
+      done(seen < expected ? new UploadBodyInvalidException('body is shorter than the declared size') : null);
+    },
+  });
+  // ponytail: pipeline destroys req on any error (long body, hang-up); its outcome reaches the caller through `counter`.
+  return pipeline(req, counter, () => undefined);
 }
 
 /**
@@ -40,7 +65,7 @@ export class MaterialsProxyController {
     await this.storage.putStream({
       bucket: material.storage.bucket,
       path: material.storage.path,
-      body: req,
+      body: exactBody(req, material.sizeBytes),
       contentType: material.contentType,
     });
     return { ok: true };
