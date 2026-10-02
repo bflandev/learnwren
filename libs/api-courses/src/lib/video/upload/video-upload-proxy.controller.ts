@@ -40,6 +40,8 @@ function collect(req: Request, expected: number): Promise<Buffer> {
       new UploadChunkInvalidException('request body was already read; send the chunk as application/octet-stream'),
     );
   }
+  // The client can hang up while the guards run: 'close' has then already fired.
+  if (req.destroyed) return Promise.reject(new UploadChunkInvalidException('request aborted'));
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;

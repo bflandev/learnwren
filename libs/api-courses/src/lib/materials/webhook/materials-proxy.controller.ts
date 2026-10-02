@@ -26,6 +26,8 @@ function exactBody(req: Request, expected: number): Readable {
   if (req.readableEnded) {
     throw new UploadBodyInvalidException('request body was already read; send the file with its own content type');
   }
+  // The client can hang up while the guards run: 'close' has then already fired.
+  if (req.destroyed) throw new UploadBodyInvalidException('request aborted');
   let seen = 0;
   const counter = new Transform({
     transform(chunk: Buffer, _encoding, done) {
@@ -35,6 +37,11 @@ function exactBody(req: Request, expected: number): Readable {
     flush(done) {
       done(seen < expected ? new UploadBodyInvalidException('body is shorter than the declared size') : null);
     },
+  });
+  // Registered before pipeline's own listener, so a hang-up fails `counter` with
+  // this typed error rather than a generic ERR_STREAM_PREMATURE_CLOSE (a 500).
+  req.on('close', () => {
+    if (!req.readableEnded) counter.destroy(new UploadBodyInvalidException('request aborted'));
   });
   // ponytail: pipeline destroys req on any error (long body, hang-up); its outcome reaches the caller through `counter`.
   return pipeline(req, counter, () => undefined);

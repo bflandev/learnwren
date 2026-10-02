@@ -129,8 +129,24 @@ describe('MaterialsProxyController.upload', () => {
     req.push(Buffer.from('PDF-'));
     await firstData;
     req.destroy();
-    await expect(pending).rejects.toThrow();
+    await expect(pending).rejects.toMatchObject({
+      code: 'UPLOAD_BODY_INVALID',
+      status: 400,
+      details: { detail: 'request aborted' },
+    });
     expect(storage.stored.size).toBe(0);
+  });
+
+  it('rejects at once a request the client hung up on before the handler ran', async () => {
+    const storage = makeStorage();
+    const req = new Readable({ read() { /* never produces */ } });
+    req.destroy();
+    await once(req, 'close');
+    await expect(ctrlWith(storage).upload('m1' as MaterialId, req as never)).rejects.toMatchObject({
+      code: 'UPLOAD_BODY_INVALID',
+      details: { detail: 'request aborted' },
+    });
+    expect(storage.putStream).not.toHaveBeenCalled();
   });
 
   it('404s when the material does not exist and touches no storage', async () => {

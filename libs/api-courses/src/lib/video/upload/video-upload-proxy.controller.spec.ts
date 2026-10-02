@@ -218,6 +218,19 @@ describe('VideoUploadProxyController.chunk', () => {
     expect(storage.createMultipartUpload).not.toHaveBeenCalled();
   });
 
+  it('rejects at once a request the client hung up on before the handler ran', async () => {
+    const { ctrl, storage } = make();
+    const req = new Readable({ read() { /* never produces */ } }) as Readable & { headers: Record<string, string> };
+    req.headers = { 'content-range': 'bytes 0-2/3' };
+    req.destroy();
+    await once(req, 'close');
+    await expect(ctrl.chunk(VID, req as never, makeRes() as never)).rejects.toMatchObject({
+      code: 'UPLOAD_CHUNK_INVALID',
+      details: { detail: 'request aborted' },
+    });
+    expect(storage.createMultipartUpload).not.toHaveBeenCalled();
+  });
+
   it('409s when no session is open', async () => {
     const storage = makeStorage();
     const ctrl = new VideoUploadProxyController(new VideoUploadSessions(), storage as unknown as ObjectStorage);
