@@ -49,12 +49,13 @@ export async function initBackend(env: Record<string, string | undefined> = proc
   const identityKind = readIdentityConfigFromEnv(env);
 
   if (dataStore.kind === 'postgres') {
-    const pool = new Pool({ connectionString: dataStore.url });
-    const store = new PostgresDocumentStore(pool);
-    await store.ensureSchema();
+    // Check the pairing before touching the database: a misconfigured run must not run DDL.
     if (identityKind !== 'local') {
       throw new Error('LEARNWREN_DATA_STORE=postgres requires LEARNWREN_IDENTITY=local for the operator tools.');
     }
+    const pool = new Pool({ connectionString: dataStore.url });
+    const store = new PostgresDocumentStore(pool);
+    await store.ensureSchema();
     return {
       identity: new LocalIdentityProvider(store),
       store,
