@@ -221,8 +221,9 @@ To protect against password guessing:
 > link (verify email, reset password, change email) opens Learn Wren's own page at
 > `/auth/action` instead of a Firebase page. Verify and change-email links apply as soon
 > as the page opens; a reset link shows a new-password form. Links are single-use and
-> expire after 24 hours (verify) or 1 hour (reset, change email). A reset signs you out
-> everywhere. Logging out ends only the current browser's session in this mode.
+> expire after 24 hours (verify) or 1 hour (reset, change email). A reset or an email
+> change signs you out everywhere and cancels any other pending reset or change-email
+> link; so does changing your password. Logging out ends only the current browser's session in this mode.
 
 ### Editing your profile
 

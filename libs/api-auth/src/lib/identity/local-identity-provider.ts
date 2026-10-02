@@ -25,6 +25,9 @@ export const LOCAL_COLLECTIONS = {
 } as const;
 
 const HOUR_MS = 60 * 60 * 1000;
+/** Links that change who controls the account; a new password cancels them. */
+const CREDENTIAL_ACTIONS: readonly EmailActionKind[] = ['reset-password', 'change-email'];
+
 export const EMAIL_ACTION_TTL_MS: Readonly<Record<EmailActionKind, number>> = {
   'verify-email': 24 * HOUR_MS,
   'reset-password': HOUR_MS,
@@ -144,6 +147,9 @@ export class LocalIdentityProvider implements IdentityProvider {
       ...(changes.emailVerified !== undefined ? { emailVerified: changes.emailVerified } : {}),
     };
     await this.userRef(uid).update(patch);
+    // A new password cancels links that could take the account back (a stale reset,
+    // or a change-email an attacker started with the old password).
+    if (changes.password !== undefined) await this.invalidatePendingActions(uid, CREDENTIAL_ACTIONS);
   }
 
   async deleteUser(uid: string): Promise<void> {
@@ -225,8 +231,11 @@ export class LocalIdentityProvider implements IdentityProvider {
   }
 
   async applyEmailAction(kind: EmailActionKind, token: string, newPassword?: string): Promise<void> {
-    const passwordHash = kind === 'reset-password' && newPassword ? await hashPassword(newPassword) : undefined;
     const actionRef = this.actionRef(token);
+    // Cheap existence check first so a junk token never costs a scrypt run. The
+    // transaction below re-reads the action and is the real gate.
+    if (!(await actionRef.get()).exists) throw new EmailActionInvalidError();
+    const passwordHash = kind === 'reset-password' && newPassword ? await hashPassword(newPassword) : undefined;
     const uid = await this.store.runTransaction(async (txn) => {
       const actionSnap = await txn.get(actionRef);
       if (!actionSnap.exists) throw new EmailActionInvalidError();
@@ -255,27 +264,24 @@ export class LocalIdentityProvider implements IdentityProvider {
     // ponytail: revoked after commit, not inside the SERIALIZABLE txn above — the revoke
     // is a query (collection().where(uid).get()) followed by a batch delete, which is
     // costly to run inside a serializable transaction (extra conflict surface, held
-    // locks) for a path that only needs to be correct, not atomic, with the password
-    // change. Consequence: if this post-commit call fails, the password has already
-    // changed but old sessions survive until they expire naturally.
-    if (kind === 'reset-password') await this.revokeAllSessions(uid);
-    // A changed email makes any pending reset-password link for the old identity a
-    // stale credential-reset path (mirrors Firebase, which invalidates it too).
-    // Same post-commit tradeoff as the revoke above: best-effort, not atomic with
-    // the email change.
-    if (kind === 'change-email') await this.invalidatePendingPasswordResets(uid);
+    // locks) for a path that only needs to be correct, not atomic, with the change.
+    // Consequence: if a post-commit call fails, the change has already applied but old
+    // sessions or links survive until they expire naturally.
+    // Both a reset and an email change end every session (Firebase does the same; the
+    // forced re-login also lets the profile copy of the email catch up). Either one
+    // cancels the account's other pending reset and change-email links.
+    if (kind === 'verify-email') return;
+    await this.revokeAllSessions(uid);
+    await this.invalidatePendingActions(uid, CREDENTIAL_ACTIONS);
   }
 
-  private async invalidatePendingPasswordResets(uid: string): Promise<void> {
-    const snap = await this.store
-      .collection(LOCAL_COLLECTIONS.actions)
-      .where('uid', '==', uid)
-      .where('kind', '==', 'reset-password' satisfies EmailActionKind)
-      .get();
+  private async invalidatePendingActions(uid: string, kinds: readonly EmailActionKind[]): Promise<void> {
+    const snap = await this.store.collection(LOCAL_COLLECTIONS.actions).where('uid', '==', uid).get();
+    const stale = snap.docs.filter((doc) => kinds.includes((doc.data() as StoredAction).kind));
     // Stryker disable next-line ConditionalExpression: equivalent — same reason as revokeAllSessions above.
-    if (snap.empty) return;
+    if (stale.length === 0) return;
     const batch = this.store.batch();
-    for (const doc of snap.docs) batch.delete(doc.ref);
+    for (const doc of stale) batch.delete(doc.ref);
     await batch.commit();
   }
 }

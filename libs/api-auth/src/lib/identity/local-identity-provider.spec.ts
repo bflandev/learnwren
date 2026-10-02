@@ -249,6 +249,65 @@ describe('LocalIdentityProvider', () => {
       spy.mockRestore();
     });
 
+    const tokenOf = (link: string): string => new URL(link).searchParams.get('token') ?? '';
+
+    it('change-email ends every session of the account', async () => {
+      await idp.createUser({ email: 'sam@example.test', password: PASSWORD, displayName: 'Sam' });
+      const session = await idp.createSession(await idp.verifyPassword('sam@example.test', PASSWORD));
+      const link = await idp.createEmailActionLink('change-email', 'sam@example.test', '/x', 'sam2@example.test');
+      await idp.applyEmailAction('change-email', tokenOf(link));
+      expect(await idp.verifySession(session.token)).toBeNull();
+    });
+
+    it('a password reset cancels a pending change-email link', async () => {
+      await idp.createUser({ email: 'tara@example.test', password: PASSWORD, displayName: 'Tara' });
+      const change = await idp.createEmailActionLink('change-email', 'tara@example.test', '/x', 'evil@example.test');
+      const reset = await idp.createEmailActionLink('reset-password', 'tara@example.test', '/x');
+      await idp.applyEmailAction('reset-password', tokenOf(reset), 'Brand-New-Pass-42!');
+      await expect(idp.applyEmailAction('change-email', tokenOf(change))).rejects.toBeInstanceOf(EmailActionInvalidError);
+    });
+
+    it('a password change cancels pending change-email and reset-password links but not verify-email', async () => {
+      const uid = await idp.createUser({ email: 'uma@example.test', password: PASSWORD, displayName: 'Uma' });
+      const change = await idp.createEmailActionLink('change-email', 'uma@example.test', '/x', 'evil@example.test');
+      const reset = await idp.createEmailActionLink('reset-password', 'uma@example.test', '/x');
+      const verify = await idp.createEmailActionLink('verify-email', 'uma@example.test', '/login');
+      await idp.updateUser(uid, { password: 'Brand-New-Pass-42!' });
+      await expect(idp.applyEmailAction('change-email', tokenOf(change))).rejects.toBeInstanceOf(EmailActionInvalidError);
+      await expect(idp.applyEmailAction('reset-password', tokenOf(reset), 'Other-New-Pass-42!')).rejects.toBeInstanceOf(
+        EmailActionInvalidError,
+      );
+      await expect(idp.applyEmailAction('verify-email', tokenOf(verify))).resolves.toBeUndefined();
+    });
+
+    it('updateUser without a password leaves pending links alone', async () => {
+      const uid = await idp.createUser({ email: 'vic@example.test', password: PASSWORD, displayName: 'Vic' });
+      const change = await idp.createEmailActionLink('change-email', 'vic@example.test', '/x', 'vic2@example.test');
+      await idp.updateUser(uid, { emailVerified: true });
+      await expect(idp.applyEmailAction('change-email', tokenOf(change))).resolves.toBeUndefined();
+    });
+
+    it('two concurrent redemptions of one link: exactly one wins, the other gets EmailActionInvalidError', async () => {
+      await idp.createUser({ email: 'wes@example.test', password: PASSWORD, displayName: 'Wes' });
+      const token = tokenOf(await idp.createEmailActionLink('verify-email', 'wes@example.test', '/login'));
+      const results = await Promise.allSettled([
+        idp.applyEmailAction('verify-email', token),
+        idp.applyEmailAction('verify-email', token),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const rejected = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+      expect(rejected?.reason).toBeInstanceOf(EmailActionInvalidError);
+    });
+
+    it('reset-password with an unknown token never runs scrypt', async () => {
+      const spy = vi.spyOn(passwordHash, 'hashPassword');
+      await expect(idp.applyEmailAction('reset-password', 'junk', 'Brand-New-Pass-42!')).rejects.toBeInstanceOf(
+        EmailActionInvalidError,
+      );
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
     it('verify-email leaves existing sessions and pending reset-password links untouched', async () => {
       await idp.createUser({ email: 'pia@example.test', password: PASSWORD, displayName: 'Pia' });
       const session = await idp.createSession(await idp.verifyPassword('pia@example.test', PASSWORD));
