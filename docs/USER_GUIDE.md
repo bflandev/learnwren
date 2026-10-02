@@ -354,9 +354,10 @@ the URL once the enrollment fires so that a page refresh does not re-trigger it.
    videos and materials is revoked immediately. Click **Cancel** to dismiss the dialog
    with no change.
 
-Re-enrolling restores the same enrollment record, including your progress. (The
-90-day hard-delete of long-withdrawn records is the one deferred piece — soft-delete
-and restore are live; the scheduled purge is not.)
+Re-enrolling restores the same enrollment record, including your progress, for 90
+days after you leave. After that the operator's purge job
+(`pnpm tools:purge-withdrawn-enrollments`, see Part 3) deletes the record and its
+progress, and re-enrolling starts fresh.
 
 Access is also revoked when an instructor **unpublishes** a course — the lesson and
 manifest endpoints both require `course.status === 'PUBLISHED'` for non-owner callers,
@@ -1253,6 +1254,7 @@ webhook expects, so it exercises the identical `TranscoderEventsController` code
 | `pnpm deploy:prod` | Deploy to Firebase production (see `docs/deployment.md`). |
 | `pnpm tools:promote-to-instructor <email>` | Promote a user to `INSTRUCTOR`. |
 | `pnpm tools:promote-to-admin <email>` | Promote a user to `ADMIN`. |
+| `pnpm tools:purge-withdrawn-enrollments` | Hard-delete `WITHDRAWN` enrollments (and their progress) withdrawn more than 90 days ago. Safe to re-run; schedule it daily. Uses the same backend selectors as the promote tools. |
 
 Target a single project by invoking Nx directly, e.g. `pnpm nx test api-courses`.
 
@@ -1269,9 +1271,9 @@ partly gated (see the table above and `README.md`) — the catalogue's
 100-concurrent-user criteria are deferred pending a production load harness.
 The remaining gaps below are deliberate scope cuts inside shipped features:
 
-- **90-day purge of withdrawn enrollments** — soft-delete and restore-on-re-enroll
-  are live, but the scheduled hard-delete of `WITHDRAWN` enrollments older than
-  90 days is not implemented.
+- **A built-in scheduler for the 90-day enrollment purge** — the purge exists as
+  the operator tool `pnpm tools:purge-withdrawn-enrollments`; the platform does not
+  run it for you. Schedule it with cron or Cloud Scheduler.
 - **Completion badge un-stamping and certificates** — a Course Completed badge is
   never revoked (even if the instructor adds lessons later), and there is no
   certificate export.

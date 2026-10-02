@@ -9,21 +9,19 @@
 import * as admin from 'firebase-admin';
 import { Pool } from 'pg';
 
+import type { DocumentStore } from '../libs/api-document-store/src/lib/document-store.port';
 import { readDataStoreConfigFromEnv } from '../libs/api-document-store/src/lib/data-store.config';
 import { FirestoreDocumentStore } from '../libs/api-document-store/src/lib/firestore-document-store';
 import { PostgresDocumentStore } from '../libs/api-document-store/src/lib/postgres/postgres-document-store';
 import { readIdentityConfigFromEnv } from '../libs/api-auth/src/lib/identity/identity.config';
 import { LocalIdentityProvider } from '../libs/api-auth/src/lib/identity/local-identity-provider';
-import type {
-  OperatorIdentity,
-  OperatorStore,
-} from '../libs/api-profile/src/lib/instructor-application/admin-promotion';
+import type { OperatorIdentity } from '../libs/api-profile/src/lib/instructor-application/admin-promotion';
 
 import { initFirebaseApp, resolveMode } from './firebase-admin-init';
 
 export interface OperatorBackend {
   readonly identity: OperatorIdentity;
-  readonly store: OperatorStore;
+  readonly store: DocumentStore;
   readonly description: string;
   close(): Promise<void>;
 }
