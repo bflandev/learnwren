@@ -11,10 +11,17 @@
 # No Firebase anywhere: data lives in Postgres, accounts are the api's own
 # (LEARNWREN_IDENTITY=local) and files live in the object store.
 #
-# Upgrading from an emulator-based install: data is NOT migrated. The new stack
+# UPGRADING FROM AN EMULATOR-BASED INSTALL: data is NOT migrated. The new stack
 # starts with an empty Postgres; the old `emulator-data` volume is left
-# untouched. Start with `docker compose up -d --remove-orphans` so the old
-# emulators container (unauthenticated ports 4000/8080/9099) is stopped.
+# untouched. You MUST start it with
+#     docker compose up -d --build --remove-orphans
+# or the old emulators container keeps running and serving your old data on
+# unauthenticated ports 4000/8080/9099. `docker compose rm emulators` will not
+# work (the service is gone from this file); use
+#     docker rm -f <project>-emulators-1
+#
+# First run: register the LEARNWREN_BOOTSTRAP_ADMIN_EMAIL account before the
+# web port is reachable by anyone else. See docs/self-hosting.md "First run".
 
 x-buckets: &buckets
   LEARNWREN_VIDEO_SOURCE_BUCKET: learnwren-source

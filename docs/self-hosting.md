@@ -39,7 +39,10 @@ curl http://localhost:8000/api/health   # {"status":"ok",...}
 reset a password, log in as admin, create a course, upload a video, play it).
 It creates real accounts, including an ADMIN (it sets the bootstrap email to a
 throwaway address), so **run it only on a fresh stack**, never on an install
-that has users.
+that has users. It refuses to start if the stack's api is already running;
+give it a project of its own instead, for example
+`COMPOSE_PROJECT_NAME=lw-smoke docker/smoke.sh --down`. (`--force` overrides
+the check, for a stack you are happy to throw away.)
 
 What is running:
 
@@ -60,12 +63,19 @@ the two public buckets (covers, profile pictures) are served anonymously at
 1. **Name your admin.** In `.env`, set `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL` to the
    address you will register with. Also set `LEARNWREN_POSTGRES_PASSWORD` now
    (see [Configuration](#configuration)); changing it later needs extra steps.
-2. **Start the stack and register.** Run `docker compose up -d`, then register
-   at http://localhost:8000/register.
+2. **Start the stack and register, before anyone else can reach it.** Run
+   `docker compose up -d`, then register at http://localhost:8000/register
+   straight away, while the web port is still closed to other machines (by
+   your firewall, or because you have not yet pointed `LEARNWREN_HOST` or a
+   proxy at it). Whoever registers that address first gets the admin account.
+   **If registration says the address is already in use, stop: do not verify
+   any link.** Someone else registered it. Wipe the new install with
+   `docker compose down -v` and start again.
 3. **Verify the email.** With the default `console` transport, nothing is
    sent: find the link in `docker compose logs api` (a line starting
    `[verification-email]`). With `LEARNWREN_EMAIL_TRANSPORT=smtp` it arrives
    in your inbox. Open the link; it lands on the app's `/auth/action` page.
+   Verify only the link for the account you just registered.
 4. **Log in.** You are now an ADMIN. The api promotes the account on login
    when its email matches the variable (exact match, ignoring case) and is
    verified. Then **clear `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL`** and run
@@ -142,9 +152,20 @@ output).
 and data in the Firebase emulators' `emulator-data` volume. There is no
 migration to PostgreSQL. Either start fresh (the new stack begins with an
 empty database, and your old `emulator-data` volume is left untouched) or stay
-on the previous version. If you upgrade, run
-`docker compose up -d --remove-orphans` once, which stops the old `emulators`
-container (its ports had no authentication).
+on the previous version.
+
+**If you upgrade, start the new stack with `--remove-orphans`:**
+
+```bash
+docker compose up -d --build --remove-orphans
+```
+
+Without it, the old `emulators` container keeps running (it restarts itself)
+and keeps serving your old data on ports 4000, 8080 and 9099 with no
+authentication. `docker compose rm emulators` will not remove it, because the
+service is no longer in `docker-compose.yml`. If you already upgraded without
+the flag, remove it by name: `docker rm -f <project>-emulators-1` (the project
+is the checkout's directory name unless you set `COMPOSE_PROJECT_NAME`).
 
 ## What this does and does not give you
 
