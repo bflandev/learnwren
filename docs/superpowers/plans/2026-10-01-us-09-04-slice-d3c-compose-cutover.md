@@ -51,15 +51,15 @@ The guard-coverage spec (`apps/api/src/controller-guard-coverage.spec.ts`) scans
 - `PUT docs/*path` body `{ data: object }` → 204 (`set`). `PATCH docs/*path` → 204 (`update`). `GET docs/*path` → 200 `{ exists: boolean, data: object | null }`. `path` is an even-segment document path such as `courses/abc/modules/m1`.
 - `GET query?collection=&field=&value=` → 200 `{ docs: { id: string; data: object }[] }` (`where(field, '==', value)`; `value` is a string).
 
-- [ ] **Step 1: Failing controller spec** with `createInMemoryIdentityProvider()` (`@learnwren/api-auth/testing`) and `createInMemoryDocumentStore()` (`@learnwren/api-document-store`), constructing the controller directly:
+- [x] **Step 1: Failing controller spec** with `createInMemoryIdentityProvider()` (`@learnwren/api-auth/testing`) and `createInMemoryDocumentStore()` (`@learnwren/api-document-store`), constructing the controller directly:
   - verify-email flips `emailVerified`;
   - role sets the identity role AND the `users` doc role;
   - docs round-trip set → get → patch → get; get of a missing doc → `{ exists: false, data: null }`;
   - query returns matching docs only;
   - an odd-segment path → 400; a path containing `..` or an empty segment → 400;
   - with `NODE_ENV=production` every handler throws `NotFoundException` (set and restore `process.env` in the test).
-- [ ] **Step 2: Run** `NX_DAEMON=false pnpm nx test api --skip-nx-cache` → the new spec fails (module missing).
-- [ ] **Step 3: Implement.**
+- [x] **Step 2: Run** `NX_DAEMON=false pnpm nx test api --skip-nx-cache` → the new spec fails (module missing).
+- [x] **Step 3: Implement.**
 
 ```ts
 // test-seam.controller.ts
@@ -169,8 +169,8 @@ export class TestSeamModule {}
 
 `DocumentStoreModule` must be visible to `TestSeamModule`. If it is not `@Global()`, add it to the module's imports.
 
-- [ ] **Step 4: Run** api tests, `lint`, `typecheck` → green.
-- [ ] **Step 5: Commit** `feat(api): test-only /api/_test seam for backend-agnostic e2e setup (US-09-04 D3c)`.
+- [x] **Step 4: Run** api tests, `lint`, `typecheck` → green.
+- [x] **Step 5: Commit** `feat(api): test-only /api/_test seam for backend-agnostic e2e setup (US-09-04 D3c)`.
 
 ---
 
@@ -228,10 +228,10 @@ Mapping (the survey's call-site groups, 62 sites):
 | `.where(f, '==', v).get()` | `seam.query(collection, f, v)` |
 | `email-change.e2e-spec.ts:97` `updateUser(uid, { email, emailVerified })` | read that spec first. If it simulates a completed email change, drive the real flow instead (`/_test/last-email?kind=email-change`, then redeem). Never add an email-setting seam endpoint. |
 
-- [ ] **Step 1:** Add `seam.ts`. Port `_helpers/auth.ts` first (`registerAndPromoteInstructor`, `registerAndPromoteAdmin`), then the specs one file at a time. Drop `initAdmin()` calls and `import * as admin`. Seeds that pass Firestore `Timestamp`/`FieldValue` values: there are none today (verified by grep). If one appears, store an ISO string per the repo's wire rules.
-- [ ] **Step 2:** `grep -rn "firebase-admin" apps/api-e2e/src` → only `firestore-rules.e2e-spec.ts`.
-- [ ] **Step 3: Run** on the emulators (probe ports 3333 8080 9099 4000 4400 first): `NX_DAEMON=false pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e api-e2e'` → 222 passed, 2 skipped, as on main.
-- [ ] **Step 4: Commit** `test(api-e2e): drive setup through the /api/_test seam instead of firebase-admin (US-09-04 D3c)`.
+- [x] **Step 1:** Add `seam.ts`. Port `_helpers/auth.ts` first (`registerAndPromoteInstructor`, `registerAndPromoteAdmin`), then the specs one file at a time. Drop `initAdmin()` calls and `import * as admin`. Seeds that pass Firestore `Timestamp`/`FieldValue` values: there are none today (verified by grep). If one appears, store an ISO string per the repo's wire rules.
+- [x] **Step 2:** `grep -rn "firebase-admin" apps/api-e2e/src` → only `firestore-rules.e2e-spec.ts`.
+- [x] **Step 3: Run** on the emulators (probe ports 3333 8080 9099 4000 4400 first): `NX_DAEMON=false pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e api-e2e'` → 222 passed, 2 skipped, as on main.
+- [x] **Step 4: Commit** `test(api-e2e): drive setup through the /api/_test seam instead of firebase-admin (US-09-04 D3c)`.
 
 ---
 
@@ -243,7 +243,7 @@ Mapping (the survey's call-site groups, 62 sites):
 - Modify: `.github/workflows/ci.yml` (`e2e` job: second step)
 - Modify: specs only where a backend difference is *intended* (Review Focus 2)
 
-- [ ] **Step 1: Config.** In the webServer `env`, pass through `LEARNWREN_DATA_STORE`, `LEARNWREN_IDENTITY`, `LEARNWREN_POSTGRES_URL` when set:
+- [x] **Step 1: Config.** In the webServer `env`, pass through `LEARNWREN_DATA_STORE`, `LEARNWREN_IDENTITY`, `LEARNWREN_POSTGRES_URL` when set:
 
 ```ts
 ...Object.fromEntries(
@@ -253,8 +253,8 @@ Mapping (the survey's call-site groups, 62 sites):
 ),
 ```
 
-- [ ] **Step 2: Rules spec.** At the top of its `describe`: `test.skip(process.env['LEARNWREN_DATA_STORE'] === 'postgres', 'firestore.rules only applies to the Firestore backend');`
-- [ ] **Step 3: Run without emulators** (all of 8080/9099/4000 must be free; Postgres up):
+- [x] **Step 2: Rules spec.** At the top of its `describe`: `test.skip(process.env['LEARNWREN_DATA_STORE'] === 'postgres', 'firestore.rules only applies to the Firestore backend');`
+- [x] **Step 3: Run without emulators** (all of 8080/9099/4000 must be free; Postgres up):
 
 ```bash
 LEARNWREN_DATA_STORE=postgres LEARNWREN_IDENTITY=local \
@@ -268,8 +268,8 @@ Triage each failure into one of:
 - **(c) a Firebase-specific test detail:** generalise it.
 
 Never delete an assertion to get green. List every (b) in the task report.
-- [ ] **Step 4:** Run the same command a second time without clearing the database → still green (Review Focus 5).
-- [ ] **Step 5: CI.** In `.github/workflows/ci.yml` job `e2e`, after the emulators step, add a step **outside** `emulators:exec`:
+- [x] **Step 4:** Run the same command a second time without clearing the database → still green (Review Focus 5).
+- [x] **Step 5: CI.** In `.github/workflows/ci.yml` job `e2e`, after the emulators step, add a step **outside** `emulators:exec`:
 
 ```yaml
       - name: api-e2e on postgres + local identity (no emulators)
@@ -281,7 +281,7 @@ Never delete an assertion to get green. List every (b) in the task report.
 ```
 
 Rename the job's display name to say it covers both backends.
-- [ ] **Step 6: Commit** `test(api-e2e): run the suite on postgres + local identity, locally and in CI (US-09-04 D3c)`.
+- [x] **Step 6: Commit** `test(api-e2e): run the suite on postgres + local identity, locally and in CI (US-09-04 D3c)`.
 
 ---
 
@@ -295,15 +295,15 @@ Rename the job's display name to say it covers both backends.
 
 **Interfaces — Produces:** `readBootstrapAdminEmail(env): string | null` (trimmed, lower-cased, `null` when unset or blank).
 
-- [ ] **Step 1: Failing tests**, written against `AuthService.login` with the in-memory identity provider and store:
+- [x] **Step 1: Failing tests**, written against `AuthService.login` with the in-memory identity provider and store:
   - with `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL=Boss@Example.test`, a verified `boss@example.test` login returns `role: 'ADMIN'`, and the identity role and the `users` doc role are both `ADMIN`;
   - a different email is untouched;
   - an unverified bootstrap account still gets `EMAIL_NOT_VERIFIED` and is not promoted;
   - an account that is already ADMIN gets no writes (spy on `setRole`);
   - env unset or blank means no promotion;
   - the promotion is logged once at `warn` with the uid (an audit trail).
-- [ ] **Step 2: Run** → fail.
-- [ ] **Step 3: Implement.** In `login`, after `requireVerifiedUser` and **before** `mint` / `loadUserProfile`:
+- [x] **Step 2: Run** → fail.
+- [x] **Step 3: Implement.** In `login`, after `requireVerifiedUser` and **before** `mint` / `loadUserProfile`:
 
 ```ts
 await this.promoteBootstrapAdmin(identityUser);
@@ -337,8 +337,8 @@ Use whatever document-store field `AuthService` already holds, and `nowIso()` fr
 # LEARNWREN_BOOTSTRAP_ADMIN_EMAIL=you@example.com
 ```
 
-- [ ] **Step 4: Run** api-auth test/lint/typecheck → green.
-- [ ] **Step 5: Commit** `feat(api-auth): LEARNWREN_BOOTSTRAP_ADMIN_EMAIL grants the first admin on verified login (US-09-04 D3c)`.
+- [x] **Step 4: Run** api-auth test/lint/typecheck → green.
+- [x] **Step 5: Commit** `feat(api-auth): LEARNWREN_BOOTSTRAP_ADMIN_EMAIL grants the first admin on verified login (US-09-04 D3c)`.
 
 ---
 
@@ -351,14 +351,14 @@ Use whatever document-store field `AuthService` already holds, and `nowIso()` fr
 
 **Interfaces — Produces:** `promoteToAdmin(email: string, identity: IdentityProvider, store: DocumentStore): Promise<void>`. It refuses unverified accounts with today's message, then calls `identity.setRole(uid, 'ADMIN')` and `users/{uid}.update({ role: 'ADMIN' })`.
 
-- [ ] **Step 1: Failing test** with the in-memory identity provider and store: it promotes a verified user, refuses an unverified one, and throws `No account for <email>` for an unknown email.
-- [ ] **Step 2: Implement.** `backend-init.ts` reads `readDataStoreConfigFromEnv` / `readIdentityConfigFromEnv`:
+- [x] **Step 1: Failing test** with the in-memory identity provider and store: it promotes a verified user, refuses an unverified one, and throws `No account for <email>` for an unknown email.
+- [x] **Step 2: Implement.** `backend-init.ts` reads `readDataStoreConfigFromEnv` / `readIdentityConfigFromEnv`:
   - **postgres + local:** `new PostgresDocumentStore(new Pool({ connectionString }))` and `new LocalIdentityProvider(store)`. Call `ensureSchema` if the store requires it before first use; read `document-store.module.ts`'s factory and mirror it.
   - **firestore + firebase:** today's `initFirebaseApp(resolveMode())`, then `new FirestoreDocumentStore(admin.firestore())`. For identity, a 3-method shim over `admin.auth()` (`getUserByEmail`, `setRole` via `setCustomUserClaims`, `getUser`) typed as `Pick<IdentityProvider, …>`. Do not construct the DI-wired `FirebaseIdentityProvider`.
 
   Narrow `promoteToAdmin`'s parameter to the same `Pick` so both shapes fit. Import adapters by deep path if `@learnwren/...` barrel imports drag Nest modules into `tsx`. Verify with `pnpm tools:promote-to-admin nobody@example.test` in both modes: expect a clean "No account" error, not a stack trace.
-- [ ] **Step 3: Run** the tests, then a real promotion on postgres + local: register through the api from the Task 3 run setup, verify, promote, `GET /me` → ADMIN.
-- [ ] **Step 4: Commit** `refactor(tools): promote-to-admin and promote-to-instructor work on either backend (US-09-04 D3c)`.
+- [x] **Step 3: Run** the tests, then a real promotion on postgres + local: register through the api from the Task 3 run setup, verify, promote, `GET /me` → ADMIN.
+- [x] **Step 4: Commit** `refactor(tools): promote-to-admin and promote-to-instructor work on either backend (US-09-04 D3c)`.
 
 ---
 
@@ -369,16 +369,16 @@ Use whatever document-store field `AuthService` already holds, and `nowIso()` fr
 - Delete: `docker/firebase.json`, `docker/emulators-entrypoint.sh` (confirm nothing else references them: `grep -rn "emulators-entrypoint\|docker/firebase.json" .`)
 - Create: `apps/web-e2e/src/auth-action.spec.ts` (spec §5.4: the `/auth/action` page in all three modes)
 
-- [ ] **Step 1: Compose.**
+- [x] **Step 1: Compose.**
   - Add `postgres`: `image: postgres:17`, env `POSTGRES_PASSWORD: "${LEARNWREN_POSTGRES_PASSWORD:-learnwren-change-me}"`, `POSTGRES_DB: learnwren`, volume `postgres-data:/var/lib/postgresql/data`, healthcheck `pg_isready -U postgres -d learnwren`, not published, `restart: unless-stopped`.
   - On `api`: remove `network_mode` and the `emulators` dependency, and depend on `postgres` + `objectstore` healthy. Add `LEARNWREN_DATA_STORE: postgres`, `LEARNWREN_IDENTITY: local`, `LEARNWREN_POSTGRES_URL: "postgres://postgres:${LEARNWREN_POSTGRES_PASSWORD:-learnwren-change-me}@postgres:5432/learnwren"`, `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL: "${LEARNWREN_BOOTSTRAP_ADMIN_EMAIL:-}"`.
   - Delete the `emulators` service, the `emulator-data` volume and `LEARNWREN_ADMIN_BIND`. Update the header comment.
   - Check `web`'s nginx upstream: it reached the api through the emulators' network namespace before. Point it at `api:3333` if needed (`docker/nginx.conf.template`).
-- [ ] **Step 2: `.env.example`.** Uncomment and document `LEARNWREN_POSTGRES_PASSWORD`. Delete `LEARNWREN_ADMIN_BIND`. Keep the bootstrap entry from Task 4.
-- [ ] **Step 3: `docker/smoke.sh`.** Extend it to the spec's flow against `http://localhost:${PORT}/api`: register (unique email) → read the verify link from `docker compose logs api` (console transport; read `console-email-transport.ts` for the exact log line) → `POST /auth/email-action` → login → request reset, read the link, apply → login with the new password → set `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL` beforehand to the smoke email so that login returns ADMIN → create a course → upload a small video fixture (reuse one from `apps/api-e2e`, if one exists, or generate it with the ffmpeg in the api image) → poll the lesson until playback is ready → fetch the playlist and one segment. Also assert `GET /api/_test/users/x` → 404. Keep plain `sh` + `curl` + `sed`.
-- [ ] **Step 4: Run** `docker/smoke.sh --down` from a clean state (`docker compose down -v` first; it deletes only this stack's volumes). It must pass with no emulator container (`docker compose ps` lists none).
-- [ ] **Step 5: web-e2e `/auth/action`** (hermetic; stub `POST /api/auth/email-action` with `page.route`): verify ok → "verified"; change-email ok → lands on `/settings/profile/email-changed` (stub `GET /api/auth/me` per the a11y helpers); reset → form → submit → `/login?reset=ok`; invalid token → invalid state. Run `NX_DAEMON=false pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e web-e2e'`.
-- [ ] **Step 6: Commit** in two pieces: Compose/Dockerfile/smoke, then the web-e2e spec.
+- [x] **Step 2: `.env.example`.** Uncomment and document `LEARNWREN_POSTGRES_PASSWORD`. Delete `LEARNWREN_ADMIN_BIND`. Keep the bootstrap entry from Task 4.
+- [x] **Step 3: `docker/smoke.sh`.** Extend it to the spec's flow against `http://localhost:${PORT}/api`: register (unique email) → read the verify link from `docker compose logs api` (console transport; read `console-email-transport.ts` for the exact log line) → `POST /auth/email-action` → login → request reset, read the link, apply → login with the new password → set `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL` beforehand to the smoke email so that login returns ADMIN → create a course → upload a small video fixture (reuse one from `apps/api-e2e`, if one exists, or generate it with the ffmpeg in the api image) → poll the lesson until playback is ready → fetch the playlist and one segment. Also assert `GET /api/_test/users/x` → 404. Keep plain `sh` + `curl` + `sed`.
+- [x] **Step 4: Run** `docker/smoke.sh --down` from a clean state (`docker compose down -v` first; it deletes only this stack's volumes). It must pass with no emulator container (`docker compose ps` lists none).
+- [x] **Step 5: web-e2e `/auth/action`** (hermetic; stub `POST /api/auth/email-action` with `page.route`): verify ok → "verified"; change-email ok → lands on `/settings/profile/email-changed` (stub `GET /api/auth/me` per the a11y helpers); reset → form → submit → `/login?reset=ok`; invalid token → invalid state. Run `NX_DAEMON=false pnpm exec firebase emulators:exec --project demo-learnwren 'pnpm nx e2e web-e2e'`.
+- [x] **Step 6: Commit** in two pieces: Compose/Dockerfile/smoke, then the web-e2e spec.
 
 ---
 
@@ -386,30 +386,30 @@ Use whatever document-store field `AuthService` already holds, and `nowIso()` fr
 
 **Files:** `docs/self-hosting.md`, `docs/epics/09-non-functional-requirements.md:62`, `docs/epics/TECHNICAL_ARCHITECTURE.md` (if its Deployment Backends table says Compose uses emulators), `README.md`, `docs/USER_GUIDE.md`, `docs/development.md` (tools usage), spec status line.
 
-- [ ] **Step 1: `self-hosting.md`.** Rewrite the intro (no emulators), the service table (postgres replaces emulators), and the first run:
+- [x] **Step 1: `self-hosting.md`.** Rewrite the intro (no emulators), the service table (postgres replaces emulators), and the first run:
   1. Set `LEARNWREN_BOOTSTRAP_ADMIN_EMAIL` in `.env`.
   2. `docker compose up -d`, then register.
   3. Find the verify link in `docker compose logs api`, or in your inbox with SMTP set.
   4. Log in. You are ADMIN. Clear the variable.
 
   Then: backups (`pg_dump` from the `postgres` service plus the object-store volume; the `emulator-data` steps are gone), security (no admin ports to bind any more), upgrade note (**an install from before D3c kept accounts and data in the emulator volume; there is no migration, so start fresh or stay on the previous version**), and troubleshooting.
-- [ ] **Step 2: Criterion.** Amend line 62 to **met** with the date and slices A–D, in the existing amendment style.
-- [ ] **Step 3:** README D3c bullet (what shipped, the date, scope cuts: web-e2e stays on emulators; no emulator→Postgres migration; bootstrap demote caveat; the Firebase pieces still constructed in local mode) and the US-09-04 status. Update `USER_GUIDE.md`'s self-hosting row to **Built**, and add D3c to the spec status line.
-- [ ] **Step 4: Commit** `docs: US-09-04 D3c — self-hosting guide for postgres + local identity; criterion met`.
+- [x] **Step 2: Criterion.** Amend line 62 to **met** with the date and slices A–D, in the existing amendment style.
+- [x] **Step 3:** README D3c bullet (what shipped, the date, scope cuts: web-e2e stays on emulators; no emulator→Postgres migration; bootstrap demote caveat; the Firebase pieces still constructed in local mode) and the US-09-04 status. Update `USER_GUIDE.md`'s self-hosting row to **Built**, and add D3c to the spec status line.
+- [x] **Step 4: Commit** `docs: US-09-04 D3c — self-hosting guide for postgres + local identity; criterion met`.
 
 ---
 
 ### Task 8: Security review, mutation, full verification
 
-- [ ] **Step 1: Security review** (security-reviewer agent, read-only, on the branch diff). Focus:
+- [x] **Step 1: Security review** (security-reviewer agent, read-only, on the branch diff). Focus:
   - seam reachability in Compose and production;
   - bootstrap admin (matching, verification, idempotence, logging);
   - Compose secrets defaults (`learnwren-change-me`) and the Postgres exposure;
   - smoke script side effects.
 
   Fix Critical and High findings with tests; record Medium and Low in the README bullet.
-- [ ] **Step 2: Mutation** (mutation-round skill). api-auth runs inside `firebase emulators:exec --only auth` with `LEARNWREN_TEST_POSTGRES_URL`. apps/api's seam controller has no Stryker config today; do not add one, since it is test-only scaffolding pinned by its unit spec and every api-e2e run. Targets: 100% on api-auth; tools logic at 100% in whichever lib hosts it.
-- [ ] **Step 3: Full verification.**
+- [x] **Step 2: Mutation** (mutation-round skill). api-auth runs inside `firebase emulators:exec --only auth` with `LEARNWREN_TEST_POSTGRES_URL`. apps/api's seam controller has no Stryker config today; do not add one, since it is test-only scaffolding pinned by its unit spec and every api-e2e run. Targets: 100% on api-auth; tools logic at 100% in whichever lib hosts it.
+- [x] **Step 3: Full verification.**
 
 ```bash
 NX_DAEMON=false pnpm nx run-many -t lint test typecheck build
@@ -421,7 +421,7 @@ pnpm nx run web-e2e:a11y && pnpm nx run web-e2e:responsive
 docker/smoke.sh --down
 ```
 
-- [ ] **Step 4: Commit** fixes and reports by path.
+- [x] **Step 4: Commit** fixes and reports by path.
 
 ---
 
