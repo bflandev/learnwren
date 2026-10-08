@@ -46,6 +46,13 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
    */
   readonly devPlaceholder = signal(false);
   private handle: PlayerHandle | null = null;
+  /**
+   * Bumped on every mount and on destroy. attach() is async (hls.js loads
+   * lazily), so a mount can resolve after the component was destroyed or
+   * retried; a stale handle is disposed instead of kept, and a stale mount's
+   * errors are ignored.
+   */
+  private mountToken = 0;
   private readonly playerSvc = inject(VideoPlayerService);
   private readonly playbackConfig = inject(PlaybackConfigService);
   private listenersAttached = false;
@@ -64,22 +71,22 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
       this.devPlaceholder.set(true);
       return;
     }
-    this.mount();
+    void this.mount();
   }
 
   ngOnDestroy(): void {
     this.detachListeners();
+    this.mountToken++;
     this.handle?.dispose();
     this.handle = null;
   }
 
   retry(): void {
     if (this.devPlaceholder()) return;
-    // Stryker disable next-line OptionalChaining: unreachable null. retry() returns early in fake-playback mode (devPlaceholder guard above), so it runs only in real mode where mount() has already set a non-null handle; the `?.` can never short-circuit here. Equivalent mutant.
     this.handle?.dispose();
     this.handle = null;
     this.error.set(null);
-    this.mount();
+    void this.mount();
   }
 
   currentTime(): number {
@@ -90,11 +97,27 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
     this.playerEl.nativeElement.currentTime = seconds;
   }
 
-  private mount(): void {
+  private async mount(): Promise<void> {
+    const token = ++this.mountToken;
     const url = `/api/playback/manifest/${this.videoId()}`;
-    this.handle = this.playerSvc.attach(this.playerEl.nativeElement, url, {
-      onFatalError: (message: string) => this.error.set(message),
-    });
+    let handle: PlayerHandle;
+    try {
+      handle = await this.playerSvc.attach(this.playerEl.nativeElement, url, {
+        onFatalError: (message: string) => {
+          if (token === this.mountToken) this.error.set(message);
+        },
+      });
+    } catch {
+      // The lazy hls.js chunk failed to load (offline, or a deploy replaced
+      // the hashed file). Surface the retryable error; Try again re-imports.
+      if (token === this.mountToken) this.error.set('Unable to load the video player. Try again.');
+      return;
+    }
+    if (token !== this.mountToken) {
+      handle.dispose();
+      return;
+    }
+    this.handle = handle;
   }
 
   private attachListeners(): void {

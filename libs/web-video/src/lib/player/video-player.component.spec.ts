@@ -66,6 +66,145 @@ describe('VideoPlayerComponent', () => {
     expect(stub.handle.dispose).toHaveBeenCalledOnce();
   });
 
+  it('disposes a handle that resolves after the component was destroyed', async () => {
+    const stub = makeStubService();
+    let resolveAttach!: (h: PlayerHandle) => void;
+    let hooks!: { onFatalError: (msg: string) => void };
+    stub.attach.mockImplementation((_el: HTMLVideoElement, _url: string, h) => {
+      hooks = h;
+      return new Promise<PlayerHandle>((r) => (resolveAttach = r));
+    });
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(false)],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    fixture.destroy();
+
+    resolveAttach(stub.handle);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // The late handle is disposed, not kept; a late error is ignored.
+    expect(stub.handle.dispose).toHaveBeenCalledOnce();
+    expect((component as unknown as { handle: unknown }).handle).toBeNull();
+    hooks.onFatalError('late');
+    expect(component.error()).toBeNull();
+  });
+
+  it('keeps only the latest mount when a retry overtakes a pending attach', async () => {
+    const stub = makeStubService();
+    const resolvers: Array<(h: PlayerHandle) => void> = [];
+    const hooksSeen: Array<{ onFatalError: (msg: string) => void }> = [];
+    stub.attach.mockImplementation((_el: HTMLVideoElement, _url: string, h) => {
+      hooksSeen.push(h);
+      return new Promise<PlayerHandle>((r) => resolvers.push(r));
+    });
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(false)],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.retry();
+
+    const first = { dispose: vi.fn() };
+    const second = { dispose: vi.fn() };
+    resolvers[1]!(second);
+    resolvers[0]!(first);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(first.dispose).toHaveBeenCalledOnce();
+    expect(second.dispose).not.toHaveBeenCalled();
+    expect((component as unknown as { handle: unknown }).handle).toBe(second);
+    hooksSeen[0]!.onFatalError('stale');
+    expect(component.error()).toBeNull();
+    hooksSeen[1]!.onFatalError('current');
+    expect(component.error()).toBe('current');
+  });
+
+  it('disposes every pending mount after retry then destroy (tokens never repeat)', async () => {
+    const stub = makeStubService();
+    const resolvers: Array<(h: PlayerHandle) => void> = [];
+    stub.attach.mockImplementation(
+      () => new Promise<PlayerHandle>((r) => resolvers.push(r)),
+    );
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(false)],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.retry();
+    fixture.destroy();
+
+    const first = { dispose: vi.fn() };
+    const second = { dispose: vi.fn() };
+    resolvers[0]!(first);
+    resolvers[1]!(second);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(first.dispose).toHaveBeenCalledOnce();
+    expect(second.dispose).toHaveBeenCalledOnce();
+    expect((component as unknown as { handle: unknown }).handle).toBeNull();
+  });
+
+  it('shows the retryable error when the player fails to load (e.g. chunk load error)', async () => {
+    const stub = makeStubService();
+    stub.attach.mockRejectedValueOnce(new Error('Failed to fetch dynamically imported module'));
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(false)],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.error()).toBe('Unable to load the video player. Try again.');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="video-player-retry"]'),
+    ).not.toBeNull();
+
+    // Retry re-runs the load; this time it succeeds and the error clears.
+    fixture.componentInstance.retry();
+    await fixture.whenStable();
+    expect(stub.attach).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance.error()).toBeNull();
+  });
+
+  it('ignores a load failure from a mount the component already abandoned', async () => {
+    const stub = makeStubService();
+    let rejectAttach!: (e: Error) => void;
+    stub.attach.mockImplementationOnce(
+      () => new Promise<PlayerHandle>((_r, rej) => (rejectAttach = rej)),
+    );
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(false)],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    fixture.destroy();
+
+    rejectAttach(new Error('chunk'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(component.error()).toBeNull();
+  });
+
   it('renders an error and Try again button on fatal error', async () => {
     const { fixture, stub } = await bootstrap();
     stub.capturedHooks.onFatalError('Playback interrupted — try again.');
