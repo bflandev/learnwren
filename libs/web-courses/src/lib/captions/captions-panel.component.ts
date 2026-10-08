@@ -1,14 +1,22 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 
+import { MAX_CAPTION_TRACKS } from '@learnwren/shared-data-models';
 import type { VideoCaptionsMeta, VideoId } from '@learnwren/shared-data-models';
-import { HlmButton } from '@learnwren/web-ui';
+import { HlmButton, HlmInput } from '@learnwren/web-ui';
 
+import { captionLanguageOptions } from './caption-languages';
 import { CaptionsService } from './captions.service';
+
+const DEFAULT_LANGUAGE = 'en';
+
+function byLabel(a: VideoCaptionsMeta, b: VideoCaptionsMeta): number {
+  return a.label.localeCompare(b.label);
+}
 
 @Component({
   selector: 'lib-captions-panel',
   standalone: true,
-  imports: [HlmButton],
+  imports: [HlmButton, HlmInput],
   templateUrl: './captions-panel.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -17,20 +25,20 @@ export class CaptionsPanelComponent implements OnInit {
 
   readonly videoId = input.required<VideoId>();
 
-  readonly metaChange = output<VideoCaptionsMeta | null>();
+  readonly tracksChange = output<VideoCaptionsMeta[]>();
 
-  readonly meta = signal<VideoCaptionsMeta | null>(null);
+  readonly languageOptions = captionLanguageOptions();
+  readonly tracks = signal<VideoCaptionsMeta[]>([]);
+  readonly language = signal(DEFAULT_LANGUAGE);
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
 
   async ngOnInit(): Promise<void> {
     try {
-      const loaded = await this.svc.getMeta(this.videoId());
-      this.meta.set(loaded);
-      this.metaChange.emit(loaded);
+      this.setTracks(await this.svc.list(this.videoId()));
     } catch {
-      // Non-fatal: leave meta null; the add affordance still works.
-      this.metaChange.emit(null);
+      // Non-fatal: show no tracks; the upload affordance still works.
+      this.setTracks([]);
     }
   }
 
@@ -43,23 +51,27 @@ export class CaptionsPanelComponent implements OnInit {
     }
     this.busy.set(true);
     try {
-      const uploaded = await this.svc.upload(this.videoId(), file);
-      this.meta.set(uploaded);
-      this.metaChange.emit(uploaded);
-    } catch {
-      this.error.set('Upload failed. Try again.');
+      const uploaded = await this.svc.upload(this.videoId(), this.language(), file);
+      const others = this.tracks().filter((t) => t.language !== uploaded.language);
+      this.setTracks([...others, uploaded].sort(byLabel));
+    } catch (err) {
+      const code = (err as { error?: { error?: { code?: string } } }).error?.error?.code;
+      this.error.set(
+        code === 'CAPTION_TRACK_LIMIT'
+          ? `This video already has the maximum of ${MAX_CAPTION_TRACKS} caption languages. Remove one first.`
+          : 'Upload failed. Try again.',
+      );
     } finally {
       this.busy.set(false);
     }
   }
 
-  async onRemove(): Promise<void> {
+  async onRemove(language: string): Promise<void> {
     this.busy.set(true);
     this.error.set(null);
     try {
-      await this.svc.remove(this.videoId());
-      this.meta.set(null);
-      this.metaChange.emit(null);
+      await this.svc.remove(this.videoId(), language);
+      this.setTracks(this.tracks().filter((t) => t.language !== language));
     } catch {
       this.error.set('Remove failed. Try again.');
     } finally {
@@ -67,10 +79,19 @@ export class CaptionsPanelComponent implements OnInit {
     }
   }
 
+  onLanguageChange(event: Event): void {
+    this.language.set((event.target as HTMLSelectElement).value);
+  }
+
   onInputChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (file) void this.onFileChosen(file);
     input.value = '';
+  }
+
+  private setTracks(tracks: VideoCaptionsMeta[]): void {
+    this.tracks.set(tracks);
+    this.tracksChange.emit(tracks);
   }
 }

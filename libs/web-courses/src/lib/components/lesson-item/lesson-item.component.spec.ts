@@ -51,6 +51,12 @@ describe('LessonItemComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Hello');
   });
 
+  it('captionTracks() is [] when the lesson has no video, even with caption metadata', () => {
+    const c = build().componentInstance;
+    c.onCaptionsMeta([{ language: 'en', label: 'English', updatedAt: 'x' }]);
+    expect(c.captionTracks()).toEqual([]);
+  });
+
   it('starts with an empty draft title before startEdit seeds it', () => {
     const c = build().componentInstance;
     expect(c.draftTitle()).toBe('');
@@ -190,7 +196,7 @@ describe('LessonItemComponent', () => {
   });
 });
 
-describe('LessonItemComponent captionsMeta / captionsTrack', () => {
+describe('LessonItemComponent captionsMeta / captionTracks', () => {
   const LESSON_WITH_VIDEO: Lesson = {
     id: 'lid-1' as LessonId,
     moduleId: 'mid-1' as ModuleId,
@@ -219,37 +225,24 @@ describe('LessonItemComponent captionsMeta / captionsTrack', () => {
     return fixture;
   }
 
-  it('captionsTrack() returns null when captionsMeta is null', () => {
+  it('captionTracks() is [] when there are no captions', () => {
     const c = buildWithVideo().componentInstance;
-    c.captionsMeta.set(null);
-    expect(c.captionsTrack()).toBeNull();
+    expect(c.captionsMeta()).toEqual([]);
+    expect(c.captionTracks()).toEqual([]);
   });
 
-  it('captionsTrack() returns a track object when captionsMeta is set and lesson has videoId', () => {
+  it('captionTracks() maps every caption language to a player track', () => {
     const c = buildWithVideo().componentInstance;
-    const meta: VideoCaptionsMeta = { language: 'en', label: 'English', updatedAt: 'x' };
-    c.onCaptionsMeta(meta);
-    expect(c.captionsTrack()).toEqual({
-      src: '/api/playback/captions/v1',
-      srclang: 'en',
-      label: 'English',
-    });
-  });
-
-  it('onCaptionsMeta() sets captionsMeta signal to the provided value', () => {
-    const c = buildWithVideo().componentInstance;
-    const meta: VideoCaptionsMeta = { language: 'en', label: 'English', updatedAt: 'x' };
-    c.onCaptionsMeta(meta);
-    expect(c.captionsMeta()).toEqual(meta);
-  });
-
-  it('onCaptionsMeta(null) sets captionsMeta to null and captionsTrack returns null', () => {
-    const c = buildWithVideo().componentInstance;
-    const meta: VideoCaptionsMeta = { language: 'en', label: 'English', updatedAt: 'x' };
-    c.onCaptionsMeta(meta);
-    c.onCaptionsMeta(null);
-    expect(c.captionsMeta()).toBeNull();
-    expect(c.captionsTrack()).toBeNull();
+    const metas: VideoCaptionsMeta[] = [
+      { language: 'en', label: 'English', updatedAt: 'x' },
+      { language: 'fr', label: 'French', updatedAt: 'x' },
+    ];
+    c.onCaptionsMeta(metas);
+    expect(c.captionsMeta()).toEqual(metas);
+    expect(c.captionTracks()).toEqual([
+      { src: '/api/playback/captions/v1/en', srclang: 'en', label: 'English' },
+      { src: '/api/playback/captions/v1/fr', srclang: 'fr', label: 'French' },
+    ]);
   });
 });
 

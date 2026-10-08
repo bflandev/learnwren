@@ -2,6 +2,8 @@ import { describe, expect, it, test } from 'vitest';
 
 import {
   CaptionsNotFoundException,
+  CaptionTrackLimitException,
+  InvalidCaptionLanguageException,
   CaptionTooLargeException,
   InvalidCaptionFileException,
   InvalidVideoStateException,
@@ -181,5 +183,17 @@ describe('caption exceptions', () => {
     expect(e.code).toBe('CAPTIONS_NOT_FOUND');
     expect(e.status).toBe(404);
     expect(e.message).toBe('No captions exist for this video.');
+  });
+  it('InvalidCaptionLanguageException is a 400 with INVALID_CAPTION_LANGUAGE', () => {
+    const e = new InvalidCaptionLanguageException();
+    expect(e.code).toBe('INVALID_CAPTION_LANGUAGE');
+    expect(e.status).toBe(400);
+    expect(e.message).toBe('Caption language must be a known BCP-47 language tag.');
+  });
+  it('CaptionTrackLimitException is a 400 with CAPTION_TRACK_LIMIT naming the cap', () => {
+    const e = new CaptionTrackLimitException(20);
+    expect(e.code).toBe('CAPTION_TRACK_LIMIT');
+    expect(e.status).toBe(400);
+    expect(e.message).toBe('A video can have at most 20 caption tracks.');
   });
 });

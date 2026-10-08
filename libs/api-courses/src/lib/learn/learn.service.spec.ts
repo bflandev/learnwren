@@ -133,7 +133,7 @@ function makeMaterialsService(materials: Material[] = []): MaterialsService {
 
 function makeCaptionsService(): CaptionsService {
   return {
-    getMeta: vi.fn().mockResolvedValue(null),
+    listMeta: vi.fn().mockResolvedValue([]),
   } as unknown as CaptionsService;
 }
 
@@ -155,7 +155,7 @@ describe('LearnService', () => {
         description: 'A description',
         videoId: VID,
         videoState: 'READY',
-        captions: null,
+        captions: [],
       },
       progress: null,
       outline: { modules: [] },
@@ -173,6 +173,7 @@ describe('LearnService', () => {
 
     expect(view.lesson.videoId).toBeNull();
     expect(view.lesson.videoState).toBeNull();
+    expect(view.lesson.captions).toEqual([]);
     expect(videos.getVideo).not.toHaveBeenCalled();
   });
 
@@ -542,25 +543,27 @@ describe('LearnService.getLessonView outline (Slice D)', () => {
 });
 
 describe('LearnService.getLessonView caption projection', () => {
-  it('projects { language, label } when getMeta returns caption metadata', async () => {
+  it('projects every track as { language, label }, in listMeta order', async () => {
     const video = { id: VID, state: 'READY' } as unknown as Video;
     const videos = makeVideoRepo({ getVideo: video });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
     const captionsWithMeta = {
-      getMeta: vi.fn().mockResolvedValue({
-        language: 'en',
-        label: 'English',
-        updatedAt: '2026-01-01T00:00:00Z' as ISODateString,
-      }),
+      listMeta: vi.fn().mockResolvedValue([
+        { language: 'en', label: 'English', updatedAt: '2026-01-01T00:00:00Z' as ISODateString },
+        { language: 'fr', label: 'French', updatedAt: '2026-01-01T00:00:00Z' as ISODateString },
+      ]),
     } as unknown as CaptionsService;
     const svc = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), captionsWithMeta);
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
 
-    expect(view.lesson.captions).toEqual({ language: 'en', label: 'English' });
+    expect(view.lesson.captions).toEqual([
+      { language: 'en', label: 'English' },
+      { language: 'fr', label: 'French' },
+    ]);
   });
 
-  it('projects captions: null when getMeta returns null', async () => {
+  it('projects captions: [] when the video has no tracks', async () => {
     const video = { id: VID, state: 'READY' } as unknown as Video;
     const videos = makeVideoRepo({ getVideo: video });
     const enrollment = makeEnrollmentRepo({ getEnrollment: null });
@@ -568,7 +571,7 @@ describe('LearnService.getLessonView caption projection', () => {
 
     const view = await svc.getLessonView(STUDENT_ID, baseCourse, baseLesson);
 
-    expect(view.lesson.captions).toBeNull();
+    expect(view.lesson.captions).toEqual([]);
   });
 });
 

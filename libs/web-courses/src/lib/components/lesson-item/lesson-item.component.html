@@ -39,7 +39,7 @@
     @if (lesson().videoId) {
       @if (video(); as v) {
         @if (v.state === 'READY') {
-          <lib-video-player [videoId]="v.id" [captions]="captionsTrack()" />
+          <lib-video-player [videoId]="v.id" [captions]="captionTracks()" />
         } @else {
           <lib-video-state-badge
             [video]="v"
@@ -51,7 +51,7 @@
       @if (videoActionError(); as err) {
         <p data-testid="video-action-error" class="text-sm text-bad">{{ err }}</p>
       }
-      <lib-captions-panel [videoId]="lesson().videoId!" (metaChange)="onCaptionsMeta($event)" />
+      <lib-captions-panel [videoId]="lesson().videoId!" (tracksChange)="onCaptionsMeta($event)" />
     } @else {
       <lib-video-upload
         [courseId]="courseId()"

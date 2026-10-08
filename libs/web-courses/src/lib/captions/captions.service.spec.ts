@@ -21,8 +21,8 @@ describe('CaptionsService (web-courses)', () => {
   afterEach(() => http.verify());
 
   it('uploads via PUT multipart with credentials and a "file" field', async () => {
-    const p = svc.upload('v1' as VideoId, new File(['WEBVTT'], 'c.vtt', { type: 'text/vtt' }));
-    const req = http.expectOne('/api/videos/v1/captions');
+    const p = svc.upload('v1' as VideoId, 'pt-BR', new File(['WEBVTT'], 'c.vtt', { type: 'text/vtt' }));
+    const req = http.expectOne('/api/videos/v1/captions/pt-BR');
     expect(req.request.method).toBe('PUT');
     expect(req.request.withCredentials).toBe(true);
     expect(req.request.body instanceof FormData).toBe(true);
@@ -33,18 +33,18 @@ describe('CaptionsService (web-courses)', () => {
     expect((await p).label).toBe('English');
   });
 
-  it('reads metadata via GET with credentials', async () => {
-    const p = svc.getMeta('v1' as VideoId);
+  it('lists tracks via GET with credentials', async () => {
+    const p = svc.list('v1' as VideoId);
     const req = http.expectOne('/api/videos/v1/captions');
     expect(req.request.method).toBe('GET');
     expect(req.request.withCredentials).toBe(true);
-    req.flush(null);
-    expect(await p).toBeNull();
+    req.flush([{ language: 'en', label: 'English', updatedAt: 'now' }]);
+    expect(await p).toEqual([{ language: 'en', label: 'English', updatedAt: 'now' }]);
   });
 
   it('removes via DELETE with credentials', async () => {
-    const p = svc.remove('v1' as VideoId);
-    const req = http.expectOne('/api/videos/v1/captions');
+    const p = svc.remove('v1' as VideoId, 'fr');
+    const req = http.expectOne('/api/videos/v1/captions/fr');
     expect(req.request.method).toBe('DELETE');
     expect(req.request.withCredentials).toBe(true);
     req.flush(null);

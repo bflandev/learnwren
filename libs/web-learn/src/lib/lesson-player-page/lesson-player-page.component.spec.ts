@@ -43,7 +43,7 @@ function makeView(
       description: 'A great lesson',
       videoId: 'vid-1' as LessonView['lesson']['videoId'],
       videoState: 'READY',
-      captions: null,
+      captions: [],
       ...overrides,
     },
     progress,
@@ -1294,38 +1294,42 @@ describe('UC-04-02 materials section', () => {
   });
 });
 
-describe('LessonPlayerPageComponent captionsTrack computed', () => {
+describe('LessonPlayerPageComponent captionTracks computed', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('computes a captions track when the view has captions', () => {
+  it('computes one track per caption language', () => {
     configure();
     const { fixture } = create();
     fixture.componentInstance.view.set(
-      makeView({ videoId: 'v1' as LessonView['lesson']['videoId'], captions: { language: 'en', label: 'English' } }, null),
+      makeView({
+        videoId: 'v1' as LessonView['lesson']['videoId'],
+        captions: [{ language: 'en', label: 'English' }, { language: 'fr', label: 'French' }],
+      }, null),
     );
-    expect(fixture.componentInstance.captionsTrack()).toEqual({
-      src: '/api/playback/captions/v1', srclang: 'en', label: 'English',
-    });
+    expect(fixture.componentInstance.captionTracks()).toEqual([
+      { src: '/api/playback/captions/v1/en', srclang: 'en', label: 'English' },
+      { src: '/api/playback/captions/v1/fr', srclang: 'fr', label: 'French' },
+    ]);
   });
 
-  it('captionsTrack is null when the view has no captions', () => {
+  it('captionTracks is [] when the view has no captions', () => {
     configure();
     const { fixture } = create();
     fixture.componentInstance.view.set(
-      makeView({ videoId: 'v1' as LessonView['lesson']['videoId'], captions: null }, null),
+      makeView({ videoId: 'v1' as LessonView['lesson']['videoId'], captions: [] }, null),
     );
-    expect(fixture.componentInstance.captionsTrack()).toBeNull();
+    expect(fixture.componentInstance.captionTracks()).toEqual([]);
   });
 
-  it('captionsTrack is null when the lesson has no videoId', () => {
+  it('captionTracks is [] when the lesson has no videoId', () => {
     configure();
     const { fixture } = create();
     fixture.componentInstance.view.set(
-      makeView({ videoId: null, videoState: null, captions: null }, null),
+      makeView({ videoId: null, videoState: null, captions: [{ language: 'en', label: 'English' }] }, null),
     );
-    expect(fixture.componentInstance.captionsTrack()).toBeNull();
+    expect(fixture.componentInstance.captionTracks()).toEqual([]);
   });
 });
 
@@ -1422,11 +1426,11 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
     expect(fixture.componentInstance.rowState('nope' as MaterialId)).toEqual({ status: 'idle' });
   });
 
-  it('captionsTrack() is null (not a throw) when view() is null (kills L86 OptionalChaining)', () => {
+  it('captionTracks() is [] (not a throw) when view() is null (kills OptionalChaining)', () => {
     configure();
     const fixture = createNoInit();
     expect(fixture.componentInstance.view()).toBeNull();
-    expect(fixture.componentInstance.captionsTrack()).toBeNull();
+    expect(fixture.componentInstance.captionTracks()).toEqual([]);
   });
 
   describe('responsive matchMedia wiring', () => {

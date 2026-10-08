@@ -3,6 +3,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Param,
   Put,
   UploadedFile,
   UseFilters,
@@ -31,27 +32,28 @@ const MAX_UPLOAD_BYTES = 1_000_000;
 export class CaptionsController {
   constructor(private readonly svc: CaptionsService) {}
 
-  @Put('videos/:vid/captions')
+  @Put('videos/:vid/captions/:lang')
   @UseGuards(VideoOwnerGuard)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES } }))
   async upload(
     @UploadedFile() file: Express.Multer.File,
+    @Param('lang') lang: string,
     @CurrentVideo() video: Video,
   ): Promise<VideoCaptionsMeta> {
     if (!file) throw new InvalidCaptionFileException();
-    return this.svc.put(video.id, file.buffer);
+    return this.svc.put(video.id, lang, file.buffer);
   }
 
   @Get('videos/:vid/captions')
   @UseGuards(VideoOwnerGuard)
-  meta(@CurrentVideo() video: Video): Promise<VideoCaptionsMeta | null> {
-    return this.svc.getMeta(video.id);
+  list(@CurrentVideo() video: Video): Promise<VideoCaptionsMeta[]> {
+    return this.svc.listMeta(video.id);
   }
 
-  @Delete('videos/:vid/captions')
+  @Delete('videos/:vid/captions/:lang')
   @UseGuards(VideoOwnerGuard)
   @HttpCode(204)
-  async remove(@CurrentVideo() video: Video): Promise<void> {
-    await this.svc.remove(video.id);
+  async remove(@Param('lang') lang: string, @CurrentVideo() video: Video): Promise<void> {
+    await this.svc.remove(video.id, lang);
   }
 }

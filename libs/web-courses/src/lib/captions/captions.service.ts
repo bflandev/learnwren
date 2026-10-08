@@ -22,23 +22,23 @@ export class CaptionsService {
     return { ok: true };
   }
 
-  getMeta(vid: VideoId): Promise<VideoCaptionsMeta | null> {
+  list(vid: VideoId): Promise<VideoCaptionsMeta[]> {
     return firstValueFrom(
-      this.http.get<VideoCaptionsMeta | null>(`/api/videos/${vid}/captions`, { withCredentials: true }),
+      this.http.get<VideoCaptionsMeta[]>(`/api/videos/${vid}/captions`, { withCredentials: true }),
     );
   }
 
-  upload(vid: VideoId, file: File): Promise<VideoCaptionsMeta> {
+  upload(vid: VideoId, language: string, file: File): Promise<VideoCaptionsMeta> {
     const form = new FormData();
     form.append('file', file, file.name);
     return firstValueFrom(
-      this.http.put<VideoCaptionsMeta>(`/api/videos/${vid}/captions`, form, { withCredentials: true }),
+      this.http.put<VideoCaptionsMeta>(`/api/videos/${vid}/captions/${language}`, form, { withCredentials: true }),
     );
   }
 
-  async remove(vid: VideoId): Promise<void> {
+  async remove(vid: VideoId, language: string): Promise<void> {
     await firstValueFrom(
-      this.http.delete<void>(`/api/videos/${vid}/captions`, { withCredentials: true }),
+      this.http.delete<void>(`/api/videos/${vid}/captions/${language}`, { withCredentials: true }),
     );
   }
 }

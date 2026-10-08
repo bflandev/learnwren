@@ -36,16 +36,14 @@ export class LearnService {
 
   async getLessonView(userId: UserId, course: Course, lesson: Lesson): Promise<LessonView> {
     let videoState: LessonView['lesson']['videoState'] = null;
-    let captions: LessonView['lesson']['captions'] = null;
+    let captions: LessonView['lesson']['captions'] = [];
     if (lesson.videoId) {
       const [video, captionsMeta] = await Promise.all([
         this.videos.getVideo(lesson.videoId),
-        this.captions.getMeta(lesson.videoId),
+        this.captions.listMeta(lesson.videoId),
       ]);
       videoState = video?.state ?? null;
-      captions = captionsMeta
-        ? { language: captionsMeta.language, label: captionsMeta.label }
-        : null;
+      captions = captionsMeta.map(({ language, label }) => ({ language, label }));
     }
 
     const progress = await this.resolveProgress(userId, course, lesson);

@@ -40,7 +40,7 @@ This guide covers **every feature wired up today**, in three parts:
 | Video | Resumable upload (MP4 / MOV / MKV ≤ 10 GB) | Built |
 | Video | Transcode to AES-128 HLS, status polling | Built |
 | Video | Owner playback in the lesson editor (hls.js) | Built |
-| Video | Lesson captions (WebVTT, one English track per lesson) | Built (2026-05-30) |
+| Video | Lesson captions (WebVTT, up to 20 languages per lesson) | Built (2026-05-30; multi-language 2026-10-08) |
 | Materials | Lesson file attachments (PDF, DOCX, PPTX, XLSX, TXT, ZIP ≤ 50 MB) | Built |
 | Materials | Student downloads from the lesson player | Built |
 | Publishing | Publish eligibility gate; publish / unpublish / archive / restore | Built |
@@ -389,10 +389,10 @@ Edge cases:
   panel with a back-to-course link.
 - **Lesson missing or in the wrong course** — a "Lesson not available" panel.
 
-**Captions:** if the instructor has uploaded a caption track for the lesson's video, a
-sidecar subtitles track is served alongside the HLS stream. Captions are **off by
-default** — use the **CC** button in the player's native controls to enable them. One
-English track per lesson in this release.
+**Captions:** each caption track the instructor has uploaded for the lesson's video is
+served as a sidecar subtitles track alongside the HLS stream. Captions are **off by
+default**. Use the **CC** button in the player's native controls to turn them on and,
+when there is more than one, to pick the language.
 
 **Materials:** when the lesson has supplementary files attached, a **Lesson
 materials** section renders below the video with a per-file **Download** button. Each
@@ -586,13 +586,16 @@ Each lesson holds at most one video. In the lesson editor:
 Once a lesson's video has been uploaded, a **Captions** panel appears below the video
 widget (regardless of the video's processing state).
 
-- **Upload** — click **Add captions (.vtt)** and pick a **WebVTT (`.vtt`)** file no
-  larger than **256 KB**. The track is stored immediately and the panel shows the
-  track's language and label.
-- **Replace** — overwrites the previous track. **Remove** — clears it.
+- **Upload** — choose a **Language** (English is preselected), then click **Upload
+  captions (.vtt)** and pick a **WebVTT (`.vtt`)** file no larger than **256 KB**. The
+  track is stored immediately and appears in the panel's track list.
+- **Replace** — upload again with the same language selected; the new file replaces
+  the old one.
+- **Remove** — each track has its own **Remove** button.
 
-Constraints for this release: WebVTT only (no SRT), ≤ 256 KB, English only, one track
-per video. Students toggle captions with the player's native **CC** button (off by
+Constraints: WebVTT only (no SRT), ≤ 256 KB per file, at most **20 languages** per
+video. The language list offers 27 common languages; the API itself accepts any known
+BCP-47 tag. Students choose a track with the player's native **CC** button (off by
 default).
 
 ### Lesson materials
@@ -981,7 +984,7 @@ callers, and the caller must own the course or hold an `ACTIVE` enrollment.
 
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
-| `GET` | `/learn/courses/:cid/lessons/:lid` | The lesson view: title, description, video state, captions presence, materials list, the caller's progress, and the course outline. |
+| `GET` | `/learn/courses/:cid/lessons/:lid` | The lesson view: title, description, video state, caption tracks, materials list, the caller's progress, and the course outline. |
 | `POST` | `/learn/courses/:cid/lessons/:lid/complete` | Mark the lesson complete (idempotent; returns the original `completedAt` on repeat). Owners get `403 NOT_ENROLLED_LESSON`. Stamps course completion transactionally when it is the last remaining lesson. |
 | `POST` | `/learn/courses/:cid/lessons/:lid/position` | Save the playback position (idempotent and monotonic — out-of-order beacons cannot rewind progress; accepts `navigator.sendBeacon`). |
 
@@ -1063,9 +1066,9 @@ Upload/management endpoints require session + `INSTRUCTOR`; per-video endpoints 
 | `POST` | `/api/videos/:vid/upload-complete` | Signal the bytes have landed; advances state toward transcoding (`200`). |
 | `PATCH` | `/api/videos/:vid` | Mark a video `FAILED` with a `failureReason`. |
 | `DELETE` | `/api/videos/:vid` | Delete the video (`204`). |
-| `PUT` | `/api/videos/:vid/captions` | Upload/replace the WebVTT caption track (≤ 256 KB). |
-| `GET` | `/api/videos/:vid/captions` | The caption track's metadata (owner view). |
-| `DELETE` | `/api/videos/:vid/captions` | Remove the caption track. |
+| `PUT` | `/api/videos/:vid/captions/:lang` | Upload/replace one language's WebVTT track (≤ 256 KB; ≤ 20 languages). |
+| `GET` | `/api/videos/:vid/captions` | Every track's metadata, sorted by label (owner view). |
+| `DELETE` | `/api/videos/:vid/captions/:lang` | Remove one language's track. |
 
 ### Playback — `/api/playback`
 
@@ -1078,7 +1081,7 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `GET` | `/playback/manifest/:vid` | Master HLS manifest (`application/vnd.apple.mpegurl`). |
 | `GET` | `/playback/manifest/:vid/rendition/:r` | A single rendition's media playlist. |
 | `GET` | `/playback/keys/:vid` | The AES-128 content key bytes (`application/octet-stream`). |
-| `GET` | `/playback/captions/:vid` | The WebVTT caption track (`404 CAPTIONS_NOT_FOUND` when none). |
+| `GET` | `/playback/captions/:vid/:lang` | One language's WebVTT track (`404 CAPTIONS_NOT_FOUND` when none). |
 
 ### Internal / webhook endpoints
 
@@ -1182,9 +1185,11 @@ fields are **string-literal unions** (not TypeScript enums).
   - `state`: `PENDING_UPLOAD | UPLOADING | UPLOADED | TRANSCODING | READY | FAILED`.
   - Supported content types: `video/mp4`, `video/quicktime`, `video/x-matroska`.
 - **`VideoKey`** — `id, videoId, key` (base64 of a 16-byte AES-128 key).
-- **`VideoCaptions`** — `videoId` (=== the doc id in `videoCaptions`), `language`,
-  `label`, `format ("vtt")`, `content` (the raw VTT text), timestamps. One document
-  per video; absence means no captions (`404 CAPTIONS_NOT_FOUND` on the stream).
+- **`VideoCaptions`** — `videoId`, `language` (canonical BCP-47), `label` (English
+  name derived from the language), `format ("vtt")`, `content` (the raw VTT text),
+  timestamps. One document per (video, language), id `${videoId}_${language}`; tracks
+  written before 2026-10-08 keep the bare `videoId` as their id, so readers query by the
+  `videoId` field. No document for a language means `404 CAPTIONS_NOT_FOUND`.
 - **`Material`** — lesson attachment metadata: display name, content type,
   `sizeBytes`, state (`PENDING_UPLOAD → READY`), storage path.
 - **`PublishEligibility`** — `{ eligible: true, reasons: [] }` or
@@ -1284,7 +1289,9 @@ The remaining gaps below are deliberate scope cuts inside shipped features:
 - **Completion badge un-stamping and certificates** — a Course Completed badge is
   never revoked (even if the instructor adds lessons later), and there is no
   certificate export.
-- **Multi-language captions** — one English WebVTT track per video.
+- **Caption extras** — no SRT upload, no captions embedded in the HLS stream, no
+  auto-generated captions, and the player does not preselect a track from the
+  browser's language.
 - **Instructor-application audit trail** — history shows each applicant's latest
   decision only; re-applying replaces it. Approvals carry no note.
 - **Account self-deletion, social auth, App Check** — explicitly out of MVP scope

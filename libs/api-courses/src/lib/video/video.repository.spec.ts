@@ -19,8 +19,10 @@ import type {
   VideoKeyId,
   VideoState,
 } from '@learnwren/shared-data-models';
+import { MAX_CAPTION_TRACKS } from '@learnwren/shared-data-models';
 
 import {
+  CaptionTrackLimitException,
   InvalidVideoStateException,
   LessonAlreadyHasVideoException,
   UploadCompletionInProgressException,
@@ -710,78 +712,112 @@ function makeCaptions(overrides: Partial<VideoCaptions> = {}): VideoCaptions {
 }
 
 describe('VideoRepository — captions', () => {
-  it('upsertCaptions then getCaptions round-trips', async () => {
+  it('upsertCaptions stores one doc per language, keyed `${videoId}_${language}`', async () => {
     const fake = createInMemoryDocumentStore({ 'videos/v1': makeVideo() });
     const repo = await buildRepo(fake);
     await repo.upsertCaptions(makeCaptions());
-    const got = await repo.getCaptions('v1' as VideoId);
-    expect(got?.content).toContain('WEBVTT');
-    expect(got?.language).toBe('en');
+    await repo.upsertCaptions(makeCaptions({ language: 'fr', label: 'French' }));
+    expect(fake.__store.has('videoCaptions/v1_en')).toBe(true);
+    expect(fake.__store.has('videoCaptions/v1_fr')).toBe(true);
+    const langs = (await repo.listCaptions('v1' as VideoId)).map((c) => c.language).sort();
+    expect(langs).toEqual(['en', 'fr']);
+  });
+
+  it('listCaptions includes a legacy doc keyed by the bare videoId and ignores other videos', async () => {
+    const fake = createInMemoryDocumentStore({
+      'videoCaptions/v1': makeCaptions(),
+      'videoCaptions/v2_en': makeCaptions({ videoId: 'v2' as VideoId }),
+    });
+    const repo = await buildRepo(fake);
+    const list = await repo.listCaptions('v1' as VideoId);
+    expect(list).toHaveLength(1);
+    expect(list[0]?.videoId).toBe('v1');
+  });
+
+  it('getCaptions returns the track for a language, or null', async () => {
+    const fake = createInMemoryDocumentStore({
+      'videoCaptions/v1_en': makeCaptions(),
+      'videoCaptions/v1_fr': makeCaptions({ language: 'fr', label: 'French', content: 'WEBVTT\n\nfr' }),
+    });
+    const repo = await buildRepo(fake);
+    expect((await repo.getCaptions('v1' as VideoId, 'fr'))?.content).toBe('WEBVTT\n\nfr');
+    expect(await repo.getCaptions('v1' as VideoId, 'de')).toBeNull();
   });
 
   it('upsertCaptions throws VIDEO_NOT_FOUND and writes nothing when the video doc is gone', async () => {
-    // Captions PUT racing a video delete: the old non-transactional
-    // read-then-set recreated an orphan videoCaptions doc that no endpoint
-    // could ever reach (every captions route resolves the video first).
+    // Captions PUT racing a video delete must not recreate an orphan track.
     const fake = createInMemoryDocumentStore();
     const repo = await buildRepo(fake);
     await expect(repo.upsertCaptions(makeCaptions())).rejects.toBeInstanceOf(
       VideoNotFoundException,
     );
-    expect(fake.__store.has('videoCaptions/v1')).toBe(false);
+    expect(fake.__store.has('videoCaptions/v1_en')).toBe(false);
   });
 
-  it('upsertCaptions preserves the original createdAt when replacing existing captions', async () => {
+  it('upsertCaptions replaces the same language in place, preserving createdAt', async () => {
     const OLD = '2026-01-01T00:00:00.000Z' as ISODateString;
     const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
-      'videoCaptions/v1': makeCaptions({ createdAt: OLD }),
+      'videoCaptions/v1_en': makeCaptions({ createdAt: OLD }),
     });
     const repo = await buildRepo(fake);
     await repo.upsertCaptions(
       makeCaptions({ createdAt: NOW_ISO as ISODateString, updatedAt: NOW_ISO as ISODateString }),
     );
-    const stored = fake.__store.get('videoCaptions/v1') as VideoCaptions;
+    const stored = fake.__store.get('videoCaptions/v1_en') as VideoCaptions;
     expect(stored.createdAt).toBe(OLD);
     expect(stored.updatedAt).toBe(NOW_ISO);
+    expect(await repo.listCaptions('v1' as VideoId)).toHaveLength(1);
   });
 
-  it('getCaptions returns null when absent', async () => {
-    const repo = await buildRepo(createInMemoryDocumentStore());
-    expect(await repo.getCaptions('nope' as VideoId)).toBeNull();
-  });
-
-  it('getCaptionsMeta returns null when no captions exist', async () => {
-    // Pins the `if (!captions) return null` guard: forcing it false would
-    // dereference null and throw instead of returning null.
-    const repo = await buildRepo(createInMemoryDocumentStore());
-    expect(await repo.getCaptionsMeta('nope' as VideoId)).toBeNull();
-  });
-
-  it('getCaptionsMeta omits the content body', async () => {
-    const fake = createInMemoryDocumentStore({ 'videoCaptions/v1': makeCaptions() });
+  it('upsertCaptions overwrites a legacy bare-id doc of the same language instead of duplicating it', async () => {
+    const fake = createInMemoryDocumentStore({
+      'videos/v1': makeVideo(),
+      'videoCaptions/v1': makeCaptions(),
+    });
     const repo = await buildRepo(fake);
-    const meta = await repo.getCaptionsMeta('v1' as VideoId);
-    expect(meta).toEqual({ language: 'en', label: 'English', updatedAt: SEED_DATE });
+    await repo.upsertCaptions(makeCaptions({ content: 'WEBVTT\n\nnew' }));
+    expect(fake.__store.has('videoCaptions/v1_en')).toBe(false);
+    expect((fake.__store.get('videoCaptions/v1') as VideoCaptions).content).toBe('WEBVTT\n\nnew');
   });
 
-  it('deleteCaptions removes the doc and is idempotent', async () => {
-    const fake = createInMemoryDocumentStore({ 'videoCaptions/v1': makeCaptions() });
+  it('upsertCaptions rejects a new language once the video has MAX_CAPTION_TRACKS tracks', async () => {
+    const seed: Record<string, unknown> = { 'videos/v1': makeVideo() };
+    for (let i = 0; i < MAX_CAPTION_TRACKS; i++) {
+      seed[`videoCaptions/v1_l${i}`] = makeCaptions({ language: `l${i}` });
+    }
+    const fake = createInMemoryDocumentStore(seed);
     const repo = await buildRepo(fake);
-    await repo.deleteCaptions('v1' as VideoId);
-    expect(await repo.getCaptions('v1' as VideoId)).toBeNull();
-    await expect(repo.deleteCaptions('v1' as VideoId)).resolves.toBeUndefined();
+    await expect(repo.upsertCaptions(makeCaptions({ language: 'fr' }))).rejects.toBeInstanceOf(
+      CaptionTrackLimitException,
+    );
+    // Replacing an existing language at the cap is still allowed.
+    await expect(repo.upsertCaptions(makeCaptions({ language: 'l0' }))).resolves.toBeUndefined();
   });
 
-  it('deleteVideoAndDetach also removes the captions doc', async () => {
+  it('deleteCaptions removes only that language (legacy id included) and is idempotent', async () => {
+    const fake = createInMemoryDocumentStore({
+      'videoCaptions/v1': makeCaptions(),
+      'videoCaptions/v1_fr': makeCaptions({ language: 'fr', label: 'French' }),
+    });
+    const repo = await buildRepo(fake);
+    await repo.deleteCaptions('v1' as VideoId, 'en');
+    expect((await repo.listCaptions('v1' as VideoId)).map((c) => c.language)).toEqual(['fr']);
+    await expect(repo.deleteCaptions('v1' as VideoId, 'en')).resolves.toBeUndefined();
+  });
+
+  it('deleteVideoAndDetach removes every caption track of the video', async () => {
     const fake = createInMemoryDocumentStore({
       'videos/v1': makeVideo(),
       [LESSON_PATH]: lessonDoc({ videoId: 'v1' }),
       'videoCaptions/v1': makeCaptions(),
+      'videoCaptions/v1_fr': makeCaptions({ language: 'fr', label: 'French' }),
+      'videoCaptions/v2_en': makeCaptions({ videoId: 'v2' as VideoId }),
     });
     const repo = await buildRepo(fake);
     await repo.deleteVideoAndDetach('v1' as VideoId, 'l1' as LessonId, NOW_ISO);
-    expect(await repo.getCaptions('v1' as VideoId)).toBeNull();
+    expect(await repo.listCaptions('v1' as VideoId)).toEqual([]);
+    expect(fake.__store.has('videoCaptions/v2_en')).toBe(true);
   });
 });
 

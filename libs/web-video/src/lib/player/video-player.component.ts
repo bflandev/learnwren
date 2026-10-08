@@ -16,6 +16,7 @@ import type { VideoId } from '@learnwren/shared-data-models';
 
 import { HlmButton } from '@learnwren/web-ui';
 import { PlaybackConfigService } from '../playback-config.service';
+import type { CaptionTrack } from './caption-tracks';
 import { VideoPlayerService, type PlayerHandle } from './video-player.service';
 
 @Component({
@@ -27,7 +28,7 @@ import { VideoPlayerService, type PlayerHandle } from './video-player.service';
 })
 export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
   readonly videoId = input.required<VideoId>();
-  readonly captions = input<{ src: string; srclang: string; label: string } | null>(null);
+  readonly captions = input<CaptionTrack[]>([]);
 
   @ViewChild('playerEl', { static: true })
   playerEl!: ElementRef<HTMLVideoElement>;

@@ -20,6 +20,7 @@ import {
   VideoService,
   VideoStateBadgeComponent,
   VideoUploadComponent,
+  toCaptionTracks,
 } from '@learnwren/web-video';
 
 import { ConfirmDialogService, HlmButton, HlmInput } from '@learnwren/web-ui';
@@ -50,17 +51,15 @@ export class LessonItemComponent {
   readonly editing = signal(false);
   readonly draftTitle = signal('');
   readonly video = signal<Video | undefined>(undefined);
-  readonly captionsMeta = signal<VideoCaptionsMeta | null>(null);
+  readonly captionsMeta = signal<VideoCaptionsMeta[]>([]);
   readonly videoActionError = signal<string | null>(null);
 
   // Memoized by string value: same videoId on a new Lesson object reference does not re-fire the effect.
   private readonly videoId = computed(() => this.lesson().videoId);
 
-  readonly captionsTrack = computed(() => {
+  readonly captionTracks = computed(() => {
     const videoId = this.videoId();
-    const meta = this.captionsMeta();
-    if (!videoId || !meta) return null;
-    return { src: `/api/playback/captions/${videoId}`, srclang: meta.language, label: meta.label };
+    return videoId ? toCaptionTracks(videoId, this.captionsMeta()) : [];
   });
 
   constructor() {
@@ -98,7 +97,7 @@ export class LessonItemComponent {
     this.editing.set(false);
   }
 
-  onCaptionsMeta(meta: VideoCaptionsMeta | null): void {
+  onCaptionsMeta(meta: VideoCaptionsMeta[]): void {
     this.captionsMeta.set(meta);
   }
 
