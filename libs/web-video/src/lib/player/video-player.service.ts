@@ -1,5 +1,5 @@
 import { Injectable, InjectionToken, inject } from '@angular/core';
-import HlsImport from 'hls.js';
+import type HlsType from 'hls.js';
 
 export interface PlayerHooks {
   onFatalError: (message: string) => void;
@@ -9,13 +9,20 @@ export interface PlayerHandle {
   dispose(): void;
 }
 
-export const HLS_CONSTRUCTOR = new InjectionToken<typeof HlsImport>(
+/**
+ * Loads the hls.js constructor on demand. hls.js is ~500 KB minified; a static
+ * import put it in the initial bundle of every route (the lib barrels reach it
+ * from app.config), which alone cost the catalogue its 2-second load budget
+ * (US-09-01). A dynamic import keeps it in a lazy chunk fetched only when a
+ * player actually mounts.
+ */
+export const HLS_LOADER = new InjectionToken<() => Promise<typeof HlsType>>(
   // Stryker disable next-line StringLiteral: InjectionToken description is a human-readable debug label with no runtime behavior.
-  'HLS_CONSTRUCTOR',
+  'HLS_LOADER',
   {
     // Stryker disable next-line StringLiteral: a token carrying its own factory resolves via that factory regardless of the providedIn string (Angular falls back to the token factory), so 'root' vs '' is behaviourally identical — equivalent mutant.
     providedIn: 'root',
-    factory: () => HlsImport,
+    factory: () => () => import('hls.js').then((m) => m.default),
   },
 );
 
@@ -68,14 +75,14 @@ function userMessageFor(details: string | undefined): string {
 
 @Injectable({ providedIn: 'root' })
 export class VideoPlayerService {
-  private readonly Hls = inject(HLS_CONSTRUCTOR);
+  private readonly loadHls = inject(HLS_LOADER);
 
-  attach(
+  async attach(
     el: HTMLVideoElement,
     manifestUrl: string,
     hooks: PlayerHooks,
-  ): PlayerHandle {
-    const Hls = this.Hls;
+  ): Promise<PlayerHandle> {
+    const Hls = await this.loadHls();
     if (Hls.isSupported()) {
       const hls = new Hls({
         xhrSetup: (xhr: XMLHttpRequest, url: string) => {

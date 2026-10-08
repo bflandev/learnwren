@@ -43,10 +43,7 @@ import {
  * Scope is honest and narrow: this measures client render cost and bundle
  * weight (LCP) plus stubbed-API-to-visible-content latency (time to
  * content) under a modelled 10 Mbps / 40 ms link. It proves nothing about
- * real API latency, CDN behaviour, cold starts, or concurrency. The
- * catalogue's time-to-content is measured and logged every run but not
- * enforced — see GATED_METRICS — so this suite does NOT currently enforce
- * the full "catalogue loads within 2s" acceptance criterion end to end.
+ * real API latency, CDN behaviour, cold starts, or concurrency.
  */
 const BUDGETS_MS: Record<string, number> = {
   landing: 1900,
@@ -62,24 +59,21 @@ type Metric = 'lcp' | 'ttc';
  * omitted here is still measured, still logged, still checked for a
  * render-guard where applicable — just not asserted against the budget.
  *
- * Every route gates LCP. `catalogue` is the one exception to gating TTC:
- * CI calibration on the GitHub Actions runner (2026-08-08, see spec §5)
- * measured catalogue TTC at a median of 1989ms against its hard 2000ms
- * budget — an 11ms margin, not a margin at all in practice, that would
- * red-build on ordinary runner variance rather than on a real regression.
- * The other two routes' TTC medians (~1980ms) are just as close to that
- * same figure, confirming the number is dominated by cold production-bundle
- * download over the modelled link plus Angular bootstrap, not by anything
- * catalogue-specific — so gating it here would not even be testing what it
- * claims to. The 1989ms-vs-2000ms finding is recorded as a real,
- * currently-unmet acceptance criterion in the epic and README (Task 8),
- * requiring bundle-weight optimisation outside this slice — NOT fixed by
- * widening this budget, switching to a warm-cache model, or gating TTC here
- * and accepting the flake.
+ * Every route gates LCP. Landing gates LCP only — it has no stubbed data,
+ * so its time to content measures render alone.
+ *
+ * The catalogue's TTC was ungated from 2026-08-08 to 2026-10-08: CI measured
+ * it at 1989ms against the hard 2000ms budget, and every content route sat
+ * in the same ~1980ms band — the cost was cold bundle download, not anything
+ * catalogue-specific. The cause was hls.js (~500 KB) statically reachable
+ * from the initial bundle through the lib barrels; loading it lazily
+ * (HLS_LOADER in web-video) dropped the initial bundle from 1.23 MB to
+ * ~710 KB and catalogue TTC to ~1620ms, so the AC is now gated end to end.
+ * Do NOT widen the budget to fix a red here — find what grew the bundle.
  */
 const GATED_METRICS: Record<string, readonly Metric[]> = {
   landing: ['lcp'],
-  catalogue: ['lcp'],
+  catalogue: ['lcp', 'ttc'],
   'course detail': ['lcp', 'ttc'],
   'learn page': ['lcp', 'ttc'],
 };
@@ -115,9 +109,6 @@ for (const route of PERF_ROUTES) {
       // fixture-shape bug reads as a performance WIN. Same contract as the
       // a11y and responsive sweeps; scoped to <main> because the header
       // precedes it and can otherwise satisfy the check on its own. This
-      // matters MORE for routes whose other metric isn't gated (catalogue):
-      // LCP is the only assertion standing between this test and a
-      // fixture-shape bug reading as a pass.
       if (route.expectText) {
         await expect(
           page.locator('main').getByText(route.expectText).first(),
@@ -155,9 +146,7 @@ for (const route of PERF_ROUTES) {
       ttcSamples.push(await measureTimeToContent(page, route.path, route.expectText));
     }
     const observedTtc = Math.round(median(ttcSamples));
-    // Same rationale as the LCP log line above — this is the line that
-    // keeps the catalogue's 1989ms finding visible on every run even though
-    // it is no longer asserted.
+    // Same rationale as the LCP log line above.
     console.log(
       `[perf] ${route.name} TTC samples=[${ttcSamples.map(Math.round).join(',')}]ms ` +
         `median=${observedTtc}ms budget=${budget}ms ` +

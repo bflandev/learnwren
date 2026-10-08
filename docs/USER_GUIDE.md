@@ -60,7 +60,7 @@ This guide covers **every feature wired up today**, in three parts:
 | Administration | Platform health dashboard (US-08-04) | Built (2026-07-17) |
 | Non-functional | Accessibility: axe-core sweep + keyboard journeys (US-09-03) | Built (2026-08-07) |
 | Non-functional | Mobile responsiveness: header collapse + overflow gate (US-09-05) | Built (2026-08-07) |
-| Non-functional | Performance: landing/catalogue/course-detail/learn-page load time + video click-to-play gate (US-09-01) | Partly built (2026-08-08) — catalogue's 2-second load target not yet met; see README |
+| Non-functional | Performance: landing/catalogue/course-detail/learn-page load time + video click-to-play gate (US-09-01) | Partly built (2026-08-08; catalogue load target met 2026-10-08) — TTFB and concurrency criteria deferred; see README |
 | Non-functional | Self-hosting: single-command Docker Compose stack, `.env.example`, deployment guide, real ffmpeg video pipeline, S3-compatible object storage, PostgreSQL and built-in accounts (US-09-04) | Built (2026-10-02) — Slices A–D: Compose runs on PostgreSQL, built-in accounts, S3-compatible storage and ffmpeg, with no emulators; see [`self-hosting.md`](./self-hosting.md) |
 
 ---
@@ -1273,8 +1273,8 @@ Every story in EP-01 through EP-08 is implemented. EP-09 (non-functional
 requirements) is partly done: US-09-02 (security), US-09-03 (accessibility),
 US-09-04 (self-hosting, Slices A–D, 2026-10-02) and US-09-05 (mobile
 responsiveness) are shipped; US-09-01 (performance) is
-partly gated (see the table above and `README.md`) — the catalogue's
-2-second load criterion is measured but not met, and the TTFB and
+partly done: page load and video start are gated in CI (the catalogue's
+2-second criterion has been met since 2026-10-08), and the TTFB and
 100-concurrent-user criteria are deferred pending a production load harness.
 The remaining gaps below are deliberate scope cuts inside shipped features:
 
