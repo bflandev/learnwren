@@ -3,8 +3,9 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import type {
+  AdminInstructorApplicationsResponse,
+  InstructorApplicationStatus,
   InstructorApplicationView,
-  PendingInstructorApplicationsResponse,
 } from '@learnwren/shared-data-models';
 
 const BASE = '/api/admin/instructor-applications';
@@ -13,8 +14,10 @@ const BASE = '/api/admin/instructor-applications';
 export class AdminInstructorApplicationsService {
   private readonly http = inject(HttpClient);
 
-  list(): Promise<PendingInstructorApplicationsResponse> {
-    return firstValueFrom(this.http.get<PendingInstructorApplicationsResponse>(BASE));
+  list(status: InstructorApplicationStatus): Promise<AdminInstructorApplicationsResponse> {
+    return firstValueFrom(
+      this.http.get<AdminInstructorApplicationsResponse>(BASE, { params: { status } }),
+    );
   }
 
   approve(uid: string): Promise<InstructorApplicationView> {
@@ -23,9 +26,12 @@ export class AdminInstructorApplicationsService {
     );
   }
 
-  decline(uid: string): Promise<InstructorApplicationView> {
+  decline(uid: string, reason?: string): Promise<InstructorApplicationView> {
     return firstValueFrom(
-      this.http.post<InstructorApplicationView>(`${BASE}/${uid}/decline`, {}),
+      this.http.post<InstructorApplicationView>(
+        `${BASE}/${uid}/decline`,
+        reason ? { reason } : {},
+      ),
     );
   }
 }

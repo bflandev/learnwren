@@ -180,7 +180,8 @@ export class SmtpEmailTransport implements EmailTransport {
   ): Promise<void> {
     const text =
       `Thank you for your interest in teaching on Learn Wren.\n\n` +
-      `After review, your instructor application was not approved at this time. ` +
+      `After review, your instructor application was not approved at this time.\n\n` +
+      (input.reason ? `Reviewer's note: ${input.reason}\n\n` : '') +
       `You're welcome to apply again from your profile settings.`;
     try {
       await this.transporter.sendMail({

@@ -19,9 +19,9 @@ describe('AdminInstructorApplicationsService', () => {
 
   afterEach(() => http.verify());
 
-  it('list GETs the admin queue', async () => {
-    const p = svc.list();
-    const req = http.expectOne('/api/admin/instructor-applications');
+  it('list GETs the admin list filtered by status', async () => {
+    const p = svc.list('DECLINED');
+    const req = http.expectOne('/api/admin/instructor-applications?status=DECLINED');
     expect(req.request.method).toBe('GET');
     req.flush({ applications: [] });
     await expect(p).resolves.toEqual({ applications: [] });
@@ -39,7 +39,16 @@ describe('AdminInstructorApplicationsService', () => {
     const p = svc.decline('u1');
     const req = http.expectOne('/api/admin/instructor-applications/u1/decline');
     expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
     req.flush({ status: 'DECLINED' });
     await expect(p).resolves.toEqual({ status: 'DECLINED' });
+  });
+
+  it('decline sends the reason when given', async () => {
+    const p = svc.decline('u1', 'Add a syllabus');
+    const req = http.expectOne('/api/admin/instructor-applications/u1/decline');
+    expect(req.request.body).toEqual({ reason: 'Add a syllabus' });
+    req.flush({ status: 'DECLINED' });
+    await p;
   });
 });

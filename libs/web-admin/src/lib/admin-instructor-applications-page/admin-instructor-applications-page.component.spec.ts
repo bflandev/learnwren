@@ -5,19 +5,22 @@ import {
   APPLICANT_NOT_VERIFIED,
   APPLICATION_NOT_FOUND,
   APPLICATION_NOT_PENDING,
+  DECLINE_REASON_INVALID,
 } from '@learnwren/shared-data-models';
 
 import { AdminInstructorApplicationsService } from '../admin-instructor-applications.service';
 import { AdminInstructorApplicationsPageComponent } from './admin-instructor-applications-page.component';
 
-function row(uid: string) {
+function row(uid: string, extra: Record<string, string> = {}) {
   return {
     uid,
     displayName: 'Ada',
     email: 'ada@example.com',
     statement: 's',
     expertise: 'e',
+    status: 'PENDING',
     createdAt: '2026-05-29T00:00:00.000Z',
+    ...extra,
   };
 }
 
@@ -52,7 +55,51 @@ describe('AdminInstructorApplicationsPageComponent', () => {
     const fixture = await setup();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('ada@example.com');
-    expect(svc.list).toHaveBeenCalled();
+    expect(svc.list).toHaveBeenCalledWith('PENDING');
+  });
+
+  it('switching to Declined loads that list and shows decision date + reason without actions', async () => {
+    const fixture = await setup();
+    svc.list = vi.fn(async () => ({
+      applications: [
+        row('u9', { status: 'DECLINED', resolvedAt: '2026-06-03T00:00:00.000Z', declineReason: 'Add a syllabus' }),
+      ],
+    }));
+    await fixture.componentInstance.show('DECLINED');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(svc.list).toHaveBeenCalledWith('DECLINED');
+    expect(el.querySelector('[data-testid="decline-reason"]')?.textContent).toContain('Add a syllabus');
+    expect(el.querySelector('[data-testid="resolved-at"]')?.textContent).toContain('2026');
+    expect(el.querySelector('[data-testid="approve-button"]')).toBeNull();
+    expect(el.querySelector('[data-testid="filter-DECLINED"]')?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('names the selected status in the empty state', async () => {
+    const fixture = await setup();
+    svc.list = vi.fn(async () => ({ applications: [] }));
+    await fixture.componentInstance.show('APPROVED');
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('No approved applications');
+  });
+
+  it('ignores a stale list response that resolves after a newer filter switch', async () => {
+    const fixture = await setup();
+    let resolveSlow!: (v: { applications: ReturnType<typeof row>[] }) => void;
+    svc.list = vi.fn((status: string) =>
+      status === 'APPROVED'
+        ? new Promise((r) => {
+            resolveSlow = r;
+          })
+        : Promise.resolve({ applications: [row('d1', { status: 'DECLINED' })] }),
+    );
+    const comp = fixture.componentInstance;
+    const slow = comp.show('APPROVED');
+    await comp.show('DECLINED');
+    resolveSlow({ applications: [row('a1', { status: 'APPROVED' })] });
+    await slow;
+    expect(comp.applications().map((a) => a.uid)).toEqual(['d1']);
+    expect(comp.loading()).toBe(false);
   });
 
   it('shows the empty state when there are no applications', async () => {
@@ -93,8 +140,82 @@ describe('AdminInstructorApplicationsPageComponent', () => {
     const fixture = await setup();
     const comp = fixture.componentInstance;
     await comp.decline('u2');
-    expect(svc.decline).toHaveBeenCalledWith('u2');
+    expect(svc.decline).toHaveBeenCalledWith('u2', undefined);
     expect(comp.applications().some((a) => a.uid === 'u2')).toBe(false);
+  });
+
+  it('decline sends the typed reason, then closes the reason form', async () => {
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    comp.startDecline('u1');
+    fixture.detectChanges();
+    const textarea = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="decline-reason-input"]',
+    ) as HTMLTextAreaElement;
+    expect(textarea).toBeTruthy();
+    textarea.value = '  Add a syllabus ';
+    textarea.dispatchEvent(new Event('input'));
+    await comp.decline('u1');
+    expect(svc.decline).toHaveBeenCalledWith('u1', 'Add a syllabus');
+    expect(comp.decliningUid()).toBeNull();
+    expect(comp.declineReason()).toBe('');
+  });
+
+  it('offers the three status filters in queue-first order', async () => {
+    const fixture = await setup();
+    expect(fixture.componentInstance.filters).toEqual(['PENDING', 'APPROVED', 'DECLINED']);
+  });
+
+  it('a stale failed load does not flag an error over a newer successful one', async () => {
+    const fixture = await setup();
+    let rejectSlow!: (e: Error) => void;
+    svc.list = vi.fn((status: string) =>
+      status === 'APPROVED'
+        ? new Promise((_, reject) => {
+            rejectSlow = reject;
+          })
+        : Promise.resolve({ applications: [row('d1', { status: 'DECLINED' })] }),
+    );
+    const comp = fixture.componentInstance;
+    const slow = comp.show('APPROVED');
+    await comp.show('DECLINED');
+    rejectSlow(new Error('late failure'));
+    await slow;
+    expect(comp.loadError()).toBe(false);
+    expect(comp.applications().map((a) => a.uid)).toEqual(['d1']);
+  });
+
+  it('opening the reason form on another row starts with an empty draft', async () => {
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    comp.startDecline('u1');
+    comp.declineReason.set('draft for u1');
+    comp.startDecline('u2');
+    expect(comp.decliningUid()).toBe('u2');
+    expect(comp.declineReason()).toBe('');
+  });
+
+  it('cancelDecline closes the reason form and clears the draft', async () => {
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    comp.startDecline('u1');
+    comp.declineReason.set('draft');
+    comp.cancelDecline();
+    expect(comp.decliningUid()).toBeNull();
+    expect(comp.declineReason()).toBe('');
+  });
+
+  it('keeps the reason form open when decline fails', async () => {
+    svc.decline = vi.fn(async () => {
+      throw { error: { error: { code: DECLINE_REASON_INVALID } } };
+    });
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    comp.startDecline('u1');
+    comp.declineReason.set('x');
+    await comp.decline('u1');
+    expect(comp.decliningUid()).toBe('u1');
+    expect(comp.rowError('u1')).toBe('The reason must be 2000 characters or fewer.');
   });
 
   it('surfaces a per-row error and keeps the row when the action fails', async () => {

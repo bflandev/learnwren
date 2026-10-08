@@ -75,6 +75,27 @@ describe('InstructorApplicationService', () => {
     });
   });
 
+  it('getApplication returns the decline reason of a DECLINED application', async () => {
+    const { firestore } = makeFirestore({
+      exists: true,
+      data: {
+        uid: UID, statement: 'I teach', expertise: 'Rust', status: 'DECLINED',
+        createdAt: '2026-05-28T00:00:00.000Z', declineReason: 'Add a syllabus',
+      },
+    });
+    const svc = new InstructorApplicationService(firestore);
+    expect((await svc.getApplication(UID)).declineReason).toBe('Add a syllabus');
+  });
+
+  it('getApplication omits declineReason when none was stored', async () => {
+    const { firestore } = makeFirestore({
+      exists: true,
+      data: { uid: UID, statement: 's', expertise: 'e', status: 'DECLINED', createdAt: 'c' },
+    });
+    const svc = new InstructorApplicationService(firestore);
+    expect(await svc.getApplication(UID)).not.toHaveProperty('declineReason');
+  });
+
   it('submit rejects an INSTRUCTOR role with ALREADY_INSTRUCTOR (before touching Firestore)', async () => {
     const { firestore, collection } = makeFirestore({ exists: false, data: {} });
     const svc = new InstructorApplicationService(firestore);

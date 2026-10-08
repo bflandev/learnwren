@@ -8,6 +8,8 @@ import {
   ApplicationNotFoundException,
   ApplicationNotPendingException,
   ApplicantNotVerifiedException,
+  DeclineReasonInvalidException,
+  InvalidStatusFilterException,
 } from './errors/admin-instructor-application.exception';
 
 type DocStub = {
@@ -68,7 +70,7 @@ describe('AdminInstructorApplicationService', () => {
     svc = new AdminInstructorApplicationService(firestore as never, auth as never, email as never);
   });
 
-  it('listPending joins each application with the user doc', async () => {
+  it('list joins each application with the user doc', async () => {
     queryDocs.push({
       data: () => ({
         uid: 'u1',
@@ -83,7 +85,7 @@ describe('AdminInstructorApplicationService', () => {
       update: vi.fn(),
     };
 
-    const res = await svc.listPending();
+    const res = await svc.list(undefined);
 
     // Pins the Firestore query filter: field 'status', operator '==', value 'PENDING'.
     expect(whereFn).toHaveBeenCalledWith('status', '==', 'PENDING');
@@ -94,12 +96,80 @@ describe('AdminInstructorApplicationService', () => {
         email: 'ada@example.com',
         statement: 's',
         expertise: 'e',
+        status: 'PENDING',
         createdAt: '2026-05-29T00:00:00.000Z',
       },
     ]);
   });
 
-  it('listPending falls back to empty displayName/email when the user doc is missing', async () => {
+  it('list orders PENDING rows oldest first', async () => {
+    for (const [uid, createdAt] of [['b', '2026-05-02T00:00:00.000Z'], ['a', '2026-05-01T00:00:00.000Z']]) {
+      queryDocs.push({ data: () => ({ uid, statement: 's', expertise: 'e', status: 'PENDING', createdAt }) });
+      docs[`users/${uid}`] = { get: vi.fn(async () => ({ data: () => undefined })), update: vi.fn() };
+    }
+
+    const res = await svc.list('PENDING');
+
+    expect(res.applications.map((a) => a.uid)).toEqual(['a', 'b']);
+  });
+
+  it('list(DECLINED) queries that status, returns resolvedAt + declineReason, newest decision first', async () => {
+    const rows = [
+      { uid: 'old', resolvedAt: '2026-06-01T00:00:00.000Z', declineReason: 'Too thin' },
+      { uid: 'new', resolvedAt: '2026-06-03T00:00:00.000Z' },
+    ];
+    for (const r of rows) {
+      queryDocs.push({
+        data: () => ({ statement: 's', expertise: 'e', status: 'DECLINED', createdAt: 'c', ...r }),
+      });
+      docs[`users/${r.uid}`] = { get: vi.fn(async () => ({ data: () => undefined })), update: vi.fn() };
+    }
+
+    const res = await svc.list('DECLINED');
+
+    expect(whereFn).toHaveBeenCalledWith('status', '==', 'DECLINED');
+    expect(res.applications).toEqual([
+      {
+        uid: 'new', displayName: '', email: '', statement: 's', expertise: 'e',
+        status: 'DECLINED', createdAt: 'c', resolvedAt: '2026-06-03T00:00:00.000Z',
+      },
+      {
+        uid: 'old', displayName: '', email: '', statement: 's', expertise: 'e',
+        status: 'DECLINED', createdAt: 'c', resolvedAt: '2026-06-01T00:00:00.000Z',
+        declineReason: 'Too thin',
+      },
+    ]);
+    // Absent optional fields are omitted, not rendered as undefined keys.
+    expect(Object.keys(res.applications[0] ?? {})).not.toContain('declineReason');
+  });
+
+  it('list sorts a resolved row with no resolvedAt (legacy data) after dated rows', async () => {
+    for (const r of [
+      { uid: 'undated' },
+      { uid: 'mid', resolvedAt: '2026-06-02T00:00:00.000Z' },
+      { uid: 'undated2' },
+      { uid: 'late', resolvedAt: '2026-06-09T00:00:00.000Z' },
+    ]) {
+      queryDocs.push({ data: () => ({ statement: 's', expertise: 'e', status: 'APPROVED', createdAt: 'c', ...r }) });
+      docs[`users/${r.uid}`] = { get: vi.fn(async () => ({ data: () => undefined })), update: vi.fn() };
+    }
+
+    const res = await svc.list('APPROVED');
+
+    expect(res.applications.map((a) => a.uid).slice(0, 2)).toEqual(['late', 'mid']);
+  });
+
+  it('list(APPROVED) queries the APPROVED status', async () => {
+    await svc.list('APPROVED');
+    expect(whereFn).toHaveBeenCalledWith('status', '==', 'APPROVED');
+  });
+
+  it('list rejects an unknown status filter before querying', async () => {
+    await expect(svc.list('NONE')).rejects.toThrow(InvalidStatusFilterException);
+    expect(whereFn).not.toHaveBeenCalled();
+  });
+
+  it('list falls back to empty displayName/email when the user doc is missing', async () => {
     queryDocs.push({
       data: () => ({
         uid: 'u-missing',
@@ -116,7 +186,7 @@ describe('AdminInstructorApplicationService', () => {
       update: vi.fn(),
     };
 
-    const res = await svc.listPending();
+    const res = await svc.list(undefined);
 
     expect(res.applications).toEqual([
       {
@@ -125,6 +195,7 @@ describe('AdminInstructorApplicationService', () => {
         email: '',
         statement: 's',
         expertise: 'e',
+        status: 'PENDING',
         createdAt: '2026-05-29T00:00:00.000Z',
       },
     ]);
@@ -329,11 +400,75 @@ describe('AdminInstructorApplicationService', () => {
       update,
     };
 
-    const view = await svc.decline('u1' as never);
+    const view = await svc.decline('u1' as never, {});
 
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: 'DECLINED' }));
     expect(email.sendInstructorApplicationDeclinedEmail).toHaveBeenCalledWith({ to: 'ada@example.com' });
     expect(view.status).toBe('DECLINED');
+  });
+
+  function pendingApp(update = vi.fn(async () => undefined)) {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update,
+    };
+    return update;
+  }
+
+  it('decline with a reason stores it trimmed, emails it, and returns it', async () => {
+    const update = pendingApp();
+
+    const view = await svc.decline('u1' as never, { reason: '  Needs more detail  ' });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'DECLINED', declineReason: 'Needs more detail' }),
+    );
+    expect(email.sendInstructorApplicationDeclinedEmail).toHaveBeenCalledWith({
+      to: 'ada@example.com',
+      reason: 'Needs more detail',
+    });
+    expect(view.declineReason).toBe('Needs more detail');
+  });
+
+  it('decline with a blank reason stores no reason field', async () => {
+    const update = pendingApp();
+
+    const view = await svc.decline('u1' as never, { reason: '   ' });
+
+    expect(Object.keys((update.mock.calls[0] as unknown[])[0] as object)).not.toContain('declineReason');
+    expect(email.sendInstructorApplicationDeclinedEmail).toHaveBeenCalledWith({ to: 'ada@example.com' });
+    expect(view).not.toHaveProperty('declineReason');
+  });
+
+  it('decline treats a null reason as no reason', async () => {
+    const update = pendingApp();
+    await svc.decline('u1' as never, { reason: null as never });
+    expect(Object.keys((update.mock.calls[0] as unknown[])[0] as object)).not.toContain('declineReason');
+  });
+
+  it('decline accepts a reason of exactly the maximum length', async () => {
+    pendingApp();
+    const view = await svc.decline('u1' as never, { reason: 'x'.repeat(2000) });
+    expect(view.declineReason).toHaveLength(2000);
+  });
+
+  it('decline rejects an over-long reason before claiming the application', async () => {
+    pendingApp();
+    await expect(svc.decline('u1' as never, { reason: 'x'.repeat(2001) })).rejects.toThrow(
+      DeclineReasonInvalidException,
+    );
+    expect(firestore.runTransaction).not.toHaveBeenCalled();
+  });
+
+  it('decline rejects a non-string reason', async () => {
+    pendingApp();
+    await expect(svc.decline('u1' as never, { reason: 42 as never })).rejects.toThrow(
+      DeclineReasonInvalidException,
+    );
+    expect(firestore.runTransaction).not.toHaveBeenCalled();
   });
 
   it('decline: missing app -> ApplicationNotFoundException', async () => {
@@ -341,7 +476,7 @@ describe('AdminInstructorApplicationService', () => {
       get: vi.fn(async () => ({ exists: false, data: () => undefined })),
       update: vi.fn(),
     };
-    await expect(svc.decline('u1' as never)).rejects.toThrow(ApplicationNotFoundException);
+    await expect(svc.decline('u1' as never, {})).rejects.toThrow(ApplicationNotFoundException);
     expect(email.sendInstructorApplicationDeclinedEmail).not.toHaveBeenCalled();
   });
 
@@ -350,7 +485,7 @@ describe('AdminInstructorApplicationService', () => {
       get: vi.fn(async () => ({ exists: true, data: () => ({ status: 'DECLINED' }) })),
       update: vi.fn(),
     };
-    await expect(svc.decline('u1' as never)).rejects.toThrow(ApplicationNotPendingException);
+    await expect(svc.decline('u1' as never, {})).rejects.toThrow(ApplicationNotPendingException);
   });
 
   // Simulates the losing request in a concurrent approve/decline or
@@ -361,7 +496,7 @@ describe('AdminInstructorApplicationService', () => {
       update: vi.fn(async () => undefined),
     };
 
-    await expect(svc.decline('u1' as never)).rejects.toThrow(ApplicationNotPendingException);
+    await expect(svc.decline('u1' as never, {})).rejects.toThrow(ApplicationNotPendingException);
     expect(email.sendInstructorApplicationDeclinedEmail).not.toHaveBeenCalled();
   });
 
@@ -403,7 +538,7 @@ describe('AdminInstructorApplicationService', () => {
     // Spy the logger so the (otherwise no-op) catch BODY is asserted.
     const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
-    const view = await svc.decline('u1' as never);
+    const view = await svc.decline('u1' as never, {});
 
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: 'DECLINED' }));
     expect(view.status).toBe('DECLINED');
@@ -430,7 +565,7 @@ describe('AdminInstructorApplicationService', () => {
       throw getUserError;
     });
 
-    const view = await svc.decline('u1' as never);
+    const view = await svc.decline('u1' as never, {});
 
     expect(view.status).toBe('DECLINED');
     expect(email.sendInstructorApplicationDeclinedEmail).not.toHaveBeenCalled();
@@ -456,7 +591,7 @@ describe('AdminInstructorApplicationService', () => {
     // "Cannot read properties of null", not "user not found".
     const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
-    const view = await svc.decline('u1' as never);
+    const view = await svc.decline('u1' as never, {});
 
     expect(view.status).toBe('DECLINED');
     expect(email.sendInstructorApplicationDeclinedEmail).not.toHaveBeenCalled();

@@ -427,8 +427,13 @@ Platform Health, 2026-07-17).
   - `pnpm tools:promote-to-admin <email>` provisions new ADMINs.
   - `pnpm tools:promote-to-instructor <email>` also resolves a pending application to
     `APPROVED` (unchanged from before this feature).
-- **Deliberate scope cuts** — the queue shows only `PENDING` applications (no
-  approved/declined history view); no decline-reason field.
+- **Follow-up shipped 2026-10-08** — the page filters by status (Pending /
+  Approved / Declined) via `GET /api/admin/instructor-applications?status=…`, and
+  Decline takes an optional reason (≤ 2000 chars) that is stored, emailed, and
+  shown to the applicant. Goes beyond the AC (which asks only for the pending
+  queue and a decision email); no AC changes.
+- **Remaining scope cuts** — history holds each applicant's latest decision only
+  (re-applying replaces it); no approval note.
 - Design spec: `docs/superpowers/specs/2026-05-29-us-08-03-review-instructor-applications-design.md`
 - Implementation plan: `docs/superpowers/plans/2026-05-29-us-08-03-review-instructor-applications.md`
 

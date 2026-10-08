@@ -31,6 +31,8 @@ export interface InstructorApplicationApprovedEmailInput {
 
 export interface InstructorApplicationDeclinedEmailInput {
   to: string;
+  /** Optional reviewer note; omitted when the admin left none. */
+  reason?: string;
 }
 
 export interface NewModuleEmailInput {

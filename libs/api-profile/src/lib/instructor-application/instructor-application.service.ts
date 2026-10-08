@@ -38,6 +38,7 @@ export class InstructorApplicationService {
       statement: data.statement,
       expertise: data.expertise,
       createdAt: data.createdAt,
+      ...(data.declineReason ? { declineReason: data.declineReason } : {}),
     };
   }
 

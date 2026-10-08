@@ -7,6 +7,8 @@ import {
   ApplicationNotFoundException,
   ApplicationNotPendingException,
   ApplicantNotVerifiedException,
+  DeclineReasonInvalidException,
+  InvalidStatusFilterException,
 } from './errors/admin-instructor-application.exception';
 import { AuthException } from '@learnwren/api-auth';
 
@@ -20,6 +22,16 @@ function mockHost() {
 }
 
 describe('AdminInstructorApplicationExceptionFilter', () => {
+  it.each([
+    [new DeclineReasonInvalidException(), 'DECLINE_REASON_INVALID'],
+    [new InvalidStatusFilterException(), 'INVALID_STATUS_FILTER'],
+  ])('renders %s as HTTP 400 with its code', (exception, code) => {
+    const { host, status, json } = mockHost();
+    new AdminInstructorApplicationExceptionFilter().catch(exception, host);
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ error: expect.objectContaining({ code }) });
+  });
+
   it('renders ApplicationNotFoundException as HTTP 404 with APPLICATION_NOT_FOUND', () => {
     const { host, status, json } = mockHost();
     new AdminInstructorApplicationExceptionFilter().catch(
