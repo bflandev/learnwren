@@ -139,8 +139,8 @@ describe('PlaybackController.captions', () => {
       captionsSvc as unknown as CaptionsService,
     );
     const res = makeRes();
-    await ctrl.captions(VIDEO, res as unknown as import('express').Response);
-    expect(captionsSvc.getForDelivery).toHaveBeenCalledWith(VIDEO.id);
+    await ctrl.captions(VIDEO, 'fr', res as unknown as import('express').Response);
+    expect(captionsSvc.getForDelivery).toHaveBeenCalledWith(VIDEO.id, 'fr');
     expect(res.headers['content-type']).toBe('text/vtt; charset=utf-8');
     expect(res.headers['cache-control']).toBe('private, no-store');
     expect(res.send).toHaveBeenCalledWith('WEBVTT\nhi');
@@ -154,7 +154,7 @@ describe('PlaybackController.captions', () => {
       captionsSvc as unknown as CaptionsService,
     );
     await expect(
-      ctrl.captions(VIDEO, makeRes() as unknown as import('express').Response),
+      ctrl.captions(VIDEO, 'fr', makeRes() as unknown as import('express').Response),
     ).rejects.toBeInstanceOf(CaptionsNotFoundException);
   });
 });

@@ -177,6 +177,18 @@ export class CaptionsNotFoundException extends VideoException {
   }
 }
 
+export class InvalidCaptionLanguageException extends VideoException {
+  constructor() {
+    super('INVALID_CAPTION_LANGUAGE', 'Caption language must be a known BCP-47 language tag.', 400);
+  }
+}
+
+export class CaptionTrackLimitException extends VideoException {
+  constructor(max: number) {
+    super('CAPTION_TRACK_LIMIT', `A video can have at most ${max} caption tracks.`, 400);
+  }
+}
+
 export class UploadCompletionInProgressException extends VideoException {
   constructor() {
     super(

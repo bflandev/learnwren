@@ -68,7 +68,7 @@
           @if (state() === 'READY' && v.lesson.videoId; as vid) {
             <lib-video-player
               [videoId]="vid"
-              [captions]="captionsTrack()"
+              [captions]="captionTracks()"
               (metadata)="onMetadata()"
               (played)="onPlayed()"
               (paused)="onPaused()"

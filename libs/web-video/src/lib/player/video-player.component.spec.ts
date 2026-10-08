@@ -252,7 +252,7 @@ describe('VideoPlayerComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Test error message');
   });
 
-  it('renders a <track> when captions are provided', () => {
+  it('renders one <track> per caption track', () => {
     const stub = makeStubService();
     TestBed.configureTestingModule({
       imports: [VideoPlayerComponent],
@@ -260,19 +260,22 @@ describe('VideoPlayerComponent', () => {
     });
     const fixture = TestBed.createComponent(VideoPlayerComponent);
     fixture.componentRef.setInput('videoId', 'v1' as VideoId);
-    fixture.componentRef.setInput('captions', {
-      src: '/api/playback/captions/v1', srclang: 'en', label: 'English',
-    });
+    fixture.componentRef.setInput('captions', [
+      { src: '/api/playback/captions/v1/en', srclang: 'en', label: 'English' },
+      { src: '/api/playback/captions/v1/fr', srclang: 'fr', label: 'French' },
+    ]);
     fixture.detectChanges();
-    const track = fixture.nativeElement.querySelector('track');
-    expect(track).not.toBeNull();
-    expect(track.getAttribute('src')).toBe('/api/playback/captions/v1');
+    const tracks = fixture.nativeElement.querySelectorAll('track');
+    expect(tracks).toHaveLength(2);
+    expect(tracks[1].getAttribute('srclang')).toBe('fr');
+    const track = tracks[0];
+    expect(track.getAttribute('src')).toBe('/api/playback/captions/v1/en');
     expect(track.getAttribute('srclang')).toBe('en');
     expect(track.getAttribute('label')).toBe('English');
     expect(track.getAttribute('kind')).toBe('subtitles');
   });
 
-  it('renders no <track> when captions are null', () => {
+  it('renders no <track> when there are no captions', () => {
     const stub = makeStubService();
     TestBed.configureTestingModule({
       imports: [VideoPlayerComponent],
@@ -280,7 +283,7 @@ describe('VideoPlayerComponent', () => {
     });
     const fixture = TestBed.createComponent(VideoPlayerComponent);
     fixture.componentRef.setInput('videoId', 'v1' as VideoId);
-    fixture.componentRef.setInput('captions', null);
+    fixture.componentRef.setInput('captions', []);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('track')).toBeNull();
   });

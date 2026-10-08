@@ -7,6 +7,8 @@ export type {
 export { VideoUploadComponent } from './lib/upload/video-upload.component';
 export { VideoStateBadgeComponent } from './lib/video-state-badge.component';
 export { VideoPlayerComponent } from './lib/player/video-player.component';
+export { toCaptionTracks } from './lib/player/caption-tracks';
+export type { CaptionTrack } from './lib/player/caption-tracks';
 export { VideoPlayerService } from './lib/player/video-player.service';
 export type { PlayerHandle, PlayerHooks } from './lib/player/video-player.service';
 export { PlaybackConfigService } from './lib/playback-config.service';

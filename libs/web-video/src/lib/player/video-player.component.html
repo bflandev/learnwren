@@ -7,7 +7,7 @@
     class="block w-full"
     data-testid="video-player"
   >
-    @if (captions(); as c) {
+    @for (c of captions(); track c.srclang) {
       <track kind="subtitles" [src]="c.src" [srclang]="c.srclang" [label]="c.label" />
     }
   </video>

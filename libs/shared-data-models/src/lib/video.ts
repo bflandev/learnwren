@@ -75,21 +75,44 @@ export interface VideoKey {
 }
 
 /**
- * One caption/subtitle track for a video. Stored in the `videoCaptions`
- * collection with document id === videoId (strict 1:1). `content` is raw
- * WebVTT text (≤ 256 KB; well under Firestore's 1 MB document limit).
+ * One caption/subtitle track for a video, one per (videoId, language). Stored in
+ * the `videoCaptions` collection with document id `${videoId}_${language}`;
+ * tracks written before multi-language support keep their legacy id === videoId
+ * (always language 'en'), so readers find tracks by the `videoId` field, never by
+ * id. `content` is raw WebVTT text (≤ 256 KB; well under Firestore's 1 MB limit).
  */
 export interface VideoCaptions {
   videoId: VideoId;
-  language: string; // BCP-47; fixed 'en' in the first slice
-  label: string; // display label, e.g. 'English'
+  language: string; // canonical BCP-47, e.g. 'en', 'pt-BR'
+  label: string; // English display name derived from `language`, e.g. 'Brazilian Portuguese'
   format: 'vtt';
   content: string;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
 
-/** Metadata projection of VideoCaptions (no VTT body). */
+/** Upper bound on caption tracks per video; keeps the lesson payload small. */
+export const MAX_CAPTION_TRACKS = 20;
+
+/**
+ * Canonicalise a BCP-47 tag and derive its English display label, or null when
+ * the tag is malformed or names no known language. Shared by the API (validation)
+ * and the web (language picker) so both agree on codes and labels.
+ */
+export function resolveCaptionLanguage(raw: string): { language: string; label: string } | null {
+  let language: string | undefined;
+  try {
+    [language] = Intl.getCanonicalLocales(raw);
+  } catch {
+    // Malformed tag: `language` stays undefined and we return null below.
+  }
+  const label = language
+    ? // Stryker disable next-line ArrayDeclaration: equivalent under the en-US test runtime — [] falls back to the default locale, which is English there
+      new Intl.DisplayNames(['en'], { type: 'language', fallback: 'none' }).of(language)
+    : undefined;
+  return language && label ? { language, label } : null;
+}
+
 export type VideoCaptionsMeta = Pick<VideoCaptions, 'language' | 'label' | 'updatedAt'>;
 
 /**

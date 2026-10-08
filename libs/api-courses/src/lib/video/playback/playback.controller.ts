@@ -94,9 +94,13 @@ export class PlaybackController {
     res.end(buf);
   }
 
-  @Get('captions/:vid')
-  async captions(@CurrentVideo() video: Video, @Res() res: Response): Promise<void> {
-    const captions = await this.captionsSvc.getForDelivery(video.id);
+  @Get('captions/:vid/:lang')
+  async captions(
+    @CurrentVideo() video: Video,
+    @Param('lang') lang: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const captions = await this.captionsSvc.getForDelivery(video.id, lang);
     if (!captions) throw new CaptionsNotFoundException();
     res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
     res.setHeader('Cache-Control', 'private, no-store');

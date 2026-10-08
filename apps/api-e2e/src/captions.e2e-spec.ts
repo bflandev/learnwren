@@ -82,67 +82,89 @@ async function seedLessonWithReadyVideo(args: {
 
 const VALID_VTT = 'WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nHello\n';
 
-test('owner can upload captions, fetch meta, and stream delivery', async ({ request }) => {
+type TrackMeta = { language: string; label: string; updatedAt: string };
+type Session = { cookieHeader: string };
+type Request = import('@playwright/test').APIRequestContext;
+
+function putTrack(request: Request, who: Session, videoId: string, lang: string, body = VALID_VTT) {
+  return request.put(`${API_BASE}/videos/${videoId}/captions/${lang}`, {
+    headers: { Cookie: who.cookieHeader },
+    multipart: { file: { name: 'captions.vtt', mimeType: 'text/vtt', buffer: Buffer.from(body) } },
+  });
+}
+
+function listTracks(request: Request, who: Session, videoId: string) {
+  return request.get(`${API_BASE}/videos/${videoId}/captions`, { headers: { Cookie: who.cookieHeader } });
+}
+
+function deliver(request: Request, who: Session, videoId: string, lang: string) {
+  return request.get(`${API_BASE}/playback/captions/${videoId}/${lang}`, { headers: { Cookie: who.cookieHeader } });
+}
+
+test('owner uploads two languages, lists both, and streams each', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
   const { videoId } = await seedLessonWithReadyVideo({ courseId, instructorId: instructor.uid });
 
-  // PUT — upload VTT file
-  const put = await request.put(`${API_BASE}/videos/${videoId}/captions`, {
-    headers: { Cookie: instructor.cookieHeader },
-    multipart: { file: { name: 'captions.vtt', mimeType: 'text/vtt', buffer: Buffer.from(VALID_VTT) } },
-  });
-  expect(put.status()).toBe(200);
-  const putBody = (await put.json()) as { language: string; label: string; updatedAt: string };
-  expect(putBody.language).toBe('en');
-  expect(putBody.label).toBe('English');
-  expect(putBody.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  const en = await putTrack(request, instructor, videoId, 'en');
+  expect(en.status()).toBe(200);
+  const enBody = (await en.json()) as TrackMeta;
+  expect(enBody).toMatchObject({ language: 'en', label: 'English' });
+  expect(enBody.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
-  // GET meta — owner reads caption metadata
-  const meta = await request.get(`${API_BASE}/videos/${videoId}/captions`, {
-    headers: { Cookie: instructor.cookieHeader },
-  });
-  expect(meta.status()).toBe(200);
-  const metaBody = (await meta.json()) as { language: string; label: string; updatedAt: string };
-  expect(metaBody.language).toBe('en');
-  expect(metaBody.label).toBe('English');
-  expect(metaBody.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  // Tag is canonicalised server-side.
+  const pt = await putTrack(request, instructor, videoId, 'pt-br', VALID_VTT.replace('Hello', 'Olá'));
+  expect(pt.status()).toBe(200);
+  expect((await pt.json()) as TrackMeta).toMatchObject({ language: 'pt-BR', label: 'Brazilian Portuguese' });
 
-  // GET delivery — owner streams the VTT file via playback endpoint
-  const delivery = await request.get(`${API_BASE}/playback/captions/${videoId}`, {
-    headers: { Cookie: instructor.cookieHeader },
-  });
-  expect(delivery.status()).toBe(200);
-  expect(delivery.headers()['content-type']).toMatch(/text\/vtt/);
-  expect(await delivery.text()).toContain('WEBVTT');
+  const list = await listTracks(request, instructor, videoId);
+  expect(list.status()).toBe(200);
+  expect(((await list.json()) as TrackMeta[]).map((t) => t.language)).toEqual(['pt-BR', 'en']);
+
+  const ptDelivery = await deliver(request, instructor, videoId, 'pt-BR');
+  expect(ptDelivery.status()).toBe(200);
+  expect(ptDelivery.headers()['content-type']).toMatch(/text\/vtt/);
+  expect(await ptDelivery.text()).toContain('Olá');
+  expect(await (await deliver(request, instructor, videoId, 'en')).text()).toContain('Hello');
 });
 
-test('invalid VTT is rejected with INVALID_CAPTION_FILE', async ({ request }) => {
+test('a legacy single-track doc (id === videoId) is listed and replaced in place', async ({ request }) => {
+  const instructor = await registerAndPromoteInstructor(request);
+  const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
+  const { videoId } = await seedLessonWithReadyVideo({ courseId, instructorId: instructor.uid });
+  const now = new Date().toISOString();
+  await seam.setDoc(`videoCaptions/${videoId}`, {
+    videoId, language: 'en', label: 'English', format: 'vtt', content: 'WEBVTT\n\nlegacy', createdAt: now, updatedAt: now,
+  });
+
+  expect(await (await deliver(request, instructor, videoId, 'en')).text()).toContain('legacy');
+  expect((await putTrack(request, instructor, videoId, 'en')).status()).toBe(200);
+
+  const list = (await (await listTracks(request, instructor, videoId)).json()) as TrackMeta[];
+  expect(list).toHaveLength(1);
+  expect(await (await deliver(request, instructor, videoId, 'en')).text()).toContain('Hello');
+});
+
+test('invalid VTT and unknown language are rejected with typed codes', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
   const { videoId } = await seedLessonWithReadyVideo({ courseId, instructorId: instructor.uid });
 
-  const r = await request.put(`${API_BASE}/videos/${videoId}/captions`, {
-    headers: { Cookie: instructor.cookieHeader },
-    multipart: { file: { name: 'bad.vtt', mimeType: 'text/vtt', buffer: Buffer.from('not a vtt file') } },
-  });
-  expect(r.status()).toBe(400);
-  expect(((await r.json()) as { error: { code: string } }).error.code).toBe('INVALID_CAPTION_FILE');
+  const badFile = await putTrack(request, instructor, videoId, 'en', 'not a vtt file');
+  expect(badFile.status()).toBe(400);
+  expect(((await badFile.json()) as { error: { code: string } }).error.code).toBe('INVALID_CAPTION_FILE');
+
+  const badLang = await putTrack(request, instructor, videoId, 'xx');
+  expect(badLang.status()).toBe(400);
+  expect(((await badLang.json()) as { error: { code: string } }).error.code).toBe('INVALID_CAPTION_LANGUAGE');
 });
 
 test('enrolled student can fetch captions; non-enrolled student gets 403', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
   const { videoId } = await seedLessonWithReadyVideo({ courseId, instructorId: instructor.uid });
+  expect((await putTrack(request, instructor, videoId, 'fr')).status()).toBe(200);
 
-  // Upload captions as instructor
-  const put = await request.put(`${API_BASE}/videos/${videoId}/captions`, {
-    headers: { Cookie: instructor.cookieHeader },
-    multipart: { file: { name: 'captions.vtt', mimeType: 'text/vtt', buffer: Buffer.from(VALID_VTT) } },
-  });
-  expect(put.status()).toBe(200);
-
-  // Enrol a student
   const student = await registerStudent(request);
   const enrol = await request.post(`${API_BASE}/enrollments`, {
     headers: { Cookie: student.cookieHeader },
@@ -150,56 +172,34 @@ test('enrolled student can fetch captions; non-enrolled student gets 403', async
   });
   expect(enrol.status()).toBe(201);
 
-  // Enrolled student can stream captions
-  const studentDelivery = await request.get(`${API_BASE}/playback/captions/${videoId}`, {
-    headers: { Cookie: student.cookieHeader },
-  });
+  const studentDelivery = await deliver(request, student, videoId, 'fr');
   expect(studentDelivery.status()).toBe(200);
   expect(await studentDelivery.text()).toContain('WEBVTT');
 
-  // Non-enrolled student cannot
   const other = await registerStudent(request);
-  const otherDelivery = await request.get(`${API_BASE}/playback/captions/${videoId}`, {
-    headers: { Cookie: other.cookieHeader },
-  });
+  const otherDelivery = await deliver(request, other, videoId, 'fr');
   expect(otherDelivery.status()).toBe(403);
   expect(((await otherDelivery.json()) as { error: { code: string } }).error.code).toBe('NOT_VIDEO_OWNER');
 });
 
-test('delete captions then delivery returns 404 CAPTIONS_NOT_FOUND, meta returns null', async ({ request }) => {
+test('deleting one language leaves the others; its delivery returns 404 CAPTIONS_NOT_FOUND', async ({ request }) => {
   const instructor = await registerAndPromoteInstructor(request);
   const courseId = await seedCourse({ status: 'PUBLISHED', instructorId: instructor.uid });
   const { videoId } = await seedLessonWithReadyVideo({ courseId, instructorId: instructor.uid });
+  expect((await putTrack(request, instructor, videoId, 'en')).status()).toBe(200);
+  expect((await putTrack(request, instructor, videoId, 'fr')).status()).toBe(200);
 
-  // Upload captions
-  const put = await request.put(`${API_BASE}/videos/${videoId}/captions`, {
-    headers: { Cookie: instructor.cookieHeader },
-    multipart: { file: { name: 'captions.vtt', mimeType: 'text/vtt', buffer: Buffer.from(VALID_VTT) } },
-  });
-  expect(put.status()).toBe(200);
-
-  // DELETE captions
-  const del = await request.delete(`${API_BASE}/videos/${videoId}/captions`, {
+  const del = await request.delete(`${API_BASE}/videos/${videoId}/captions/en`, {
     headers: { Cookie: instructor.cookieHeader },
   });
   expect(del.status()).toBe(204);
 
-  // Delivery endpoint returns 404 with CAPTIONS_NOT_FOUND
-  const delivery = await request.get(`${API_BASE}/playback/captions/${videoId}`, {
-    headers: { Cookie: instructor.cookieHeader },
-  });
+  const delivery = await deliver(request, instructor, videoId, 'en');
   expect(delivery.status()).toBe(404);
   expect(((await delivery.json()) as { error: { code: string } }).error.code).toBe('CAPTIONS_NOT_FOUND');
 
-  // Meta endpoint returns null (NestJS serialises null as an empty body)
-  const meta = await request.get(`${API_BASE}/videos/${videoId}/captions`, {
-    headers: { Cookie: instructor.cookieHeader },
-  });
-  expect(meta.status()).toBe(200);
-  const metaText = await meta.text();
-  // NestJS renders a null return as either an empty body or the literal "null";
-  // either is acceptable — both signal "no captions".
-  expect(metaText === '' || metaText === 'null').toBe(true);
+  const list = (await (await listTracks(request, instructor, videoId)).json()) as TrackMeta[];
+  expect(list.map((t) => t.language)).toEqual(['fr']);
 });
 
 test('401 unauthenticated for captions endpoints', async ({ request }) => {
@@ -208,7 +208,7 @@ test('401 unauthenticated for captions endpoints', async ({ request }) => {
   const { videoId } = await seedLessonWithReadyVideo({ courseId, instructorId: instructor.uid });
 
   await withAnonRequest(async (anon) => {
-    const delivery = await anon.get(`${API_BASE}/playback/captions/${videoId}`);
+    const delivery = await anon.get(`${API_BASE}/playback/captions/${videoId}/en`);
     expect(delivery.status()).toBe(401);
 
     const metaAnon = await anon.get(`${API_BASE}/videos/${videoId}/captions`);

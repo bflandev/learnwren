@@ -1,21 +1,47 @@
 <div class="rounded border border-line p-3" data-testid="captions-panel">
-  @if (meta(); as m) {
-    <div data-testid="captions-present" class="flex flex-wrap items-center gap-3">
-      <span class="text-sm text-ink">Captions: {{ m.label }}</span>
-      <label class="inline-block cursor-pointer" data-testid="captions-replace">
-        <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy()" />
-        <span hlmBtn variant="secondary" size="sm">Replace</span>
-      </label>
-      <button hlmBtn variant="destructive" size="sm" type="button" [disabled]="busy()" (click)="onRemove()" data-testid="captions-remove">
-        Remove
-      </button>
-    </div>
-  } @else {
-    <label class="inline-block cursor-pointer" data-testid="captions-add">
-      <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy()" />
-      <span hlmBtn variant="secondary" size="sm">Add captions (.vtt)</span>
-    </label>
+  @if (tracks().length > 0) {
+    <ul class="mb-3 flex flex-col gap-2" aria-label="Caption tracks">
+      @for (t of tracks(); track t.language) {
+        <li data-testid="captions-track" class="flex flex-wrap items-center gap-3">
+          <span class="text-sm text-ink">Captions: {{ t.label }}</span>
+          <button
+            hlmBtn
+            variant="destructive"
+            size="sm"
+            type="button"
+            [disabled]="busy()"
+            [attr.aria-label]="'Remove ' + t.label + ' captions'"
+            (click)="onRemove(t.language)"
+            data-testid="captions-remove"
+          >
+            Remove
+          </button>
+        </li>
+      }
+    </ul>
   }
+  <div class="flex flex-wrap items-center gap-3" data-testid="captions-add">
+    <label class="flex items-center gap-2 text-sm text-ink">
+      Language
+      <select
+        hlmInput
+        class="w-auto"
+        [value]="language()"
+        [disabled]="busy()"
+        (change)="onLanguageChange($event)"
+        data-testid="captions-language"
+      >
+        @for (o of languageOptions; track o.language) {
+          <option [value]="o.language" [selected]="o.language === language()">{{ o.label }}</option>
+        }
+      </select>
+    </label>
+    <label class="inline-block cursor-pointer">
+      <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy()" />
+      <span hlmBtn variant="secondary" size="sm">Upload captions (.vtt)</span>
+    </label>
+  </div>
+  <p class="mt-1 text-xs text-muted-foreground">Uploading a language that already has captions replaces them.</p>
   @if (error(); as e) {
     <p data-testid="captions-error" class="mt-2 text-sm text-bad">{{ e }}</p>
   }

@@ -47,8 +47,8 @@ export interface LessonView {
     description?: string;
     videoId: VideoId | null;
     videoState: VideoState | null;
-    /** Caption track metadata for the player, or null when none. */
-    captions: { language: string; label: string } | null;
+    /** Caption tracks for the player, sorted by label; empty when none. */
+    captions: { language: string; label: string }[];
   };
   progress?: {
     completedAt: ISODateString | null;

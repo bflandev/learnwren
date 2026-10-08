@@ -8,6 +8,8 @@ import {
   CATEGORIES,
   CATALOG_LIST,
   COURSE_CARD,
+  COURSE_TREE,
+  NOW,
   type RouteFixture,
 } from '../_helpers/route-inventory';
 
@@ -79,6 +81,36 @@ test('learn page with the outline drawer closed has no WCAG 2.1 AA violations', 
  * click), so the base "course editor" scan above already covers them. This
  * second scan adds the rename-input edit state on top.
  */
+/**
+ * The base course-editor fixture's lesson has no video, so the captions panel
+ * (language picker + per-track Remove buttons) only renders here: the lesson
+ * gets a TRANSCODING video (badge, not player — no hls.js) with two tracks.
+ */
+test('course editor with a video and two caption tracks has no WCAG 2.1 AA violations', async ({ page }) => {
+  const route = AUTHED_ROUTES.find((r) => r.name === 'course editor');
+  if (!route) throw new Error('course editor route missing from AUTHED_ROUTES');
+  await stubAuth(page, route.role);
+  await route.stubs?.(page);
+  // Registered after the base stubs so they win (Playwright matches in reverse order).
+  const [mod] = COURSE_TREE.modules;
+  await stubJson(page, '**/api/courses/c-1', {
+    ...COURSE_TREE,
+    modules: [{ ...mod, lessons: mod!.lessons.map((l) => ({ ...l, videoId: 'v-1' })) }],
+  });
+  await stubJson(page, '**/api/videos/v-1', {
+    id: 'v-1', ownerInstructorId: 'a11y-instructor', courseId: 'c-1', lessonId: 'l-1',
+    state: 'TRANSCODING', source: { bucket: 'b', path: 'p' }, createdAt: NOW, updatedAt: NOW,
+  });
+  await stubJson(page, '**/api/videos/v-1/captions', [
+    { language: 'en', label: 'English', updatedAt: NOW },
+    { language: 'fr', label: 'French', updatedAt: NOW },
+  ]);
+  await page.goto(route.path);
+  await expect(page.getByRole('button', { name: 'Remove French captions' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Language' })).toBeVisible();
+  await scanA11y(page);
+});
+
 test('course editor with a lesson renamed has no WCAG 2.1 AA violations', async ({ page }) => {
   const route = AUTHED_ROUTES.find((r) => r.name === 'course editor');
   if (!route) throw new Error('course editor route missing from AUTHED_ROUTES');

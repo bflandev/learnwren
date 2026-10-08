@@ -12,14 +12,15 @@ import type {
   LessonId,
   Video,
   VideoCaptions,
-  VideoCaptionsMeta,
   VideoId,
   VideoKey,
   VideoKeyId,
   VideoState,
 } from '@learnwren/shared-data-models';
+import { MAX_CAPTION_TRACKS } from '@learnwren/shared-data-models';
 
 import {
+  CaptionTrackLimitException,
   InvalidVideoStateException,
   LessonAlreadyHasVideoException,
   UploadCompletionInProgressException,
@@ -40,8 +41,13 @@ export class VideoRepository {
     return this.db.collection('videoKeys').doc(kid);
   }
 
-  private videoCaptionsRef(vid: VideoId) {
-    return this.db.collection('videoCaptions').doc(vid);
+  private videoCaptionsRef(vid: VideoId, language: string) {
+    return this.db.collection('videoCaptions').doc(`${vid}_${language}`);
+  }
+
+  /** All tracks of a video, legacy bare-id docs included (see VideoCaptions). */
+  private captionsByVideoQuery(vid: VideoId) {
+    return this.db.collection('videoCaptions').where('videoId', '==', vid);
   }
 
   /**
@@ -171,39 +177,51 @@ export class VideoRepository {
     await this.videoRef(vid).update({ completeClaimedAt: DELETE_FIELD });
   }
 
-  async getCaptions(vid: VideoId): Promise<VideoCaptions | null> {
-    const snap = await this.videoCaptionsRef(vid).get();
-    return snap.exists ? (snap.data() as VideoCaptions) : null;
+  async listCaptions(vid: VideoId): Promise<VideoCaptions[]> {
+    const snap = await this.captionsByVideoQuery(vid).get();
+    return snap.docs.map((d) => d.data() as VideoCaptions);
   }
 
-  async getCaptionsMeta(vid: VideoId): Promise<VideoCaptionsMeta | null> {
-    const captions = await this.getCaptions(vid);
-    if (!captions) return null;
-    return { language: captions.language, label: captions.label, updatedAt: captions.updatedAt };
+  async getCaptions(vid: VideoId, language: string): Promise<VideoCaptions | null> {
+    const tracks = await this.listCaptions(vid);
+    return tracks.find((c) => c.language === language) ?? null;
   }
 
   /**
    * Transactional upsert: the video doc is read in the same txn so a PUT
    * racing deleteVideoAndDetach (which deletes captions in ITS txn) cannot
-   * recreate an orphan videoCaptions doc. An existing doc's createdAt is
-   * preserved; `captions.createdAt` is only the create-case fallback.
+   * recreate an orphan track. A track of the same language is overwritten in
+   * place (whatever its id, so a legacy bare-id doc is replaced, not
+   * duplicated) and keeps its createdAt; `captions.createdAt` is only the
+   * create-case fallback. A new language past MAX_CAPTION_TRACKS is rejected.
    */
   async upsertCaptions(captions: VideoCaptions): Promise<void> {
     const videoRef = this.videoRef(captions.videoId);
-    const capRef = this.videoCaptionsRef(captions.videoId);
     await this.db.runTransaction(async (tx) => {
       const videoSnap = await tx.get(videoRef);
       if (!videoSnap.exists) throw new VideoNotFoundException();
-      const existingSnap = await tx.get(capRef);
-      const createdAt = existingSnap.exists
-        ? (existingSnap.data() as VideoCaptions).createdAt
+      const tracks = await tx.get(this.captionsByVideoQuery(captions.videoId));
+      const existing = tracks.docs.find(
+        (d) => (d.data() as VideoCaptions).language === captions.language,
+      );
+      if (!existing && tracks.docs.length >= MAX_CAPTION_TRACKS) {
+        throw new CaptionTrackLimitException(MAX_CAPTION_TRACKS);
+      }
+      const createdAt = existing
+        ? (existing.data() as VideoCaptions).createdAt
         : captions.createdAt;
-      tx.set(capRef, { ...captions, createdAt });
+      const ref = existing?.ref ?? this.videoCaptionsRef(captions.videoId, captions.language);
+      tx.set(ref, { ...captions, createdAt });
     });
   }
 
-  async deleteCaptions(vid: VideoId): Promise<void> {
-    await this.videoCaptionsRef(vid).delete();
+  async deleteCaptions(vid: VideoId, language: string): Promise<void> {
+    const snap = await this.captionsByVideoQuery(vid).get();
+    await Promise.all(
+      snap.docs
+        .filter((d) => (d.data() as VideoCaptions).language === language)
+        .map((d) => d.ref.delete()),
+    );
   }
 
   async finalizeUploadWithJob(args: {
@@ -363,9 +381,10 @@ export class VideoRepository {
     await this.db.runTransaction(async (tx) => {
       const lessonSnap = await tx.get(lessonQ);
       const keySnap = await tx.get(keyQ);
+      const captionsSnap = await tx.get(this.captionsByVideoQuery(vid));
 
       tx.delete(videoRef);
-      tx.delete(this.videoCaptionsRef(vid)); // no-op if absent
+      for (const track of captionsSnap.docs) tx.delete(track.ref);
       if (!keySnap.empty) tx.delete(keySnap.docs[0]!.ref);
       if (!lessonSnap.empty) {
         const lesson = lessonSnap.docs[0]!;

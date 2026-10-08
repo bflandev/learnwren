@@ -136,7 +136,7 @@ export const LESSON_PAYLOAD = {
     title: 'Getting started',
     videoId: null,
     videoState: null,
-    captions: null,
+    captions: [],
   },
   progress: { completedAt: null, lastWatchedSeconds: 0 },
   outline: {

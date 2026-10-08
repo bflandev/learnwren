@@ -23,7 +23,7 @@ import type {
   MaterialId,
 } from '@learnwren/shared-data-models';
 import { HlmAlert, HlmBadge, HlmButton, HlmCard } from '@learnwren/web-ui';
-import { VideoPlayerComponent } from '@learnwren/web-video';
+import { VideoPlayerComponent, toCaptionTracks, type CaptionTrack } from '@learnwren/web-video';
 
 import { CourseOutlinePanelComponent } from '../course-outline-panel/course-outline-panel.component';
 import { LearnService } from '../learn.service';
@@ -92,10 +92,9 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   readonly formatBytes = formatBytes;
 
   readonly outline = computed<CourseOutline | null>(() => this.view()?.outline ?? null);
-  readonly captionsTrack = computed<{ src: string; srclang: string; label: string } | null>(() => {
+  readonly captionTracks = computed<CaptionTrack[]>(() => {
     const l = this.view()?.lesson;
-    if (!l?.videoId || !l.captions) return null;
-    return { src: `/api/playback/captions/${l.videoId}`, srclang: l.captions.language, label: l.captions.label };
+    return l?.videoId ? toCaptionTracks(l.videoId, l.captions) : [];
   });
   // A single MediaQueryList drives the responsive layout reactively. matchMedia
   // results are NOT signal dependencies, so reading them directly inside a
