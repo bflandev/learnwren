@@ -29,8 +29,12 @@ const PENDING_APPLICATION = {
   email: 'applicant@example.com',
   statement: 'I want to teach mathematics',
   expertise: 'Mathematics',
+  status: 'PENDING',
   createdAt: '2026-05-29T10:00:00.000Z',
 };
+
+// The list URL carries ?status=…; a glob on the bare path would not match it.
+const LIST_URL = (url: URL): boolean => url.pathname === '/api/admin/instructor-applications';
 
 test('admin sees the pending queue and can approve an application', async ({ page }) => {
   // Track which applications remain in the queue.
@@ -46,7 +50,7 @@ test('admin sees the pending queue and can approve an application', async ({ pag
   });
 
   // 2. Stub GET /api/admin/instructor-applications → return pending queue.
-  await page.route('**/api/admin/instructor-applications', (route) => {
+  await page.route(LIST_URL, (route) => {
     if (route.request().method() !== 'GET') {
       void route.continue();
       return;
@@ -99,7 +103,7 @@ test('admin sees the empty state when the queue is empty', async ({ page }) => {
   });
 
   // 2. Stub GET /api/admin/instructor-applications → empty queue.
-  await page.route('**/api/admin/instructor-applications', (route) => {
+  await page.route(LIST_URL, (route) => {
     if (route.request().method() !== 'GET') {
       void route.continue();
       return;
@@ -135,4 +139,42 @@ test('non-admin (STUDENT) navigating to /admin/instructor-applications is redire
   // adminRoleGuard redirects non-admins to /dashboard.
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
   await expect(page.getByTestId('application-list')).toHaveCount(0);
+});
+
+test('admin declines with a reason, then finds it under Declined', async ({ page }) => {
+  let declined: Array<Record<string, string>> = [];
+  let declineBody: unknown;
+
+  await page.route('**/api/auth/me', (route) => {
+    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ADMIN_ME_STUB) });
+  });
+  await page.route(LIST_URL, (route) => {
+    const status = new URL(route.request().url()).searchParams.get('status');
+    const applications = status === 'DECLINED' ? declined : declined.length ? [] : [PENDING_APPLICATION];
+    void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ applications }) });
+  });
+  await page.route('**/api/admin/instructor-applications/**/decline', (route) => {
+    declineBody = route.request().postDataJSON();
+    declined = [
+      {
+        ...PENDING_APPLICATION,
+        status: 'DECLINED',
+        resolvedAt: '2026-06-03T10:00:00.000Z',
+        declineReason: 'Please add a sample syllabus.',
+      },
+    ];
+    void route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ status: 'DECLINED' }) });
+  });
+
+  await page.goto('/admin/instructor-applications');
+  const row = page.getByTestId('application-row').filter({ hasText: PENDING_APPLICATION.displayName });
+  await row.getByTestId('decline-button').click();
+  await row.getByLabel('Reason (optional, sent to the applicant)').fill('Please add a sample syllabus.');
+  await row.getByTestId('confirm-decline-button').click();
+  await expect(row).toHaveCount(0);
+  expect(declineBody).toEqual({ reason: 'Please add a sample syllabus.' });
+
+  await page.getByTestId('filter-DECLINED').click();
+  await expect(page.getByTestId('decline-reason')).toContainText('Please add a sample syllabus.');
+  await expect(page.getByTestId('approve-button')).toHaveCount(0);
 });

@@ -506,6 +506,7 @@ export const AUTHED_ROUTES: RouteFixture[] = [
             email: 'pat@example.com',
             statement: 'I would like to teach.',
             expertise: 'Wren',
+            status: 'PENDING',
             createdAt: NOW,
           },
         ],

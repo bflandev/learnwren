@@ -54,7 +54,7 @@ This guide covers **every feature wired up today**, in three parts:
 | Instructor dashboard | Enrolled-students roster (US-07-01) | Built (2026-06-01) |
 | Instructor dashboard | Course analytics (US-07-02) | Built (2026-06-01) |
 | Instructor dashboard | New-module student notification (US-07-03) | Built |
-| Administration | Instructor-application review queue (US-08-03) | Built (2026-05-29) |
+| Administration | Instructor-application review queue (US-08-03); history + decline reasons | Built (2026-05-29; history 2026-10-08) |
 | Administration | User directory, role management, suspend / delete (US-08-01) | Built (2026-06-03 / 06-09) |
 | Administration | Course category management (US-08-02) | Built (2026-07-10) |
 | Administration | Platform health dashboard (US-08-04) | Built (2026-07-17) |
@@ -482,7 +482,9 @@ on `/settings/profile`. Fill in:
 
 Click **Submit request**. The form swaps to an "under review" card that persists
 across reload. Re-submission is blocked while a `PENDING` application is on record;
-after a decline you may apply again.
+after a decline you may apply again. A declined applicant sees a note that the
+previous application was not approved, with the reviewer's reason when one was
+given, above the **Become an Instructor** button.
 
 Once approved, **you must sign out and sign back in** for the `INSTRUCTOR` role to
 take effect (the role is baked into the session). The **`/courses`** area then becomes
@@ -713,18 +715,23 @@ effect.
 ### Reviewing instructor applications
 
 **Admin** in the nav opens `/admin/instructor-applications` — the queue of every
-`PENDING` instructor application. Each row shows the applicant's **display name**,
-**email**, **statement of intent**, **areas of expertise**, and **submission date**.
-(Pending only — there is no history view of approved or declined applications.)
+`PENDING` instructor application, oldest first. Each row shows the applicant's
+**display name**, **email**, **statement of intent**, **areas of expertise**, and
+**submission date**. The **Pending / Approved / Declined** buttons above the list
+switch to the history of resolved applications, newest decision first, with the
+decision date and any decline reason. History keeps only each applicant's latest
+decision: re-applying replaces the old application.
 
 - **Approve** — grants the `INSTRUCTOR` role (custom claim + `users/{uid}.role`),
   marks the application `APPROVED` with `resolvedAt`, and sends a best-effort
   approval email. The applicant must sign out and back in for the role to apply.
   Approval requires the applicant's email to be verified — otherwise the action is
   refused with `APPLICANT_NOT_VERIFIED` and the application stays pending.
-- **Decline** — marks the application `DECLINED` and sends a best-effort decline
-  email. The applicant may submit a new request. No decline reason is captured
-  (deliberate scope cut).
+- **Decline** — opens an inline form with an optional **reason** (up to 2000
+  characters), then **Confirm decline** marks the application `DECLINED` and sends
+  a best-effort decline email. A reason is included in the email as a reviewer's
+  note and shown to the applicant on `/settings/profile`, above the button to apply
+  again. The applicant may submit a new request.
 
 ### User directory and account management
 
@@ -1003,9 +1010,9 @@ All admin endpoints require a valid session cookie **and** the `ADMIN` role
 
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
-| `GET` | `/api/admin/instructor-applications` | List all `PENDING` instructor applications. |
+| `GET` | `/api/admin/instructor-applications?status=PENDING\|APPROVED\|DECLINED` | List applications in one status (default `PENDING`); rows carry `resolvedAt` and `declineReason` when set. `400 INVALID_STATUS_FILTER` for any other value. |
 | `POST` | `/api/admin/instructor-applications/:uid/approve` | Approve; grant `INSTRUCTOR` role. Requires the applicant's email to be verified (`APPLICANT_NOT_VERIFIED`). |
-| `POST` | `/api/admin/instructor-applications/:uid/decline` | Decline; the applicant may re-apply. |
+| `POST` | `/api/admin/instructor-applications/:uid/decline` | Decline, with an optional `{ reason }` (≤ 2000 chars, `400 DECLINE_REASON_INVALID`); the applicant may re-apply. |
 
 ### Course categories (US-08-02)
 
@@ -1115,7 +1122,7 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `/courses/:id/edit` | `instructorRoleGuard` | Course editor: modules, lessons, video, captions, materials, cover, publish bar. |
 | `/courses/:cid/students` | `instructorRoleGuard` + owner check | Enrolled-students roster. |
 | `/courses/:cid/analytics` | `instructorRoleGuard` + owner check | Live course analytics. |
-| `/admin/instructor-applications` | `adminRoleGuard` | Pending instructor-application review queue. |
+| `/admin/instructor-applications` | `adminRoleGuard` | Instructor-application review queue and approved/declined history. |
 | `/admin/users` | `adminRoleGuard` | User directory (search + pagination). |
 | `/admin/users/:uid` | `adminRoleGuard` | User detail: profile, role/status actions, enrollments, authored courses. |
 | `/admin/categories` | `adminRoleGuard` | Course-category management. |
@@ -1278,8 +1285,8 @@ The remaining gaps below are deliberate scope cuts inside shipped features:
   never revoked (even if the instructor adds lessons later), and there is no
   certificate export.
 - **Multi-language captions** — one English WebVTT track per video.
-- **Instructor-application history and decline reasons** — the admin queue shows
-  pending applications only, and no decline reason is captured.
+- **Instructor-application audit trail** — history shows each applicant's latest
+  decision only; re-applying replaces it. Approvals carry no note.
 - **Account self-deletion, social auth, App Check** — explicitly out of MVP scope
   (admins can delete accounts; users cannot delete their own).
 - **Screen-reader verification** — the accessibility gate is automated axe plus

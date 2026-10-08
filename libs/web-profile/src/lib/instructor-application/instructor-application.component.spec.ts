@@ -71,6 +71,36 @@ describe('InstructorApplicationComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('under review');
   });
 
+  it('shows the previous decision and its reason above the re-apply button when DECLINED', async () => {
+    svc.getApplication.mockResolvedValue({
+      status: 'DECLINED', statement: 's', expertise: 'e', createdAt: 't', declineReason: 'Add a syllabus',
+    });
+    const fixture = create('STUDENT');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="application-declined"]')?.textContent).toContain('not approved');
+    expect(el.querySelector('[data-testid="application-decline-reason"]')?.textContent).toContain('Add a syllabus');
+    expect(el.textContent).toContain('Become an Instructor');
+  });
+
+  it('shows the DECLINED notice without a reason line when none was given', async () => {
+    svc.getApplication.mockResolvedValue({ status: 'DECLINED', statement: 's', expertise: 'e', createdAt: 't' });
+    const fixture = create('STUDENT');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="application-declined"]')).toBeTruthy();
+    expect(el.querySelector('[data-testid="application-decline-reason"]')).toBeNull();
+  });
+
+  it('shows no DECLINED notice for a first-time applicant', async () => {
+    const fixture = create('STUDENT');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="application-declined"]')).toBeNull();
+  });
+
   it('submits the form and swaps to the under-review card', async () => {
     svc.submit.mockResolvedValue({ status: 'PENDING', statement: 's', expertise: 'e', createdAt: 't' });
     const fixture = create('STUDENT');

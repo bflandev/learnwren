@@ -197,6 +197,16 @@ describe('SmtpEmailTransport', () => {
       const arg = mocks.sendMail.mock.calls[0]![0];
       expect(arg.subject).toContain('instructor application');
       expect(arg.text).toContain('apply again');
+      expect(arg.text).not.toContain("Reviewer's note");
+    });
+
+    it('includes the reviewer note when a reason is given', async () => {
+      mocks.sendMail.mockResolvedValue({ accepted: ['x'] });
+      const t = new SmtpEmailTransport(baseConfig);
+      await t.sendInstructorApplicationDeclinedEmail({ to: 'a@x.com', reason: 'Add a syllabus' });
+      const arg = mocks.sendMail.mock.calls[0]![0];
+      expect(arg.text).toContain("Reviewer's note: Add a syllabus");
+      expect(arg.text).toContain('apply again');
     });
 
     it('rethrows after logging when the transport rejects', async () => {

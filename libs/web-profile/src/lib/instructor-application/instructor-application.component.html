@@ -11,6 +11,17 @@
         <hlm-alert severity="error" data-testid="application-error">{{ banner }}</hlm-alert>
       }
 
+      @if (application()?.status === 'DECLINED') {
+        <div class="text-sm text-ink-2" data-testid="application-declined">
+          <p>Your previous application was not approved. You're welcome to apply again.</p>
+          @if (application()?.declineReason; as reason) {
+            <p class="mt-1" data-testid="application-decline-reason">
+              <span class="font-medium text-ink">Reviewer's note:</span> {{ reason }}
+            </p>
+          }
+        </div>
+      }
+
       @if (!formOpen()) {
         <p class="text-sm text-ink-2">
           Apply to create and publish your own courses.

@@ -30,3 +30,15 @@ export class ApplicantNotVerifiedException extends AdminInstructorApplicationExc
     super('APPLICANT_NOT_VERIFIED', 'The applicant must verify their email before approval.', 409);
   }
 }
+
+export class DeclineReasonInvalidException extends AdminInstructorApplicationException {
+  constructor() {
+    super('DECLINE_REASON_INVALID', 'The decline reason must be text of at most 2000 characters.', 400);
+  }
+}
+
+export class InvalidStatusFilterException extends AdminInstructorApplicationException {
+  constructor() {
+    super('INVALID_STATUS_FILTER', 'status must be PENDING, APPROVED or DECLINED.', 400);
+  }
+}

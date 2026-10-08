@@ -14,12 +14,14 @@ import {
   type IdentityProvider,
   type IdentityUser,
 } from '@learnwren/api-auth';
-import { nowIso } from '@learnwren/shared-data-models';
+import { DECLINE_REASON_MAX_LENGTH, nowIso } from '@learnwren/shared-data-models';
 import type {
+  AdminInstructorApplicationsResponse,
+  AdminInstructorApplicationView,
+  DeclineInstructorApplicationRequest,
   InstructorApplication,
+  InstructorApplicationStatus,
   InstructorApplicationView,
-  PendingInstructorApplicationsResponse,
-  PendingInstructorApplicationView,
   UserId,
 } from '@learnwren/shared-data-models';
 
@@ -29,10 +31,13 @@ import {
   ApplicantNotVerifiedException,
   ApplicationNotFoundException,
   ApplicationNotPendingException,
+  DeclineReasonInvalidException,
+  InvalidStatusFilterException,
 } from './errors/admin-instructor-application.exception';
 import { INSTRUCTOR_APPLICATIONS_COLLECTION } from './instructor-applications.constants';
 
 const COLLECTION = INSTRUCTOR_APPLICATIONS_COLLECTION;
+const STATUSES: readonly InstructorApplicationStatus[] = ['PENDING', 'APPROVED', 'DECLINED'];
 
 @Injectable()
 export class AdminInstructorApplicationService {
@@ -45,13 +50,28 @@ export class AdminInstructorApplicationService {
     @Inject(EMAIL_TRANSPORT) private readonly email: EmailTransport,
   ) {}
 
-  async listPending(): Promise<PendingInstructorApplicationsResponse> {
-    const snap = await this.firestore.collection(COLLECTION).where('status', '==', 'PENDING').get();
+  /**
+   * Lists applications in one status (default PENDING). The queue reads oldest
+   * first; resolved history reads newest decision first. Sorted in memory so the
+   * query stays a single equality filter (no composite index).
+   */
+  // ponytail: unbounded read — one doc per applicant, so it grows with the user
+  // count; add limit + cursor paging when history outgrows one response.
+  async list(status: string | undefined): Promise<AdminInstructorApplicationsResponse> {
+    const filter = (status ?? 'PENDING') as InstructorApplicationStatus;
+    if (!STATUSES.includes(filter)) {
+      throw new InvalidStatusFilterException();
+    }
+    const snap = await this.firestore.collection(COLLECTION).where('status', '==', filter).get();
     const apps = snap.docs.map((doc) => doc.data() as InstructorApplication);
+    const sorted =
+      filter === 'PENDING'
+        ? [...apps].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        : [...apps].sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? ''));
     // One parallel batch read of users/{uid} instead of a serial per-application
     // round-trip loop, via the shared reader (single source of truth).
-    const profiles = await readStoredUserProfiles(this.firestore, apps.map((a) => a.uid));
-    const applications: PendingInstructorApplicationView[] = apps.map((app) => {
+    const profiles = await readStoredUserProfiles(this.firestore, sorted.map((a) => a.uid));
+    const applications: AdminInstructorApplicationView[] = sorted.map((app) => {
       const user = profiles.get(app.uid);
       return {
         uid: app.uid,
@@ -59,7 +79,10 @@ export class AdminInstructorApplicationService {
         email: user?.email ?? '',
         statement: app.statement,
         expertise: app.expertise,
+        status: app.status,
         createdAt: app.createdAt,
+        ...(app.resolvedAt ? { resolvedAt: app.resolvedAt } : {}),
+        ...(app.declineReason ? { declineReason: app.declineReason } : {}),
       };
     });
     return { applications };
@@ -133,7 +156,11 @@ export class AdminInstructorApplicationService {
     return this.viewOf(app as InstructorApplication, 'APPROVED');
   }
 
-  async decline(uid: UserId): Promise<InstructorApplicationView> {
+  async decline(
+    uid: UserId,
+    input: DeclineInstructorApplicationRequest,
+  ): Promise<InstructorApplicationView> {
+    const reason = this.normaliseReason(input.reason);
     const appRef = this.firestore.collection(COLLECTION).doc(uid) as unknown as DocRef;
 
     // Atomically claim the transition PENDING → DECLINED so that concurrent
@@ -147,7 +174,11 @@ export class AdminInstructorApplicationService {
       if (data.status !== 'PENDING') {
         throw new ApplicationNotPendingException();
       }
-      txn.update(appRef, { status: 'DECLINED', resolvedAt: nowIso() });
+      txn.update(appRef, {
+        status: 'DECLINED',
+        resolvedAt: nowIso(),
+        ...(reason ? { declineReason: reason } : {}),
+      });
       return data;
     });
 
@@ -158,7 +189,10 @@ export class AdminInstructorApplicationService {
     try {
       const user = await this.identity.getUser(uid);
       if (!user) throw new Error('user not found');
-      await this.email.sendInstructorApplicationDeclinedEmail({ to: user.email });
+      await this.email.sendInstructorApplicationDeclinedEmail({
+        to: user.email,
+        ...(reason ? { reason } : {}),
+      });
     } catch (err) {
       // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
       this.logger.error(`[admin] decline notice failed uid=${uid}: ${String(err)}`);
@@ -167,7 +201,19 @@ export class AdminInstructorApplicationService {
     // Stryker disable next-line StringLiteral: log message text only; no behavior depends on it.
     this.logger.log(`[admin] instructor application declined uid=${uid}`);
 
-    return this.viewOf(app as InstructorApplication, 'DECLINED');
+    return {
+      ...this.viewOf(app as InstructorApplication, 'DECLINED'),
+      ...(reason ? { declineReason: reason } : {}),
+    };
+  }
+
+  /** Trimmed reason, or undefined when blank/absent; rejects non-text and over-long input. */
+  private normaliseReason(raw: unknown): string | undefined {
+    if (raw === undefined || raw === null) return undefined;
+    if (typeof raw !== 'string') throw new DeclineReasonInvalidException();
+    const reason = raw.trim();
+    if (reason.length > DECLINE_REASON_MAX_LENGTH) throw new DeclineReasonInvalidException();
+    return reason || undefined;
   }
 
   /**

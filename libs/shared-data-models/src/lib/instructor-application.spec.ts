@@ -37,10 +37,12 @@ import {
   APPLICATION_NOT_FOUND,
   APPLICATION_NOT_PENDING,
   APPLICANT_NOT_VERIFIED,
+  DECLINE_REASON_INVALID,
+  INVALID_STATUS_FILTER,
 } from './instructor-application';
 import type {
-  PendingInstructorApplicationView,
-  PendingInstructorApplicationsResponse,
+  AdminInstructorApplicationView,
+  AdminInstructorApplicationsResponse,
 } from './instructor-application';
 
 describe('admin instructor-application contract', () => {
@@ -48,18 +50,21 @@ describe('admin instructor-application contract', () => {
     expect(APPLICATION_NOT_FOUND).toBe('APPLICATION_NOT_FOUND');
     expect(APPLICATION_NOT_PENDING).toBe('APPLICATION_NOT_PENDING');
     expect(APPLICANT_NOT_VERIFIED).toBe('APPLICANT_NOT_VERIFIED');
+    expect(DECLINE_REASON_INVALID).toBe('DECLINE_REASON_INVALID');
+    expect(INVALID_STATUS_FILTER).toBe('INVALID_STATUS_FILTER');
   });
 
-  it('PendingInstructorApplicationsResponse holds joined view rows', () => {
-    const row: PendingInstructorApplicationView = {
-      uid: 'u1' as PendingInstructorApplicationView['uid'],
+  it('AdminInstructorApplicationsResponse holds joined view rows', () => {
+    const row: AdminInstructorApplicationView = {
+      uid: 'u1' as AdminInstructorApplicationView['uid'],
       displayName: 'Ada',
       email: 'ada@example.com',
       statement: 'I teach',
       expertise: 'Math',
-      createdAt: '2026-05-29T00:00:00.000Z' as PendingInstructorApplicationView['createdAt'],
+      status: 'PENDING',
+      createdAt: '2026-05-29T00:00:00.000Z' as AdminInstructorApplicationView['createdAt'],
     };
-    const res: PendingInstructorApplicationsResponse = { applications: [row] };
+    const res: AdminInstructorApplicationsResponse = { applications: [row] };
     expect(res.applications[0]?.email).toBe('ada@example.com');
   });
 });
