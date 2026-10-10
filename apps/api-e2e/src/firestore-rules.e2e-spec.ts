@@ -18,6 +18,8 @@ import {
 // Distinct from the API's `demo-learnwren` project so testEnv.clearFirestore()
 // can't wipe auth_attempts docs that the auth.e2e-spec.ts lockout test writes.
 const PROJECT_ID = 'demo-learnwren-rules';
+const [EMULATOR_HOST, EMULATOR_PORT_TEXT] = (process.env['FIRESTORE_EMULATOR_HOST'] ?? '127.0.0.1:8080').split(':');
+const EMULATOR_PORT = Number(EMULATOR_PORT_TEXT);
 let testEnv: RulesTestEnvironment;
 
 test.skip(
@@ -30,8 +32,10 @@ test.beforeAll(async () => {
     projectId: PROJECT_ID,
     firestore: {
       rules: readFileSync(resolve(__dirname, '../../../firestore.rules'), 'utf8'),
-      host: '127.0.0.1',
-      port: 8080,
+      // The emulator emulators:exec started, not a hardcoded default: another
+      // project's emulator on 8080 would otherwise answer these tests.
+      host: EMULATOR_HOST,
+      port: EMULATOR_PORT,
     },
   });
 });
