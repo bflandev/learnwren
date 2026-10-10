@@ -161,6 +161,28 @@ describe('AdminInstructorApplicationsPageComponent', () => {
     expect(comp.declineReason()).toBe('');
   });
 
+  it('a decline finishing late does not close the reason form the admin opened on another row', async () => {
+    let finish!: () => void;
+    svc.decline.mockReturnValueOnce(new Promise((r) => (finish = () => r({ status: 'DECLINED' }))));
+    const fixture = await setup();
+    const comp = fixture.componentInstance;
+    comp.startDecline('u1');
+    const pending = comp.decline('u1');
+    comp.startDecline('u2');
+    comp.declineReason.set('Draft for u2');
+    finish();
+    await pending;
+    expect(comp.decliningUid()).toBe('u2');
+    expect(comp.declineReason()).toBe('Draft for u2');
+  });
+
+  it('shows a clear message when the applicant is no longer an active student', async () => {
+    svc.approve.mockRejectedValueOnce({ error: { error: { code: 'APPLICANT_NOT_ELIGIBLE' } } });
+    const fixture = await setup();
+    await fixture.componentInstance.approve('u1');
+    expect(fixture.componentInstance.rowError('u1')).toContain('Only an active student can be approved');
+  });
+
   it('offers the three status filters in queue-first order', async () => {
     const fixture = await setup();
     expect(fixture.componentInstance.filters).toEqual(['PENDING', 'APPROVED', 'DECLINED']);

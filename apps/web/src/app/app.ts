@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
-import { filter, map, skip, startWith } from 'rxjs';
+import { filter, map, pairwise, startWith } from 'rxjs';
 
 import { AppHeaderComponent } from './shell/app-header.component';
 import { isAuthRoute } from './shell/is-auth-route';
@@ -43,10 +43,10 @@ export class App {
     // longer exists) — sighted keyboard and screen-reader users get no cue
     // navigation happened at all. Move focus to the `#main-content` landmark
     // (see app.html, tabindex="-1" makes it programmatically focusable)
-    // after every *subsequent* navigation. `skip(1)` drops the NavigationEnd
+    // after every *subsequent* navigation. `pairwise` (below) drops the NavigationEnd
     // for the initial load — that one fires from inside this very
     // constructor's injection context (router bootstrap resolves the first
-    // route before/while App is constructed), so without the skip this
+    // route before/while App is constructed), so without dropping it this
     // would yank focus from the browser's own initial placement (and, in
     // the a11y suite, out from under Playwright's very first Tab) on every
     // single page load.
@@ -61,10 +61,17 @@ export class App {
     // before it's destroyed, and focus silently falls back to <body>.
     // Waiting for the next render guarantees the target element is the one
     // that's actually still in the DOM.
+    //
+    // Only a change of PATH counts as a new page: a query-string change
+    // (catalog filter, sort, paging) keeps the user on the same page, and
+    // pulling focus off the control they just used would lose their place.
+    // `pairwise` emits nothing for the first event, which drops the initial load.
     this.router.events
       .pipe(
         filter((e): e is NavigationEnd => e instanceof NavigationEnd),
-        skip(1),
+        map((e) => e.urlAfterRedirects.split(/[?#]/)[0]),
+        pairwise(),
+        filter(([previous, current]) => previous !== current),
         takeUntilDestroyed(),
       )
       .subscribe(() => {

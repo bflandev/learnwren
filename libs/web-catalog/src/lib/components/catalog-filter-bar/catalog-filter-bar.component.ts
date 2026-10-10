@@ -16,6 +16,8 @@ export interface CatalogFilterChange {
   sort?: CatalogSort;
 }
 
+const ALL_OPTION = '__all__';
+
 @Component({
   selector: 'lib-catalog-filter-bar',
   standalone: true,
@@ -32,6 +34,13 @@ export class CatalogFilterBarComponent {
 
   readonly filterChange = output<CatalogFilterChange>();
 
+  /**
+   * Value of the "All" option. Non-empty on purpose: the select's keyboard
+   * path (Enter/Tab) only selects a truthy value, so '' could not be chosen
+   * without a mouse.
+   */
+  readonly ALL = ALL_OPTION;
+
   readonly difficulties = COURSE_DIFFICULTIES;
   readonly sorts = CATALOG_SORT_OPTIONS;
 
@@ -40,9 +49,9 @@ export class CatalogFilterBarComponent {
     () => this.categories().find((c) => c.id === this.category())?.name,
   );
 
-  /** hlmSelectSingle emits `T | null`; normalise to '' so the guards stay falsy checks. */
+  /** hlmSelectSingle emits `T | null`; normalise null and "All" to '' so the guards stay falsy checks. */
   private static asValue(value: unknown): string {
-    return typeof value === 'string' ? value : '';
+    return typeof value === 'string' && value !== ALL_OPTION ? value : '';
   }
 
   onCategoryChange(value: unknown): void {

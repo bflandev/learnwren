@@ -103,7 +103,9 @@ export class AdminInstructorApplicationsPageComponent implements OnInit {
   async decline(uid: string): Promise<void> {
     const reason = this.declineReason().trim() || undefined;
     const ok = await this.resolve(uid, () => this.svc.decline(uid, reason));
-    if (ok) this.cancelDecline();
+    // Only close the form for this row: the admin may have opened (and be
+    // typing in) another row's form while this request was in flight.
+    if (ok && this.decliningUid() === uid) this.cancelDecline();
   }
 
   private async resolve(uid: string, action: () => Promise<unknown>): Promise<boolean> {

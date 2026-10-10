@@ -158,6 +158,11 @@
               </span>
             }
           </hlm-form-field>
+          @if (emailBannerError()) {
+            <hlm-alert severity="error" data-testid="email-change-error">
+              {{ emailBannerError() }}
+            </hlm-alert>
+          }
           <div>
             <button
               hlmBtn

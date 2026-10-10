@@ -292,10 +292,14 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   }
 
   async onMarkComplete(): Promise<void> {
+    // A lesson change (outline nav) bumps loadToken and resets the mark state;
+    // a response for the lesson we left must not touch the new lesson's view.
+    const token = this.loadToken;
     this.markBusy.set(true);
     this.markError.set(null);
     try {
       const { completedAt } = await this.learn.markLessonComplete(this.courseId, this.lessonId);
+      if (token !== this.loadToken) return;
       this.view.update((v) =>
         v
           ? {
@@ -308,10 +312,11 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
           : v,
       );
     } catch (err) {
+      if (token !== this.loadToken) return;
       const status = err instanceof HttpErrorResponse ? err.status : 0;
       this.markError.set(status === 403 ? 'revoked' : 'other');
     } finally {
-      this.markBusy.set(false);
+      if (token === this.loadToken) this.markBusy.set(false);
     }
   }
 

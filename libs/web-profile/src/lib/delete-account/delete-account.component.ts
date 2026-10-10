@@ -98,6 +98,7 @@ export class DeleteAccountComponent {
     const message = body?.error?.message ?? GENERIC_ERROR;
     if (code === 'CURRENT_PASSWORD_INVALID') {
       this.form.controls.currentPassword.setErrors({ server: message });
+      this.form.controls.currentPassword.markAsTouched();
       return;
     }
     this.bannerError.set(FIRST_PERSON_ERRORS.get(code) ?? message);
