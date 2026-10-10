@@ -301,12 +301,19 @@ export class CourseEditorPageComponent {
       // keeps sending (and has already marked the module notified), so a
       // large class reads as a failure that cannot be retried. Say so.
       if (err instanceof HttpErrorResponse && err.status === HTTP_GATEWAY_TIMEOUT) {
-        this.notice.set('Emails are still being sent to your students. This can take a few minutes for a large class.');
         await this.refresh();
-        return;
+        // Only a stamped module proves the server got as far as sending.
+        if (this.isNotified(moduleId)) {
+          this.notice.set('Emails are still being sent to your students. This can take a few minutes for a large class.');
+          return;
+        }
       }
       this.error.set('Failed to notify students.');
     }
+  }
+
+  private isNotified(moduleId: string): boolean {
+    return this.tree()?.modules.some((m) => m.module.id === moduleId && m.module.studentsNotifiedAt != null) ?? false;
   }
 
   async onReorderModules(ids: string[]): Promise<void> {
