@@ -35,6 +35,7 @@ This guide covers **every feature wired up today**, in three parts:
 | Identity | Profile picture upload / replace / remove | Built (2026-05-28) |
 | Identity | Email change, password change | Built (2026-05-28 / 2026-05-29) |
 | Identity | Instructor role request (self-service) | Built (2026-05-29) |
+| Identity | Account self-deletion | Built (2026-10-09) |
 | Authoring | Course create / edit / delete; modules & lessons; drag-and-drop reorder | Built |
 | Authoring | Course cover image upload / replace / remove | Built |
 | Video | Resumable upload (MP4 / MOV / MKV ≤ 10 GB) | Built |
@@ -296,6 +297,27 @@ and redirects you to `/login?passwordChanged=1` which shows a confirmation notic
 Sign in again with your new password to continue.
 
 > **Note:** the new password must differ from your current one.
+
+### Deleting your account
+
+At the bottom of `/settings/profile`, click **Delete my account**. Enter your
+**current password**, type `DELETE` in capital letters, and click
+**Permanently delete my account**.
+
+Deletion signs you out on every device, removes your sign-in, profile picture,
+enrollments and any instructor application, and replaces your name, email and
+biography with anonymous placeholders. You land on `/login?accountDeleted=1`
+with a confirmation notice. **It cannot be undone**, and the email address is
+free to register again as a new account.
+
+Two cases are refused with an explanation:
+
+- **You own courses.** An instructor must delete their courses first (or ask an
+  administrator to reassign them).
+- **You are the only active administrator.** Promote another administrator first.
+
+> **Not built:** a grace period or undo, a confirmation email, and a data export
+> before deletion.
 
 ## 2.2 Students: discovering and taking courses
 
@@ -902,6 +924,7 @@ account only.
 | `POST` | `/profile/email` | `{ newEmail, currentPassword }` | Re-authenticate, then send a verification link to the NEW address. |
 | `POST` | `/profile/email/confirm` | `{ oobCode }` | Called from the email-changed landing page: syncs the Firestore mirror, revokes refresh tokens, clears the session. |
 | `POST` | `/profile/password` | `{ currentPassword, newPassword }` | Re-authenticate, validate policy, update the credential, send notification email, revoke refresh tokens. |
+| `DELETE` | `/profile/account` | `{ currentPassword }` | Self-delete: re-authenticate, then the same claim + teardown as the admin delete; clears the session. `CURRENT_PASSWORD_INVALID`, `USER_HAS_COURSES`, `LAST_ADMIN`. |
 | `GET` | `/profile/instructor-application` | — | The caller's application (or none). |
 | `POST` | `/profile/instructor-application` | `{ statement, expertise }` | Submit a `PENDING` instructor application (`INSTRUCTOR_APPLICATION_EXISTS` if one is pending). |
 
@@ -1294,8 +1317,9 @@ The remaining gaps below are deliberate scope cuts inside shipped features:
   browser's language.
 - **Instructor-application audit trail** — history shows each applicant's latest
   decision only; re-applying replaces it. Approvals carry no note.
-- **Account self-deletion, social auth, App Check** — explicitly out of MVP scope
-  (admins can delete accounts; users cannot delete their own).
+- **Social auth, App Check** — explicitly out of MVP scope. (Account
+  self-deletion shipped 2026-10-09 as US-01-05; it has no grace period, undo,
+  confirmation email or data export.)
 - **Screen-reader verification** — the accessibility gate is automated axe plus
   targeted keyboard journeys. No VoiceOver/NVDA pass has been run, and "alt text
   is present and non-empty" is verified, not "alt text is descriptive".

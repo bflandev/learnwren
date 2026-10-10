@@ -24,6 +24,7 @@ import { EmailChangeService } from '../email/email-change.service';
 import { PasswordChangeService } from '../password/password-change.service';
 import { InstructorApplicationComponent } from '../instructor-application/instructor-application.component';
 import { CompletedCoursesComponent } from '../completed-courses/completed-courses.component';
+import { DeleteAccountComponent } from '../delete-account/delete-account.component';
 
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 type EmailStatus = 'idle' | 'sending' | 'sent' | 'error';
@@ -54,6 +55,7 @@ function confirmMatchesValidator(control: AbstractControl): ValidationErrors | n
     ProfilePictureUploaderComponent,
     CompletedCoursesComponent,
     InstructorApplicationComponent,
+    DeleteAccountComponent,
   ],
   templateUrl: './profile-page.component.html',
 })

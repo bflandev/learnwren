@@ -104,6 +104,15 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
+/**
+ * Body of `DELETE /api/profile/account` (self-service account deletion).
+ * Errors: CURRENT_PASSWORD_INVALID, ACCOUNT_LOCKED, USER_HAS_COURSES,
+ * LAST_ADMIN, INTERNAL — the last three shared with the admin delete.
+ */
+export interface DeleteAccountRequest {
+  currentPassword: string;
+}
+
 /** Wire error codes returned by `POST /api/profile/password`. */
 // CURRENT_PASSWORD_INVALID is already declared above (shared with email change).
 export const NEW_PASSWORD_WEAK = 'NEW_PASSWORD_WEAK';
