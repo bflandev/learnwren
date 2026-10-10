@@ -143,6 +143,10 @@ if (isFunctionsRuntime) {
       region: 'us-central1',
       maxInstances: 10,
       memory: '512MiB',
+      // Above the 60 s default: notifying a large class sends its emails
+      // within the request, a few at a time (NotificationsService).
+      // ponytail: move that send to a task queue if classes outgrow ~2,500.
+      timeoutSeconds: 300,
       secrets: ['SMTP_PASS'],
     },
     async (req, res) => {

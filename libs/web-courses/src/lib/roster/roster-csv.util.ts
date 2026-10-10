@@ -19,19 +19,22 @@ function field(value: string): string {
  * date the roster table shows (DatePipe is local too). Slicing the UTC string
  * put an evening enrollment in the Americas on the next day.
  */
-function localDate(iso: string): string {
-  return formatDate(iso, 'yyyy-MM-dd', 'en-US');
+function localDate(iso: string, timeZone?: string): string {
+  return formatDate(iso, 'yyyy-MM-dd', 'en-US', timeZone);
 }
 
-/** Build an RFC-4180 CSV (CRLF line endings) from roster rows. */
-export function rosterRowsToCsv(rows: CourseRosterRow[]): string {
+/**
+ * Build an RFC-4180 CSV (CRLF line endings) from roster rows. `timeZone`
+ * (e.g. '-0500') is for tests; the page omits it to use the viewer's zone.
+ */
+export function rosterRowsToCsv(rows: CourseRosterRow[], timeZone?: string): string {
   const lines = [HEADERS.map(field).join(',')];
   for (const r of rows) {
     lines.push(
       [
         field(r.displayName),
         field(r.email),
-        field(localDate(r.enrolledAt)),
+        field(localDate(r.enrolledAt, timeZone)),
         field(String(r.progressPercent)),
       ].join(','),
     );

@@ -32,11 +32,6 @@ describe('SmtpEmailTransport', () => {
     vi.restoreAllMocks();
   });
 
-  // A module notification sends to every enrolled student at once; pooled and
-  // rate-limited, nodemailer queues them instead of opening one connection
-  // per recipient and tripping the provider's sending-rate limit.
-  const POOLED = { pool: true, maxConnections: 3, rateLimit: 10 };
-
   it('creates a STARTTLS transport (secure:false, requireTLS:true) for port 587', () => {
     new SmtpEmailTransport(baseConfig); // baseConfig.port === 587
     expect(mocks.createTransport).toHaveBeenCalledWith({
@@ -45,7 +40,6 @@ describe('SmtpEmailTransport', () => {
       secure: false,
       requireTLS: true,
       auth: { user: baseConfig.user, pass: baseConfig.password },
-      ...POOLED,
     });
   });
 
@@ -56,7 +50,6 @@ describe('SmtpEmailTransport', () => {
       port: 465,
       secure: true,
       auth: { user: baseConfig.user, pass: baseConfig.password },
-      ...POOLED,
     });
   });
 

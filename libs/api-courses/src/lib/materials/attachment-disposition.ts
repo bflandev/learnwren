@@ -14,6 +14,9 @@ export function attachmentDisposition(filename: string): string {
   return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeRfc5987(filename)}`;
 }
 
+/** A surrogate half without its partner; encodeURIComponent throws on one. */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
 function encodeRfc5987(value: string): string {
-  return encodeURIComponent(value).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return encodeURIComponent(value.replace(LONE_SURROGATE, '\uFFFD')).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 }

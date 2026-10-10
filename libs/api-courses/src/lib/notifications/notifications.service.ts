@@ -67,16 +67,14 @@ export class NotificationsService {
     await this.courses.claimModuleNotification(course.id, mid, nowIso());
 
     const courseUrl = this.continueUrl(`/catalog/${course.id}`);
-    const settled = await Promise.allSettled(
-      deliverable.map((r) =>
-        this.email.sendNewModuleEmail({
-          to: r.email,
-          studentName: r.displayName,
-          courseTitle: course.title,
-          moduleTitle: moduleDoc.title,
-          courseUrl,
-        }),
-      ),
+    const settled = await settleWithConcurrency(deliverable, NOTIFY_CONCURRENCY, (r) =>
+      this.email.sendNewModuleEmail({
+        to: r.email,
+        studentName: r.displayName,
+        courseTitle: course.title,
+        moduleTitle: moduleDoc.title,
+        courseUrl,
+      }),
     );
 
     let notifiedCount = 0;
@@ -106,4 +104,33 @@ export class NotificationsService {
     const base = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
     return `${base}${path}`;
   }
+}
+
+/**
+ * Mail a class a few at a time: firing every send at once opened one SMTP
+ * connection per student and tripped the provider's sending rate (SES
+ * defaults to 14/s), so most of a large class silently got nothing.
+ */
+const NOTIFY_CONCURRENCY = 3;
+
+/** Promise.allSettled over `items`, with at most `limit` calls in flight. */
+async function settleWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next++;
+      try {
+        results[i] = { status: 'fulfilled', value: await fn(items[i] as T) };
+      } catch (reason) {
+        results[i] = { status: 'rejected', reason };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
 }

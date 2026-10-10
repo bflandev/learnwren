@@ -30,4 +30,9 @@ describe('attachmentDisposition', () => {
   it("percent-encodes the RFC 5987 attr-char exceptions ' ( ) *", () => {
     expect(attachmentDisposition("it's (draft) *–.pdf")).toContain("filename*=UTF-8''it%27s%20%28draft%29%20%2A%E2%80%93.pdf");
   });
+
+  it('survives a malformed name with a lone UTF-16 surrogate (encodeURIComponent would throw)', () => {
+    const header = attachmentDisposition('bad\uD800name.pdf');
+    expect(header).toBe(`attachment; filename="bad_name.pdf"; filename*=UTF-8''bad%EF%BF%BDname.pdf`);
+  });
 });
