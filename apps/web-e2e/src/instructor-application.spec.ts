@@ -7,6 +7,8 @@
  */
 import { test, expect } from '@playwright/test';
 
+import { stubUnhandledApi } from './_helpers/route-stubs';
+
 const ME_STUB = {
   uid: 'test-uid-instructor-app',
   email: 'student@example.com',
@@ -29,6 +31,8 @@ test(
   async ({ page }) => {
     // Mutable application state — shared between GET and POST handlers.
     let appState: Record<string, unknown> = { status: 'NONE' };
+
+    await stubUnhandledApi(page);
 
     // 1. Stub bootstrap + authGuard: GET /api/auth/me → authenticated STUDENT.
     await page.route('**/api/auth/me', (route) => {

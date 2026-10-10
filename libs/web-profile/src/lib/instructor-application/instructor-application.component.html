@@ -40,9 +40,10 @@
               id="instructor-application-statement"
               rows="3"
               formControlName="statement"
+              [attr.maxlength]="fieldMax"
             ></textarea>
             @if (form.controls.statement.touched && form.controls.statement.invalid) {
-              <span hlmFormFieldError>A statement of intent is required.</span>
+              <span hlmFormFieldError>{{ form.controls.statement.errors?.['server'] ?? 'A statement of intent is required.' }}</span>
             }
           </hlm-form-field>
 
@@ -54,9 +55,10 @@
               id="instructor-application-expertise"
               rows="2"
               formControlName="expertise"
+              [attr.maxlength]="fieldMax"
             ></textarea>
             @if (form.controls.expertise.touched && form.controls.expertise.invalid) {
-              <span hlmFormFieldError>Areas of expertise are required.</span>
+              <span hlmFormFieldError>{{ form.controls.expertise.errors?.['server'] ?? 'Areas of expertise are required.' }}</span>
             }
           </hlm-form-field>
 

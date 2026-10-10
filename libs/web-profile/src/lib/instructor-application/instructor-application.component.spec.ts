@@ -145,6 +145,33 @@ describe('InstructorApplicationComponent', () => {
     expect(cmp.status()).toBe('idle');
   });
 
+  it("shows the server's reason for a rejected field, not the generic 'required' text", async () => {
+    svc.submit.mockRejectedValue(
+      new HttpErrorResponse({
+        status: 400,
+        error: {
+          error: {
+            code: 'INSTRUCTOR_APPLICATION_INVALID',
+            message: 'statement must be at most 2000 characters.',
+            details: { field: 'statement' },
+          },
+        },
+      }),
+    );
+    const fixture = create('STUDENT');
+    await fixture.whenStable();
+    const cmp = fixture.componentInstance;
+    cmp.open();
+    fixture.detectChanges(); // the form is on screen before the user submits
+    cmp.form.setValue({ statement: '   ', expertise: 'Rust' });
+    await cmp.submit();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('statement must be at most 2000 characters.');
+    expect(el.textContent).not.toContain('A statement of intent is required.');
+    expect(el.querySelector('#instructor-application-statement')?.getAttribute('maxlength')).toBe('2000');
+  });
+
   it('shows a banner and re-fetches on INSTRUCTOR_APPLICATION_EXISTS', async () => {
     svc.submit.mockRejectedValue(
       new HttpErrorResponse({

@@ -10,6 +10,7 @@ import type {
   MaterialId,
   ModuleId,
 } from '@learnwren/shared-data-models';
+import { MATERIAL_NAME_MAX_LENGTH } from '@learnwren/shared-data-models';
 
 import { ConfirmDialogService, HlmButton, HlmInput } from '@learnwren/web-ui';
 
@@ -25,6 +26,7 @@ import { MaterialsService } from './materials.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MaterialsListComponent {
+  protected readonly materialNameMax = MATERIAL_NAME_MAX_LENGTH;
   private readonly api = inject(MaterialsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly confirmDialog = inject(ConfirmDialogService);

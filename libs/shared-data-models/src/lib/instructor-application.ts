@@ -89,3 +89,6 @@ export type AdminInstructorApplicationErrorCode =
   | typeof DECLINE_REASON_INVALID
   | typeof INVALID_STATUS_FILTER
   | 'INTERNAL';
+
+/** Statement / expertise length on an instructor application (api and web share it). */
+export const INSTRUCTOR_APPLICATION_FIELD_MAX_LENGTH = 2000;

@@ -37,7 +37,7 @@
       </select>
     </label>
     <label class="inline-block cursor-pointer">
-      <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy()" />
+      <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy() || loadFailed()" />
       <span hlmBtn variant="secondary" size="sm">Upload captions (.vtt)</span>
     </label>
   </div>

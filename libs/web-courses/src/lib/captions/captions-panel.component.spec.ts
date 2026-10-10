@@ -94,6 +94,18 @@ describe('CaptionsPanelComponent', () => {
     expect(fixture.componentInstance.error()).toBe("Couldn't load the caption tracks. Reload the page to try again.");
   });
 
+  it('does not upload over a list it failed to load (it would show only the new track and hide the rest)', async () => {
+    svc.list.mockRejectedValue(new Error('network'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.componentInstance.onFileChosen(VTT());
+    expect(svc.upload).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.error()).toContain("Couldn't load the caption tracks");
+    const input = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+  });
+
   it('uploads the chosen file under the selected language and adds it in label order', async () => {
     await init([EN]);
     fixture.componentInstance.language.set('fr');

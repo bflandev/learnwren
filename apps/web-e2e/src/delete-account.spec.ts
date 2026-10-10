@@ -4,6 +4,8 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 
+import { stubUnhandledApi } from './_helpers/route-stubs';
+
 const ME_STUB = {
   uid: 'test-uid-delete-account',
   email: 'user@example.com',
@@ -15,6 +17,7 @@ const ME_STUB = {
 const PROFILE_STUB = { ...ME_STUB, biography: '' };
 
 async function stubAuthenticatedSession(page: Page): Promise<void> {
+  await stubUnhandledApi(page);
   await page.route('**/api/auth/me', (route) => {
     void route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ME_STUB) });
   });

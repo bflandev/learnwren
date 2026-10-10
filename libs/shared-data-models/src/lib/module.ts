@@ -9,3 +9,6 @@ export interface Module {
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
+
+/** Module title length (api DTO and web inputs share it). */
+export const MODULE_TITLE_MAX_LENGTH = 100;

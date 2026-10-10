@@ -32,6 +32,8 @@ export class CaptionsPanelComponent implements OnInit {
   readonly language = signal(DEFAULT_LANGUAGE);
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
+  /** The server's track list is unknown; uploading would act on a partial list. */
+  readonly loadFailed = signal(false);
 
   async ngOnInit(): Promise<void> {
     try {
@@ -39,11 +41,13 @@ export class CaptionsPanelComponent implements OnInit {
     } catch {
       // Say so rather than show "no tracks" (and emit [], which would wipe the
       // preview player's captions); the upload affordance still works.
+      this.loadFailed.set(true);
       this.error.set("Couldn't load the caption tracks. Reload the page to try again.");
     }
   }
 
   async onFileChosen(file: File): Promise<void> {
+    if (this.loadFailed()) return;
     this.error.set(null);
     const check = this.svc.validateLocally(file);
     if (!check.ok) {

@@ -145,6 +145,14 @@ describe('ModuleItemComponent', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it('caps the new-lesson title at the api limit, so an over-long paste cannot fail with a bare error', () => {
+    const fixture = build();
+    fixture.componentInstance.beginAddLesson();
+    fixture.detectChanges();
+    const input = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="add-lesson-input"]');
+    expect(input?.getAttribute('maxlength')).toBe('100');
+  });
+
   it('beginAddLesson() opens the add-lesson input with an empty draft', () => {
     const c = build().componentInstance;
     c.beginAddLesson();

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -752,6 +753,18 @@ describe('CourseEditorPageComponent', () => {
       http.expectOne('/api/courses/cid-1').flush(buildTree());
       await pending;
       expect(fixture.componentInstance.notice()).toBe('Notified 0 students.');
+    });
+
+    it('treats a gateway timeout as "still sending", not a failure (the emails keep going out)', async () => {
+      notifications.notifyModule.mockRejectedValue(new HttpErrorResponse({ status: 504 }));
+      const fixture = await initEditor();
+      const pending = fixture.componentInstance.onNotifyModule('mid-1');
+      await fixture.whenStable();
+      // Refresh so the module shows as notified and the button goes away.
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+      expect(fixture.componentInstance.error()).toBeNull();
+      expect(fixture.componentInstance.notice()).toContain('still being sent');
     });
 
     it('shows an error when the call fails', async () => {

@@ -4,6 +4,7 @@
     name="catalog-search"
     placeholder="Search courses"
     aria-label="Search courses"
+    [attr.maxlength]="queryMax"
     hlmInput
     [ngModel]="query()"
     (ngModelChange)="query.set($event)"

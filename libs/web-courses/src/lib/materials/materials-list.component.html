@@ -25,6 +25,7 @@
           <input
             hlmInput
             data-testid="material-rename-input"
+            [attr.maxlength]="materialNameMax"
             type="text"
             class="flex-1"
             [ngModel]="draftName()"

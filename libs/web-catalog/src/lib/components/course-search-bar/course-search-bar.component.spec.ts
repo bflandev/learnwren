@@ -16,6 +16,12 @@ describe('CourseSearchBarComponent', () => {
     vi.spyOn(TestBed.inject(Router), 'navigate').mockImplementation(navigate);
   });
 
+  it('caps the query at the api limit (a longer one showed the error state, not results)', () => {
+    const fixture = TestBed.createComponent(CourseSearchBarComponent);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('input')?.getAttribute('maxlength')).toBe('100');
+  });
+
   it('initialises the query signal to an empty string', () => {
     const fixture = TestBed.createComponent(CourseSearchBarComponent);
     fixture.detectChanges();

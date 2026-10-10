@@ -144,8 +144,10 @@ if (isFunctionsRuntime) {
       maxInstances: 10,
       memory: '512MiB',
       // Above the 60 s default: notifying a large class sends its emails
-      // within the request, a few at a time (NotificationsService).
-      // ponytail: move that send to a task queue if classes outgrow ~2,500.
+      // within the request, a few at a time (NotificationsService). Hosting
+      // still answers the browser 504 after 60 s; this lets the function
+      // finish sending, and the editor reads that 504 as "still sending".
+      // ponytail: move the send to a task queue if classes outgrow ~3,000.
       timeoutSeconds: 300,
       secrets: ['SMTP_PASS'],
     },

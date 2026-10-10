@@ -103,3 +103,17 @@ function isTargetClosedError(error: unknown): boolean {
 // registration order. Register broad globs FIRST and specific paths LAST, or
 // the glob shadows the specific route. admin-users.spec.ts:54 documents the
 // same trap.
+
+/**
+ * For hermetic specs that run beside the real api: answer every /api call the
+ * spec does not stub with 404. Register it FIRST — Playwright runs route
+ * handlers newest-first, so the spec's own stubs still win. Without it an
+ * unstubbed read (e.g. the profile page's enrollments) reaches the real api
+ * with no session cookie, gets 401, and the SPA (correctly) signs the stubbed
+ * user out mid-test.
+ */
+export async function stubUnhandledApi(page: Page): Promise<void> {
+  await page.route('**/api/**', (route) => {
+    void route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+  });
+}
