@@ -1,4 +1,5 @@
 import { Controller, Inject, Param, Put, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
@@ -18,7 +19,13 @@ export const MAX_CHUNK_BYTES = 64 * 1024 * 1024;
 
 const CONTENT_RANGE = /^bytes (\d+)-(\d+)\/(\d+)$/;
 
-export function parseContentRange(header: string | undefined): { start: number; last: number; total: number } {
+export interface ContentRange {
+  start: number;
+  last: number;
+  total: number;
+}
+
+export function parseContentRange(header: string | undefined): ContentRange {
   const m = header ? CONTENT_RANGE.exec(header) : null;
   if (!m) throw new UploadChunkInvalidException('malformed Content-Range');
   const start = Number(m[1]);
@@ -76,6 +83,11 @@ export class VideoUploadProxyController {
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
   ) {}
 
+  // Exempt from the per-IP throttler (tier names from apps/api throttle.config):
+  // an upload at LAN speed sends ~12 chunks/s, and once over the limit the
+  // throttler blocks for the whole window, so the upload failed. The session
+  // and owner guards already gate this route.
+  @SkipThrottle({ burst: true, sustained: true })
   @Put(':vid')
   async chunk(@Param('vid') vid: VideoId, @Req() req: Request, @Res() res: Response): Promise<void> {
     const range = parseContentRange(req.headers['content-range']);
@@ -89,6 +101,21 @@ export class VideoUploadProxyController {
     if (body.length !== expected) {
       throw new UploadChunkInvalidException('body length does not match Content-Range');
     }
+    // One chunk at a time per session: a client retry that arrives while the
+    // first attempt is still storing would otherwise create a second
+    // multipart upload or a duplicate part.
+    const run = session.tail.then(() => this.store(vid, session, range, body, res));
+    session.tail = run.catch(() => undefined);
+    await run;
+  }
+
+  private async store(
+    vid: VideoId,
+    session: VideoUploadSession,
+    range: ContentRange,
+    body: Buffer,
+    res: Response,
+  ): Promise<void> {
     if (range.last < session.received) {
       // Already have these bytes: the client missed our 308 (or the final
       // 200) and retried.

@@ -3,6 +3,7 @@ import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 import type { ISODateString } from '@learnwren/shared-data-models';
 
+import { attachmentDisposition } from './attachment-disposition';
 import { MATERIALS_CONFIG, type MaterialsConfig } from './materials.config';
 
 export interface SignedUploadUrl {
@@ -41,10 +42,6 @@ export interface MaterialsStoragePort {
 /** Routes the browser uses when the api proxies material bytes (fake and S3 modes). */
 export const MATERIAL_UPLOAD_PROXY_PATH = '/api/internal/uploads/materials';
 export const MATERIAL_DOWNLOAD_PROXY_PATH = '/api/internal/downloads/materials';
-
-function sanitizeFilename(name: string): string {
-  return name.replace(/["\\\r\n]/g, '_');
-}
 
 /**
  * Lesson materials through the ObjectStorage port. GCS mints signed URLs the
@@ -104,7 +101,7 @@ export class MaterialsStorageAdapter implements MaterialsStoragePort, OnModuleIn
           bucket: input.bucket,
           path: input.path,
           ttlSec: input.ttlSec,
-          responseDisposition: `attachment; filename="${sanitizeFilename(input.filename)}"`,
+          responseDisposition: attachmentDisposition(input.filename),
           responseType: input.contentType,
         });
     return { downloadUrl, expiresAt: new Date(expiresMs).toISOString() as ISODateString };

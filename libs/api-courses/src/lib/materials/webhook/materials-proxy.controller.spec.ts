@@ -195,7 +195,7 @@ describe('MaterialsProxyController.download', () => {
     );
     const res = makeRes();
     await ctrl.download('m1' as MaterialId, res as never);
-    expect(res.headers['Content-Disposition']).toBe('attachment; filename="a_b_c__d.pdf"');
+    expect(res.headers['Content-Disposition']).toBe(`attachment; filename="a_b_c__d.pdf"; filename*=UTF-8''a%22b%5Cc%0D%0Ad.pdf`);
   });
 
   it('destroys the response when the object stream errors mid-flight', async () => {

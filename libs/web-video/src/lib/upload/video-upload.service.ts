@@ -26,7 +26,6 @@ const SUPPORTED_MIME = new Set<SupportedVideoContentType>(SUPPORTED_VIDEO_CONTEN
 const MAX_BYTES = 10_000_000_000;
 const CHUNK_BYTES = 8 * 1024 * 1024;
 const MAX_RETRIES_PER_CHUNK = 3;
-const HTTP_TOO_MANY_REQUESTS = 429;
 const BACKOFF_MS = [1000, 2000, 4000];
 
 export type UploadState =
@@ -172,9 +171,8 @@ export class VideoUploadService {
       if (this.aborted) return false;
       if (status === 200 || status === 308) return true;
       // status 0 = network error (xhr.onerror): a transient blip is retryable,
-      // same as a 5xx and a 429 (the api's rate limiter, which a large upload
-      // at LAN speed can trip). Aborts also resolve 0 but are caught above.
-      if ((status === 0 || status === HTTP_TOO_MANY_REQUESTS || status >= 500) && attempt < MAX_RETRIES_PER_CHUNK) {
+      // same as a 5xx. Aborts also resolve 0 but are caught by the guard above.
+      if ((status === 0 || status >= 500) && attempt < MAX_RETRIES_PER_CHUNK) {
         await new Promise((res) => setTimeout(res, BACKOFF_MS[attempt] ?? 4000));
         continue;
       }

@@ -332,6 +332,46 @@ describe('VideoUploadProxyController.chunk', () => {
   });
 });
 
+describe('VideoUploadProxyController rate limiting', () => {
+  it('is exempt from both per-IP throttler tiers (an upload at LAN speed sends ~12 chunks/s; the session + owner guards gate it)', () => {
+    const handler = VideoUploadProxyController.prototype.chunk;
+    expect(Reflect.getMetadata('THROTTLER:SKIPburst', handler)).toBe(true);
+    expect(Reflect.getMetadata('THROTTLER:SKIPsustained', handler)).toBe(true);
+  });
+});
+
+describe('VideoUploadProxyController concurrent chunks', () => {
+  it('serialises a retried chunk that arrives while the first is still storing: one multipart upload, one part', async () => {
+    const { ctrl, storage } = make();
+    let release!: () => void;
+    storage.uploadPart.mockImplementationOnce(
+      () => new Promise<string>((r) => (release = () => r('"etag1"'))),
+    );
+    const total = BIG * 2;
+    const req = () => makeReq(Buffer.alloc(BIG), `bytes 0-${BIG - 1}/${total}`);
+    const first = makeRes();
+    const retry = makeRes();
+    const a = ctrl.chunk(VID, req(), first as never);
+    const b = ctrl.chunk(VID, req(), retry as never);
+    await new Promise((r) => setImmediate(r));
+    release();
+    await Promise.all([a, b]);
+    expect(storage.createMultipartUpload).toHaveBeenCalledOnce();
+    expect(storage.uploadPart).toHaveBeenCalledOnce();
+    expect(first.statusCode).toBe(308);
+    expect(retry.statusCode).toBe(308);
+  });
+
+  it('a failed chunk does not wedge the queue for the next one', async () => {
+    const { ctrl, storage } = make();
+    storage.uploadPart.mockRejectedValueOnce(new Error('part failed'));
+    await expect(ctrl.chunk(VID, makeReq(Buffer.alloc(3), 'bytes 0-2/3'), makeRes() as never)).rejects.toThrow('part failed');
+    const res = makeRes();
+    await ctrl.chunk(VID, makeReq(Buffer.alloc(3), 'bytes 0-2/3'), res as never);
+    expect(res.statusCode).toBe(200);
+  });
+});
+
 describe('VideoUploadSessions', () => {
   it('lists sessions opened before a cutoff', () => {
     const s = new VideoUploadSessions();
@@ -344,7 +384,7 @@ describe('VideoUploadSessions', () => {
     const s = new VideoUploadSessions();
     expect(s.get('x')).toBeUndefined();
     s.open('x', { bucket: 'b', path: 'p', contentType: 'video/mp4' }, 42);
-    expect(s.get('x')).toEqual({ bucket: 'b', path: 'p', contentType: 'video/mp4', parts: [], received: 0, openedAt: 42 });
+    expect(s.get('x')).toEqual({ bucket: 'b', path: 'p', contentType: 'video/mp4', parts: [], received: 0, openedAt: 42, tail: expect.any(Promise) });
     s.close('x');
     expect(s.get('x')).toBeUndefined();
   });

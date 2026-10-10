@@ -13,6 +13,8 @@ export interface VideoUploadSession {
   completed?: boolean;
   /** Epoch ms; lets an abandoned session (tab closed mid-upload) be swept. */
   openedAt: number;
+  /** Settles when the chunk being stored finishes; chunks queue behind it. */
+  tail: Promise<void>;
 }
 
 /**
@@ -26,7 +28,7 @@ export class VideoUploadSessions {
   private readonly sessions = new Map<string, VideoUploadSession>();
 
   open(videoId: string, input: { bucket: string; path: string; contentType: string }, now = Date.now()): void {
-    this.sessions.set(videoId, { ...input, parts: [], received: 0, openedAt: now });
+    this.sessions.set(videoId, { ...input, parts: [], received: 0, openedAt: now, tail: Promise.resolve() });
   }
 
   /** Video ids whose session was opened before `cutoff` (epoch ms). */

@@ -1,3 +1,4 @@
+import { formatDate } from '@angular/common';
 import type { CourseRosterRow } from '@learnwren/shared-data-models';
 
 const HEADERS = ['Display Name', 'Email', 'Enrollment Date', 'Progress (%)'];
@@ -13,9 +14,13 @@ function field(value: string): string {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
-/** ISO timestamp → YYYY-MM-DD (the calendar date portion). */
-function isoDate(iso: string): string {
-  return iso.slice(0, 10);
+/**
+ * ISO timestamp → YYYY-MM-DD in the viewer's local zone — the same calendar
+ * date the roster table shows (DatePipe is local too). Slicing the UTC string
+ * put an evening enrollment in the Americas on the next day.
+ */
+function localDate(iso: string): string {
+  return formatDate(iso, 'yyyy-MM-dd', 'en-US');
 }
 
 /** Build an RFC-4180 CSV (CRLF line endings) from roster rows. */
@@ -26,7 +31,7 @@ export function rosterRowsToCsv(rows: CourseRosterRow[]): string {
       [
         field(r.displayName),
         field(r.email),
-        field(isoDate(r.enrolledAt)),
+        field(localDate(r.enrolledAt)),
         field(String(r.progressPercent)),
       ].join(','),
     );

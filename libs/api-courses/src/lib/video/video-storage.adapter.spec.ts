@@ -81,7 +81,7 @@ describe('VideoStorageAdapter.createResumableSession', () => {
     const { adapter, storage, sessions } = make(realCfg, 's3');
     const r = await adapter.createResumableSession({ ...ref, contentType: 'video/quicktime', videoId: 'v' });
     expect(r.uri).toBe('/api/internal/uploads/videos/v');
-    expect(sessions.get('v')).toEqual({ bucket: 'b', path: 'videos/v/source.mp4', contentType: 'video/quicktime', parts: [], received: 0, openedAt: expect.any(Number) });
+    expect(sessions.get('v')).toEqual({ bucket: 'b', path: 'videos/v/source.mp4', contentType: 'video/quicktime', parts: [], received: 0, openedAt: expect.any(Number), tail: expect.any(Promise) });
     expect(storage.createResumableUpload).not.toHaveBeenCalled();
   });
 });

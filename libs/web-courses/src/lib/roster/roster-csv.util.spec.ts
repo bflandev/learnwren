@@ -30,9 +30,29 @@ describe('rosterRowsToCsv', () => {
     expect(csv).toContain('"Doe, ""Jane""\nJr"');
   });
 
+  // Pin the zone so these hold on any machine (Node re-reads TZ on assignment).
+  function inZone<T>(tz: string, fn: () => T): T {
+    const saved = process.env['TZ'];
+    process.env['TZ'] = tz;
+    try {
+      return fn();
+    } finally {
+      if (saved === undefined) delete process.env['TZ'];
+      else process.env['TZ'] = saved;
+    }
+  }
+
   it('renders the enrollment date as YYYY-MM-DD', () => {
-    const csv = rosterRowsToCsv([row({ enrolledAt: '2026-01-09T23:59:00.000Z' as never })]);
+    const csv = inZone('UTC', () => rosterRowsToCsv([row({ enrolledAt: '2026-01-09T23:59:00.000Z' as never })]));
     expect(csv).toContain('"2026-01-09"');
+  });
+
+  it("uses the viewer's local calendar date, matching the on-screen table", () => {
+    // 02:00 UTC on the 10th is still the evening of the 9th in New York.
+    const csv = inZone('America/New_York', () =>
+      rosterRowsToCsv([row({ enrolledAt: '2026-03-10T02:00:00.000Z' as never })]),
+    );
+    expect(csv).toContain('"2026-03-09"');
   });
 
   it('returns just the header for an empty roster', () => {

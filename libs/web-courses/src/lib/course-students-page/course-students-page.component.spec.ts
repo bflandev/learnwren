@@ -378,6 +378,15 @@ describe('CourseStudentsPageComponent', () => {
     expect(created[0].size).toBeGreaterThan(0);
     // Verify the blob has the correct MIME type (kills ObjectLiteral / StringLiteral mutants).
     expect(created[0].type).toBe('text/csv;charset=utf-8;');
+    // A UTF-8 byte-order mark first, or Excel decodes the file as Windows-1252
+    // and non-ASCII names come out garbled.
+    const bytes = await new Promise<ArrayBuffer>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.readAsArrayBuffer(created[0].slice(0, 3));
+    });
+    const head = new Uint8Array(bytes);
+    expect([...head]).toEqual([0xef, 0xbb, 0xbf]);
 
     anchorSpy.mockRestore();
   });

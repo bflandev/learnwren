@@ -21,6 +21,9 @@ export interface SmtpEmailTransportConfig {
   from: string;
 }
 
+const SMTP_MAX_CONNECTIONS = 3;
+const SMTP_MESSAGES_PER_SECOND = 10;
+
 @Injectable()
 export class SmtpEmailTransport implements EmailTransport {
   private readonly logger = new Logger('SmtpEmailTransport');
@@ -38,6 +41,14 @@ export class SmtpEmailTransport implements EmailTransport {
       secure,
       ...(secure ? {} : { requireTLS: true }),
       auth: { user: config.user, pass: config.password },
+      // A module notification sends to every enrolled student at once. Pooled
+      // and rate-limited, nodemailer queues those sends instead of opening a
+      // connection per recipient, which tripped the provider's sending rate
+      // (SES defaults to 14/s) and silently dropped most of them.
+      // ponytail: fixed limits; make them env-driven if a provider needs other values.
+      pool: true,
+      maxConnections: SMTP_MAX_CONNECTIONS,
+      rateLimit: SMTP_MESSAGES_PER_SECOND,
     });
   }
 
