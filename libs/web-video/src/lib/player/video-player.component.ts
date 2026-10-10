@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -56,6 +57,10 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
   private mountToken = 0;
   private readonly playerSvc = inject(VideoPlayerService);
   private readonly playbackConfig = inject(PlaybackConfigService);
+  private readonly document = inject(DOCUMENT);
+  private loaderFailed = false;
+  // Overridable in tests (jsdom's location.reload cannot be spied on).
+  private reloadPage = (): void => this.document.location.reload();
   private listenersAttached = false;
   private readonly onMetadata = (): void => this.metadata.emit();
   private readonly onPlay = (): void => this.played.emit();
@@ -84,6 +89,12 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
 
   retry(): void {
     if (this.devPlaceholder()) return;
+    if (this.loaderFailed) {
+      // A browser caches a failed dynamic import (and a deploy may have
+      // removed the hashed chunk), so re-importing in place cannot succeed.
+      this.reloadPage();
+      return;
+    }
     this.handle?.dispose();
     this.handle = null;
     this.error.set(null);
@@ -110,8 +121,11 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
       });
     } catch {
       // The lazy hls.js chunk failed to load (offline, or a deploy replaced
-      // the hashed file). Surface the retryable error; Try again re-imports.
-      if (token === this.mountToken) this.error.set('Unable to load the video player. Try again.');
+      // the hashed file). Surface the retryable error; Try again reloads.
+      if (token === this.mountToken) {
+        this.loaderFailed = true;
+        this.error.set('Unable to load the video player. Try again.');
+      }
       return;
     }
     if (token !== this.mountToken) {

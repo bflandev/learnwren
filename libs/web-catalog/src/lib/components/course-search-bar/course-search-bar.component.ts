@@ -1,3 +1,4 @@
+import { CATALOG_SEARCH_MAX_LENGTH } from '@learnwren/shared-data-models';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -12,6 +13,7 @@ import { HlmInput } from '@learnwren/web-ui';
   templateUrl: './course-search-bar.component.html',
 })
 export class CourseSearchBarComponent {
+  protected readonly queryMax = CATALOG_SEARCH_MAX_LENGTH;
   private readonly router = inject(Router);
   readonly query = signal('');
 

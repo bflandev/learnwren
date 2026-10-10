@@ -16,6 +16,7 @@ import type {
   InstructorApplicationErrorBody,
   InstructorApplicationView,
 } from '@learnwren/shared-data-models';
+import { INSTRUCTOR_APPLICATION_FIELD_MAX_LENGTH } from '@learnwren/shared-data-models';
 
 import { InstructorApplicationService } from './instructor-application.service';
 
@@ -38,6 +39,7 @@ type Status = 'idle' | 'submitting';
   templateUrl: './instructor-application.component.html',
 })
 export class InstructorApplicationComponent {
+  protected readonly fieldMax = INSTRUCTOR_APPLICATION_FIELD_MAX_LENGTH;
   private readonly fb = inject(FormBuilder);
   private readonly svc = inject(InstructorApplicationService);
   private readonly auth = inject(AuthService);
@@ -109,6 +111,8 @@ export class InstructorApplicationComponent {
       const field = body?.error?.details?.field;
       if (field === 'statement' || field === 'expertise') {
         this.form.controls[field].setErrors({ server: message });
+        // Touched, or the template hides the error after Enter-to-submit.
+        this.form.controls[field].markAsTouched();
         return;
       }
     }

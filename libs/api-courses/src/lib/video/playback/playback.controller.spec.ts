@@ -1,3 +1,5 @@
+import { PassThrough, Readable } from 'node:stream';
+
 import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
@@ -205,14 +207,18 @@ describe('PlaybackController.segment (US-09-04 Slice B)', () => {
     expect(storage.headObject).toHaveBeenCalledWith({ bucket: 'out', path: 'videos/v1/hls/hls_720p0000000001.ts' });
   });
 
+  function makeRealStreamRes() {
+    const base = makeRes();
+    return Object.assign(new PassThrough(), { headers: base.headers, setHeader: base.setHeader });
+  }
+
   it('streams the segment beside the manifest with MPEG-TS and a private immutable cache header', async () => {
-    const stream = { pipe: vi.fn(), on: vi.fn() };
     const storage = {
       headObject: vi.fn(async () => ({ size: 10 })),
-      openObjectReadStream: vi.fn(() => stream),
+      openObjectReadStream: vi.fn(() => Readable.from([Buffer.from('TS-BYTES')])),
     };
     const ctrl = await build(storage);
-    const res = makeStreamRes();
+    const res = makeRealStreamRes();
     await ctrl.segment(VIDEO, 'hls_720p0000000001.ts', res as unknown as import('express').Response);
     expect(storage.openObjectReadStream).toHaveBeenCalledWith({
       bucket: 'out',
@@ -220,25 +226,34 @@ describe('PlaybackController.segment (US-09-04 Slice B)', () => {
     });
     expect(res.headers['content-type']).toBe('video/mp2t');
     expect(res.headers['cache-control']).toBe('private, max-age=14400, immutable');
-    expect(stream.pipe).toHaveBeenCalledWith(res);
+    expect((await res.toArray()).join('')).toBe('TS-BYTES');
   });
 
   it('destroys the response when the stream fails mid-flight', async () => {
-    let onError: ((e: Error) => void) | undefined;
-    const stream = {
-      pipe: vi.fn(),
-      on: vi.fn((ev: string, cb: (e: Error) => void) => {
-        if (ev === 'error') onError = cb;
-      }),
-    };
+    const stream = new Readable({ read() { /* driven manually */ } });
     const storage = {
       headObject: vi.fn(async () => ({ size: 10 })),
       openObjectReadStream: vi.fn(() => stream),
     };
     const ctrl = await build(storage);
-    const res = makeStreamRes();
+    const res = makeRealStreamRes();
     await ctrl.segment(VIDEO, 'hls_720p0000000001.ts', res as unknown as import('express').Response);
-    onError!(new Error('boom'));
-    expect(res.destroy).toHaveBeenCalled();
+    stream.destroy(new Error('boom'));
+    await new Promise((r) => setImmediate(r));
+    expect(res.destroyed).toBe(true);
+  });
+
+  it('releases the segment stream when the player aborts the request', async () => {
+    const stream = new Readable({ read() { /* a large segment still arriving */ } });
+    const storage = {
+      headObject: vi.fn(async () => ({ size: 10 })),
+      openObjectReadStream: vi.fn(() => stream),
+    };
+    const ctrl = await build(storage);
+    const res = makeRealStreamRes();
+    await ctrl.segment(VIDEO, 'hls_720p0000000001.ts', res as unknown as import('express').Response);
+    res.destroy();
+    await new Promise((r) => setImmediate(r));
+    expect(stream.destroyed).toBe(true);
   });
 });

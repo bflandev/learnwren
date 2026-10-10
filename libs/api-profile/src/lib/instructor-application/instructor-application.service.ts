@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
-import { nowIso } from '@learnwren/shared-data-models';
+import { INSTRUCTOR_APPLICATION_FIELD_MAX_LENGTH, nowIso } from '@learnwren/shared-data-models';
 import type {
   InstructorApplication,
   InstructorApplicationView,
@@ -18,7 +18,7 @@ import {
 import { INSTRUCTOR_APPLICATIONS_COLLECTION } from './instructor-applications.constants';
 
 const COLLECTION = INSTRUCTOR_APPLICATIONS_COLLECTION;
-const MAX_FIELD_LENGTH = 2000;
+const MAX_FIELD_LENGTH = INSTRUCTOR_APPLICATION_FIELD_MAX_LENGTH;
 
 @Injectable()
 export class InstructorApplicationService {

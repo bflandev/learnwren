@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -752,6 +753,38 @@ describe('CourseEditorPageComponent', () => {
       http.expectOne('/api/courses/cid-1').flush(buildTree());
       await pending;
       expect(fixture.componentInstance.notice()).toBe('Notified 0 students.');
+    });
+
+    function treeWithMid1Notified() {
+      const tree = buildTree();
+      return {
+        ...tree,
+        modules: tree.modules.map((m) =>
+          m.module.id === 'mid-1' ? { ...m, module: { ...m.module, studentsNotifiedAt: TS } } : m,
+        ),
+      };
+    }
+
+    it('treats a gateway timeout as "still sending" once the module shows as notified', async () => {
+      notifications.notifyModule.mockRejectedValue(new HttpErrorResponse({ status: 504 }));
+      const fixture = await initEditor();
+      const pending = fixture.componentInstance.onNotifyModule('mid-1');
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(treeWithMid1Notified());
+      await pending;
+      expect(fixture.componentInstance.error()).toBeNull();
+      expect(fixture.componentInstance.notice()).toContain('still being sent');
+    });
+
+    it('reports a failure for a gateway timeout when the module was never marked notified (the api never ran)', async () => {
+      notifications.notifyModule.mockRejectedValue(new HttpErrorResponse({ status: 504 }));
+      const fixture = await initEditor();
+      const pending = fixture.componentInstance.onNotifyModule('mid-1');
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await pending;
+      expect(fixture.componentInstance.notice()).toBeNull();
+      expect(fixture.componentInstance.error()).toBe('Failed to notify students.');
     });
 
     it('shows an error when the call fails', async () => {

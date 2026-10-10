@@ -96,6 +96,34 @@ describe('PasswordVerificationService.verifyPassword', () => {
     expect(recovery.sendUnlockEmail).toHaveBeenCalledWith(EMAIL, 'utok', lockedUntil);
   });
 
+  it('throws AccountLockedException WITHOUT another email when the account was already locked by a parallel failure', async () => {
+    const lockedUntil = new Date(Date.now() + 15 * 60_000);
+    const verifyPassword = vi.fn(async () => {
+      throw new InvalidCredentialsException();
+    });
+    const recordFailure = vi.fn(async () => ({ locked: true, lockedUntil }));
+    const { svc, recovery } = makeService({ verifyPassword, recordFailure });
+
+    const err = await svc.verifyPassword(EMAIL, PASSWORD).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(AccountLockedException);
+    expect(recovery.sendUnlockEmail).not.toHaveBeenCalled();
+  });
+
+  it('refuses a correct password when a parallel failure locked the account mid-check', async () => {
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ failedCount: 3, lockedUntil: future });
+    const { svc, identity } = makeService({ read });
+
+    await expect(svc.verifyPassword(EMAIL, PASSWORD)).rejects.toBeInstanceOf(
+      AccountLockedException,
+    );
+    expect(identity.verifyPassword).toHaveBeenCalled();
+  });
+
   it('propagates a non-credentials error without recording a failure', async () => {
     const verifyPassword = vi.fn(async () => {
       throw new InternalAuthException();

@@ -176,11 +176,15 @@ describe('VideoPlayerComponent', () => {
       fixture.nativeElement.querySelector('[data-testid="video-player-retry"]'),
     ).not.toBeNull();
 
-    // Retry re-runs the load; this time it succeeds and the error clears.
+    // A browser caches a failed dynamic import (and a deploy may have removed
+    // the hashed chunk), so re-importing in place can never succeed: Try
+    // again reloads the page, which fetches the current chunks.
+    const reloadPage = vi.fn();
+    (fixture.componentInstance as unknown as { reloadPage: () => void }).reloadPage = reloadPage;
     fixture.componentInstance.retry();
     await fixture.whenStable();
-    expect(stub.attach).toHaveBeenCalledTimes(2);
-    expect(fixture.componentInstance.error()).toBeNull();
+    expect(reloadPage).toHaveBeenCalledOnce();
+    expect(stub.attach).toHaveBeenCalledTimes(1);
   });
 
   it('ignores a load failure from a mount the component already abandoned', async () => {

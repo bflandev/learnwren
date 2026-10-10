@@ -78,7 +78,7 @@ describe('MaterialsStorageAdapter — gcs signed mode', () => {
     const s = storage();
     await new MaterialsStorageAdapter(asPort(s), realCfg).signDownloadUrl({ ...download, filename: 'a"b\\c\r\nd.pdf' });
     const arg = s.signReadUrl.mock.calls[0]![0] as { responseDisposition: string };
-    expect(arg.responseDisposition).toBe('attachment; filename="a_b_c__d.pdf"');
+    expect(arg.responseDisposition).toBe(`attachment; filename="a_b_c__d.pdf"; filename*=UTF-8''a%22b%5Cc%0D%0Ad.pdf`);
   });
 
   it('creates the materials bucket on module init', async () => {

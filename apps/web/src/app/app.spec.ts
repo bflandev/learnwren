@@ -49,7 +49,7 @@ describe('App', () => {
   // Both tests create App BEFORE navigating, mirroring production bootstrap
   // order: the router-focus subscription in App's constructor (app.ts) is
   // live before the very first route resolves, so that first NavigationEnd
-  // is the one `skip(1)` drops. Navigating before createComponent (as the
+  // is the one `pairwise` drops. Navigating before createComponent (as the
   // other tests above do, to get RouterOutlet content on first render)
   // would instead make the *second* navigation the subscription's first
   // observed event — a different, unrealistic ordering.
@@ -83,6 +83,30 @@ describe('App', () => {
       const main = fixture.nativeElement.querySelector('#main-content') as HTMLElement;
       expect(document.activeElement).toBe(main);
     } finally {
+      fixture.nativeElement.remove();
+    }
+  });
+
+  it('leaves focus alone when only the query string changes (filter, sort, paging)', async () => {
+    configureAuthTestBed(App, null);
+    const fixture = TestBed.createComponent(App);
+    document.body.appendChild(fixture.nativeElement);
+    const control = document.createElement('button');
+    document.body.appendChild(control);
+    try {
+      const router = TestBed.inject(Router);
+      await router.navigateByUrl('/catalog');
+      fixture.detectChanges();
+      await router.navigateByUrl('/login');
+      fixture.detectChanges();
+      await router.navigateByUrl('/catalog');
+      fixture.detectChanges();
+      control.focus();
+      await router.navigateByUrl('/catalog?sort=ALPHABETICAL');
+      fixture.detectChanges();
+      expect(document.activeElement).toBe(control);
+    } finally {
+      control.remove();
       fixture.nativeElement.remove();
     }
   });

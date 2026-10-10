@@ -1,3 +1,6 @@
+import { PassThrough, Readable } from 'node:stream';
+import { setImmediate as tick } from 'node:timers/promises';
+
 import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -8,9 +11,10 @@ import { PublicMediaController } from './public-media.controller';
 const cfg: ObjectStorageConfig = { kind: 'gcs', publicBuckets: ['covers', 'pictures'] };
 
 function make(head: { size: number; contentType?: string } | null = { size: 5, contentType: 'image/jpeg' }) {
-  const stream = { pipe: vi.fn(), on: vi.fn() };
+  const stream = new Readable({ read() { /* driven by each test */ } });
   const storage = { headObject: vi.fn(async () => head), openReadStream: vi.fn(() => stream) };
-  const res = { headers: {} as Record<string, string>, setHeader: vi.fn((k: string, v: string) => { res.headers[k] = v; }), destroy: vi.fn() };
+  const headers: Record<string, string> = {};
+  const res = Object.assign(new PassThrough(), { headers, setHeader: vi.fn((k: string, v: string) => { headers[k] = v; }) });
   return { ctrl: new PublicMediaController(storage as unknown as ObjectStorage, cfg), storage, stream, res };
 }
 
@@ -26,7 +30,9 @@ describe('PublicMediaController', () => {
       'Cache-Control': 'public, max-age=31536000, immutable',
       'X-Content-Type-Options': 'nosniff',
     });
-    expect(stream.pipe).toHaveBeenCalledWith(res);
+    stream.push('bytes');
+    stream.push(null);
+    expect((await res.toArray()).join('')).toBe('bytes');
   });
 
   it('falls back to octet-stream when the store has no content type', async () => {
@@ -50,8 +56,25 @@ describe('PublicMediaController', () => {
   it('drops the connection when the stream fails mid-flight', async () => {
     const { ctrl, stream, res } = make();
     await ctrl.serve('covers', 'k', res as never);
-    const onError = (stream.on.mock.calls.find((c) => c[0] === 'error') as [string, () => void])[1];
-    onError();
-    expect(res.destroy).toHaveBeenCalled();
+    stream.destroy(new Error('store reset'));
+    await tick();
+    expect(res.destroyed).toBe(true);
   });
+
+  it('releases the object stream when the client hangs up', async () => {
+    const { ctrl, stream, res } = make();
+    await ctrl.serve('covers', 'k', res as never);
+    res.destroy();
+    await tick();
+    expect(stream.destroyed).toBe(true);
+  });
+
+  it.each(['../learnwren-materials/x.pdf', 'a/../b', './a', 'a//b', ''])(
+    '404s for a key with a dot or empty segment (%s), without touching storage',
+    async (key) => {
+      const { ctrl, storage, res } = make();
+      await expect(ctrl.serve('covers', key, res as never)).rejects.toBeInstanceOf(NotFoundException);
+      expect(storage.headObject).not.toHaveBeenCalled();
+    },
+  );
 });

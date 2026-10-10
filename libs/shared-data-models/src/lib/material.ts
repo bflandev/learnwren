@@ -51,3 +51,6 @@ export interface Material {
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
+
+/** Material display-name length (api DTO and web input share it). */
+export const MATERIAL_NAME_MAX_LENGTH = 255;

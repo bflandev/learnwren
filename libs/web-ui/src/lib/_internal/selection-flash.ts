@@ -50,7 +50,7 @@ export function createSelectionFlash(
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const onCaptureClick = (event: MouseEvent): void => {
-    if (flashing() || !opts.canFlash() || !prefersMotion()) {
+    if (isLink(el.nativeElement) || flashing() || !opts.canFlash() || !prefersMotion()) {
       return;
     }
     event.stopImmediatePropagation();
@@ -71,6 +71,14 @@ export function createSelectionFlash(
   });
 
   return { flashing };
+}
+
+// A link row (`<a hlmMenuItem routerLink>`) must not flash: stopping the click
+// would also stop RouterLink's handler, and the browser would then follow the
+// href itself — a full page reload instead of an in-app route. Checked per
+// click, because RouterLink binds href only after the first change detection.
+function isLink(host: HTMLElement): boolean {
+  return host.matches('a[href]');
 }
 
 function prefersMotion(): boolean {

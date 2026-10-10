@@ -3,7 +3,7 @@
     <span>Category</span>
     <div
       class="min-w-36"
-      [hlmSelectSingle]="category() ?? ''"
+      [hlmSelectSingle]="category() ?? ALL"
       (hlmSelectSingleChange)="onCategoryChange($event)"
     >
       <!-- The trigger label is derived from the async `categories` list, so a
@@ -15,7 +15,7 @@
       <ng-template hlmSelectPortal>
         <div hlmSelectContent>
           <div hlmSelectList>
-            <div [hlmSelectItem]="''">All</div>
+            <div [hlmSelectItem]="ALL">All</div>
             @for (c of categories(); track c.id) {
               <div [hlmSelectItem]="c.id">{{ c.name }}</div>
             }
@@ -29,7 +29,7 @@
     <span>Difficulty</span>
     <div
       class="min-w-36"
-      [hlmSelectSingle]="difficulty() ?? ''"
+      [hlmSelectSingle]="difficulty() ?? ALL"
       (hlmSelectSingleChange)="onDifficultyChange($event)"
     >
       <button hlmSelectTrigger type="button" aria-label="Difficulty" data-testid="filter-difficulty">
@@ -38,7 +38,7 @@
       <ng-template hlmSelectPortal>
         <div hlmSelectContent>
           <div hlmSelectList>
-            <div [hlmSelectItem]="''">All</div>
+            <div [hlmSelectItem]="ALL">All</div>
             @for (d of difficulties; track d) {
               <div [hlmSelectItem]="d">{{ d }}</div>
             }

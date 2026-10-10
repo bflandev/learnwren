@@ -7,6 +7,7 @@ export {
 } from './lib/auth.service';
 export { authGuard } from './lib/auth.guard';
 export { withCredentialsInterceptor } from './lib/with-credentials.interceptor';
+export { sessionExpiredInterceptor } from './lib/session-expired.interceptor';
 export { LoginPageComponent } from './lib/login-page/login-page.component';
 export { RegisterPageComponent } from './lib/register-page/register-page.component';
 export { RegisterConfirmPageComponent } from './lib/register-confirm-page/register-confirm-page.component';

@@ -10,3 +10,6 @@ export interface Lesson {
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
+
+/** Lesson title length (api DTO and web inputs share it). */
+export const LESSON_TITLE_MAX_LENGTH = 100;

@@ -59,3 +59,6 @@ export interface CourseCatalogDetail {
   publishedAt: ISODateString;
   coverImageUrl?: string;
 }
+
+/** Catalog search query length (api DTO and web input share it). */
+export const CATALOG_SEARCH_MAX_LENGTH = 100;

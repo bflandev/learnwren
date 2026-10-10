@@ -37,8 +37,8 @@
       </select>
     </label>
     <label class="inline-block cursor-pointer">
-      <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy()" />
-      <span hlmBtn variant="secondary" size="sm">Upload captions (.vtt)</span>
+      <input type="file" accept=".vtt,text/vtt" class="sr-only" (change)="onInputChange($event)" [disabled]="busy() || loadFailed()" />
+      <span hlmBtn variant="secondary" size="sm" [class.opacity-50]="loadFailed()">Upload captions (.vtt)</span>
     </label>
   </div>
   <p class="mt-1 text-xs text-muted-foreground">Uploading a language that already has captions replaces them.</p>

@@ -140,7 +140,9 @@ export class S3ObjectStorage implements ObjectStorage {
     // PassThrough and wire the body (or the error) into it when it arrives.
     const out = new PassThrough();
     this.body(input)
-      .then((body) => body.pipe(out))
+      // pipeline, not pipe: a consumer that goes away destroys `out`, and that
+      // must destroy the SDK body too or its socket is never released.
+      .then((body) => pipeline(body, out).catch(() => undefined))
       .catch((err: Error) => out.destroy(err));
     return out;
   }

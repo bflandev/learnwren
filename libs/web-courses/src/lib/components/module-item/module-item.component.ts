@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import type { CourseId, Lesson, Module, VideoState } from '@learnwren/shared-data-models';
+import { LESSON_TITLE_MAX_LENGTH, MODULE_TITLE_MAX_LENGTH } from '@learnwren/shared-data-models';
 
 import { HlmButton, HlmCard, HlmInput } from '@learnwren/web-ui';
 
@@ -16,6 +17,8 @@ import { LessonListComponent } from '../lesson-list/lesson-list.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ModuleItemComponent {
+  protected readonly moduleTitleMax = MODULE_TITLE_MAX_LENGTH;
+  protected readonly lessonTitleMax = LESSON_TITLE_MAX_LENGTH;
   readonly module = input.required<Module>();
   readonly lessons = input.required<Lesson[]>();
   readonly courseId = input.required<CourseId>();

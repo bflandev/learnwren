@@ -4,6 +4,7 @@
       <input
         hlmInput
         data-testid="module-rename-input"
+        [attr.maxlength]="moduleTitleMax"
         type="text"
         aria-label="Module title"
         class="flex-1"
@@ -63,6 +64,7 @@
     <input
       hlmInput
       data-testid="add-lesson-input"
+      [attr.maxlength]="lessonTitleMax"
       type="text"
       aria-label="New lesson title"
       class="mt-3"

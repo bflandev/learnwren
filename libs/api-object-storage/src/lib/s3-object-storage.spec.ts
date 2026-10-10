@@ -1,4 +1,4 @@
-import { Readable } from 'node:stream';
+import { PassThrough, Readable } from 'node:stream';
 
 import {
   AbortMultipartUploadCommand,
@@ -146,6 +146,16 @@ describe('S3ObjectStorage', () => {
     expect(await collect(ok.storage.openReadStream(ref))).toBe('ab');
     const bad = make(() => { throw new Error('nope'); });
     await expect(collect(bad.storage.openReadStream(ref))).rejects.toThrow('nope');
+  });
+
+  it('openReadStream releases the S3 body when the consumer goes away', async () => {
+    const body = new Readable({ read() { /* a large object still downloading */ } });
+    const { storage } = make(() => ({ Body: body }));
+    const out = storage.openReadStream(ref) as PassThrough;
+    await new Promise((r) => setImmediate(r));
+    out.destroy();
+    await new Promise((r) => setImmediate(r));
+    expect(body.destroyed).toBe(true);
   });
 
   it('ensureBucket creates the bucket only when HeadBucket says it is missing', async () => {

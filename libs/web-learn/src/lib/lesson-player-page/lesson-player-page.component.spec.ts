@@ -166,6 +166,30 @@ describe('LessonPlayerPageComponent', () => {
     expect(fixture.componentInstance.view()?.lesson.title).toBe('Lesson B');
   });
 
+  it('ignores a mark-complete response for a lesson the user already navigated away from', async () => {
+    const subject = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }));
+    await fixture.whenStable();
+
+    const p = fixture.componentInstance.onMarkComplete();
+    const completeA = http.expectOne('/api/learn/courses/c-1/lessons/l-1/complete');
+
+    // Outline click to l-2 while A's completion is in flight.
+    subject.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-2' }));
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-2')
+      .flush(makeView({ id: 'l-2' as LessonView['lesson']['id'], title: 'Lesson B' }, { completedAt: null, lastWatchedSeconds: 0 }));
+    await fixture.whenStable();
+
+    completeA.flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+    await p;
+
+    expect(fixture.componentInstance.view()?.lesson.title).toBe('Lesson B');
+    expect(fixture.componentInstance.view()?.progress?.completedAt).toBeNull();
+    expect(fixture.componentInstance.markBusy()).toBe(false);
+  });
+
   it('sets state to NOT_FOUND and fires no request when courseId param is missing', async () => {
     configure({ courseId: null });
     const { fixture, http } = create();

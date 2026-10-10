@@ -81,6 +81,11 @@ async function remove(db: Queryable, path: string): Promise<void> {
  * BEGIN … COMMIT on one pooled connection; ROLLBACK on any error. A failed
  * ROLLBACK means the connection is unusable, so it is destroyed (release(err))
  * instead of returned to the pool; the original error is the one rethrown.
+ *
+ * pg-pool drops its own 'error' listener while a client is checked out, and pg
+ * emits 'error' on a dropped socket besides rejecting the pending query — so
+ * without this listener a Postgres restart mid-transaction is an uncaught
+ * exception that kills the process.
  */
 async function inTransaction<T>(
   pool: Pool,
@@ -89,6 +94,10 @@ async function inTransaction<T>(
 ): Promise<T> {
   const client = await pool.connect();
   let broken: Error | undefined;
+  const onError = (err: Error): void => {
+    broken = err;
+  };
+  client.on('error', onError);
   try {
     await client.query(`BEGIN ISOLATION LEVEL ${isolation}`);
     const result = await body(client);
@@ -100,6 +109,7 @@ async function inTransaction<T>(
     });
     throw err;
   } finally {
+    client.removeListener('error', onError);
     client.release(broken);
   }
 }

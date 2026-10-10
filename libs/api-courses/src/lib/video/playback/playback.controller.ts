@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { Response } from 'express';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
+import { pipeToResponse } from '@learnwren/api-object-storage';
 import type { Video } from '@learnwren/shared-data-models';
 
 import {
@@ -80,9 +81,7 @@ export class PlaybackController {
     if (!head) throw new SegmentNotFoundException(name);
     res.setHeader('Content-Type', MPEG_TS_CONTENT_TYPE);
     res.setHeader('Cache-Control', `private, max-age=${this.cfg.playbackSignedUrlTtlSec}, immutable`);
-    const stream = this.storage.openObjectReadStream({ bucket, path: objectPath });
-    stream.on('error', () => res.destroy());
-    stream.pipe(res);
+    pipeToResponse(this.storage.openObjectReadStream({ bucket, path: objectPath }), res);
   }
 
   @Get('keys/:vid')

@@ -7,6 +7,8 @@
  */
 import { test, expect } from '@playwright/test';
 
+import { stubUnhandledApi } from './_helpers/route-stubs';
+
 const ME_STUB = {
   uid: 'test-uid-password-change',
   email: 'user@example.com',
@@ -32,6 +34,7 @@ const PROFILE_STUB = {
 async function stubAuthenticatedSession(
   page: import('@playwright/test').Page,
 ): Promise<void> {
+  await stubUnhandledApi(page);
   // Bootstrap + authGuard both call GET /api/auth/me.
   await page.route('**/api/auth/me', (route) => {
     void route.fulfill({

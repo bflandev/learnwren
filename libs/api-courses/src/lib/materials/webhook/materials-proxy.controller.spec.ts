@@ -1,5 +1,5 @@
 import { once } from 'node:events';
-import { Readable } from 'node:stream';
+import { PassThrough, Readable } from 'node:stream';
 
 import express from 'express';
 import { describe, expect, it, vi } from 'vitest';
@@ -56,7 +56,7 @@ function ctrlWith(storage: ReturnType<typeof makeStorage>) {
 
 function makeRes() {
   const headers: Record<string, string> = {};
-  return { headers, set: vi.fn((k: string, v: string) => { headers[k] = v; }), destroy: vi.fn(), write: vi.fn(), end: vi.fn(), on: vi.fn(), once: vi.fn(), emit: vi.fn() };
+  return Object.assign(new PassThrough(), { headers, set: vi.fn((k: string, v: string) => { headers[k] = v; }) });
 }
 
 describe('MaterialsProxyController.upload', () => {
@@ -178,36 +178,44 @@ describe('MaterialsProxyController.upload', () => {
 describe('MaterialsProxyController.download', () => {
   it('sets the type and attachment disposition and pipes the object stream', async () => {
     const body = Readable.from([Buffer.from('FILE-BYTES')]);
-    const pipe = vi.spyOn(body, 'pipe').mockImplementation((dest) => dest as never);
     const storage = makeStorage(body);
     const ctrl = new MaterialsProxyController(repoReturning(material), storage as unknown as ObjectStorage);
     const res = makeRes();
     await ctrl.download('m1' as MaterialId, res as never);
     expect(res.headers).toEqual({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'attachment; filename="doc.pdf"' });
     expect(storage.openReadStream).toHaveBeenCalledWith({ bucket: 'b', path: 'materials/m1/source.pdf' });
-    expect(pipe).toHaveBeenCalledWith(res);
+    expect((await res.toArray()).join('')).toBe('FILE-BYTES');
   });
 
   it('sanitizes the filename in the disposition', async () => {
     const body = Readable.from([]);
-    vi.spyOn(body, 'pipe').mockImplementation((dest) => dest as never);
     const ctrl = new MaterialsProxyController(
       repoReturning({ ...material, originalFilename: 'a"b\\c\r\nd.pdf' } as Material),
       makeStorage(body) as unknown as ObjectStorage,
     );
     const res = makeRes();
     await ctrl.download('m1' as MaterialId, res as never);
-    expect(res.headers['Content-Disposition']).toBe('attachment; filename="a_b_c__d.pdf"');
+    expect(res.headers['Content-Disposition']).toBe(`attachment; filename="a_b_c__d.pdf"; filename*=UTF-8''a%22b%5Cc%0D%0Ad.pdf`);
   });
 
   it('destroys the response when the object stream errors mid-flight', async () => {
     const body = new Readable({ read() { /* driven manually */ } });
-    vi.spyOn(body, 'pipe').mockImplementation((dest) => dest as never);
     const ctrl = new MaterialsProxyController(repoReturning(material), makeStorage(body) as unknown as ObjectStorage);
     const res = makeRes();
     await ctrl.download('m1' as MaterialId, res as never);
-    body.emit('error', new Error('boom'));
-    expect(res.destroy).toHaveBeenCalled();
+    body.destroy(new Error('boom'));
+    await new Promise((r) => setImmediate(r));
+    expect(res.destroyed).toBe(true);
+  });
+
+  it('releases the object stream when the client hangs up mid-download', async () => {
+    const body = new Readable({ read() { /* a large file still arriving */ } });
+    const ctrl = new MaterialsProxyController(repoReturning(material), makeStorage(body) as unknown as ObjectStorage);
+    const res = makeRes();
+    await ctrl.download('m1' as MaterialId, res as never);
+    res.destroy();
+    await new Promise((r) => setImmediate(r));
+    expect(body.destroyed).toBe(true);
   });
 
   it('404s when the material does not exist', async () => {

@@ -1,8 +1,10 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
 import type { Course, CourseId, ISODateString, Lesson, LessonId, Module, ModuleId, VideoState } from '@learnwren/shared-data-models';
+import { MODULE_TITLE_MAX_LENGTH } from '@learnwren/shared-data-models';
 
 import { CourseMetaPanelComponent } from '../components/course-meta-panel/course-meta-panel.component';
 import { ModuleTreeComponent, type ModuleNode } from '../components/module-tree/module-tree.component';
@@ -65,6 +67,8 @@ const CONFIRM_COPY: Record<PendingConfirm['kind'], ConfirmDialogConfig> = {
   },
 };
 
+const HTTP_GATEWAY_TIMEOUT = 504;
+
 @Component({
   selector: 'lib-course-editor-page',
   standalone: true,
@@ -73,6 +77,7 @@ const CONFIRM_COPY: Record<PendingConfirm['kind'], ConfirmDialogConfig> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CourseEditorPageComponent {
+  protected readonly moduleTitleMax = MODULE_TITLE_MAX_LENGTH;
   private readonly service = inject(CoursesService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -291,9 +296,24 @@ export class CourseEditorPageComponent {
       const { notifiedCount } = await this.notifications.notifyModule(this.cid(), moduleId);
       this.notice.set(`Notified ${notifiedCount} student${notifiedCount === 1 ? '' : 's'}.`);
       await this.refresh();
-    } catch {
+    } catch (err) {
+      // The hosting proxy gives up on a request after 60 s, but the server
+      // keeps sending (and has already marked the module notified), so a
+      // large class reads as a failure that cannot be retried. Say so.
+      if (err instanceof HttpErrorResponse && err.status === HTTP_GATEWAY_TIMEOUT) {
+        await this.refresh();
+        // Only a stamped module proves the server got as far as sending.
+        if (this.isNotified(moduleId)) {
+          this.notice.set('Emails are still being sent to your students. This can take a few minutes for a large class.');
+          return;
+        }
+      }
       this.error.set('Failed to notify students.');
     }
+  }
+
+  private isNotified(moduleId: string): boolean {
+    return this.tree()?.modules.some((m) => m.module.id === moduleId && m.module.studentsNotifiedAt != null) ?? false;
   }
 
   async onReorderModules(ids: string[]): Promise<void> {

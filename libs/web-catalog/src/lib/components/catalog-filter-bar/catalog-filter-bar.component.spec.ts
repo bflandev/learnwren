@@ -1,5 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { By } from '@angular/platform-browser';
+import { BrnSelect } from '@spartan-ng/brain/select';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CatalogFilterBarComponent } from './catalog-filter-bar.component';
 
@@ -93,5 +95,29 @@ describe('CatalogFilterBarComponent', () => {
     fixture.componentInstance.onDifficultyChange('');
 
     expect(emitted).toEqual({ difficulty: undefined });
+  });
+
+  it('clears the category from the keyboard: Enter/Tab on the "All" option selects it', async () => {
+    const fixture = TestBed.createComponent(CatalogFilterBarComponent);
+    fixture.componentRef.setInput('category', 'DESIGN');
+    fixture.componentRef.setInput('categories', [{ id: 'DESIGN', name: 'Design', createdAt: 't', updatedAt: 't' }]);
+    fixture.detectChanges();
+    let emitted: unknown;
+    fixture.componentInstance.filterChange.subscribe((c) => (emitted = c));
+    const select = fixture.debugElement.queryAll(By.directive(BrnSelect))[0]!.injector.get(BrnSelect);
+    // jsdom gaps the open overlay touches (test files run isolated, so the stub stays local).
+    const noop = (): void => undefined;
+    vi.stubGlobal('ResizeObserver', class { observe = noop; unobserve = noop; disconnect = noop; });
+    Element.prototype.scrollIntoView ??= () => undefined;
+
+    select.open();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // "All" is the first option; Enter and Tab both resolve through selectActiveItem.
+    select.keyManager.setFirstItemActive();
+    select.selectActiveItem();
+    fixture.detectChanges();
+
+    expect(emitted).toEqual({ category: undefined });
   });
 });

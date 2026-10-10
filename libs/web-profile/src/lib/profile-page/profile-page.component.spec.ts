@@ -541,6 +541,35 @@ describe('ProfilePageComponent — change email', () => {
     expect(cmp.emailStatus()).toBe('error');
     expect(cmp.emailForm.controls.newEmail.errors?.['server']).toBeUndefined();
     expect(cmp.emailForm.controls.currentPassword.errors?.['server']).toBeUndefined();
+    // A failure with no field must still be shown, or the button just re-enables silently.
+    expect(cmp.emailBannerError()).toBe('Server error.');
+    cmp.emailFormOpen.set(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="email-change-error"]')?.textContent).toContain('Server error.');
+  });
+
+  it('shows a generic banner when the request never reached the server', async () => {
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.emailForm.setValue({ newEmail: 'new@x.com', currentPassword: 'pw' });
+    const p = cmp.submitEmailChange();
+    http.expectOne('/api/profile/email').error(new ProgressEvent('error'));
+    await p;
+    expect(cmp.emailBannerError()).toBe('Could not change email.');
+  });
+
+  it('shows a field error from the server even when the field was never blurred (Enter to submit)', async () => {
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.emailForm.setValue({ newEmail: 'new@x.com', currentPassword: 'wrong' });
+    const p = cmp.submitEmailChange();
+    http.expectOne('/api/profile/email').flush(
+      { error: { code: 'CURRENT_PASSWORD_INVALID', message: 'Current password is incorrect.', details: { field: 'currentPassword' } } },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await p;
+    expect(cmp.emailForm.controls.currentPassword.touched).toBe(true);
+    expect(cmp.emailBannerError()).toBeNull();
   });
 });
 
@@ -868,6 +897,8 @@ describe('ProfilePageComponent — change password', () => {
 
     await cmp.submitPasswordChange();
     expect(cmp.passwordForm.controls.currentPassword.errors?.['server']).toBeTruthy();
+    // Visible even when submitted with Enter from the field (never blurred).
+    expect(cmp.passwordForm.controls.currentPassword.touched).toBe(true);
   });
 
   it('sets passwordStatus to "saving" and clears the banner mid-flight', async () => {

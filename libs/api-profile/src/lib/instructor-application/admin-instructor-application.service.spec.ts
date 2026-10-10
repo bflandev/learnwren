@@ -7,6 +7,7 @@ import {
   AdminInstructorApplicationException,
   ApplicationNotFoundException,
   ApplicationNotPendingException,
+  ApplicantNotEligibleException,
   ApplicantNotVerifiedException,
   DeclineReasonInvalidException,
   InvalidStatusFilterException,
@@ -34,7 +35,14 @@ function makeFirestore() {
     collection: vi.fn((name: string) => ({
       doc: vi.fn((id: string) => {
         const key = `${name}/${id}`;
-        docs[key] ??= { get: vi.fn(), update: vi.fn(async () => undefined) };
+        // users/* default to an ACTIVE STUDENT so approve's eligibility read passes.
+        docs[key] ??= {
+          get:
+            name === 'users'
+              ? vi.fn(async () => ({ exists: true, data: () => ({ role: 'STUDENT' }) }))
+              : vi.fn(),
+          update: vi.fn(async () => undefined),
+        };
         return docs[key];
       }),
       where: whereFn,
@@ -236,6 +244,32 @@ describe('AdminInstructorApplicationService', () => {
       docs['instructorApplications/u1'],
       expect.objectContaining({ status: 'APPROVED' }),
     );
+  });
+
+  it.each([
+    ['an ADMIN', { role: 'ADMIN' }],
+    ['an INSTRUCTOR', { role: 'INSTRUCTOR' }],
+    ['a SUSPENDED student', { role: 'STUDENT', status: 'SUSPENDED' }],
+    ['a DELETED student', { role: 'STUDENT', status: 'DELETED' }],
+  ])('approve: applicant who is now %s -> ApplicantNotEligibleException, no claim or role change', async (_label, user) => {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => undefined),
+    };
+    docs['users/u1'] = {
+      get: vi.fn(async () => ({ exists: true, data: () => user })),
+      update: vi.fn(async () => undefined),
+    };
+
+    const err = await svc.approve('u1' as never).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApplicantNotEligibleException);
+    expect((err as ApplicantNotEligibleException).status).toBe(409);
+    expect(txn.update).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
   });
 
   it('approve: missing app -> ApplicationNotFoundException', async () => {

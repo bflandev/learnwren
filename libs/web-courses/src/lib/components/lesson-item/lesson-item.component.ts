@@ -15,6 +15,7 @@ import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
 import type { CourseId, Lesson, Video, VideoCaptionsMeta, VideoState } from '@learnwren/shared-data-models';
+import { LESSON_TITLE_MAX_LENGTH } from '@learnwren/shared-data-models';
 import {
   VideoPlayerComponent,
   VideoService,
@@ -36,6 +37,7 @@ import { MaterialsListComponent } from '../../materials/materials-list.component
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LessonItemComponent {
+  protected readonly lessonTitleMax = LESSON_TITLE_MAX_LENGTH;
   private readonly api = inject(VideoService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly confirmDialog = inject(ConfirmDialogService);

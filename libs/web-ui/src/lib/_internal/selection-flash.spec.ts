@@ -32,6 +32,15 @@ class FlashProbe {
 })
 class Host {}
 
+@Component({
+  standalone: true,
+  imports: [FlashProbe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  // No href in the template: RouterLink binds it after construction.
+  template: `<a hlmFlashProbe>Users</a>`,
+})
+class LinkHost {}
+
 function stubMotion(reduced: boolean) {
   vi.stubGlobal('matchMedia', ((query: string) => ({
     matches: reduced && query === '(prefers-reduced-motion: reduce)',
@@ -102,6 +111,26 @@ describe('createSelectionFlash', () => {
     } finally {
       document.body.removeEventListener('click', bubbled);
     }
+  });
+
+  it('falls straight through on a link row, so RouterLink still handles the click (no full page load)', () => {
+    stubMotion(false);
+    const linkFixture = TestBed.createComponent(LinkHost);
+    linkFixture.detectChanges();
+    const link = linkFixture.nativeElement.querySelector('a') as HTMLAnchorElement;
+    // RouterLink binds href after construction: the check must run per click.
+    link.setAttribute('href', '/admin/users');
+    const dir = linkFixture.debugElement.children[0].injector.get(FlashProbe);
+    // Stands in for RouterLink's own click handler on the host.
+    const routerLinkHandler = vi.fn((e: Event) => e.preventDefault());
+    link.addEventListener('click', routerLinkHandler);
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+    link.dispatchEvent(event);
+    expect(routerLinkHandler).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+    expect(dir.flash.flashing()).toBe(false);
+    vi.advanceTimersByTime(SELECTION_FLASH_MS * 2);
+    expect(probe.commits).toBe(0);
   });
 
   it('falls straight through under prefers-reduced-motion', () => {

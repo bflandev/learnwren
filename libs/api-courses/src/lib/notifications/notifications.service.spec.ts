@@ -82,6 +82,30 @@ describe('NotificationsService', () => {
     expect(result).toEqual({ notifiedCount: 2 });
   });
 
+  it('sends at most 3 emails at a time, so a large class does not burst past the provider rate limit', async () => {
+    const uids = Array.from({ length: 10 }, (_, i) => `bulk${i}`);
+    for (const uid of uids) users[uid] = { displayName: uid, email: `${uid}@example.com` };
+    enrollments.listActiveByCourse.mockResolvedValue(uids.map(enrollment));
+    let inFlight = 0;
+    let peak = 0;
+    email.sendNewModuleEmail.mockImplementation(async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 1));
+      inFlight -= 1;
+    });
+    const result = await service.notifyNewModule(course(), MID);
+    expect(result).toEqual({ notifiedCount: 10 });
+    expect(peak).toBe(3);
+  });
+
+  it('keeps sending to the rest of the class after one send fails', async () => {
+    email.sendNewModuleEmail.mockRejectedValueOnce(new Error('smtp down'));
+    const result = await service.notifyNewModule(course(), MID);
+    expect(email.sendNewModuleEmail).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ notifiedCount: 1 });
+  });
+
   it('claims the notification stamp atomically before sending emails', async () => {
     let claimCalledBeforeSend = false;
     courses.claimModuleNotification.mockImplementation(async () => {

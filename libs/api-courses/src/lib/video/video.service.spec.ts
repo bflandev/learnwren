@@ -43,6 +43,7 @@ interface StorageFake {
   deleteObject: ReturnType<typeof vi.fn>;
   deletePrefix: ReturnType<typeof vi.fn>;
   probeSource: ReturnType<typeof vi.fn>;
+  discardUploadSession: ReturnType<typeof vi.fn>;
 }
 
 function makeRepo(): RepoFake {
@@ -69,6 +70,7 @@ function makeStorage(): StorageFake {
     deleteObject: vi.fn().mockResolvedValue(undefined),
     deletePrefix: vi.fn().mockResolvedValue(undefined),
     probeSource: vi.fn().mockResolvedValue({ height: 1080, durationSec: 60 }),
+    discardUploadSession: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -332,10 +334,26 @@ describe('VideoService.completeUpload — slice A (guard tests)', () => {
       { sleep: async () => undefined },
     );
     await expect(svc.completeUpload('v1' as VideoId)).resolves.toBeDefined();
+    // The verified upload's proxy session (S3 mode) is no longer needed.
+    expect(storage.discardUploadSession).toHaveBeenCalledWith('v1');
   });
 });
 
 describe('VideoService.markFailed', () => {
+  it('discards the in-flight upload session so a partial upload is not left in the store', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    repo.getVideo.mockResolvedValue(baseVideo());
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    await svc.markFailed('v1' as VideoId, 'network error');
+    expect(storage.discardUploadSession).toHaveBeenCalledWith('v1');
+  });
+
   it('advances PENDING_UPLOAD to FAILED with a reason', async () => {
     const repo = makeRepo();
     repo.getVideo.mockResolvedValue(baseVideo());
@@ -386,6 +404,20 @@ describe('VideoService.markFailed', () => {
 });
 
 describe('VideoService.delete', () => {
+  it('discards any in-flight upload session for the video', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    repo.getVideo.mockResolvedValue(baseVideo());
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    await svc.delete('v1' as VideoId);
+    expect(storage.discardUploadSession).toHaveBeenCalledWith('v1');
+  });
+
   it('deletes the object and Firestore docs when state allows', async () => {
     const repo = makeRepo();
     const storage = makeStorage();

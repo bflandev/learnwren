@@ -85,12 +85,25 @@ describe('CaptionsPanelComponent', () => {
     expect(emitted).toEqual([[]]);
   });
 
-  it('emits [] when the initial list rejects (non-fatal)', async () => {
+  it('says the tracks could not be loaded when the initial list rejects, instead of claiming there are none', async () => {
     svc.list.mockRejectedValue(new Error('network'));
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(emitted).toEqual([[]]);
-    expect(fixture.componentInstance.tracks()).toEqual([]);
+    // Emitting [] would wipe the tracks the preview player already has.
+    expect(emitted).toEqual([]);
+    expect(fixture.componentInstance.error()).toBe("Couldn't load the caption tracks. Reload the page to try again.");
+  });
+
+  it('does not upload over a list it failed to load (it would show only the new track and hide the rest)', async () => {
+    svc.list.mockRejectedValue(new Error('network'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.componentInstance.onFileChosen(VTT());
+    expect(svc.upload).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.error()).toContain("Couldn't load the caption tracks");
+    const input = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.disabled).toBe(true);
   });
 
   it('uploads the chosen file under the selected language and adds it in label order', async () => {
@@ -125,6 +138,13 @@ describe('CaptionsPanelComponent', () => {
     await fixture.componentInstance.onFileChosen(VTT());
     expect(fixture.componentInstance.error()).toBe('Upload failed. Try again.');
     expect(fixture.componentInstance.busy()).toBe(false);
+  });
+
+  it('says the file is not valid WebVTT when the API rejects it with INVALID_CAPTION_FILE', async () => {
+    await init();
+    svc.upload.mockRejectedValue({ error: { error: { code: 'INVALID_CAPTION_FILE' } } });
+    await fixture.componentInstance.onFileChosen(VTT());
+    expect(fixture.componentInstance.error()).toContain('not a valid WebVTT');
   });
 
   it('names the track cap when the API rejects a new language with CAPTION_TRACK_LIMIT', async () => {

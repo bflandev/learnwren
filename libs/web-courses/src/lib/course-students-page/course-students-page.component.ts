@@ -13,6 +13,8 @@ type SortKey = 'enrolledAt' | 'progress';
 type SortDir = 'asc' | 'desc';
 type State = 'loading' | 'loaded' | 'error';
 
+const UTF8_BOM = '\uFEFF';
+
 @Component({
   selector: 'lib-course-students-page',
   standalone: true,
@@ -83,7 +85,8 @@ export class CourseStudentsPageComponent {
 
   exportCsv(): void {
     const csv = rosterRowsToCsv(this.rows());
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    // The byte-order mark makes Excel read the file as UTF-8, not Windows-1252.
+    const blob = new Blob([UTF8_BOM, csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

@@ -53,6 +53,9 @@ export interface SourceProbe {
 export type FfprobeRunner = (binary: string, args: string[]) => Promise<{ stdout: string }>;
 
 /** Route the browser PUTs chunks to when the api proxies video uploads (S3 mode). */
+/** How long a browser upload session stays valid (the expiresAt we hand out). */
+const UPLOAD_SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
+
 export const VIDEO_UPLOAD_PROXY_PATH = '/api/internal/uploads/videos';
 
 export interface VideoStoragePort {
@@ -71,6 +74,8 @@ export interface VideoStoragePort {
   downloadObject(input: { bucket: string; path: string; destination: string }): Promise<void>;
   uploadFile(input: { localPath: string; bucket: string; path: string; contentType: string }): Promise<void>;
   openObjectReadStream(input: { bucket: string; path: string }): NodeJS.ReadableStream;
+  /** Abort and forget an in-flight proxied (S3) upload; a no-op otherwise. */
+  discardUploadSession(videoId: string): Promise<void>;
 }
 
 @Injectable()
@@ -100,8 +105,15 @@ export class VideoStorageAdapter implements VideoStoragePort, OnModuleInit {
     contentType: string;
     videoId: string;
   }): Promise<ResumableSession> {
-    const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString() as ISODateString;
+    const expiresAt = new Date(Date.now() + UPLOAD_SESSION_TTL_MS).toISOString() as ISODateString;
     if (this.storage.kind === 's3') {
+      // An upload abandoned mid-way (tab closed, never marked failed) keeps
+      // its parts in the store until aborted; sweep any past the advertised
+      // expiry. ponytail: swept only when another upload starts — a timer
+      // if an instance can sit idle with abandoned uploads for long.
+      for (const staleId of this.sessions.openedBefore(Date.now() - UPLOAD_SESSION_TTL_MS)) {
+        await this.discardUploadSession(staleId);
+      }
       // The store is not exposed to browsers: the api carries the chunks
       // (VideoUploadProxyController) and needs to know the target up front.
       this.sessions.open(input.videoId, {
@@ -218,6 +230,18 @@ export class VideoStorageAdapter implements VideoStoragePort, OnModuleInit {
 
   openObjectReadStream(input: { bucket: string; path: string }): NodeJS.ReadableStream {
     return this.storage.openReadStream(input);
+  }
+
+  async discardUploadSession(videoId: string): Promise<void> {
+    const session = this.sessions.get(videoId);
+    if (!session) return;
+    this.sessions.close(videoId);
+    if (!session.uploadId || session.completed) return;
+    // Best effort: S3 keeps uploaded parts of an unfinished multipart upload
+    // until it is aborted, invisible to listings and to deletePrefix.
+    await this.storage
+      .abortMultipartUpload({ bucket: session.bucket, path: session.path, uploadId: session.uploadId })
+      .catch(() => undefined);
   }
 
   // Mirror the REAL GCP Transcoder HLS layout: a master `manifest.m3u8` whose

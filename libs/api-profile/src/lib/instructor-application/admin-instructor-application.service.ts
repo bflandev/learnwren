@@ -28,6 +28,7 @@ import type {
 import { promoteUserToInstructor } from './instructor-promotion';
 import {
   AdminInstructorApplicationException,
+  ApplicantNotEligibleException,
   ApplicantNotVerifiedException,
   ApplicationNotFoundException,
   ApplicationNotPendingException,
@@ -35,6 +36,7 @@ import {
   InvalidStatusFilterException,
 } from './errors/admin-instructor-application.exception';
 import { INSTRUCTOR_APPLICATIONS_COLLECTION } from './instructor-applications.constants';
+import { resolveStatus } from '../users/user-status';
 
 const COLLECTION = INSTRUCTOR_APPLICATIONS_COLLECTION;
 const STATUSES: readonly InstructorApplicationStatus[] = ['PENDING', 'APPROVED', 'DECLINED'];
@@ -95,6 +97,7 @@ export class AdminInstructorApplicationService {
     }
 
     const appRef = this.firestore.collection(COLLECTION).doc(uid) as unknown as DocRef;
+    const userRef = this.firestore.collection('users').doc(uid) as unknown as DocRef;
 
     // Atomically claim the transition PENDING → APPROVED so that two concurrent
     // approve requests cannot both succeed (the loser re-reads a non-PENDING
@@ -107,6 +110,13 @@ export class AdminInstructorApplicationService {
       const data = snap.data() as unknown as InstructorApplication;
       if (data.status !== 'PENDING') {
         throw new ApplicationNotPendingException();
+      }
+      // The role may have changed since the application was filed: approving
+      // must never demote an ADMIN or promote a SUSPENDED/DELETED account.
+      const userSnap = await txn.get(userRef);
+      const user = userSnap.exists ? (userSnap.data() as { role?: string; status?: string }) : undefined;
+      if (!user || (user.role ?? 'STUDENT') !== 'STUDENT' || resolveStatus(user.status) !== 'ACTIVE') {
+        throw new ApplicantNotEligibleException();
       }
       txn.update(appRef, { status: 'APPROVED', resolvedAt: nowIso() });
       return data;

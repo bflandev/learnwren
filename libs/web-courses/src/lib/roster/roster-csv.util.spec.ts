@@ -31,8 +31,14 @@ describe('rosterRowsToCsv', () => {
   });
 
   it('renders the enrollment date as YYYY-MM-DD', () => {
-    const csv = rosterRowsToCsv([row({ enrolledAt: '2026-01-09T23:59:00.000Z' as never })]);
+    const csv = rosterRowsToCsv([row({ enrolledAt: '2026-01-09T23:59:00.000Z' as never })], '+0000');
     expect(csv).toContain('"2026-01-09"');
+  });
+
+  it("uses the viewer's calendar date, not the UTC one, matching the on-screen table", () => {
+    // 02:00 UTC on the 10th is still the evening of the 9th at UTC-5.
+    const csv = rosterRowsToCsv([row({ enrolledAt: '2026-03-10T02:00:00.000Z' as never })], '-0500');
+    expect(csv).toContain('"2026-03-09"');
   });
 
   it('returns just the header for an empty roster', () => {

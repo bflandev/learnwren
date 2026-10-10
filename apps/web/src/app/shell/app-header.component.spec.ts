@@ -1,9 +1,18 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { AppHeaderComponent } from './app-header.component';
 import { configureAuthTestBed } from './auth-test-bed';
+
+/** Let a closing overlay finish its exit animation and detach. */
+async function settle(fixture: { detectChanges: () => void; whenStable: () => Promise<unknown> }): Promise<void> {
+  fixture.detectChanges();
+  await fixture.whenStable();
+  await new Promise((r) => setTimeout(r, 400));
+  fixture.detectChanges();
+}
 
 describe('AppHeaderComponent', () => {
   it('renders the search bar', async () => {
@@ -150,6 +159,42 @@ describe('AppHeaderComponent', () => {
       const panel = overlayContainer.getContainerElement();
       expect(panel.querySelector('[data-testid="header-search-popover"]')).not.toBeNull();
       expect(panel.querySelector('lib-course-search-bar')).not.toBeNull();
+    });
+
+    it('closes the search popover once a search navigates', async () => {
+      configureAuthTestBed(AppHeaderComponent, null);
+      overlayContainer = TestBed.inject(OverlayContainer);
+      const fixture = TestBed.createComponent(AppHeaderComponent);
+      fixture.detectChanges();
+      (fixture.nativeElement as HTMLElement)
+        .querySelector<HTMLButtonElement>('[data-testid="header-search-trigger"]')
+        ?.click();
+      fixture.detectChanges();
+      const panel = overlayContainer.getContainerElement();
+      expect(panel.querySelector('[data-testid="header-search-popover"]')).not.toBeNull();
+
+      await TestBed.inject(Router).navigateByUrl('/catalog');
+      await settle(fixture);
+
+      expect(panel.querySelector('[data-testid="header-search-popover"]')).toBeNull();
+    });
+
+    it('closes the mobile nav sheet once a link in it navigates', async () => {
+      configureAuthTestBed(AppHeaderComponent, null);
+      overlayContainer = TestBed.inject(OverlayContainer);
+      const fixture = TestBed.createComponent(AppHeaderComponent);
+      fixture.detectChanges();
+      (fixture.nativeElement as HTMLElement)
+        .querySelector<HTMLButtonElement>('[data-testid="header-nav-toggle"]')
+        ?.click();
+      fixture.detectChanges();
+      const panel = overlayContainer.getContainerElement();
+      expect(panel.querySelector('[data-testid="header-nav-sheet"]')).not.toBeNull();
+
+      await TestBed.inject(Router).navigateByUrl('/catalog');
+      await settle(fixture);
+
+      expect(panel.querySelector('[data-testid="header-nav-sheet"]')).toBeNull();
     });
   });
 

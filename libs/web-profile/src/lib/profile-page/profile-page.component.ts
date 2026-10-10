@@ -97,6 +97,7 @@ export class ProfilePageComponent implements OnInit {
 
   readonly emailStatus = signal<EmailStatus>('idle');
   readonly emailFormOpen = signal(false);
+  readonly emailBannerError = signal<string | null>(null);
   readonly pendingEmail = signal<string | null>(null);
 
   readonly passwordForm = this.fb.nonNullable.group(
@@ -136,6 +137,7 @@ export class ProfilePageComponent implements OnInit {
       return;
     }
     this.emailStatus.set('sending');
+    this.emailBannerError.set(null);
     const newEmail = this.emailForm.controls.newEmail.value;
     try {
       await this.emailSvc.requestChange(this.emailForm.getRawValue());
@@ -150,12 +152,21 @@ export class ProfilePageComponent implements OnInit {
   }
 
   private applyEmailServerError(err: unknown): void {
-    if (!(err instanceof HttpErrorResponse)) return;
+    const fallback = 'Could not change email.';
+    if (!(err instanceof HttpErrorResponse)) {
+      this.emailBannerError.set(fallback);
+      return;
+    }
     const body = err.error as EmailChangeErrorBody | undefined;
     const field = body?.error?.details?.field;
-    const message = body?.error?.message ?? 'Could not change email.';
+    const message = body?.error?.message ?? fallback;
     if (field === 'newEmail' || field === 'currentPassword') {
+      // Touched, or the template hides the error when the user submitted
+      // with Enter without ever leaving the field.
       this.emailForm.controls[field].setErrors({ server: message });
+      this.emailForm.controls[field].markAsTouched();
+    } else {
+      this.emailBannerError.set(message);
     }
   }
 
@@ -190,6 +201,7 @@ export class ProfilePageComponent implements OnInit {
     const message = body?.error?.message ?? 'Could not change password.';
     if (code === 'CURRENT_PASSWORD_INVALID') {
       this.passwordForm.controls.currentPassword.setErrors({ server: message });
+      this.passwordForm.controls.currentPassword.markAsTouched();
     } else if (code === 'NEW_PASSWORD_WEAK' || code === 'PASSWORD_UNCHANGED') {
       this.passwordForm.controls.newPassword.setErrors({ server: message });
     } else {

@@ -106,6 +106,8 @@ describe('DeleteAccountComponent', () => {
     const c = openAndFill(create(), 'bad', 'DELETE');
     await c.submit();
     expect(c.form.controls.currentPassword.errors).toEqual({ server: 'Current password is incorrect.' });
+    // Shown even when submitted with Enter from the field (never blurred).
+    expect(c.form.controls.currentPassword.touched).toBe(true);
     expect(c.status()).toBe('idle');
     expect(auth.logout).not.toHaveBeenCalled();
   });

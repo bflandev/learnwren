@@ -1,4 +1,5 @@
 import { Controller, Inject, Param, Put, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
@@ -18,7 +19,13 @@ export const MAX_CHUNK_BYTES = 64 * 1024 * 1024;
 
 const CONTENT_RANGE = /^bytes (\d+)-(\d+)\/(\d+)$/;
 
-export function parseContentRange(header: string | undefined): { start: number; last: number; total: number } {
+export interface ContentRange {
+  start: number;
+  last: number;
+  total: number;
+}
+
+export function parseContentRange(header: string | undefined): ContentRange {
   const m = header ? CONTENT_RANGE.exec(header) : null;
   if (!m) throw new UploadChunkInvalidException('malformed Content-Range');
   const start = Number(m[1]);
@@ -76,6 +83,11 @@ export class VideoUploadProxyController {
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
   ) {}
 
+  // Exempt from the per-IP throttler (tier names from apps/api throttle.config):
+  // an upload at LAN speed sends ~12 chunks/s, and once over the limit the
+  // throttler blocks for the whole window, so the upload failed. The session
+  // and owner guards already gate this route.
+  @SkipThrottle({ burst: true, sustained: true })
   @Put(':vid')
   async chunk(@Param('vid') vid: VideoId, @Req() req: Request, @Res() res: Response): Promise<void> {
     const range = parseContentRange(req.headers['content-range']);
@@ -89,9 +101,26 @@ export class VideoUploadProxyController {
     if (body.length !== expected) {
       throw new UploadChunkInvalidException('body length does not match Content-Range');
     }
+    // One chunk at a time per session: a client retry that arrives while the
+    // first attempt is still storing would otherwise create a second
+    // multipart upload or a duplicate part.
+    const run = session.tail.then(() => this.store(vid, session, range, body, res));
+    session.tail = run.catch(() => undefined);
+    await run;
+  }
+
+  private async store(
+    vid: VideoId,
+    session: VideoUploadSession,
+    range: ContentRange,
+    body: Buffer,
+    res: Response,
+  ): Promise<void> {
     if (range.last < session.received) {
-      // Already have these bytes: the client missed our 308 and retried.
-      this.acknowledge(res, session);
+      // Already have these bytes: the client missed our 308 (or the final
+      // 200) and retried.
+      if (session.completed) res.status(200).json({ ok: true });
+      else this.acknowledge(res, session);
       return;
     }
     if (range.start !== session.received) {
@@ -101,43 +130,51 @@ export class VideoUploadProxyController {
     if (!isLast && body.length < MIN_PART_BYTES) {
       throw new UploadChunkInvalidException(`non-final chunk must be at least ${MIN_PART_BYTES} bytes`);
     }
-    try {
-      session.uploadId ??= await this.storage.createMultipartUpload({
+    // Session state advances only after the store accepts the part (and, for
+    // the last chunk, the completion). On failure it is left as it was, so the
+    // client's retry of the same chunk succeeds; an upload the client gives
+    // up on is aborted when it marks the video failed (discardUploadSession).
+    if (!session.uploadId) {
+      const uploadId = await this.storage.createMultipartUpload({
         bucket: session.bucket,
         path: session.path,
         contentType: session.contentType,
       });
-      const partNumber = session.parts.length + 1;
-      const etag = await this.storage.uploadPart({
-        bucket: session.bucket,
-        path: session.path,
-        uploadId: session.uploadId,
-        partNumber,
-        body,
-      });
-      session.parts.push({ partNumber, etag });
-      session.received = range.last + 1;
-      if (!isLast) {
-        this.acknowledge(res, session);
-        return;
+      // Discarded (video deleted or marked failed) while the create was in
+      // flight: nothing would ever abort this upload, so do it now.
+      if (this.sessions.get(vid) !== session) {
+        await this.storage
+          .abortMultipartUpload({ bucket: session.bucket, path: session.path, uploadId })
+          .catch(() => undefined);
+        throw new UploadSessionMissingException();
       }
+      session.uploadId = uploadId;
+    }
+    const partNumber = session.parts.length + 1;
+    const etag = await this.storage.uploadPart({
+      bucket: session.bucket,
+      path: session.path,
+      uploadId: session.uploadId,
+      partNumber,
+      body,
+    });
+    const parts = [...session.parts, { partNumber, etag }];
+    if (isLast) {
       await this.storage.completeMultipartUpload({
         bucket: session.bucket,
         path: session.path,
         uploadId: session.uploadId,
-        parts: session.parts,
+        parts,
       });
-      this.sessions.close(vid);
-      res.status(200).json({ ok: true });
-    } catch (err) {
-      if (session.uploadId) {
-        await this.storage
-          .abortMultipartUpload({ bucket: session.bucket, path: session.path, uploadId: session.uploadId })
-          .catch(() => undefined);
-      }
-      this.sessions.close(vid);
-      throw err;
     }
+    session.parts = parts;
+    session.received = range.last + 1;
+    if (!isLast) {
+      this.acknowledge(res, session);
+      return;
+    }
+    session.completed = true;
+    res.status(200).json({ ok: true });
   }
 
   private acknowledge(res: Response, session: VideoUploadSession): void {

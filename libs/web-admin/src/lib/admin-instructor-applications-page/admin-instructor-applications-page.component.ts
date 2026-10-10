@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { DatePipe } from '@angular/common';
 
 import {
+  APPLICANT_NOT_ELIGIBLE,
   APPLICANT_NOT_VERIFIED,
   APPLICATION_NOT_FOUND,
   APPLICATION_NOT_PENDING,
@@ -102,7 +103,9 @@ export class AdminInstructorApplicationsPageComponent implements OnInit {
   async decline(uid: string): Promise<void> {
     const reason = this.declineReason().trim() || undefined;
     const ok = await this.resolve(uid, () => this.svc.decline(uid, reason));
-    if (ok) this.cancelDecline();
+    // Only close the form for this row: the admin may have opened (and be
+    // typing in) another row's form while this request was in flight.
+    if (ok && this.decliningUid() === uid) this.cancelDecline();
   }
 
   private async resolve(uid: string, action: () => Promise<unknown>): Promise<boolean> {
@@ -124,6 +127,9 @@ export class AdminInstructorApplicationsPageComponent implements OnInit {
     const code = (err as { error?: { error?: { code?: string } } })?.error?.error?.code;
     if (code === APPLICANT_NOT_VERIFIED) {
       return 'Applicant must verify their email before approval.';
+    }
+    if (code === APPLICANT_NOT_ELIGIBLE) {
+      return 'Only an active student can be approved. Decline this application instead.';
     }
     if (code === DECLINE_REASON_INVALID) {
       return `The reason must be ${DECLINE_REASON_MAX_LENGTH} characters or fewer.`;

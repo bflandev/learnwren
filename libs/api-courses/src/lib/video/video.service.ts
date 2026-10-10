@@ -136,6 +136,7 @@ export class VideoService {
     if (v.state !== 'PENDING_UPLOAD') throw new InvalidVideoStateException(v.state);
     const updatedAt = nowIso();
     await this.repo.updateVideo(vid, { state: 'FAILED', failureReason: reason, updatedAt });
+    await this.storage.discardUploadSession(vid);
     return { ...v, state: 'FAILED', failureReason: reason, updatedAt };
   }
 
@@ -161,6 +162,9 @@ export class VideoService {
       });
       throw err;
     }
+    // The bytes are verified in the store; the proxy session (S3 mode) has
+    // done its job.
+    await this.storage.discardUploadSession(vid);
 
     const probe = await this.tryProbeSource(v);
     if (!probe.ok) {
@@ -379,6 +383,7 @@ export class VideoService {
     v: Video,
     opts: { logCancelFailures: boolean },
   ): Promise<void> {
+    await this.storage.discardUploadSession(v.id);
     if (v.state === 'TRANSCODING' && v.transcoderJobName) {
       const jobName = v.transcoderJobName;
       await this.transcoder.cancelJob(jobName).catch((err) => {

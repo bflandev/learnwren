@@ -111,6 +111,11 @@ export class AuthService {
     }
   }
 
+  /** Forget the cached user without a network call (the server already ended the session). */
+  clearSession(): void {
+    this.currentUserSignal.set(null);
+  }
+
   async logout(): Promise<void> {
     try {
       await firstValueFrom(this.http.post('/api/auth/logout', {}));

@@ -32,17 +32,23 @@ export class CaptionsPanelComponent implements OnInit {
   readonly language = signal(DEFAULT_LANGUAGE);
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
+  /** The server's track list is unknown; uploading would act on a partial list. */
+  readonly loadFailed = signal(false);
 
   async ngOnInit(): Promise<void> {
     try {
       this.setTracks(await this.svc.list(this.videoId()));
     } catch {
-      // Non-fatal: show no tracks; the upload affordance still works.
-      this.setTracks([]);
+      // Say so rather than show "no tracks" (and emit [], which would wipe the
+      // preview player's captions). Upload stays disabled until a reload: it
+      // would act on a list we never saw.
+      this.loadFailed.set(true);
+      this.error.set("Couldn't load the caption tracks. Reload the page to try again.");
     }
   }
 
   async onFileChosen(file: File): Promise<void> {
+    if (this.loadFailed()) return;
     this.error.set(null);
     const check = this.svc.validateLocally(file);
     if (!check.ok) {
@@ -56,11 +62,7 @@ export class CaptionsPanelComponent implements OnInit {
       this.setTracks([...others, uploaded].sort(byLabel));
     } catch (err) {
       const code = (err as { error?: { error?: { code?: string } } }).error?.error?.code;
-      this.error.set(
-        code === 'CAPTION_TRACK_LIMIT'
-          ? `This video already has the maximum of ${MAX_CAPTION_TRACKS} caption languages. Remove one first.`
-          : 'Upload failed. Try again.',
-      );
+      this.error.set(uploadErrorMessage(code));
     } finally {
       this.busy.set(false);
     }
@@ -94,4 +96,15 @@ export class CaptionsPanelComponent implements OnInit {
     this.tracks.set(tracks);
     this.tracksChange.emit(tracks);
   }
+}
+
+function uploadErrorMessage(code: string | undefined): string {
+  if (code === 'CAPTION_TRACK_LIMIT') {
+    return `This video already has the maximum of ${MAX_CAPTION_TRACKS} caption languages. Remove one first.`;
+  }
+  if (code === 'INVALID_CAPTION_FILE') {
+    // Retrying the same file cannot help, so say what is wrong with it.
+    return 'This file is not a valid WebVTT caption file: it must start with "WEBVTT" and contain at least one timed cue.';
+  }
+  return 'Upload failed. Try again.';
 }

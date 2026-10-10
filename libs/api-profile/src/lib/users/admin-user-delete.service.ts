@@ -113,7 +113,9 @@ export class AdminUserDeleteService {
       if (resolveStatus(user.status) === 'DELETED') return true;
 
       // Last-admin guard — txn-read to participate in conflict detection.
-      if (user.role === 'ADMIN') {
+      // Only an ACTIVE admin counts: removing a suspended one leaves the
+      // active-admin count unchanged.
+      if (user.role === 'ADMIN' && resolveStatus(user.status) === 'ACTIVE') {
         const activeAdminCount = await this.repo.countActiveAdmins(txn);
         if (activeAdminCount <= 1) throw new LastAdminException();
       }
