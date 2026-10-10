@@ -520,6 +520,31 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
     }
   });
 
+  it('retries a 429 (rate limited) after backoff instead of failing the upload', async () => {
+    vi.useFakeTimers();
+    try {
+      api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+      api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));
+      const done = svc.start(CTX, sized(8));
+      await Promise.resolve();
+
+      xhrs.at(-1)!.status = 429;
+      xhrs.at(-1)!.onload!();
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      expect(xhrs.length).toBe(2);
+
+      xhrs.at(-1)!.status = 200;
+      xhrs.at(-1)!.onload!();
+      await vi.runAllTimersAsync();
+      await done;
+      expect(svc.state().kind).toBe('complete');
+      expect(api.markFailed).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('hard-fails only after exhausting retries on persistent network errors', async () => {
     vi.useFakeTimers();
     try {

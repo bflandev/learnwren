@@ -6,13 +6,15 @@ import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
-const fsFaults = vi.hoisted(() => ({ mkdtemp: undefined as Error | undefined }));
+const fsFaults = vi.hoisted(() => ({ mkdtemp: undefined as Error | undefined, rm: undefined as Error | undefined }));
 vi.mock('node:fs/promises', async (importOriginal) => {
   const real = await importOriginal<typeof import('node:fs/promises')>();
   return {
     ...real,
     mkdtemp: (...args: Parameters<typeof real.mkdtemp>) =>
       fsFaults.mkdtemp ? Promise.reject(fsFaults.mkdtemp) : real.mkdtemp(...args),
+    rm: (...args: Parameters<typeof real.rm>) =>
+      fsFaults.rm ? Promise.reject(fsFaults.rm) : real.rm(...args),
   };
 });
 
@@ -111,6 +113,18 @@ function make(
 }
 
 describe('FfmpegTranscoderAdapter.submitJob', () => {
+  it('still delivers the result when the temp dir cannot be removed afterwards', async () => {
+    fsFaults.rm = new Error('EBUSY: resource busy or locked');
+    try {
+      const { adapter, sink } = make();
+      const { jobName } = await adapter.submitJob(input());
+      await adapter.whenDone(jobName);
+      expect(sink).toHaveBeenCalledWith(expect.objectContaining({ type: 'JOB_SUCCEEDED', videoId: 'v1' }));
+    } finally {
+      fsFaults.rm = undefined;
+    }
+  });
+
   it('reports JOB_FAILED (not an unhandled rejection) when the temp dir cannot be created', async () => {
     fsFaults.mkdtemp = new Error('ENOSPC: no space left on device');
     try {

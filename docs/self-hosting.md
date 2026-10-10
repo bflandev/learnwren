@@ -137,7 +137,10 @@ Put the web port behind a TLS-terminating reverse proxy of your own (the stack
 serves plain HTTP and sets no HSTS header), and set `LEARNWREN_PUBLIC_URL` to
 the proxy's `https://` origin. Otherwise emailed links and image URLs still
 point at plain-HTTP `LEARNWREN_HOST:LEARNWREN_WEB_PORT`, sending reset tokens
-in clear. The session cookie is always
+in clear. Also set `LEARNWREN_TRUST_PROXY_HOPS=2` (your proxy plus the
+bundled nginx), so the api sees each user's own address; with the default of
+1 every user shares your proxy's rate-limit bucket, and video playback starts
+failing with 429 errors once a handful of people watch at once. The session cookie is always
 marked `Secure`, so login over plain HTTP works only on `localhost` in some
 browsers (Chrome and Firefox; Safari refuses even there). Use HTTPS for
 anything beyond a quick local trial.

@@ -81,7 +81,7 @@ describe('VideoStorageAdapter.createResumableSession', () => {
     const { adapter, storage, sessions } = make(realCfg, 's3');
     const r = await adapter.createResumableSession({ ...ref, contentType: 'video/quicktime', videoId: 'v' });
     expect(r.uri).toBe('/api/internal/uploads/videos/v');
-    expect(sessions.get('v')).toEqual({ bucket: 'b', path: 'videos/v/source.mp4', contentType: 'video/quicktime', parts: [], received: 0 });
+    expect(sessions.get('v')).toEqual({ bucket: 'b', path: 'videos/v/source.mp4', contentType: 'video/quicktime', parts: [], received: 0, openedAt: expect.any(Number) });
     expect(storage.createResumableUpload).not.toHaveBeenCalled();
   });
 });
@@ -111,6 +111,18 @@ describe('VideoStorageAdapter.discardUploadSession', () => {
     storage.abortMultipartUpload.mockRejectedValueOnce(new Error('store down'));
     await expect(adapter.discardUploadSession('v')).resolves.toBeUndefined();
     expect(sessions.get('v')).toBeUndefined();
+  });
+
+  it('starting an S3 upload sweeps sessions past the 7-day upload expiry, aborting their parts', async () => {
+    const { adapter, storage, sessions } = make(realCfg, 's3');
+    const eightDaysAgo = Date.now() - 8 * 24 * 3600 * 1000;
+    sessions.open('stale', { ...ref, contentType: 'video/mp4' }, eightDaysAgo);
+    sessions.get('stale')!.uploadId = 'up-stale';
+    sessions.open('recent', { ...ref, contentType: 'video/mp4' });
+    await adapter.createResumableSession({ ...ref, contentType: 'video/mp4', videoId: 'v' });
+    expect(storage.abortMultipartUpload).toHaveBeenCalledWith({ ...ref, uploadId: 'up-stale' });
+    expect(sessions.get('stale')).toBeUndefined();
+    expect(sessions.get('recent')).toBeDefined();
   });
 
   it('is a no-op for an unknown video', async () => {

@@ -7,6 +7,7 @@ import express from 'express';
 import helmet from 'helmet';
 
 import { AppModule } from './app/app.module';
+import { readTrustProxyHops } from './app/trust-proxy';
 
 function assertProdSafeEnv(): void {
   if (process.env['NODE_ENV'] !== 'production') return;
@@ -44,12 +45,11 @@ function configureApp(app: NestExpressApplication): void {
   app.use(helmet());
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
-  // Trust exactly one proxy hop so Express resolves the real client IP from the
-  // X-Forwarded-For header injected by Firebase Hosting / Cloud Functions —
-  // without this the per-IP ThrottlerGuard keys every request on the proxy's
-  // address and collapses all clients into one bucket. A numeric hop count
-  // (not `true`) prevents spoofing via an attacker-chained X-Forwarded-For.
-  app.set('trust proxy', 1);
+  // Trust the configured proxy hops (default 1: Firebase Hosting, or the
+  // bundled nginx) so Express resolves the real client IP from X-Forwarded-For
+  // — otherwise the per-IP ThrottlerGuard keys every request on a proxy's
+  // address and collapses all clients into one bucket. See readTrustProxyHops.
+  app.set('trust proxy', readTrustProxyHops());
   app.enableCors({
     origin: readAllowedOrigins(),
     credentials: true,

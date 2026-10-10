@@ -56,11 +56,7 @@ export class CaptionsPanelComponent implements OnInit {
       this.setTracks([...others, uploaded].sort(byLabel));
     } catch (err) {
       const code = (err as { error?: { error?: { code?: string } } }).error?.error?.code;
-      this.error.set(
-        code === 'CAPTION_TRACK_LIMIT'
-          ? `This video already has the maximum of ${MAX_CAPTION_TRACKS} caption languages. Remove one first.`
-          : 'Upload failed. Try again.',
-      );
+      this.error.set(uploadErrorMessage(code));
     } finally {
       this.busy.set(false);
     }
@@ -94,4 +90,15 @@ export class CaptionsPanelComponent implements OnInit {
     this.tracks.set(tracks);
     this.tracksChange.emit(tracks);
   }
+}
+
+function uploadErrorMessage(code: string | undefined): string {
+  if (code === 'CAPTION_TRACK_LIMIT') {
+    return `This video already has the maximum of ${MAX_CAPTION_TRACKS} caption languages. Remove one first.`;
+  }
+  if (code === 'INVALID_CAPTION_FILE') {
+    // Retrying the same file cannot help, so say what is wrong with it.
+    return 'This file is not a valid WebVTT caption file: it must start with "WEBVTT" and contain at least one timed cue.';
+  }
+  return 'Upload failed. Try again.';
 }

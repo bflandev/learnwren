@@ -107,11 +107,22 @@ export class VideoUploadProxyController {
     // the last chunk, the completion). On failure it is left as it was, so the
     // client's retry of the same chunk succeeds; an upload the client gives
     // up on is aborted when it marks the video failed (discardUploadSession).
-    session.uploadId ??= await this.storage.createMultipartUpload({
-      bucket: session.bucket,
-      path: session.path,
-      contentType: session.contentType,
-    });
+    if (!session.uploadId) {
+      const uploadId = await this.storage.createMultipartUpload({
+        bucket: session.bucket,
+        path: session.path,
+        contentType: session.contentType,
+      });
+      // Discarded (video deleted or marked failed) while the create was in
+      // flight: nothing would ever abort this upload, so do it now.
+      if (this.sessions.get(vid) !== session) {
+        await this.storage
+          .abortMultipartUpload({ bucket: session.bucket, path: session.path, uploadId })
+          .catch(() => undefined);
+        throw new UploadSessionMissingException();
+      }
+      session.uploadId = uploadId;
+    }
     const partNumber = session.parts.length + 1;
     const etag = await this.storage.uploadPart({
       bucket: session.bucket,

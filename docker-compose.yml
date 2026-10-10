@@ -86,6 +86,8 @@ services:
       # Set LEARNWREN_PUBLIC_URL in .env behind an HTTPS proxy. Compose cannot
       # reference another variable here, so the same default repeats below.
       LEARNWREN_PUBLIC_URL: "${LEARNWREN_PUBLIC_URL:-http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}}"
+      # 1 = the bundled nginx; set 2 in .env behind your own TLS proxy.
+      LEARNWREN_TRUST_PROXY_HOPS: "${LEARNWREN_TRUST_PROXY_HOPS:-1}"
       LEARNWREN_CORS_ORIGINS: "${LEARNWREN_PUBLIC_URL:-http://${LEARNWREN_HOST:-localhost}:${LEARNWREN_WEB_PORT:-8000}}"
       # Real video: ffmpeg transcodes in-process and segments are served
       # through /api (no signing credentials needed). See docs/self-hosting.md.

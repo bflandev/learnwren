@@ -127,6 +127,13 @@ describe('CaptionsPanelComponent', () => {
     expect(fixture.componentInstance.busy()).toBe(false);
   });
 
+  it('says the file is not valid WebVTT when the API rejects it with INVALID_CAPTION_FILE', async () => {
+    await init();
+    svc.upload.mockRejectedValue({ error: { error: { code: 'INVALID_CAPTION_FILE' } } });
+    await fixture.componentInstance.onFileChosen(VTT());
+    expect(fixture.componentInstance.error()).toContain('not a valid WebVTT');
+  });
+
   it('names the track cap when the API rejects a new language with CAPTION_TRACK_LIMIT', async () => {
     await init();
     svc.upload.mockRejectedValue({ error: { error: { code: 'CAPTION_TRACK_LIMIT' } } });

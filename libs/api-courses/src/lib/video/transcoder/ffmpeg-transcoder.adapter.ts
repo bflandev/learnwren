@@ -195,7 +195,14 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
       };
     } finally {
       // Stryker disable next-line BooleanLiteral: equivalent — the directory always exists here, so `force` never changes the outcome
-      if (dir) await rm(dir, { recursive: true, force: true });
+      // A cleanup failure (EBUSY, EACCES) must neither skip delivering the
+      // result nor escape as an unhandled rejection.
+      if (dir) {
+        const tempDir = dir;
+        await rm(tempDir, { recursive: true, force: true }).catch((err: Error) =>
+          this.logger.warn(`Could not remove ${tempDir}: ${err.message}`),
+        );
+      }
     }
     await this.deliver(event);
   }

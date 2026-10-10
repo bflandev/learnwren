@@ -307,6 +307,19 @@ describe('VideoUploadProxyController.chunk', () => {
     expect(storage.completeMultipartUpload.mock.calls[1]![0]).toMatchObject({ parts: [{ partNumber: 1 }] });
   });
 
+  it('aborts a multipart upload created for a session that was discarded meanwhile, storing nothing', async () => {
+    const { ctrl, sessions, storage } = make();
+    let created!: (id: string) => void;
+    storage.createMultipartUpload.mockReturnValueOnce(new Promise<string>((r) => (created = r)));
+    const pending = ctrl.chunk(VID, makeReq(Buffer.alloc(3), 'bytes 0-2/3'), makeRes() as never);
+    await new Promise((r) => setImmediate(r));
+    sessions.close(VID); // video deleted / marked failed while the create was in flight
+    created('late-upload');
+    await expect(pending).rejects.toMatchObject({ code: 'UPLOAD_SESSION_MISSING' });
+    expect(storage.abortMultipartUpload).toHaveBeenCalledWith({ bucket: 'src', path: 'videos/v1/source.mp4', uploadId: 'late-upload' });
+    expect(storage.uploadPart).not.toHaveBeenCalled();
+  });
+
   it('keeps the session when the multipart upload cannot be created, so a retry creates it', async () => {
     const { ctrl, sessions, storage } = make();
     storage.createMultipartUpload.mockRejectedValueOnce(new Error('no store'));
@@ -320,11 +333,18 @@ describe('VideoUploadProxyController.chunk', () => {
 });
 
 describe('VideoUploadSessions', () => {
+  it('lists sessions opened before a cutoff', () => {
+    const s = new VideoUploadSessions();
+    s.open('old', { bucket: 'b', path: 'p', contentType: 'video/mp4' }, 1_000);
+    s.open('new', { bucket: 'b', path: 'p', contentType: 'video/mp4' }, 5_000);
+    expect(s.openedBefore(5_000)).toEqual(['old']);
+  });
+
   it('opens, reads and closes sessions', () => {
     const s = new VideoUploadSessions();
     expect(s.get('x')).toBeUndefined();
-    s.open('x', { bucket: 'b', path: 'p', contentType: 'video/mp4' });
-    expect(s.get('x')).toEqual({ bucket: 'b', path: 'p', contentType: 'video/mp4', parts: [], received: 0 });
+    s.open('x', { bucket: 'b', path: 'p', contentType: 'video/mp4' }, 42);
+    expect(s.get('x')).toEqual({ bucket: 'b', path: 'p', contentType: 'video/mp4', parts: [], received: 0, openedAt: 42 });
     s.close('x');
     expect(s.get('x')).toBeUndefined();
   });

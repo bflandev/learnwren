@@ -11,6 +11,8 @@ export interface VideoUploadSession {
   received: number;
   /** Set once the multipart upload is completed; a retried final chunk then just re-answers 200. */
   completed?: boolean;
+  /** Epoch ms; lets an abandoned session (tab closed mid-upload) be swept. */
+  openedAt: number;
 }
 
 /**
@@ -23,8 +25,13 @@ export interface VideoUploadSession {
 export class VideoUploadSessions {
   private readonly sessions = new Map<string, VideoUploadSession>();
 
-  open(videoId: string, input: { bucket: string; path: string; contentType: string }): void {
-    this.sessions.set(videoId, { ...input, parts: [], received: 0 });
+  open(videoId: string, input: { bucket: string; path: string; contentType: string }, now = Date.now()): void {
+    this.sessions.set(videoId, { ...input, parts: [], received: 0, openedAt: now });
+  }
+
+  /** Video ids whose session was opened before `cutoff` (epoch ms). */
+  openedBefore(cutoff: number): string[] {
+    return [...this.sessions].filter(([, s]) => s.openedAt < cutoff).map(([id]) => id);
   }
 
   get(videoId: string): VideoUploadSession | undefined {

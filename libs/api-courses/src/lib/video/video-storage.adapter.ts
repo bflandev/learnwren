@@ -53,6 +53,9 @@ export interface SourceProbe {
 export type FfprobeRunner = (binary: string, args: string[]) => Promise<{ stdout: string }>;
 
 /** Route the browser PUTs chunks to when the api proxies video uploads (S3 mode). */
+/** How long a browser upload session stays valid (the expiresAt we hand out). */
+const UPLOAD_SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
+
 export const VIDEO_UPLOAD_PROXY_PATH = '/api/internal/uploads/videos';
 
 export interface VideoStoragePort {
@@ -102,8 +105,15 @@ export class VideoStorageAdapter implements VideoStoragePort, OnModuleInit {
     contentType: string;
     videoId: string;
   }): Promise<ResumableSession> {
-    const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString() as ISODateString;
+    const expiresAt = new Date(Date.now() + UPLOAD_SESSION_TTL_MS).toISOString() as ISODateString;
     if (this.storage.kind === 's3') {
+      // An upload abandoned mid-way (tab closed, never marked failed) keeps
+      // its parts in the store until aborted; sweep any past the advertised
+      // expiry. ponytail: swept only when another upload starts — a timer
+      // if an instance can sit idle with abandoned uploads for long.
+      for (const staleId of this.sessions.openedBefore(Date.now() - UPLOAD_SESSION_TTL_MS)) {
+        await this.discardUploadSession(staleId);
+      }
       // The store is not exposed to browsers: the api carries the chunks
       // (VideoUploadProxyController) and needs to know the target up front.
       this.sessions.open(input.videoId, {
