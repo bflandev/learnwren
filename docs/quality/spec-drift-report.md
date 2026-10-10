@@ -189,6 +189,14 @@ UC-01-02 are built but each carries a high-severity behavioral contradiction
   a pending application is already on record; the use case does not specify this
   guard explicitly (it is implied by the review model). `instructor-application.service.ts`.
 
+### US-01-05 — Account Self-Deletion (story only, no use case)
+
+- **IMPLEMENTED — shipped 2026-10-09.** Added to EP-01 as a story when built; no
+  Cockburn use case was written (post-MVP addition). `DELETE /api/profile/account`
+  re-authenticates and reuses `AdminUserDeleteService.deleteAccount` (the admin
+  delete minus its self check), so both paths share the course-ownership and
+  last-admin guards and the crash-retryable teardown. All acceptance criteria met.
+
 ---
 
 ## EP-02 — Course Authoring

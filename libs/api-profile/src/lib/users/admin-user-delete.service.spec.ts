@@ -207,6 +207,50 @@ describe('AdminUserDeleteService.delete', () => {
     );
   });
 
+  it('deleteAccount has no self check — the self-service path deletes actor === target', async () => {
+    const { firestore, repo, txnUpdate } = makeFixture({ me: { role: 'STUDENT', status: 'ACTIVE' } });
+    const svc = new AdminUserDeleteService(firestore as never, auth as never, repo, storage, fakePicConfig);
+    await svc.deleteAccount('me' as UserId, 'me' as UserId, 'data-first');
+    expect(txnUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'me' }),
+      expect.objectContaining({ status: 'DELETED' }),
+    );
+    expect(auth.deleteUser).toHaveBeenCalledWith('me');
+  });
+
+  it('admin delete is access-first: sessions and sign-in go before any data step', async () => {
+    const { firestore, repo } = makeFixture({ target: { role: 'STUDENT', status: 'ACTIVE' } });
+    const svc = new AdminUserDeleteService(firestore as never, auth as never, repo, storage, fakePicConfig);
+    await svc.delete('actor' as UserId, 'target' as UserId);
+    const anonymiseAt = vi.mocked(repo.anonymiseUser).mock.invocationCallOrder[0];
+    expect(auth.revokeAllSessions.mock.invocationCallOrder[0]).toBeLessThan(anonymiseAt);
+    expect(auth.deleteUser.mock.invocationCallOrder[0]).toBeLessThan(anonymiseAt);
+  });
+
+  it('data-first erases data before revoking sessions and deleting the sign-in', async () => {
+    const { firestore, repo } = makeFixture({ me: { role: 'STUDENT', status: 'ACTIVE' } });
+    const freshAuth = makeAuth();
+    const svc = new AdminUserDeleteService(firestore as never, freshAuth as never, repo, storage, fakePicConfig);
+    await svc.deleteAccount('me' as UserId, 'me' as UserId, 'data-first');
+    const lastDataStep = vi.mocked(repo.deleteInstructorApplication).mock.invocationCallOrder[0];
+    expect(vi.mocked(repo.anonymiseUser).mock.invocationCallOrder[0]).toBeLessThan(lastDataStep);
+    expect(freshAuth.revokeAllSessions.mock.invocationCallOrder[0]).toBeGreaterThan(lastDataStep);
+    expect(freshAuth.deleteUser.mock.invocationCallOrder[0]).toBeGreaterThan(
+      freshAuth.revokeAllSessions.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('data-first leaves the session and sign-in intact when a data step fails, so the owner can retry', async () => {
+    const { firestore, repo } = makeFixture({ me: { role: 'STUDENT', status: 'ACTIVE' } });
+    vi.mocked(repo.deleteAllEnrollmentsForUser).mockRejectedValue(new Error('firestore down'));
+    const freshAuth = makeAuth();
+    const svc = new AdminUserDeleteService(firestore as never, freshAuth as never, repo, storage, fakePicConfig);
+    const err = await svc.deleteAccount('me' as UserId, 'me' as UserId, 'data-first').catch((e: unknown) => e);
+    expect((err as AdminUsersException).code).toBe('INTERNAL');
+    expect(freshAuth.revokeAllSessions).not.toHaveBeenCalled();
+    expect(freshAuth.deleteUser).not.toHaveBeenCalled();
+  });
+
   it('calls revokeAllSessions then deleteUser after the claim', async () => {
     const { firestore, repo } = makeFixture({ target: { role: 'STUDENT', status: 'ACTIVE' } });
     const svc = new AdminUserDeleteService(firestore as never, auth as never, repo, storage, fakePicConfig);

@@ -20,6 +20,15 @@ const USERS = 'users';
 /** Maximum number of course IDs to include in the USER_HAS_COURSES error details. */
 const COURSE_IDS_IN_ERROR = 10;
 
+/**
+ * Post-commit teardown order. `access-first` (admin delete) cuts the target's
+ * sessions and sign-in before touching data, so a failed data step never
+ * leaves a deleted user signed in; the admin's own session survives to retry.
+ * `data-first` (self-delete) does the reverse: the actor IS the target, so
+ * revoking first would leave a failed delete with no session to retry from.
+ */
+export type TeardownOrder = 'access-first' | 'data-first';
+
 /** Resolved status (absent Firestore field ≡ ACTIVE). */
 function resolveStatus(raw?: string): UserStatus {
   // Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral: resolveStatus's result is only ever consumed at the `=== 'DELETED'` re-entry check; none of these mutants change whether a DELETED input still yields 'DELETED' (SUSPENDED/ACTIVE distinctions are never read), so they are behaviourally equivalent here.
@@ -47,7 +56,8 @@ function resolveStatus(raw?: string): UserStatus {
  *       passing an outside-txn empty check → deleted user owning a course.
  *    6. CLAIM: set status = 'DELETED' inside the transaction.
  *
- *  Post-commit (order matters; each tolerates already-done):
+ *  Post-commit (each tolerates already-done). Steps 7–8 (access) and 9–12
+ *  (data) run in the TeardownOrder the caller picks — see its doc comment:
  *    7.  identity.revokeAllSessions — kills live sessions.
  *    8.  identity.deleteUser        — removes the account (idempotent: a
  *        missing user is not an error, so no tolerance branch is needed).
@@ -56,7 +66,9 @@ function resolveStatus(raw?: string): UserStatus {
  *    11. deleteAllEnrollmentsForUser — chunked batch delete.
  *    12. deleteInstructorApplication — removes the application doc if present.
  *
- *  Hard failure mid-sequence → log + INTERNAL. Admin retries (step 3 re-entry).
+ *  Hard failure mid-sequence → log + INTERNAL. The caller retries (step 3
+ *  re-entry): the admin from their own session; a self-deleting user from
+ *  theirs, which data-first order keeps alive until the data is gone.
  */
 @Injectable()
 export class AdminUserDeleteService {
@@ -72,9 +84,17 @@ export class AdminUserDeleteService {
   ) {}
 
   async delete(actorUid: UserId, targetUid: UserId): Promise<void> {
-    // Self check first — pure in-process, no I/O needed.
+    // Self check first — pure in-process, no I/O needed. Admins delete
+    // themselves through the self-service path, which re-authenticates.
     if (actorUid === targetUid) throw new CannotActOnSelfException();
+    await this.deleteAccount(targetUid, actorUid, 'access-first');
+  }
 
+  /**
+   * Steps 2–12 with no self check. Shared by the admin route (above) and
+   * self-service deletion (AccountDeletionService, actor === target).
+   */
+  async deleteAccount(targetUid: UserId, actorUid: UserId, order: TeardownOrder): Promise<void> {
     // All validation reads AND the status claim run inside one transaction.
     // txn.get(ref) / txn.get(query) enrol the reads in Firestore's optimistic
     // concurrency so concurrent mutations (a concurrent course create, a
@@ -117,11 +137,17 @@ export class AdminUserDeleteService {
 
     // Post-commit side effects (also run on re-entry for idempotent retry).
     try {
-      await this.runPostCommitSteps(targetUid);
+      if (order === 'access-first') {
+        await this.revokeAccess(targetUid);
+        await this.eraseData(targetUid);
+      } else {
+        await this.eraseData(targetUid);
+        await this.revokeAccess(targetUid);
+      }
     } catch (err) {
       this.logger.error(
         `delete post-commit step failed for uid=${targetUid}: ${String(err)}. ` +
-        'Admin should retry — the status is already DELETED so the re-entry path will resume.',
+        'Caller should retry — the status is already DELETED so the re-entry path will resume.',
         { cause: err },
       );
       throw new AdminUsersException('INTERNAL', 'An internal error occurred during delete; retry to resume.', 500, undefined, { cause: err });
@@ -136,7 +162,7 @@ export class AdminUserDeleteService {
    * Idempotent post-commit steps.  Each step tolerates already-done or already-
    * absent state so that retries via the DELETED re-entry path converge cleanly.
    */
-  private async runPostCommitSteps(uid: UserId): Promise<void> {
+  private async revokeAccess(uid: UserId): Promise<void> {
     // 7. Kill live sessions. revokeAllSessions (not a bare revoke) closes the
     // same-second cookie-minting gap — see its doc comment on the port. In
     // production that is a second revoke past the next second boundary.
@@ -149,7 +175,9 @@ export class AdminUserDeleteService {
     // 8. Remove the Auth account. The port's deleteUser is idempotent, so no
     // not-found tolerance branch is needed here.
     await this.identity.deleteUser(uid);
+  }
 
+  private async eraseData(uid: UserId): Promise<void> {
     // 9. Anonymise the Firestore profile document (PII wipe; tombstone preserved).
     await this.repo.anonymiseUser(uid, nowIso());
 

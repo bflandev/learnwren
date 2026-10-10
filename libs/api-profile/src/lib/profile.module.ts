@@ -14,6 +14,9 @@ import { ProfilePictureService } from './picture/profile-picture.service';
 import { EmailChangeController } from './email/email-change.controller';
 import { EmailChangeExceptionFilter } from './email/email.exception-filter';
 import { EmailChangeService } from './email/email-change.service';
+import { AccountDeletionController } from './account/account-deletion.controller';
+import { AccountDeletionExceptionFilter } from './account/account-deletion.exception-filter';
+import { AccountDeletionService } from './account/account-deletion.service';
 import { PasswordChangeController } from './password/password-change.controller';
 import { PasswordChangeExceptionFilter } from './password/password.exception-filter';
 import { PasswordChangeService } from './password/password-change.service';
@@ -36,7 +39,7 @@ import { ProfileService } from './profile.service';
 
 @Module({
   imports: [AuthModule], // pulls in FirebaseSessionGuard
-  controllers: [ProfileController, ProfilePictureController, EmailChangeController, PasswordChangeController, InstructorApplicationController, AdminInstructorApplicationController, AdminUsersController],
+  controllers: [ProfileController, ProfilePictureController, EmailChangeController, PasswordChangeController, AccountDeletionController, InstructorApplicationController, AdminInstructorApplicationController, AdminUsersController],
   providers: [
     ProfileService,
     ProfileExceptionFilter,
@@ -46,6 +49,8 @@ import { ProfileService } from './profile.service';
     EmailChangeExceptionFilter,
     PasswordChangeService,
     PasswordChangeExceptionFilter,
+    AccountDeletionService,
+    AccountDeletionExceptionFilter,
     AdminInstructorApplicationService,
     AdminInstructorApplicationExceptionFilter,
     InstructorApplicationService,

@@ -240,6 +240,18 @@ describe('LoginPageComponent justChangedPassword notice', () => {
   });
 });
 
+describe('LoginPageComponent justDeletedAccount notice', () => {
+  it('flags justDeletedAccount when ?accountDeleted=1 is present', () => {
+    const { fixture } = setup(new Map([['accountDeleted', '1']]));
+    expect(fixture.componentInstance.justDeletedAccount()).toBe(true);
+  });
+
+  it('does not flag justDeletedAccount without the query param', () => {
+    const { fixture } = setup(new Map());
+    expect(fixture.componentInstance.justDeletedAccount()).toBe(false);
+  });
+});
+
 describe('LoginPageComponent.resendVerification', () => {
   it('no-ops when the email field is empty', async () => {
     const { fixture, httpMock } = setup();

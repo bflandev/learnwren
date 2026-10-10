@@ -64,3 +64,18 @@ This epic covers all aspects of user authentication, authorisation, and profile 
 - The request is submitted to the Administrator queue for review.
 - The user receives an email notification when their request is approved or declined.
 - Upon approval, the user's role is updated to **Instructor** and they gain access to the course authoring tools.
+
+---
+
+## US-01-05: Account Self-Deletion
+
+> **As a** registered user, **I want to** delete my own account **so that** my personal data is removed from the platform when I stop using it.
+
+**Acceptance Criteria (Conditions of Satisfaction):**
+
+- A "Delete account" option is available from the user's profile settings.
+- The user must re-enter their current password and type a confirmation word before the deletion runs.
+- Deletion signs the user out on every device, removes their sign-in, profile picture, enrollments and instructor application, and anonymises their profile record.
+- An Instructor who still owns courses cannot delete their account until the courses are deleted or reassigned.
+- The last active Administrator cannot delete their account.
+- Deletion cannot be undone.

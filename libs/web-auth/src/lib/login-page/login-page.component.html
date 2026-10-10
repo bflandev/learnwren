@@ -96,6 +96,12 @@
     </p>
   }
 
+  @if (justDeletedAccount()) {
+    <p class="mt-4 text-sm text-good" data-testid="account-deleted-notice">
+      Your account has been deleted.
+    </p>
+  }
+
   @if (justChangedPassword()) {
     <p class="mt-4 text-sm text-good" data-testid="password-changed-notice">
       Your password was changed. Please sign in with your new password.

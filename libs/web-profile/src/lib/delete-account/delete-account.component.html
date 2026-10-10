@@ -1,0 +1,83 @@
+<section class="mt-8 flex flex-col gap-3 border-t border-line pt-6">
+  <h2 class="text-lg font-serif">Delete account</h2>
+  <p class="text-sm text-ink-2">
+    Deleting your account signs you out everywhere, removes your profile, picture and
+    enrollments, and cannot be undone.
+  </p>
+
+  <div>
+    <button
+      hlmBtn
+      variant="destructive"
+      type="button"
+      data-testid="toggle-delete-account"
+      [attr.aria-expanded]="formOpen()"
+      (click)="toggleForm()"
+    >
+      Delete my account
+    </button>
+  </div>
+
+  @if (formOpen()) {
+    <form
+      [formGroup]="form"
+      (ngSubmit)="submit()"
+      class="flex flex-col gap-3 rounded border border-line p-4"
+      data-testid="delete-account-form"
+    >
+      <hlm-form-field>
+        <label hlmLabel for="delete-account-password">Current password</label>
+        <input
+          hlmInput
+          hlmFormFieldControl
+          id="delete-account-password"
+          type="password"
+          formControlName="currentPassword"
+          autocomplete="current-password"
+        />
+        @if (form.controls.currentPassword.touched && form.controls.currentPassword.invalid) {
+          <span hlmFormFieldError>
+            @if (form.controls.currentPassword.errors?.['server']) {
+              {{ form.controls.currentPassword.errors?.['server'] }}
+            } @else {
+              Your current password is required.
+            }
+          </span>
+        }
+      </hlm-form-field>
+
+      <hlm-form-field>
+        <label hlmLabel for="delete-account-confirm">Type {{ confirmationWord }} to confirm</label>
+        <input
+          hlmInput
+          hlmFormFieldControl
+          id="delete-account-confirm"
+          type="text"
+          formControlName="confirmation"
+          autocomplete="off"
+        />
+        @if (form.controls.confirmation.touched && form.controls.confirmation.invalid) {
+          <span hlmFormFieldError>Type {{ confirmationWord }} in capital letters.</span>
+        }
+      </hlm-form-field>
+
+      @if (bannerError()) {
+        <hlm-alert severity="error" data-testid="delete-account-error">
+          {{ bannerError() }}
+        </hlm-alert>
+      }
+
+      <div>
+        <button
+          hlmBtn
+          variant="destructive"
+          type="submit"
+          data-testid="submit-delete-account"
+          [disabled]="status() === 'deleting'"
+        >
+          Permanently delete my account
+        </button>
+      </div>
+    </form>
+  }
+</section>
