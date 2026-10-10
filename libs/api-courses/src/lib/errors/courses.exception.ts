@@ -18,6 +18,16 @@ export class NotCourseOwnerException extends CoursesException {
   }
 }
 
+/**
+ * A DELETED account must never own a course: course create reads the owner's
+ * status in its transaction, which conflicts with the delete's claim.
+ */
+export class AccountDeletedException extends CoursesException {
+  constructor() {
+    super('ACCOUNT_DELETED', 'This account has been deleted.', 403);
+  }
+}
+
 export class CourseNotFoundException extends CoursesException {
   constructor() {
     super('COURSE_NOT_FOUND', 'Course not found.', 404);

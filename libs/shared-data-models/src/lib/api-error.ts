@@ -30,7 +30,9 @@ export type CoursesErrorCode =
   | 'INTERNAL'
   | 'COURSE_NOT_PUBLISHED_FOR_NOTIFY'
   | 'MODULE_HAS_NO_LESSONS'
-  | 'MODULE_ALREADY_NOTIFIED';
+  | 'MODULE_ALREADY_NOTIFIED'
+  // Course create by an account mid-deletion (US-01-05 / admin delete).
+  | 'ACCOUNT_DELETED';
 
 /**
  * Codes a web client may receive from a courses-domain endpoint: the domain

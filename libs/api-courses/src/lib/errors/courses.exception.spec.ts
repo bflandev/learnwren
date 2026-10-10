@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  AccountDeletedException,
   CannotEnrollOwnCourseException,
   CourseArchivedException,
   CourseNotFoundException,
@@ -29,6 +30,14 @@ describe('CoursesException family', () => {
     // `name` is read by exception filters that dispatch on the constructor
     // name — a StringLiteral mutant blanking it would break that dispatch.
     expect(ex.name).toBe('CoursesException');
+  });
+
+  it('AccountDeletedException is 403 with code ACCOUNT_DELETED', () => {
+    const ex = new AccountDeletedException();
+    expect(ex).toBeInstanceOf(CoursesException);
+    expect(ex.code).toBe('ACCOUNT_DELETED');
+    expect(ex.status).toBe(403);
+    expect(ex.message).toBe('This account has been deleted.');
   });
 
   it('NotCourseOwnerException is 403 with code NOT_COURSE_OWNER', () => {

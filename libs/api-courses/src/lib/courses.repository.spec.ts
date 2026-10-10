@@ -87,14 +87,18 @@ describe('CoursesRepository — Course', () => {
     vi.setSystemTime(NOW);
   });
 
-  it('createCourse writes the course at courses/{id}', async () => {
-    const fake = createInMemoryDocumentStore();
+  it('isUserDeletedInTxn is true only for a users doc with status DELETED', async () => {
+    const fake = createInMemoryDocumentStore({
+      'users/gone': { status: 'DELETED' },
+      'users/live': { status: 'ACTIVE' },
+      'users/legacy': {},
+    });
     const repo = await buildRepo(fake);
-    const course = makeCourse();
-
-    await repo.createCourse(course);
-
-    expect(fake.__store.get('courses/cid-1')).toEqual(course);
+    const check = (uid: string) => withTxn(fake, (t) => repo.isUserDeletedInTxn(t, uid as UserId));
+    expect(await check('gone')).toBe(true);
+    expect(await check('live')).toBe(false);
+    expect(await check('legacy')).toBe(false);
+    expect(await check('missing')).toBe(false);
   });
 
   it('getCourse returns the stored course, or null when absent', async () => {

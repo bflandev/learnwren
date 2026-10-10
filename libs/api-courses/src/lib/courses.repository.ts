@@ -74,13 +74,18 @@ export class CoursesRepository {
 
   // ────────────────────────── Course ──────────────────────────
 
-  async createCourse(course: Course): Promise<void> {
-    await this.firestore.collection(COURSES).doc(course.id).set(course);
-  }
-
   /** Course create inside a caller's transaction (US-08-02 category conflict set). */
   createCourseInTxn(t: Transaction, course: Course): void {
     t.set(this.courseRef(course.id), course);
+  }
+
+  /**
+   * Whether the user is mid-deletion. Read via the txn so a course create and
+   * a user delete's claim (which reads the user's courses) serialise.
+   */
+  async isUserDeletedInTxn(t: Transaction, uid: UserId): Promise<boolean> {
+    const snap = await t.get(this.firestore.collection('users').doc(uid));
+    return snap.exists && (snap.data() as { status?: string }).status === 'DELETED';
   }
 
   async getCourse(cid: CourseId): Promise<Course | null> {
