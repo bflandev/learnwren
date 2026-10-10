@@ -29,6 +29,16 @@ import { assertReorderSetMatches } from './reorder.util';
 const COURSES = 'courses';
 
 /**
+ * Whether the user is mid-deletion. Read via the txn so a write that creates
+ * data for the user (course create, enroll) and a user delete's claim (which
+ * writes this doc) serialise: one aborts and retries, then sees the other.
+ */
+export async function isUserDeletedInTxn(store: DocumentStore, t: Transaction, uid: UserId): Promise<boolean> {
+  const snap = await t.get(store.collection('users').doc(uid));
+  return snap.exists && (snap.data() as { status?: string }).status === 'DELETED';
+}
+
+/**
  * Hard cap on the unauthenticated catalogue scan. Bounds DoS amplification
  * of `/api/catalog*` until cursor pagination + server-side filters are wired
  * in. 500 is generous for current scale and well below Firestore's per-query
@@ -79,13 +89,9 @@ export class CoursesRepository {
     t.set(this.courseRef(course.id), course);
   }
 
-  /**
-   * Whether the user is mid-deletion. Read via the txn so a course create and
-   * a user delete's claim (which reads the user's courses) serialise.
-   */
-  async isUserDeletedInTxn(t: Transaction, uid: UserId): Promise<boolean> {
-    const snap = await t.get(this.firestore.collection('users').doc(uid));
-    return snap.exists && (snap.data() as { status?: string }).status === 'DELETED';
+  /** See the standalone isUserDeletedInTxn. */
+  isUserDeletedInTxn(t: Transaction, uid: UserId): Promise<boolean> {
+    return isUserDeletedInTxn(this.firestore, t, uid);
   }
 
   async getCourse(cid: CourseId): Promise<Course | null> {

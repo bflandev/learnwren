@@ -16,7 +16,9 @@ import type {
   UserId,
 } from '@learnwren/shared-data-models';
 
+import { isUserDeletedInTxn } from '../courses.repository';
 import {
+  AccountDeletedException,
   CannotEnrollOwnCourseException,
   CourseNotAvailableException,
   NotEnrolledException,
@@ -108,6 +110,9 @@ export class EnrollmentRepository {
       // MUST be called from inside runTransaction — the owner-self-enroll
       // check it performs is otherwise raceable (see assertEnrollable).
       const course = assertEnrollable(await t.get(courseRef), userId);
+      // A deleted account (its data teardown may still be running) must not
+      // gain a new enrollment the teardown has already swept past.
+      if (await isUserDeletedInTxn(this.db, t, userId)) throw new AccountDeletedException();
 
       const enrollSnap = await t.get(enrollmentRef);
       const existing = enrollSnap.exists ? (enrollSnap.data() as Enrollment) : null;

@@ -10,6 +10,7 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import {
+  AccountDeletedException,
   CannotEnrollOwnCourseException,
   CourseNotAvailableException,
   NotEnrolledException,
@@ -46,6 +47,21 @@ describe('enrollmentId', () => {
 });
 
 describe('EnrollmentRepository.enroll', () => {
+  it('refuses a DELETED account in the transaction, writing nothing', async () => {
+    const { repo, db } = repoWith({
+      [`courses/${CID}`]: course(),
+      [`users/${UID}`]: { status: 'DELETED' },
+    });
+    await expect(repo.enroll(UID, CID)).rejects.toBeInstanceOf(AccountDeletedException);
+    expect(db.__store.has(`enrollments/${ID}`)).toBe(false);
+    expect(db.__store.get(`courses/${CID}`)?.['enrollmentCount']).toBeUndefined();
+  });
+
+  it('enrolls an ACTIVE account that has a users doc', async () => {
+    const { repo } = repoWith({ [`courses/${CID}`]: course(), [`users/${UID}`]: { status: 'ACTIVE' } });
+    await expect(repo.enroll(UID, CID)).resolves.toMatchObject({ status: 'ACTIVE' });
+  });
+
   it('creates an ACTIVE enrollment with empty progress and increments the counter', async () => {
     const { repo, db } = repoWith({ [`courses/${CID}`]: course() });
     const result = await repo.enroll(UID, CID);
