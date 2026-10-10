@@ -85,12 +85,13 @@ describe('CaptionsPanelComponent', () => {
     expect(emitted).toEqual([[]]);
   });
 
-  it('emits [] when the initial list rejects (non-fatal)', async () => {
+  it('says the tracks could not be loaded when the initial list rejects, instead of claiming there are none', async () => {
     svc.list.mockRejectedValue(new Error('network'));
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(emitted).toEqual([[]]);
-    expect(fixture.componentInstance.tracks()).toEqual([]);
+    // Emitting [] would wipe the tracks the preview player already has.
+    expect(emitted).toEqual([]);
+    expect(fixture.componentInstance.error()).toBe("Couldn't load the caption tracks. Reload the page to try again.");
   });
 
   it('uploads the chosen file under the selected language and adds it in label order', async () => {

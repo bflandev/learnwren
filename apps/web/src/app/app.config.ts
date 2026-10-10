@@ -7,7 +7,7 @@ import {
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 
-import { AuthService, withCredentialsInterceptor } from '@learnwren/web-auth';
+import { AuthService, sessionExpiredInterceptor, withCredentialsInterceptor } from '@learnwren/web-auth';
 import { provideHlmToast } from '@learnwren/web-ui';
 import { PlaybackConfigService } from '@learnwren/web-video';
 
@@ -20,7 +20,7 @@ export const appConfig: ApplicationConfig = {
     // Toast subsystem wiring (container component + config) — HlmToastService
     // is root-provided, so its tokens must live in the root injector.
     provideHlmToast(),
-    provideHttpClient(withInterceptors([withCredentialsInterceptor])),
+    provideHttpClient(withInterceptors([withCredentialsInterceptor, sessionExpiredInterceptor])),
     provideAppInitializer(async () => {
       const auth = inject(AuthService);
       try {

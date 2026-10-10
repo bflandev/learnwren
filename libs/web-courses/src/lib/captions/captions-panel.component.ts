@@ -37,8 +37,9 @@ export class CaptionsPanelComponent implements OnInit {
     try {
       this.setTracks(await this.svc.list(this.videoId()));
     } catch {
-      // Non-fatal: show no tracks; the upload affordance still works.
-      this.setTracks([]);
+      // Say so rather than show "no tracks" (and emit [], which would wipe the
+      // preview player's captions); the upload affordance still works.
+      this.error.set("Couldn't load the caption tracks. Reload the page to try again.");
     }
   }
 
