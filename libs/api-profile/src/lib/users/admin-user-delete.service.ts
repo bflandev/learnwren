@@ -48,8 +48,9 @@ function resolveStatus(raw?: string): UserStatus {
  *    the transaction, preventing TOCTOU races.
  *    1. Self check (CANNOT_ACT_ON_SELF) — in-process, before the txn.
  *    2. USER_NOT_FOUND — txn.get(userRef).
- *    3. Re-entry: if status is already DELETED, skip pre-checks and jump to
- *       post-commit steps (all idempotent).
+ *    3. Re-entry: if status is already DELETED, skip the last-admin check and
+ *       the claim, but still run the course-ownership check (step 5), then
+ *       resume the post-commit steps (all idempotent).
  *    4. Last-admin check for ADMIN targets (LAST_ADMIN) — txn.get(adminsQuery).
  *    5. Instructor course-ownership block (USER_HAS_COURSES) — txn.get(coursesQuery).
  *       Also a TOCTOU twin: a course created concurrently with the delete
@@ -99,21 +100,18 @@ export class AdminUserDeleteService {
     // txn.get(ref) / txn.get(query) enrol the reads in Firestore's optimistic
     // concurrency so concurrent mutations (a concurrent course create, a
     // concurrent suspend-to-last-admin) abort and retry this transaction.
-    let isReentry = false;
-    await this.firestore.runTransaction(async (txn: Transaction) => {
+    const isReentry = await this.firestore.runTransaction(async (txn: Transaction): Promise<boolean> => {
       const user = await this.repo.getUserInTxn(txn, targetUid);
-
-      // Re-entry: already-DELETED user — skip pre-checks, signal caller to run
-      // idempotent post-commit steps outside the transaction.
-      if (user && resolveStatus(user.status) === 'DELETED') {
-        isReentry = true;
-        return;
-      }
 
       if (!user) throw new UserNotFoundException();
 
+      // Re-entry: an already-DELETED user resumes the idempotent post-commit
+      // steps. A DELETED admin no longer counts as active, so the last-admin
+      // guard is skipped — but course ownership is still checked below.
+      const reentry = resolveStatus(user.status) === 'DELETED';
+
       // Last-admin guard — txn-read to participate in conflict detection.
-      if (user.role === 'ADMIN') {
+      if (!reentry && user.role === 'ADMIN') {
         const activeAdminCount = await this.repo.countActiveAdmins(txn);
         if (activeAdminCount <= 1) throw new LastAdminException();
       }
@@ -121,11 +119,16 @@ export class AdminUserDeleteService {
       // Course-ownership block — txn-read to close the TOCTOU twin: a course
       // created concurrently with the delete would not be visible to an
       // outside-txn read, but IS visible here, causing the transaction to abort.
+      // Also runs on re-entry: a self-delete that failed mid-teardown leaves a
+      // live session (data-first order), which could create a course before
+      // the retry.
       const ownedCourses = await this.repo.listAuthoredCoursesInTxn(txn, targetUid);
       if (ownedCourses.length > 0) {
         const ids = ownedCourses.slice(0, COURSE_IDS_IN_ERROR).map((c) => c.id as CourseId);
         throw new UserHasCoursesException(ownedCourses.length, ids);
       }
+
+      if (reentry) return true;
 
       // Claim: write status = DELETED inside the transaction.
       const updatedAt = nowIso();
@@ -133,6 +136,7 @@ export class AdminUserDeleteService {
         this.firestore.collection(USERS).doc(targetUid),
         { status: 'DELETED', updatedAt },
       );
+      return false;
     });
 
     // Post-commit side effects (also run on re-entry for idempotent retry).

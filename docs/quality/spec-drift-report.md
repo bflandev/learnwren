@@ -196,6 +196,12 @@ UC-01-02 are built but each carries a high-severity behavioral contradiction
   re-authenticates and reuses `AdminUserDeleteService.deleteAccount` (the admin
   delete minus its self check), so both paths share the course-ownership and
   last-admin guards and the crash-retryable teardown. All acceptance criteria met.
+- **Teardown order differs from the admin delete.** Self-delete erases data
+  before revoking sessions, so a failed step leaves the owner a session to retry
+  from; the retry (DELETED re-entry) re-checks course ownership, so a course
+  created in between blocks it. Accepted risk: a request already in flight
+  during the few milliseconds between erasing data and revoking sessions could
+  leave one enrollment pointing at the anonymised record (no personal data).
 
 ---
 
