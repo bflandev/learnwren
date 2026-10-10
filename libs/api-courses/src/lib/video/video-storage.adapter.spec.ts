@@ -32,6 +32,7 @@ function makeStorage(kind: 'gcs' | 's3' = 'gcs') {
     putFile: vi.fn(async () => undefined),
     openReadStream: vi.fn(() => ({ pipe: vi.fn() })),
     ensureBucket: vi.fn(async () => undefined),
+    abortMultipartUpload: vi.fn(async () => undefined),
   };
 }
 
@@ -82,6 +83,40 @@ describe('VideoStorageAdapter.createResumableSession', () => {
     expect(r.uri).toBe('/api/internal/uploads/videos/v');
     expect(sessions.get('v')).toEqual({ bucket: 'b', path: 'videos/v/source.mp4', contentType: 'video/quicktime', parts: [], received: 0 });
     expect(storage.createResumableUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe('VideoStorageAdapter.discardUploadSession', () => {
+  it('aborts the multipart upload and forgets the session', async () => {
+    const { adapter, storage, sessions } = make(realCfg, 's3');
+    await adapter.createResumableSession({ ...ref, contentType: 'video/mp4', videoId: 'v' });
+    sessions.get('v')!.uploadId = 'up-1';
+    await adapter.discardUploadSession('v');
+    expect(storage.abortMultipartUpload).toHaveBeenCalledWith({ ...ref, uploadId: 'up-1' });
+    expect(sessions.get('v')).toBeUndefined();
+  });
+
+  it('forgets a session that never started a multipart upload without calling the store', async () => {
+    const { adapter, storage, sessions } = make(realCfg, 's3');
+    await adapter.createResumableSession({ ...ref, contentType: 'video/mp4', videoId: 'v' });
+    await adapter.discardUploadSession('v');
+    expect(storage.abortMultipartUpload).not.toHaveBeenCalled();
+    expect(sessions.get('v')).toBeUndefined();
+  });
+
+  it('swallows an abort failure (best effort) and still forgets the session', async () => {
+    const { adapter, storage, sessions } = make(realCfg, 's3');
+    await adapter.createResumableSession({ ...ref, contentType: 'video/mp4', videoId: 'v' });
+    sessions.get('v')!.uploadId = 'up-1';
+    storage.abortMultipartUpload.mockRejectedValueOnce(new Error('store down'));
+    await expect(adapter.discardUploadSession('v')).resolves.toBeUndefined();
+    expect(sessions.get('v')).toBeUndefined();
+  });
+
+  it('is a no-op for an unknown video', async () => {
+    const { adapter, storage } = make(realCfg, 's3');
+    await expect(adapter.discardUploadSession('nope')).resolves.toBeUndefined();
+    expect(storage.abortMultipartUpload).not.toHaveBeenCalled();
   });
 });
 

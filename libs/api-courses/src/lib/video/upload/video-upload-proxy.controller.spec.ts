@@ -101,7 +101,18 @@ describe('VideoUploadProxyController.chunk', () => {
       uploadId: 'up1',
       parts: [{ partNumber: 1, etag: '"etag1"' }, { partNumber: 2, etag: '"etag2"' }],
     });
-    expect(sessions.get(VID)).toBeUndefined();
+    expect(sessions.get(VID)).toMatchObject({ completed: true });
+  });
+
+  it('answers 200 again for a retried final chunk after completion (the first 200 was lost), storing nothing', async () => {
+    const { ctrl, storage } = make();
+    await ctrl.chunk(VID, makeReq(Buffer.alloc(3), 'bytes 0-2/3'), makeRes() as never);
+    const res = makeRes();
+    await ctrl.chunk(VID, makeReq(Buffer.alloc(3), 'bytes 0-2/3'), res as never);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(storage.uploadPart).toHaveBeenCalledOnce();
+    expect(storage.completeMultipartUpload).toHaveBeenCalledOnce();
   });
 
   it('a single-chunk upload completes without a 308', async () => {
@@ -267,31 +278,44 @@ describe('VideoUploadProxyController.chunk', () => {
     expect(storage.createMultipartUpload).not.toHaveBeenCalled();
   });
 
-  it('aborts the multipart upload and closes the session when a part fails', async () => {
+  it('keeps the session after a transient part failure so the client retry succeeds', async () => {
     const { ctrl, sessions, storage } = make();
     const total = BIG * 2;
     await ctrl.chunk(VID, makeReq(Buffer.alloc(BIG), `bytes 0-${BIG - 1}/${total}`), makeRes() as never);
     storage.uploadPart.mockRejectedValueOnce(new Error('part failed'));
-    await expect(ctrl.chunk(VID, makeReq(Buffer.alloc(BIG), `bytes ${BIG}-${total - 1}/${total}`), makeRes() as never)).rejects.toThrow('part failed');
-    expect(storage.abortMultipartUpload).toHaveBeenCalledExactlyOnceWith({ bucket: 'src', path: 'videos/v1/source.mp4', uploadId: 'up1' });
-    expect(sessions.get(VID)).toBeUndefined();
+    const second = () => makeReq(Buffer.alloc(BIG), `bytes ${BIG}-${total - 1}/${total}`);
+    await expect(ctrl.chunk(VID, second(), makeRes() as never)).rejects.toThrow('part failed');
+    expect(storage.abortMultipartUpload).not.toHaveBeenCalled();
+    expect(sessions.get(VID)).toMatchObject({ uploadId: 'up1', received: BIG, parts: [{ partNumber: 1 }] });
+
+    const res = makeRes();
+    await ctrl.chunk(VID, second(), res as never);
+    expect(res.statusCode).toBe(200);
+    expect(storage.uploadPart.mock.calls.at(-1)![0]).toMatchObject({ partNumber: 2 });
+    expect(storage.completeMultipartUpload.mock.calls[0]![0]).toMatchObject({
+      parts: [{ partNumber: 1 }, { partNumber: 2 }],
+    });
   });
 
-  it('closes the session without aborting when the very first part cannot be created', async () => {
+  it('a failed completion rolls the final part back so the retried final chunk completes', async () => {
+    const { ctrl, storage } = make();
+    storage.completeMultipartUpload.mockRejectedValueOnce(new Error('complete failed'));
+    await expect(ctrl.chunk(VID, makeReq(Buffer.alloc(3), 'bytes 0-2/3'), makeRes() as never)).rejects.toThrow('complete failed');
+    const res = makeRes();
+    await ctrl.chunk(VID, makeReq(Buffer.alloc(3), 'bytes 0-2/3'), res as never);
+    expect(res.statusCode).toBe(200);
+    expect(storage.completeMultipartUpload.mock.calls[1]![0]).toMatchObject({ parts: [{ partNumber: 1 }] });
+  });
+
+  it('keeps the session when the multipart upload cannot be created, so a retry creates it', async () => {
     const { ctrl, sessions, storage } = make();
     storage.createMultipartUpload.mockRejectedValueOnce(new Error('no store'));
     await expect(ctrl.chunk(VID, makeReq(Buffer.alloc(3), 'bytes 0-2/3'), makeRes() as never)).rejects.toThrow('no store');
     expect(storage.abortMultipartUpload).not.toHaveBeenCalled();
-    expect(sessions.get(VID)).toBeUndefined();
-  });
-
-  it('swallows an abort failure and still rethrows the original error', async () => {
-    const { ctrl, storage } = make();
-    const total = BIG * 2;
-    await ctrl.chunk(VID, makeReq(Buffer.alloc(BIG), `bytes 0-${BIG - 1}/${total}`), makeRes() as never);
-    storage.uploadPart.mockRejectedValueOnce(new Error('part failed'));
-    storage.abortMultipartUpload.mockRejectedValueOnce(new Error('abort failed'));
-    await expect(ctrl.chunk(VID, makeReq(Buffer.alloc(BIG), `bytes ${BIG}-${total - 1}/${total}`), makeRes() as never)).rejects.toThrow('part failed');
+    expect(sessions.get(VID)).toMatchObject({ received: 0, parts: [] });
+    const res = makeRes();
+    await ctrl.chunk(VID, makeReq(Buffer.alloc(3), 'bytes 0-2/3'), res as never);
+    expect(res.statusCode).toBe(200);
   });
 });
 

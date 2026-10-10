@@ -90,8 +90,10 @@ export class VideoUploadProxyController {
       throw new UploadChunkInvalidException('body length does not match Content-Range');
     }
     if (range.last < session.received) {
-      // Already have these bytes: the client missed our 308 and retried.
-      this.acknowledge(res, session);
+      // Already have these bytes: the client missed our 308 (or the final
+      // 200) and retried.
+      if (session.completed) res.status(200).json({ ok: true });
+      else this.acknowledge(res, session);
       return;
     }
     if (range.start !== session.received) {
@@ -101,43 +103,40 @@ export class VideoUploadProxyController {
     if (!isLast && body.length < MIN_PART_BYTES) {
       throw new UploadChunkInvalidException(`non-final chunk must be at least ${MIN_PART_BYTES} bytes`);
     }
-    try {
-      session.uploadId ??= await this.storage.createMultipartUpload({
-        bucket: session.bucket,
-        path: session.path,
-        contentType: session.contentType,
-      });
-      const partNumber = session.parts.length + 1;
-      const etag = await this.storage.uploadPart({
-        bucket: session.bucket,
-        path: session.path,
-        uploadId: session.uploadId,
-        partNumber,
-        body,
-      });
-      session.parts.push({ partNumber, etag });
-      session.received = range.last + 1;
-      if (!isLast) {
-        this.acknowledge(res, session);
-        return;
-      }
+    // Session state advances only after the store accepts the part (and, for
+    // the last chunk, the completion). On failure it is left as it was, so the
+    // client's retry of the same chunk succeeds; an upload the client gives
+    // up on is aborted when it marks the video failed (discardUploadSession).
+    session.uploadId ??= await this.storage.createMultipartUpload({
+      bucket: session.bucket,
+      path: session.path,
+      contentType: session.contentType,
+    });
+    const partNumber = session.parts.length + 1;
+    const etag = await this.storage.uploadPart({
+      bucket: session.bucket,
+      path: session.path,
+      uploadId: session.uploadId,
+      partNumber,
+      body,
+    });
+    const parts = [...session.parts, { partNumber, etag }];
+    if (isLast) {
       await this.storage.completeMultipartUpload({
         bucket: session.bucket,
         path: session.path,
         uploadId: session.uploadId,
-        parts: session.parts,
+        parts,
       });
-      this.sessions.close(vid);
-      res.status(200).json({ ok: true });
-    } catch (err) {
-      if (session.uploadId) {
-        await this.storage
-          .abortMultipartUpload({ bucket: session.bucket, path: session.path, uploadId: session.uploadId })
-          .catch(() => undefined);
-      }
-      this.sessions.close(vid);
-      throw err;
     }
+    session.parts = parts;
+    session.received = range.last + 1;
+    if (!isLast) {
+      this.acknowledge(res, session);
+      return;
+    }
+    session.completed = true;
+    res.status(200).json({ ok: true });
   }
 
   private acknowledge(res: Response, session: VideoUploadSession): void {

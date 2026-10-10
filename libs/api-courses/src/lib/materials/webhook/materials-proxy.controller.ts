@@ -4,7 +4,7 @@ import { pipeline, Readable, Transform } from 'node:stream';
 import type { Request, Response } from 'express';
 
 import { FirebaseSessionGuard } from '@learnwren/api-auth';
-import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
+import { OBJECT_STORAGE, type ObjectStorage, pipeToResponse } from '@learnwren/api-object-storage';
 import type { MaterialId } from '@learnwren/shared-data-models';
 
 import { MaterialNotFoundException, UploadBodyInvalidException } from '../errors/material.exception';
@@ -85,8 +85,6 @@ export class MaterialsProxyController {
     if (!material) throw new MaterialNotFoundException();
     res.set('Content-Type', material.contentType);
     res.set('Content-Disposition', `attachment; filename="${sanitizeFilename(material.originalFilename)}"`);
-    const stream = this.storage.openReadStream({ bucket: material.storage.bucket, path: material.storage.path });
-    stream.on('error', () => res.destroy());
-    stream.pipe(res);
+    pipeToResponse(this.storage.openReadStream({ bucket: material.storage.bucket, path: material.storage.path }), res);
   }
 }

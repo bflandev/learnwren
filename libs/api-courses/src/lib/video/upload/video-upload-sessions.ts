@@ -9,6 +9,8 @@ export interface VideoUploadSession {
   uploadId?: string;
   parts: MultipartPart[];
   received: number;
+  /** Set once the multipart upload is completed; a retried final chunk then just re-answers 200. */
+  completed?: boolean;
 }
 
 /**

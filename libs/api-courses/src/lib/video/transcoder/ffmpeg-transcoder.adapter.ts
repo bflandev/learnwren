@@ -158,9 +158,12 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
     input: TranscoderJobInput,
     renditions: ReadonlyArray<(typeof RENDITIONS)[number]>,
   ): Promise<void> {
-    const dir = await mkdtemp(join(tmpdir(), 'lw-ffmpeg-'));
+    // mkdtemp sits inside the try: nothing awaits `record.done`, so a throw
+    // outside it would be an unhandled rejection that exits the process.
+    let dir: string | undefined;
     let event: TranscoderEvent;
     try {
+      dir = await mkdtemp(join(tmpdir(), 'lw-ffmpeg-'));
       const source = parseGsUri(input.sourceUri);
       const sourceFile = `source${extname(source.path) || '.bin'}`;
       await this.opts.storage.downloadObject({ ...source, destination: join(dir, sourceFile) });
@@ -192,7 +195,7 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
       };
     } finally {
       // Stryker disable next-line BooleanLiteral: equivalent — the directory always exists here, so `force` never changes the outcome
-      await rm(dir, { recursive: true, force: true });
+      if (dir) await rm(dir, { recursive: true, force: true });
     }
     await this.deliver(event);
   }

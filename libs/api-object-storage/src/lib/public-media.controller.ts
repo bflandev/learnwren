@@ -3,6 +3,7 @@ import type { Response } from 'express';
 
 import { OBJECT_STORAGE_CONFIG, type ObjectStorageConfig } from './object-storage.config';
 import { OBJECT_STORAGE, type ObjectStorage } from './object-storage.port';
+import { pipeToResponse } from './pipe-to-response';
 
 /** One year: the URLs the platform mints carry a `v=` version, so they can be immutable. */
 const PUBLIC_CACHE_CONTROL = 'public, max-age=31536000, immutable';
@@ -24,14 +25,16 @@ export class PublicMediaController {
   @Get(':bucket/:key')
   async serve(@Param('bucket') bucket: string, @Param('key') key: string, @Res() res: Response): Promise<void> {
     if (!this.cfg.publicBuckets.includes(bucket)) throw new NotFoundException();
+    // The key arrives URL-decoded, so `..%2F` becomes a real dot-segment; the
+    // platform never mints one, and an S3-compatible store may normalise it
+    // into another bucket.
+    if (key.split('/').some((seg) => seg === '' || seg === '.' || seg === '..')) throw new NotFoundException();
     const head = await this.storage.headObject({ bucket, path: key });
     if (!head) throw new NotFoundException();
     res.setHeader('Content-Type', head.contentType ?? 'application/octet-stream');
     res.setHeader('Content-Length', String(head.size));
     res.setHeader('Cache-Control', PUBLIC_CACHE_CONTROL);
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    const stream = this.storage.openReadStream({ bucket, path: key });
-    stream.on('error', () => res.destroy());
-    stream.pipe(res);
+    pipeToResponse(this.storage.openReadStream({ bucket, path: key }), res);
   }
 }

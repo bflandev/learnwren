@@ -6,6 +6,16 @@ import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
+const fsFaults = vi.hoisted(() => ({ mkdtemp: undefined as Error | undefined }));
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const real = await importOriginal<typeof import('node:fs/promises')>();
+  return {
+    ...real,
+    mkdtemp: (...args: Parameters<typeof real.mkdtemp>) =>
+      fsFaults.mkdtemp ? Promise.reject(fsFaults.mkdtemp) : real.mkdtemp(...args),
+  };
+});
+
 import type { VideoId, VideoKeyId } from '@learnwren/shared-data-models';
 
 import type { VideoStoragePort } from '../video-storage.adapter';
@@ -101,6 +111,20 @@ function make(
 }
 
 describe('FfmpegTranscoderAdapter.submitJob', () => {
+  it('reports JOB_FAILED (not an unhandled rejection) when the temp dir cannot be created', async () => {
+    fsFaults.mkdtemp = new Error('ENOSPC: no space left on device');
+    try {
+      const { adapter, sink } = make();
+      const { jobName } = await adapter.submitJob(input());
+      await adapter.whenDone(jobName);
+      expect(sink).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'JOB_FAILED', videoId: 'v1', reason: expect.stringContaining('ENOSPC') }),
+      );
+    } finally {
+      fsFaults.mkdtemp = undefined;
+    }
+  });
+
   it('returns an ffmpeg-prefixed job name derived from the videoId', async () => {
     const { adapter } = make();
     const handle = await adapter.submitJob(input());

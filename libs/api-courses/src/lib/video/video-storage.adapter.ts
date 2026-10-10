@@ -71,6 +71,8 @@ export interface VideoStoragePort {
   downloadObject(input: { bucket: string; path: string; destination: string }): Promise<void>;
   uploadFile(input: { localPath: string; bucket: string; path: string; contentType: string }): Promise<void>;
   openObjectReadStream(input: { bucket: string; path: string }): NodeJS.ReadableStream;
+  /** Abort and forget an in-flight proxied (S3) upload; a no-op otherwise. */
+  discardUploadSession(videoId: string): Promise<void>;
 }
 
 @Injectable()
@@ -218,6 +220,18 @@ export class VideoStorageAdapter implements VideoStoragePort, OnModuleInit {
 
   openObjectReadStream(input: { bucket: string; path: string }): NodeJS.ReadableStream {
     return this.storage.openReadStream(input);
+  }
+
+  async discardUploadSession(videoId: string): Promise<void> {
+    const session = this.sessions.get(videoId);
+    if (!session) return;
+    this.sessions.close(videoId);
+    if (!session.uploadId || session.completed) return;
+    // Best effort: S3 keeps uploaded parts of an unfinished multipart upload
+    // until it is aborted, invisible to listings and to deletePrefix.
+    await this.storage
+      .abortMultipartUpload({ bucket: session.bucket, path: session.path, uploadId: session.uploadId })
+      .catch(() => undefined);
   }
 
   // Mirror the REAL GCP Transcoder HLS layout: a master `manifest.m3u8` whose
