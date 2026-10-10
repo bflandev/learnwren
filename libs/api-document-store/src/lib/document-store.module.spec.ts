@@ -1,3 +1,5 @@
+import { EventEmitter } from 'node:events';
+
 import { Global, Logger, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { FIRESTORE } from '@learnwren/api-firebase';
@@ -16,7 +18,10 @@ class FakeFirebaseModule {}
 function fakePool() {
   const sql: string[] = [];
   const listeners: Record<string, (err: Error) => void> = {};
-  const client = { query: async (text: string) => void sql.push(text), release: () => undefined };
+  const client = Object.assign(new EventEmitter(), {
+    query: async (text: string) => void sql.push(text),
+    release: () => undefined,
+  });
   const pool = {
     connect: async () => client,
     on: (event: string, fn: (err: Error) => void) => {

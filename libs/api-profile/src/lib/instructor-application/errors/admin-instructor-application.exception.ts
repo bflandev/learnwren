@@ -31,6 +31,12 @@ export class ApplicantNotVerifiedException extends AdminInstructorApplicationExc
   }
 }
 
+export class ApplicantNotEligibleException extends AdminInstructorApplicationException {
+  constructor() {
+    super('APPLICANT_NOT_ELIGIBLE', 'Only an active student can be approved as an instructor.', 409);
+  }
+}
+
 export class DeclineReasonInvalidException extends AdminInstructorApplicationException {
   constructor() {
     super('DECLINE_REASON_INVALID', 'The decline reason must be text of at most 2000 characters.', 400);

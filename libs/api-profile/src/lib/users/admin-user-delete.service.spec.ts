@@ -160,6 +160,16 @@ describe('AdminUserDeleteService.delete', () => {
     expect(txnGet).toHaveBeenCalledTimes(2);
   });
 
+  it('deletes a SUSPENDED admin when only one active admin remains (guard counts active admins only)', async () => {
+    const { firestore, repo, txnUpdate } = makeFixture({
+      a1: { role: 'ADMIN', status: 'ACTIVE' },
+      a2: { role: 'ADMIN', status: 'SUSPENDED' },
+    });
+    const svc = new AdminUserDeleteService(firestore as never, auth as never, repo, storage, fakePicConfig);
+    await expect(svc.delete('a1' as UserId, 'a2' as UserId)).resolves.toBeUndefined();
+    expect(txnUpdate).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ status: 'DELETED' }));
+  });
+
   it('LastAdminException propagates typed from inside the transaction', async () => {
     const { firestore, repo } = makeFixture({ u2: { role: 'ADMIN', status: 'ACTIVE' } });
     const svc = new AdminUserDeleteService(firestore as never, auth as never, repo, storage, fakePicConfig);

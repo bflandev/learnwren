@@ -42,25 +42,37 @@ export class PasswordVerificationService {
     const emailHash = this.attempts.emailHash(email);
     await this.throwIfAccountLocked(emailHash);
 
+    let proof: PasswordProof;
     try {
-      return await this.identity.verifyPassword(email, password);
+      proof = await this.identity.verifyPassword(email, password);
     } catch (err) {
       if (!(err instanceof InvalidCredentialsException)) throw err;
 
       const failure = await this.attempts.recordFailure(emailHash);
       if (failure.locked) {
-        // Log the lockout event but NOT any part of the unlock token — it is a
-        // single-use secret and even a prefix is needless exposure in Cloud
-        // Logging. The emailHash is sufficient to correlate the event.
-        // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
-        this.logger.log(`[auth] lockout fired emailHash=${emailHash}`);
-        await this.recovery.sendUnlockEmail(email, failure.unlockToken!, failure.lockedUntil!);
+        // Only the failure that tripped the lock carries a token; one that
+        // landed on an existing lock must not send a second email.
+        if (failure.unlockToken) {
+          // Log the lockout event but NOT any part of the unlock token — it is a
+          // single-use secret and even a prefix is needless exposure in Cloud
+          // Logging. The emailHash is sufficient to correlate the event.
+          // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
+          this.logger.log(`[auth] lockout fired emailHash=${emailHash}`);
+          await this.recovery.sendUnlockEmail(email, failure.unlockToken, failure.lockedUntil!);
+        }
         throw new AccountLockedException(failure.lockedUntil!);
       }
       // Stryker disable next-line StringLiteral: log message — log-only, no behavioral effect
       this.logger.log(`[auth] password check failed code=INVALID_CREDENTIALS emailHash=${emailHash}`);
       throw err;
     }
+
+    // A parallel guess may have tripped the lock while this check ran; a
+    // correct password found that way must not get through.
+    // ponytail: the parallel guesses themselves are still evaluated; an atomic
+    // pre-check reservation would close that if the per-IP throttle proves too loose.
+    await this.throwIfAccountLocked(emailHash);
+    return proof;
   }
 
   /** Reset the failure counter after a fully successful flow. */

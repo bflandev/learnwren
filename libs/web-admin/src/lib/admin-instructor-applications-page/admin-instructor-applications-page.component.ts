@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { DatePipe } from '@angular/common';
 
 import {
+  APPLICANT_NOT_ELIGIBLE,
   APPLICANT_NOT_VERIFIED,
   APPLICATION_NOT_FOUND,
   APPLICATION_NOT_PENDING,
@@ -124,6 +125,9 @@ export class AdminInstructorApplicationsPageComponent implements OnInit {
     const code = (err as { error?: { error?: { code?: string } } })?.error?.error?.code;
     if (code === APPLICANT_NOT_VERIFIED) {
       return 'Applicant must verify their email before approval.';
+    }
+    if (code === APPLICANT_NOT_ELIGIBLE) {
+      return 'Only an active student can be approved. Decline this application instead.';
     }
     if (code === DECLINE_REASON_INVALID) {
       return `The reason must be ${DECLINE_REASON_MAX_LENGTH} characters or fewer.`;

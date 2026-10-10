@@ -1,3 +1,5 @@
+import { EventEmitter } from 'node:events';
+
 import type { Pool } from 'pg';
 
 import { DELETE_FIELD } from '../document-store.port';
@@ -30,7 +32,11 @@ function fakePool(script: (sql: string, call: number) => Reply | undefined) {
   };
   const pool = {
     query: makeQuery(poolLog),
-    connect: async () => ({ query: makeQuery(clientLog), release: (err?: unknown) => void released.push(err) }),
+    connect: async () =>
+      Object.assign(new EventEmitter(), {
+        query: makeQuery(clientLog),
+        release: (err?: unknown) => void released.push(err),
+      }),
     end: async () => void log.push('END'),
   } as unknown as Pool;
   return { pool, log, poolLog, clientLog, calls, released };
@@ -106,6 +112,31 @@ describe('PostgresDocumentStore transactions (fake pool)', () => {
     const boom = new Error('domain');
     await expect(store.runTransaction(async () => Promise.reject(boom))).rejects.toBe(boom);
     expect(released).toEqual([rollbackFailure]);
+  });
+
+  it('survives a connection error event while the client is checked out, and destroys that client', async () => {
+    // pg emits 'error' on a checked-out client when its socket drops, on top of
+    // rejecting the pending query. With no listener, EventEmitter throws — in
+    // production that is an uncaught exception that kills the api process.
+    const dropped = new Error('Connection terminated unexpectedly');
+    const client = Object.assign(new EventEmitter(), {
+      query: async (sql: string) => {
+        if (sql.startsWith('SELECT')) {
+          client.emit('error', dropped);
+          throw dropped;
+        }
+        return { rows: [], rowCount: 0 };
+      },
+      release: vi.fn(),
+    });
+    const pool = { connect: async () => client, query: client.query } as unknown as Pool;
+    const store = new PostgresDocumentStore(pool);
+
+    await expect(
+      store.runTransaction(async (txn) => txn.get(store.collection('c').doc('x'))),
+    ).rejects.toBe(dropped);
+    expect(client.release).toHaveBeenCalledWith(dropped);
+    expect(client.listenerCount('error')).toBe(0);
   });
 
   it('a transactional update of a missing document rolls back with DocumentNotFoundError', async () => {

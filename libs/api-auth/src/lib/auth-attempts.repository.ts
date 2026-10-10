@@ -83,11 +83,16 @@ export class AuthAttemptsRepository {
         data = this.freshDoc(nowIso);
       }
 
-      // Failure window: on an unlocked doc, a streak whose first failure is
-      // older than the window has lapsed — start a fresh count. (Never applied
-      // while a live lock exists; that would clear an active lockout.)
+      // Already locked (parallel guesses that all passed the pre-check):
+      // report the existing lock untouched. A fresh token would send another
+      // unlock email, void the one already sent, and extend the lock.
+      if (data.lockedUntil) {
+        return { locked: true, lockedUntil: new Date(data.lockedUntil) };
+      }
+
+      // Failure window: a streak whose first failure is older than the window
+      // has lapsed — start a fresh count.
       if (
-        !data.lockedUntil &&
         data.firstFailureAt &&
         now.getTime() - new Date(data.firstFailureAt).getTime() > FAILURE_WINDOW_MS
       ) {
