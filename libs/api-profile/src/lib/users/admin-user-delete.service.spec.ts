@@ -283,30 +283,21 @@ describe('AdminUserDeleteService.delete', () => {
     await expect(svc.delete('actor' as UserId, 'u7' as UserId)).resolves.toBeUndefined();
   });
 
-  it('idempotent re-entry skips the last-admin check (a DELETED admin is no longer active)', async () => {
-    // Even if the user is the only admin, re-entry must not throw.
-    const { firestore, repo, txnUpdate } = makeFixture({ u8: { role: 'ADMIN', status: 'DELETED' } });
-    const svc = new AdminUserDeleteService(firestore as never, auth as never, repo, storage, fakePicConfig);
-    await expect(svc.delete('actor' as UserId, 'u8' as UserId)).resolves.toBeUndefined();
-    // No DELETED claim inside the transaction (re-entry returns early).
-    expect(txnUpdate).not.toHaveBeenCalled();
-  });
-
-  it('re-entry still blocks on owned courses — a course created after a failed delete must not be orphaned', async () => {
-    // A self-delete that failed mid-teardown leaves a DELETED user with a live
-    // session, who could create a course before retrying.
-    const { firestore, repo, txnGet } = makeFixture(
-      { u8: { role: 'INSTRUCTOR', status: 'DELETED' } },
+  it('idempotent re-entry skips pre-checks — no last-admin or courses validation', async () => {
+    // Fail closed: even if the user is the only admin and owns courses, a
+    // retry must finish cutting access rather than stop on a guard.
+    const { firestore, repo, txnUpdate, txnGet } = makeFixture(
+      { u8: { role: 'ADMIN', status: 'DELETED' } },
       [{ id: 'c1', instructorId: 'u8', title: 'Course' }],
     );
     const freshAuth = makeAuth();
     const svc = new AdminUserDeleteService(firestore as never, freshAuth as never, repo, storage, fakePicConfig);
-    const err = await svc.deleteAccount('u8' as UserId, 'u8' as UserId, 'data-first').catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(UserHasCoursesException);
-    // The courses read went through the transaction (user doc + courses query).
-    expect(txnGet).toHaveBeenCalledTimes(2);
-    expect(repo.anonymiseUser).not.toHaveBeenCalled();
-    expect(freshAuth.deleteUser).not.toHaveBeenCalled();
+    await expect(svc.delete('actor' as UserId, 'u8' as UserId)).resolves.toBeUndefined();
+    // Only the user doc was read; no claim written (re-entry returns early).
+    expect(txnGet).toHaveBeenCalledTimes(1);
+    expect(txnUpdate).not.toHaveBeenCalled();
+    expect(freshAuth.revokeAllSessions).toHaveBeenCalledWith('u8');
+    expect(freshAuth.deleteUser).toHaveBeenCalledWith('u8');
   });
 
   it('re-entry on an already-DELETED user still calls identity.deleteUser (idempotent at the port, no try/catch needed)', async () => {

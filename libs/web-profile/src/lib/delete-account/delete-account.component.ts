@@ -26,7 +26,7 @@ const GENERIC_ERROR = 'Could not delete your account. Please try again.';
 const FIRST_PERSON_ERRORS = new Map<string | undefined, string>([
   [
     'USER_HAS_COURSES',
-    'You still own courses. Delete them, or ask an administrator to reassign them, before deleting your account.',
+    'You still own courses. Delete them before deleting your account.',
   ],
   [
     'LAST_ADMIN',

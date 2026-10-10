@@ -71,6 +71,21 @@ test('an instructor who owns a course is blocked with USER_HAS_COURSES', async (
   expect(body.error.details.courseIds).toContain(cid);
 });
 
+test('an account mid-deletion cannot create a course (403 ACCOUNT_DELETED)', async ({ request }) => {
+  // Simulates a delete that claimed the account but failed before revoking the
+  // session: the live session must not be able to acquire a course.
+  const instructor = await registerAndPromoteInstructor(request);
+  await seam.updateDoc(`users/${instructor.uid}`, { status: 'DELETED' });
+
+  const res = await request.post(`${API_BASE}/courses`, {
+    headers: { Cookie: instructor.cookieHeader },
+    data: { title: 'Sneaky', description: 'Created after the delete claim.' },
+  });
+  expect(res.status()).toBe(403);
+  expect((await res.json()).error.code).toBe('ACCOUNT_DELETED');
+  expect(await seam.query('courses', 'instructorId', instructor.uid)).toHaveLength(0);
+});
+
 test('without a session cookie the endpoint is rejected with 401', async ({ request }) => {
   const res = await request.delete(`${API_BASE}/profile/account`, { data: { currentPassword: PASSWORD } });
   expect(res.status()).toBe(401);

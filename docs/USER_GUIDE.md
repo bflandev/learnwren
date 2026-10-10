@@ -312,8 +312,8 @@ free to register again as a new account.
 
 Two cases are refused with an explanation:
 
-- **You own courses.** An instructor must delete their courses first (or ask an
-  administrator to reassign them).
+- **You own courses.** An instructor must delete their courses first. There is
+  no way to hand a course to another instructor.
 - **You are the only active administrator.** Promote another administrator first.
 
 > **Not built:** a grace period or undo, a confirmation email, and a data export

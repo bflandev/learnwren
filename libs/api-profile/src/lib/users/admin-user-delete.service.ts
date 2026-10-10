@@ -48,9 +48,10 @@ function resolveStatus(raw?: string): UserStatus {
  *    the transaction, preventing TOCTOU races.
  *    1. Self check (CANNOT_ACT_ON_SELF) — in-process, before the txn.
  *    2. USER_NOT_FOUND — txn.get(userRef).
- *    3. Re-entry: if status is already DELETED, skip the last-admin check and
- *       the claim, but still run the course-ownership check (step 5), then
- *       resume the post-commit steps (all idempotent).
+ *    3. Re-entry: if status is already DELETED, skip pre-checks and jump to
+ *       post-commit steps (all idempotent), so a retry always cuts access.
+ *       A course cannot appear after the claim: CoursesService.createCourse
+ *       refuses a DELETED owner inside its own transaction.
  *    4. Last-admin check for ADMIN targets (LAST_ADMIN) — txn.get(adminsQuery).
  *    5. Instructor course-ownership block (USER_HAS_COURSES) — txn.get(coursesQuery).
  *       Also a TOCTOU twin: a course created concurrently with the delete
@@ -105,13 +106,14 @@ export class AdminUserDeleteService {
 
       if (!user) throw new UserNotFoundException();
 
-      // Re-entry: an already-DELETED user resumes the idempotent post-commit
-      // steps. A DELETED admin no longer counts as active, so the last-admin
-      // guard is skipped — but course ownership is still checked below.
-      const reentry = resolveStatus(user.status) === 'DELETED';
+      // Re-entry: an already-DELETED user skips every pre-check and resumes
+      // the idempotent post-commit steps, so a retry always finishes cutting
+      // access (fail closed). No check is needed for courses created after
+      // the claim: course create refuses a DELETED owner in its own txn.
+      if (resolveStatus(user.status) === 'DELETED') return true;
 
       // Last-admin guard — txn-read to participate in conflict detection.
-      if (!reentry && user.role === 'ADMIN') {
+      if (user.role === 'ADMIN') {
         const activeAdminCount = await this.repo.countActiveAdmins(txn);
         if (activeAdminCount <= 1) throw new LastAdminException();
       }
@@ -119,16 +121,11 @@ export class AdminUserDeleteService {
       // Course-ownership block — txn-read to close the TOCTOU twin: a course
       // created concurrently with the delete would not be visible to an
       // outside-txn read, but IS visible here, causing the transaction to abort.
-      // Also runs on re-entry: a self-delete that failed mid-teardown leaves a
-      // live session (data-first order), which could create a course before
-      // the retry.
       const ownedCourses = await this.repo.listAuthoredCoursesInTxn(txn, targetUid);
       if (ownedCourses.length > 0) {
         const ids = ownedCourses.slice(0, COURSE_IDS_IN_ERROR).map((c) => c.id as CourseId);
         throw new UserHasCoursesException(ownedCourses.length, ids);
       }
-
-      if (reentry) return true;
 
       // Claim: write status = DELETED inside the transaction.
       const updatedAt = nowIso();

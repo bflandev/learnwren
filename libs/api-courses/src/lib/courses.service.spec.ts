@@ -17,7 +17,7 @@ import { CategoryNotFoundException } from './categories/categories.exception';
 import type { CategoriesRepository } from './categories/categories.repository';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
-import { CourseNotFoundException } from './errors/courses.exception';
+import { AccountDeletedException, CourseNotFoundException } from './errors/courses.exception';
 
 const INSTRUCTOR_UID = 'uid-instructor-1' as UserId;
 const FIXED_DATE = '2026-05-12T12:00:00.000Z' as ISODateString;
@@ -37,8 +37,8 @@ function makeCourse(overrides: Partial<Course> = {}): Course {
 
 interface RepoFake {
   newId: ReturnType<typeof vi.fn>;
-  createCourse: ReturnType<typeof vi.fn>;
   createCourseInTxn: ReturnType<typeof vi.fn>;
+  isUserDeletedInTxn: ReturnType<typeof vi.fn>;
   getCourse: ReturnType<typeof vi.fn>;
   getCourseInTxn: ReturnType<typeof vi.fn>;
   listCoursesByInstructor: ReturnType<typeof vi.fn>;
@@ -104,8 +104,8 @@ function buildCategoriesRepoFake() {
 function buildRepoFake(): RepoFake {
   return {
     newId: vi.fn(() => 'generated-id'),
-    createCourse: vi.fn(async () => undefined),
     createCourseInTxn: vi.fn(),
+    isUserDeletedInTxn: vi.fn(async () => false),
     getCourse: vi.fn(async () => null),
     getCourseInTxn: vi.fn(async () => makeCourse()),
     listCoursesByInstructor: vi.fn(async () => []),
@@ -170,7 +170,19 @@ describe('CoursesService — course operations', () => {
       expect(out.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
       expect(out.updatedAt).toBe(out.createdAt);
       expect(out.enrollmentCount).toBe(0);
-      expect(repo.createCourse).toHaveBeenCalledWith(out);
+      // Always transactional: the owner's status read shares the write's txn.
+      expect(repo.isUserDeletedInTxn).toHaveBeenCalledWith(FAKE_TXN, INSTRUCTOR_UID);
+      expect(repo.createCourseInTxn).toHaveBeenCalledWith(FAKE_TXN, out);
+    });
+
+    it('refuses a DELETED account with ACCOUNT_DELETED and writes nothing', async () => {
+      // Read inside the txn so it conflicts with the delete's claim: either
+      // the claim sees this course (USER_HAS_COURSES) or this sees DELETED.
+      repo.isUserDeletedInTxn.mockResolvedValue(true);
+      await expect(
+        service.createCourse(INSTRUCTOR_UID, { title: 'T', description: 'D' }),
+      ).rejects.toBeInstanceOf(AccountDeletedException);
+      expect(repo.createCourseInTxn).not.toHaveBeenCalled();
     });
 
     it('includes optional fields when supplied', async () => {
@@ -189,7 +201,6 @@ describe('CoursesService — course operations', () => {
       // a concurrent category delete conflicts instead of leaving a dangling id.
       expect(categoriesRepo.getInTxn).toHaveBeenCalledWith(FAKE_TXN, 'PROGRAMMING');
       expect(repo.createCourseInTxn).toHaveBeenCalledWith(FAKE_TXN, out);
-      expect(repo.createCourse).not.toHaveBeenCalled();
     });
 
     it('rejects an unknown category without writing the course (US-08-02)', async () => {
@@ -202,7 +213,6 @@ describe('CoursesService — course operations', () => {
           category: 'NOPE' as CourseCategory,
         }),
       ).rejects.toBeInstanceOf(CategoryNotFoundException);
-      expect(repo.createCourse).not.toHaveBeenCalled();
       expect(repo.createCourseInTxn).not.toHaveBeenCalled();
     });
 
@@ -219,12 +229,12 @@ describe('CoursesService — course operations', () => {
         }),
       ).rejects.toBeInstanceOf(CategoryNotFoundException);
       expect(repo.createCourseInTxn).not.toHaveBeenCalled();
-      expect(repo.createCourse).not.toHaveBeenCalled();
     });
 
     it('skips category validation when no category is supplied', async () => {
       await service.createCourse(INSTRUCTOR_UID, { title: 'T', description: 'D' });
       expect(categoriesRepo.get).not.toHaveBeenCalled();
+      expect(categoriesRepo.getInTxn).not.toHaveBeenCalled();
     });
   });
 

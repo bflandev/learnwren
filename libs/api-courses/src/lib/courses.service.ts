@@ -17,6 +17,7 @@ import { CategoryNotFoundException } from './categories/categories.exception';
 import { CategoriesRepository } from './categories/categories.repository';
 import { CoursesRepository } from './courses.repository';
 import {
+  AccountDeletedException,
   CourseNotFoundException,
   LessonNotFoundException,
   ModuleNotFoundException,
@@ -90,18 +91,18 @@ export class CoursesService {
       updatedAt: now,
     };
     const category = input.category;
-    if (category) {
-      // Category read + course write in one transaction: a concurrent admin
-      // category delete conflicts here instead of leaving a dangling id (the
-      // delete's reassign query cannot see a course that isn't written yet).
-      await this.repo.rawFirestore.runTransaction(async (t) => {
+    // Reads + course write in one transaction. The owner-status read conflicts
+    // with a user delete's claim, so a DELETED account never owns a course.
+    // The category read conflicts with an admin category delete, so no
+    // dangling id (that delete's reassign query cannot see an unwritten course).
+    await this.repo.rawFirestore.runTransaction(async (t) => {
+      if (await this.repo.isUserDeletedInTxn(t, uid)) throw new AccountDeletedException();
+      if (category) {
         const found = await this.categoriesRepo.getInTxn(t, category);
         if (!found) throw new CategoryNotFoundException();
-        this.repo.createCourseInTxn(t, course);
-      });
-    } else {
-      await this.repo.createCourse(course);
-    }
+      }
+      this.repo.createCourseInTxn(t, course);
+    });
     return course;
   }
 
