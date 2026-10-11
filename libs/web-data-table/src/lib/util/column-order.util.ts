@@ -18,7 +18,6 @@ export function reorderVisibleColumns(
     // Stryker disable next-line ConditionalExpression: equivalent — with this clause skipped, an equal-index drag splices and reinserts at the same slot, producing an identical order
     previousIndex === currentIndex ||
     previousIndex < 0 ||
-    // Stryker disable next-line ConditionalExpression,EqualityOperator: equivalent — an out-of-range splice yields undefined and the moved-undefined guard below returns the same copy
     previousIndex >= visibleCenterIds.length ||
     currentIndex < 0 ||
     currentIndex >= visibleCenterIds.length
@@ -26,14 +25,13 @@ export function reorderVisibleColumns(
     return [...fullOrder];
   }
   const reordered = [...visibleCenterIds];
-  const [moved] = reordered.splice(previousIndex, 1);
-  // The bounds guards above make both reads safe; noUncheckedIndexedAccess
-  // still needs the explicit undefined fallbacks.
-  // Stryker disable next-line ConditionalExpression,ArrayDeclaration: equivalent — the bounds guards above keep previousIndex in range, so `moved` is always defined; this branch exists only for noUncheckedIndexedAccess
-  if (moved === undefined) return [...fullOrder];
+  // The bounds guards above keep previousIndex in range, so splice yields one id.
+  const [moved] = reordered.splice(previousIndex, 1) as [string];
   reordered.splice(currentIndex, 0, moved);
   const centerSet = new Set(visibleCenterIds);
   let i = 0;
+  // `?? id` keeps a (corrupt, e.g. persisted) order that repeats a center id
+  // from writing `undefined` once the reordered ids run out.
   return fullOrder.map((id) =>
     centerSet.has(id) ? (reordered[i++] ?? id) : id,
   );

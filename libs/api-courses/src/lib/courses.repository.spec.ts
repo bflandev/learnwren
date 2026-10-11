@@ -20,7 +20,12 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import { CoursesRepository } from './courses.repository';
-import { CourseNotFoundException, StaleReorderException } from './errors/courses.exception';
+import {
+  CourseNotFoundException,
+  ModuleAlreadyNotifiedException,
+  ModuleNotFoundException,
+  StaleReorderException,
+} from './errors/courses.exception';
 
 const INSTRUCTOR = 'uid-instructor-1' as UserId;
 const SEED_DATE = '2026-05-12T00:00:00.000Z' as ISODateString;
@@ -656,5 +661,87 @@ describe('CoursesRepository.listPublished', () => {
     const repo = await buildRepo(fake);
 
     expect(await repo.listPublished()).toEqual([]);
+  });
+});
+
+describe('CoursesRepository — in-transaction course writes and cover clear', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  it('createCourseInTxn writes the course document at courses/{id}', async () => {
+    const fake = createInMemoryDocumentStore();
+    const repo = await buildRepo(fake);
+
+    await withTxn(fake, async (t) => repo.createCourseInTxn(t, makeCourse()));
+
+    expect(fake.__store.get('courses/cid-1')).toEqual(makeCourse());
+  });
+
+  it('updateCourseInTxn merges the patch and refreshes updatedAt', async () => {
+    const fake = createInMemoryDocumentStore({ 'courses/cid-1': makeCourse() });
+    const repo = await buildRepo(fake);
+
+    await withTxn(fake, async (t) =>
+      repo.updateCourseInTxn(t, 'cid-1' as CourseId, { title: 'Renamed' }),
+    );
+
+    const stored = fake.__store.get('courses/cid-1') as Course;
+    expect(stored.title).toBe('Renamed');
+    expect(stored.description).toBe('A course.');
+    expect(stored.updatedAt).toBe(NOW.toISOString());
+  });
+
+  it('clearCoverImageUrl removes the field and refreshes updatedAt', async () => {
+    const fake = createInMemoryDocumentStore({
+      'courses/cid-1': makeCourse({ coverImageUrl: 'https://cdn/x.png' }),
+    });
+    const repo = await buildRepo(fake);
+
+    await repo.clearCoverImageUrl('cid-1' as CourseId);
+
+    const stored = fake.__store.get('courses/cid-1') as Course;
+    expect('coverImageUrl' in stored).toBe(false);
+    expect(stored.updatedAt).toBe(NOW.toISOString());
+  });
+});
+
+describe('CoursesRepository.claimModuleNotification', () => {
+  const STAMP = '2026-05-21T12:00:00.000Z' as ISODateString;
+
+  it('stamps studentsNotifiedAt and updatedAt on an unstamped module', async () => {
+    const fake = createInMemoryDocumentStore({ 'courses/cid-1/modules/mid-1': makeModule() });
+    const repo = await buildRepo(fake);
+
+    await repo.claimModuleNotification('cid-1' as CourseId, 'mid-1' as ModuleId, STAMP);
+
+    const stored = fake.__store.get('courses/cid-1/modules/mid-1') as Module;
+    expect(stored.studentsNotifiedAt).toBe(STAMP);
+    expect(stored.updatedAt).toBe(STAMP);
+    expect(stored.title).toBe('Module 1');
+  });
+
+  it('throws ModuleAlreadyNotifiedException and keeps the first stamp', async () => {
+    const first = '2026-05-01T00:00:00.000Z' as ISODateString;
+    const fake = createInMemoryDocumentStore({
+      'courses/cid-1/modules/mid-1': makeModule({ studentsNotifiedAt: first }),
+    });
+    const repo = await buildRepo(fake);
+
+    await expect(
+      repo.claimModuleNotification('cid-1' as CourseId, 'mid-1' as ModuleId, STAMP),
+    ).rejects.toBeInstanceOf(ModuleAlreadyNotifiedException);
+    expect((fake.__store.get('courses/cid-1/modules/mid-1') as Module).studentsNotifiedAt).toBe(first);
+  });
+
+  it('throws ModuleNotFoundException without writing when the module is absent', async () => {
+    const fake = createInMemoryDocumentStore();
+    const repo = await buildRepo(fake);
+
+    await expect(
+      repo.claimModuleNotification('cid-1' as CourseId, 'mid-x' as ModuleId, STAMP),
+    ).rejects.toBeInstanceOf(ModuleNotFoundException);
+    expect(fake.__store.size).toBe(0);
   });
 });

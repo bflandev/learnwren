@@ -1292,6 +1292,21 @@ describe('DataTableListComponent (row selection)', () => {
     expect(emitted[emitted.length - 1]).toEqual([rows[0]]);
   });
 
+  it('drops a selected id whose row has left the rows input instead of throwing', () => {
+    // Arrange — select the second row (id '1'), then the parent removes it.
+    const { fixture, emitted } = buildWithSelection();
+    const table = fixture.componentInstance.getTableForTesting();
+    table.getRow('1').toggleSelected(true);
+    fixture.detectChanges();
+    fixture.componentRef.setInput('rows', [rows[0]]);
+    fixture.detectChanges();
+    // Act — a later selection change re-derives the emitted rows.
+    table.getRow('0').toggleSelected(true);
+    fixture.detectChanges();
+    // Assert — the stale id is skipped; only the surviving row is emitted.
+    expect(emitted[emitted.length - 1]).toEqual([rows[0]]);
+  });
+
   it('selects every row when the master checkbox handler fires, emitting all row data', () => {
     const { fixture, emitted } = buildWithSelection();
     const table = fixture.componentInstance.getTableForTesting();
@@ -3365,6 +3380,19 @@ describe('columnLayoutResetToken', () => {
 
     expect(state.isColumnVisible('city')).toBe(true);
     expect(state.columnPinning()).toEqual({ left: [], right: [] });
+  });
+
+  it('does not reset when the token flips away and back before the effect runs', () => {
+    // Arrange — mounted with the default (undefined) token, a column hidden.
+    const fixture = build();
+    const state = fixture.debugElement.injector.get(DataTableStateService);
+    state.toggleColumnVisibility('city');
+    // Act — the token changes and returns to its seeded value within one tick.
+    fixture.componentRef.setInput('columnLayoutResetToken', 'space1:view2');
+    fixture.componentRef.setInput('columnLayoutResetToken', undefined);
+    fixture.detectChanges();
+    // Assert — same view identity as before, so the layout survives.
+    expect(state.isColumnVisible('city')).toBe(false);
   });
 
   it('does not reset on the initial bind', () => {

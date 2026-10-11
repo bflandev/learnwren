@@ -73,12 +73,12 @@ export function formatDuration(
   const shifted = showDays
     ? value.shiftTo('days', 'hours', 'minutes', 'seconds', 'milliseconds')
     : value.shiftTo('hours', 'minutes', 'seconds', 'milliseconds');
-  const o = shifted.toObject();
-  let out = `${pad2(o.hours ?? 0)}:${pad2(o.minutes ?? 0)}`;
+  // Luxon's unit getters read 0 for a unit the shift left unset.
+  let out = `${pad2(shifted.hours)}:${pad2(shifted.minutes)}`;
   if (precision.seconds || precision.milliseconds)
-    out += `:${pad2(o.seconds ?? 0)}`;
-  if (precision.milliseconds) out += `.${pad3(o.milliseconds ?? 0)}`;
-  if (showDays) out = `${pad3(o.days ?? 0)} ${out}`;
+    out += `:${pad2(shifted.seconds)}`;
+  if (precision.milliseconds) out += `.${pad3(shifted.milliseconds)}`;
+  if (showDays) out = `${pad3(shifted.days)} ${out}`;
   return out;
 }
 
@@ -103,9 +103,9 @@ export function parseDuration(
   const normalized = applyMask(trimmed, template);
   // Require a complete entry — a partial mask fill is treated as not-yet-valid.
   if (normalized.length !== template.length) return null;
-  // Stryker disable next-line ArrayDeclaration: equivalent — a full-length
-  // applyMask output always contains digits, so match() never returns null.
-  const nums = (normalized.match(/[0-9]+/g) ?? []).map(Number);
+  // A full-template-length applyMask output has every digit slot filled, so
+  // match() finds one complete numeric run per segment (never null, never NaN).
+  const nums = (normalized.match(/[0-9]+/g) as RegExpMatchArray).map(Number);
   let i = 0;
   const days = showDays ? nums[i++] : 0;
   const hours = nums[i++];
@@ -114,26 +114,8 @@ export function parseDuration(
   // Stryker disable next-line UpdateOperator: equivalent — post-op value is
   // read before the update and `i` is never used again after this line.
   const milliseconds = precision.milliseconds ? nums[i++] : 0;
-  // Stryker disable all: equivalent — unreachable defensive guard. A
-  // full-template-length applyMask output has every digit slot filled, so the
-  // regex above always yields a complete numeric segment set (no undefined,
-  // no NaN). Kept as defence against future applyMask changes.
-  if (
-    [days, hours, minutes, seconds, milliseconds].some(
-      (n) => n === undefined || Number.isNaN(n),
-    )
-  ) {
-    return null;
-  }
-  // Stryker restore all
-  const duration = Duration.fromObject({
-    days,
-    hours,
-    minutes,
-    seconds,
-    milliseconds,
-  });
-  return duration.isValid ? duration : null;
+  // fromObject over finite integers always yields a valid Duration.
+  return Duration.fromObject({ days, hours, minutes, seconds, milliseconds });
 }
 
 // The per-unit breakdown the segmented input edits — one box per field. Days
@@ -163,25 +145,25 @@ export function durationToParts(
   const shifted = showDays
     ? value.shiftTo('days', 'hours', 'minutes', 'seconds', 'milliseconds')
     : value.shiftTo('hours', 'minutes', 'seconds', 'milliseconds');
-  const o = shifted.toObject();
+  // Luxon's unit getters read 0 for a unit the shift left unset (days when
+  // hours-led).
   return {
-    days: Math.floor(o.days ?? 0),
-    hours: Math.floor(o.hours ?? 0),
-    minutes: Math.floor(o.minutes ?? 0),
-    seconds: Math.floor(o.seconds ?? 0),
-    milliseconds: Math.floor(o.milliseconds ?? 0),
+    days: Math.floor(shifted.days),
+    hours: Math.floor(shifted.hours),
+    minutes: Math.floor(shifted.minutes),
+    seconds: Math.floor(shifted.seconds),
+    milliseconds: Math.floor(shifted.milliseconds),
   };
 }
 
 /**
  * Rebuild a Duration from component parts (the inverse of `durationToParts`).
  * Luxon does not auto-normalize an out-of-range part (e.g. 75 minutes), so the
- * caller reformats via the component set on the next render. Returns null for an
- * invalid combination.
+ * caller reformats via the component set on the next render. Parts are finite
+ * numbers, so the result is always valid.
  */
-export function partsToDuration(parts: DurationParts): Duration | null {
-  const duration = Duration.fromObject({ ...parts });
-  return duration.isValid ? duration : null;
+export function partsToDuration(parts: DurationParts): Duration {
+  return Duration.fromObject({ ...parts });
 }
 
 /** Clamp a duration to [min, max] (inclusive); either bound optional, min wins if inverted. */

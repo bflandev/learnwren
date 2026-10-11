@@ -59,12 +59,10 @@ export class HlmProgress {
   // Clamped 0–100. Guards a non-positive max (→ 0) so the fill never divides by
   // zero or overflows the track.
   protected readonly percent = computed(() => {
-    const value = this.value();
+    // The template never reads percent() while indeterminate; Number() just
+    // narrows the type (a null value would coerce to 0 → 0%).
+    const value = Number(this.value());
     const max = this.max();
-    // Also the TS narrowing for `value`; the template never calls percent()
-    // while indeterminate, and null would coerce to 0 anyway.
-    // Stryker disable next-line ConditionalExpression: equivalent — a null value coerces to 0 in the division below, yielding the same 0 result
-    if (value === null) return 0;
     if (max <= 0) return 0;
     return Math.max(0, Math.min(100, (value / max) * 100));
   });

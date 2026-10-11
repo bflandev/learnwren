@@ -443,6 +443,11 @@ describe('FfmpegTranscoderAdapter — edge paths', () => {
     expect(DEFAULT_RETRY_DELAYS_MS).toHaveLength(6);
     expect(DEFAULT_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0)).toBe(60000);
   });
+
+  it('uses the default redelivery schedule when none is given', () => {
+    const adapter = new FfmpegTranscoderAdapter({ storage: fakeStorage(), runner: fakeRunner().runner, ffmpegPath: 'f', ffprobePath: 'p' });
+    expect((adapter as unknown as { retryDelaysMs: number[] }).retryDelaysMs).toBe(DEFAULT_RETRY_DELAYS_MS);
+  });
 });
 
 describe('spawnRunner', () => {

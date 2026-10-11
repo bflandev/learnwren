@@ -105,7 +105,7 @@ export class OptionLookup<T> {
     this._options.set([]);
     this._hasMore.set(false);
     this._loading.set(true);
-    this._timer = setTimeout(() => void this._fetch(query, 0, seq), this._debounceMs);
+    this._timer = setTimeout(() => void this._fetch(query, 0, seq, []), this._debounceMs);
   }
 
   /** Append the next page for the active query. No-op while loading or when exhausted. */
@@ -118,7 +118,7 @@ export class OptionLookup<T> {
     // only needs a value change: the loading gate means no other fetch can be
     // in flight when loadMore bumps, and every later bump moves away from the
     // captured value, so the increment's direction is unobservable.
-    void this._fetch(query, entry.nextPage, ++this._seq);
+    void this._fetch(query, entry.nextPage, ++this._seq, entry.items);
   }
 
   /** Clear all state and the cache; cancels any pending fetch. */
@@ -139,16 +139,18 @@ export class OptionLookup<T> {
     this._seq++;
   }
 
-  private async _fetch(query: string, page: number, seq: number): Promise<void> {
+  // `prior` is the list this page appends to: [] for a fresh query, the cached
+  // entry's items for loadMore (unchanged while this fetch is current — any
+  // search/reset that could touch the cache also bumps seq).
+  private async _fetch(
+    query: string,
+    page: number,
+    seq: number,
+    prior: readonly T[],
+  ): Promise<void> {
     try {
       const result = await this.fetcher(query, page);
       if (seq !== this._seq) return; // a newer search/reset superseded this one
-      // Stryker disable next-line ConditionalExpression, OptionalChaining, ArrayDeclaration: equivalent —
-      // a page-0 fetch only dispatches for an uncached query (cache lookup
-      // yields undefined → []), and a page>0 fetch only dispatches from
-      // loadMore, which requires the entry to exist; both fallbacks re-derive
-      // the same prior list.
-      const prior = page === 0 ? [] : (this._cache.get(query)?.items ?? []);
       const items = [...prior, ...result.items];
       this._cache.set(query, { items, hasMore: result.hasMore, nextPage: page + 1 });
       this._evictStaleEntries(query);

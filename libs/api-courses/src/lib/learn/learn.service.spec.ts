@@ -366,6 +366,28 @@ describe('LearnService.getLessonView (Slice C — lastAccessed touch + lastWatch
     }
   });
 
+  it('logs a non-Error touchLastAccessed rejection by its string form', async () => {
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    try {
+      const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
+      const enrollment = {
+        getEnrollment: vi.fn().mockResolvedValue({
+          id: 's__c', userId: 's', courseId: 'c', status: 'ACTIVE',
+          progress: [],
+          withdrawnAt: null, createdAt: 't', updatedAt: 't',
+        }),
+        touchLastAccessed: vi.fn().mockRejectedValue('disk full'),
+      } as unknown as EnrollmentRepository;
+      const service = new LearnService(videos, enrollment, makeEmptyCoursesRepo(), makeMaterialsService(), makeCaptionsService());
+
+      await service.getLessonView(STUDENT_UID, COURSE, LESSON);
+
+      expect(String(warnSpy.mock.calls[0]![0])).toMatch(/touchLastAccessed failed .*: disk full$/);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it('propagates lastWatchedSeconds from the matching LessonProgress row', async () => {
     const videos = { getVideo: vi.fn().mockResolvedValue(null), listVideoStatesForLessons: vi.fn().mockResolvedValue(new Map()) } as unknown as VideoRepository;
     const enrollment = {
@@ -887,6 +909,32 @@ describe('LearnService.getLessonView — lazy completion stamp', () => {
     expect(view.outline.modules.length).toBeGreaterThan(0);
     expect(warnSpy).toHaveBeenCalledWith(
       `stampCompleted failed for user=${STUDENT_ID} course=${CID}: boom`,
+    );
+  });
+
+  it('logs a non-Error stamp rejection by its string form', async () => {
+    const enrollment = makeEnrollmentRepo({
+      getEnrollment: {
+        id: `${STUDENT_ID}__${CID}`,
+        userId: STUDENT_ID,
+        courseId: CID,
+        status: 'ACTIVE',
+        progress: [
+          { lessonId: 'l1' as LessonId, completedAt: '2026-05-01T00:00:00Z', lastWatchedSeconds: 0 },
+          { lessonId: 'l2' as LessonId, completedAt: '2026-05-02T00:00:00Z', lastWatchedSeconds: 0 },
+        ],
+        withdrawnAt: null,
+        completedAt: null,
+      },
+    });
+    enrollment.stampCompleted = vi.fn().mockRejectedValue('quota exceeded');
+    const svc = new LearnService(makeVideos(), enrollment, courses, makeMaterialsService(), makeCaptionsService());
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    await svc.getLessonView(STUDENT_ID, course, lesson);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      `stampCompleted failed for user=${STUDENT_ID} course=${CID}: quota exceeded`,
     );
   });
 });

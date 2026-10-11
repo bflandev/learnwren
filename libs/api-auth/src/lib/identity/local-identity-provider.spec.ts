@@ -175,6 +175,16 @@ describe('LocalIdentityProvider', () => {
       await expect(idp.createSession(proof)).rejects.toThrow('Password proof was not issued by this identity provider');
     });
 
+    it('getUserByEmail returns null when the email index points at a missing user doc', async () => {
+      // Arrange: leave a dangling authEmails entry behind.
+      const uid = await idp.createUser({ email: 'dan@example.test', password: PASSWORD, displayName: 'Dan' });
+      await store.collection('authUsers').doc(uid).delete();
+
+      // Act + Assert
+      expect(store.__store.has(`authEmails/${sha256Hex('dan@example.test')}`)).toBe(true);
+      expect(await idp.getUserByEmail('dan@example.test')).toBeNull();
+    });
+
     it('verifySession returns null when the session is valid but the user was deleted', async () => {
       const uid = await idp.createUser({ email: 'jack@example.test', password: PASSWORD, displayName: 'Jack' });
       const session = await idp.createSession(await idp.verifyPassword('jack@example.test', PASSWORD));

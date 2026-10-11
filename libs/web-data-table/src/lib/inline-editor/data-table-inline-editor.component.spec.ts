@@ -642,8 +642,11 @@ describe('DataTableInlineEditorComponent (mutation hardening)', () => {
 
   interface EditorInternals {
     controlNameFor(id: string): string;
+    collectDirtyValues(): unknown[];
     form(): {
-      get(name: string): { value: unknown; markAsDirty(): void } | null;
+      get(
+        name: string,
+      ): { value: unknown; setValue(v: unknown): void; markAsDirty(): void } | null;
       markAsDirty(): void;
     };
     formPristine(): boolean;
@@ -687,6 +690,30 @@ describe('DataTableInlineEditorComponent (mutation hardening)', () => {
   it('seeds a date field with a non-string, non-DateTime value as null', () => {
     const cmp = internals(makeRaw([f({ id: 'when', type: 'date', value: 42 })]));
     expect(cmp.form().get('when')?.value).toBeNull();
+  });
+
+  it('seeds a date field with an unparseable ISO string as null', () => {
+    const cmp = internals(
+      makeRaw([f({ id: 'when', type: 'date', value: 'not-a-date' })]),
+    );
+    expect(cmp.form().get('when')?.value).toBeNull();
+  });
+
+  it('emits a dirty date field as a UTC ISO string, skipping readonly fields', () => {
+    // Arrange
+    const cmp = internals(
+      makeRaw([
+        f({ id: 'ro', readonly: true, value: 'v' }),
+        f({ id: 'when', type: 'date', value: '2026-01-02T03:04:05Z' }),
+      ]),
+    );
+    const ctrl = cmp.form().get('when');
+    ctrl?.setValue(DateTime.fromISO('2026-02-03T04:05:06', { zone: 'UTC+2' }));
+    ctrl?.markAsDirty();
+    // Act
+    const out = cmp.collectDirtyValues();
+    // Assert
+    expect(out).toEqual([{ field: 'when', value: '2026-02-03T02:05:06Z' }]);
   });
 
   it('displayValue maps blanks, options, dates and booleans', () => {

@@ -787,6 +787,26 @@ describe('CourseEditorPageComponent', () => {
       expect(fixture.componentInstance.error()).toBe('Failed to notify students.');
     });
 
+    it('reports a failure for a gateway timeout when the course tree could not be loaded at all', async () => {
+      // Arrange: the initial load failed, so there is no tree to check.
+      notifications.notifyModule.mockRejectedValue(new HttpErrorResponse({ status: 504 }));
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+      http.expectOne('/api/courses/cid-1').flush('down', { status: 500, statusText: 'Server Error' });
+      await fixture.whenStable();
+      expect(fixture.componentInstance.tree()).toBeNull();
+
+      // Act: the post-timeout refresh fails too.
+      const pending = fixture.componentInstance.onNotifyModule('mid-1');
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush('down', { status: 500, statusText: 'Server Error' });
+      await pending;
+
+      // Assert
+      expect(fixture.componentInstance.notice()).toBeNull();
+      expect(fixture.componentInstance.error()).toBe('Failed to notify students.');
+    });
+
     it('shows an error when the call fails', async () => {
       notifications.notifyModule.mockRejectedValue(new Error('boom'));
       const fixture = await initEditor();

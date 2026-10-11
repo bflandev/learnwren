@@ -7,6 +7,7 @@ import {
   CoverTooLargeException,
   UnsupportedCoverFormatException,
 } from './cover.exception';
+import { COVER_ERROR_CODES } from './cover-error.codes';
 
 describe('CoverException hierarchy', () => {
   it('CoverDimensionsTooSmallException carries 400, code, and {width,height} details', () => {
@@ -40,5 +41,17 @@ describe('CoverException hierarchy', () => {
     expect(e.code).toBe('UNSUPPORTED_COVER_FORMAT');
     expect(e.status).toBe(415);
     expect(e.message).toBe('Cover image must be JPEG or PNG.');
+  });
+});
+
+describe('COVER_ERROR_CODES', () => {
+  it('lists exactly the codes the cover exceptions carry', () => {
+    const thrown = [
+      new CoverDimensionsTooSmallException({ width: 1, height: 1 }),
+      new CoverDecodeFailedException(),
+      new CoverTooLargeException(),
+      new UnsupportedCoverFormatException(),
+    ].map((e) => e.code);
+    expect([...COVER_ERROR_CODES].sort()).toEqual(thrown.sort());
   });
 });

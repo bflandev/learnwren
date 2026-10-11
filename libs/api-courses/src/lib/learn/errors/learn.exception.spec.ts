@@ -6,6 +6,7 @@ import {
   NotEnrolledLessonException,
   NotLessonOwnerException,
 } from './learn.exception';
+import { LEARN_ERROR_CODES } from './learn-error.codes';
 
 describe('Learn exceptions', () => {
   it('LessonNotFoundException carries code LESSON_NOT_FOUND and status 404', () => {
@@ -47,5 +48,17 @@ describe('InvalidPositionException', () => {
     expect(err.code).toBe('INVALID_POSITION');
     expect(err.status).toBe(400);
     expect(err.message).toBe('Playback position must be a finite non-negative number.');
+  });
+});
+
+describe('LEARN_ERROR_CODES', () => {
+  it('lists exactly the codes the learn exceptions carry', () => {
+    const thrown = [
+      new LessonNotFoundException(),
+      new NotLessonOwnerException(),
+      new NotEnrolledLessonException(),
+      new InvalidPositionException(),
+    ].map((e) => e.code);
+    expect([...LEARN_ERROR_CODES].sort()).toEqual(thrown.sort());
   });
 });

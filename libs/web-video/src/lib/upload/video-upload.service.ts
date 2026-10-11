@@ -25,8 +25,9 @@ export const XHR_FACTORY = new InjectionToken<() => XMLHttpRequest>(
 const SUPPORTED_MIME = new Set<SupportedVideoContentType>(SUPPORTED_VIDEO_CONTENT_TYPES);
 const MAX_BYTES = 10_000_000_000;
 const CHUNK_BYTES = 8 * 1024 * 1024;
-const MAX_RETRIES_PER_CHUNK = 3;
 const BACKOFF_MS = [1000, 2000, 4000];
+// One backoff delay per retry, so BACKOFF_MS[attempt] is always in range.
+const MAX_RETRIES_PER_CHUNK = BACKOFF_MS.length;
 
 export type UploadState =
   | { kind: 'idle' }
@@ -173,7 +174,7 @@ export class VideoUploadService {
       // status 0 = network error (xhr.onerror): a transient blip is retryable,
       // same as a 5xx. Aborts also resolve 0 but are caught by the guard above.
       if ((status === 0 || status >= 500) && attempt < MAX_RETRIES_PER_CHUNK) {
-        await new Promise((res) => setTimeout(res, BACKOFF_MS[attempt] ?? 4000));
+        await new Promise((res) => setTimeout(res, BACKOFF_MS[attempt]));
         continue;
       }
       // hard failure
@@ -203,9 +204,6 @@ export class VideoUploadService {
       this.currentXhr = xhr;
       xhr.open('PUT', sessionUri, true);
       xhr.setRequestHeader('Content-Range', `bytes ${start}-${last}/${total}`);
-      xhr.upload.onprogress = () => {
-        // chunk-level granularity already updates `percent` in caller
-      };
       xhr.onload = () => resolve(xhr.status);
       xhr.onerror = () => resolve(0);
       xhr.onabort = () => resolve(0);

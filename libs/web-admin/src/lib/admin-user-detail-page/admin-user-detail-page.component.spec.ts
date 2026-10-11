@@ -744,4 +744,64 @@ describe('AdminUserDetailPageComponent', () => {
     expect(fixture.componentInstance.notFound()).toBe(false);
     expect(fixture.componentInstance.user()).toBeUndefined();
   });
+
+  // A role/status action is a non-cancellable Promise too: if the admin navigates
+  // to another user while it is in flight, its result belongs to the OLD user and
+  // must not be painted onto the user now on screen.
+  it.each([
+    ['suspend', 'suspend-btn', { status: 'ACTIVE' }, 'status', { id: 'u1', status: 'SUSPENDED' }, 'ACTIVE'],
+    ['promote', 'promote-btn', { role: 'STUDENT' }, 'role', { id: 'u1', role: 'INSTRUCTOR' }, 'STUDENT'],
+  ] as const)(
+    'ignores a %s result that resolves after navigating to a different user',
+    async (method, button, start, field, response, expected) => {
+      // Arrange
+      let settle!: (v: unknown) => void;
+      svc[method] = vi.fn(() => new Promise((r) => { settle = r; }));
+      svc.getDetail = vi.fn(async (uid: string) => detail({ id: uid, ...start }));
+      const subject = new BehaviorSubject<ParamMap>(convertToParamMap({ uid: 'u1' }));
+      const fixture = createWithParamSubject(subject);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      fixture.nativeElement.querySelector(`[data-testid="${button}"]`).click();
+
+      // Act: navigate to u2, then the u1 action settles last.
+      subject.next(convertToParamMap({ uid: 'u2' }));
+      await fixture.whenStable();
+      settle(response);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // Assert
+      const c = fixture.componentInstance;
+      expect(c.user()?.id).toBe('u2');
+      expect(c.user()?.[field]).toBe(expected);
+      expect(c.actionSuccess()).toBeUndefined();
+      expect(c.busy()).toBe(false);
+    },
+  );
+
+  it.each([
+    ['suspend', 'suspend-btn', { status: 'ACTIVE' }],
+    ['promote', 'promote-btn', { role: 'STUDENT' }],
+  ] as const)('ignores a %s error that settles after navigating to a different user', async (method, button, start) => {
+    // Arrange
+    let fail!: (e: unknown) => void;
+    svc[method] = vi.fn(() => new Promise((_, rej) => { fail = rej; }));
+    svc.getDetail = vi.fn(async (uid: string) => detail({ id: uid, ...start }));
+    const subject = new BehaviorSubject<ParamMap>(convertToParamMap({ uid: 'u1' }));
+    const fixture = createWithParamSubject(subject);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector(`[data-testid="${button}"]`).click();
+
+    // Act
+    subject.next(convertToParamMap({ uid: 'u2' }));
+    await fixture.whenStable();
+    fail({ error: { error: { code: 'LAST_ADMIN' } } });
+    await fixture.whenStable();
+
+    // Assert
+    expect(fixture.componentInstance.actionError()).toBeUndefined();
+    expect(fixture.componentInstance.busy()).toBe(false);
+  });
 });

@@ -11,21 +11,13 @@ import ts from 'typescript';
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
 
-const COVERAGE_DIRS = [
-  'coverage/libs/api-auth',
-  'coverage/libs/api-courses',
-  'coverage/libs/api-firebase',
-  'coverage/libs/shared-data-models',
-  'coverage/libs/web-auth',
-  'coverage/libs/web-catalog',
-  'coverage/libs/web-courses',
-  'coverage/libs/web-enrollment',
-  'coverage/libs/web-learn',
-  'coverage/libs/web-ui',
-  'coverage/libs/web-video',
-  'coverage/apps/api',
-  'coverage/apps/web',
-];
+// Every lib and app that can emit coverage; ones without tests show as ❌.
+const COVERAGE_DIRS = ['libs', 'apps'].flatMap((group) =>
+  fs
+    .readdirSync(path.join(REPO_ROOT, group), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !d.name.endsWith('-e2e'))
+    .map((d) => `coverage/${group}/${d.name}`),
+);
 
 const ISTANBUL_FILE = 'coverage-final.json';
 const REPORT_PATH = path.join(REPO_ROOT, 'docs', 'quality', 'crap-report.md');

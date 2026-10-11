@@ -367,3 +367,33 @@ describe('EmailChangeService.confirmChange', () => {
     errSpy.mockRestore();
   });
 });
+
+describe('EmailChangeService non-Error failures', () => {
+  // A thrown non-Error is not a valid `cause`: the envelope must carry none.
+  const valid = { newEmail: 'new@example.com', currentPassword: 'pw' };
+  const swappedUser = { email: 'new@example.com', emailVerified: true };
+
+  it.each([
+    ['reauth', () => makeService({ verifyPassword: vi.fn().mockRejectedValue('down') }).svc.requestChange(UID, 'old@example.com', valid)],
+    ['link-gen', () => makeService({ genLink: vi.fn().mockRejectedValue('down') }).svc.requestChange(UID, 'old@example.com', valid)],
+    ['send', () => makeService({ sendEmail: vi.fn().mockRejectedValue('down') }).svc.requestChange(UID, 'old@example.com', valid)],
+    ['getUser', () => {
+      const { svc, auth } = makeService();
+      auth.getUser = vi.fn().mockRejectedValue('down');
+      return svc.confirmChange(UID, 'old@example.com');
+    }],
+    ['firestore sync', () => {
+      const { svc, auth } = makeService();
+      auth.getUser = vi.fn().mockResolvedValue(swappedUser);
+      const update = vi.fn().mockRejectedValue('down');
+      (svc as unknown as { firestore: unknown }).firestore = {
+        collection: vi.fn().mockReturnValue({ doc: vi.fn().mockReturnValue({ update }) }),
+      };
+      return svc.confirmChange(UID, 'old@example.com');
+    }],
+  ])('a non-Error %s failure becomes EMAIL_CHANGE_FAILED with no cause', async (_site, run) => {
+    const err = await (run as () => Promise<unknown>)().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EmailChangeFailedException);
+    expect((err as Error).cause).toBeUndefined();
+  });
+});

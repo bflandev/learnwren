@@ -320,6 +320,19 @@ describe('VideoUploadProxyController.chunk', () => {
     expect(storage.uploadPart).not.toHaveBeenCalled();
   });
 
+  it('still answers UPLOAD_SESSION_MISSING when aborting the orphaned multipart upload fails', async () => {
+    const { ctrl, sessions, storage } = make();
+    let created!: (id: string) => void;
+    storage.createMultipartUpload.mockReturnValueOnce(new Promise<string>((r) => (created = r)));
+    storage.abortMultipartUpload.mockRejectedValueOnce(new Error('abort boom'));
+    const pending = ctrl.chunk(VID, makeReq(Buffer.alloc(3), 'bytes 0-2/3'), makeRes() as never);
+    await new Promise((r) => setImmediate(r));
+    sessions.close(VID);
+    created('late-upload');
+    await expect(pending).rejects.toMatchObject({ code: 'UPLOAD_SESSION_MISSING' });
+    expect(storage.abortMultipartUpload).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the session when the multipart upload cannot be created, so a retry creates it', async () => {
     const { ctrl, sessions, storage } = make();
     storage.createMultipartUpload.mockRejectedValueOnce(new Error('no store'));

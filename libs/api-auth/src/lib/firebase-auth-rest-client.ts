@@ -57,9 +57,9 @@ export class FirebaseAuthRestClient {
     const errorBody = (await res.json().catch(() => null)) as
       | { error?: { message?: string } }
       | null;
-    // Stryker disable next-line StringLiteral: the two `?? ''` fallbacks are equivalent (empty vs any non-matching token both take the Internal path; the final one is unreachable as split always yields a defined element). The split separator `' '` IS behavioral but is killed by the "CODE : detail" test — line-level disable only reclassifies that already-killed mutant.
-    // Stryker disable next-line OptionalChaining: String.prototype.split always returns a non-empty array, so `[0]` is always a string — the `?.` never short-circuits — equivalent
-    const upstreamCode = (errorBody?.error?.message ?? '').split(' ')[0]?.trim() ?? '';
+    // Stryker disable next-line StringLiteral: the `?? ''` fallback is equivalent (empty vs any non-matching token both take the Internal path). The split separator `' '` IS behavioral but is killed by the "CODE : detail" test — line-level disable only reclassifies that already-killed mutant.
+    // String.prototype.split always returns a non-empty array, so `[0]` is always defined.
+    const upstreamCode = ((errorBody?.error?.message ?? '').split(' ')[0] as string).trim();
 
     if (INVALID_CREDENTIAL_CODES.has(upstreamCode)) {
       throw new InvalidCredentialsException();

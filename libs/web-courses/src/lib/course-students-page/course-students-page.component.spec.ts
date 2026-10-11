@@ -248,6 +248,36 @@ describe('CourseStudentsPageComponent', () => {
     expect(fixture.componentInstance.state()).toBe('loaded');
   });
 
+  it('discards a stale FAILED students response so it does not replace the newer course with an error', async () => {
+    // Arrange
+    const params$ = new Subject<Map<string, string>>();
+    TestBed.configureTestingModule({
+      imports: [CourseStudentsPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { paramMap: params$.asObservable() } },
+      ],
+    });
+    const localHttp = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(CourseStudentsPageComponent);
+    fixture.detectChanges();
+    params$.next(new Map([['id', 'course-1']]));
+    const reqA = localHttp.expectOne('/api/courses/course-1/students'); // slow
+    params$.next(new Map([['id', 'course-2']]));
+    localHttp.expectOne('/api/courses/course-2/students').flush({ ...VIEW, courseId: 'course-2' } as CourseRosterView);
+    await fixture.whenStable();
+
+    // Act: course-1's request fails late.
+    reqA.flush('boom', { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+
+    // Assert
+    expect(fixture.componentInstance.state()).toBe('loaded');
+    expect(fixture.componentInstance.view()?.courseId).toBe('course-2');
+  });
+
   it('cid() falls back to empty when the route paramMap has no id key', () => {
     TestBed.configureTestingModule({
       imports: [CourseStudentsPageComponent],

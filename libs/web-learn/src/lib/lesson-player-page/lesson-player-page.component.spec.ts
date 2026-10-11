@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ISODateString, LessonId, LessonView, MaterialId } from '@learnwren/shared-data-models';
 import { VideoPlayerComponent } from '@learnwren/web-video';
 
+import { LearnService } from '../learn.service';
 import { LessonPlayerPageComponent, formatBytes } from './lesson-player-page.component';
 
 // jsdom does not implement window.matchMedia; polyfill it once for all tests in this file.
@@ -2184,5 +2185,82 @@ describe('formatBytes', () => {
     [5368709120, '5.00 GB'], // pins the /(1024^3) divisor + 2-dp rounding
   ] as const)('formats %i bytes as %s', (n, expected) => {
     expect(formatBytes(n)).toBe(expected);
+  });
+});
+
+describe('LessonPlayerPageComponent remaining edge paths', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function loaded(view: LessonView = makeView()) {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(view);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { fixture, http };
+  }
+
+  it('ignores a mark-complete FAILURE for a lesson the user already navigated away from', async () => {
+    // Arrange
+    const subject = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    const p = fixture.componentInstance.onMarkComplete();
+    const completeA = http.expectOne('/api/learn/courses/c-1/lessons/l-1/complete');
+    subject.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-2' }));
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-2')
+      .flush(makeView({ id: 'l-2' as LessonView['lesson']['id'], title: 'Lesson B' }));
+    await fixture.whenStable();
+
+    // Act: lesson A's completion fails late.
+    completeA.flush({}, { status: 403, statusText: 'Forbidden' });
+    await p;
+
+    // Assert: lesson B shows no error banner.
+    expect(fixture.componentInstance.markError()).toBeNull();
+    expect(fixture.componentInstance.markBusy()).toBe(false);
+  });
+
+  it('treats a non-HTTP mark-complete failure as a generic error', async () => {
+    const { fixture } = await loaded();
+    const learn = TestBed.inject(LearnService);
+    vi.spyOn(learn, 'markLessonComplete').mockRejectedValue(new Error('offline'));
+
+    await fixture.componentInstance.onMarkComplete();
+
+    expect(fixture.componentInstance.markError()).toBe('other');
+  });
+
+  it('treats a non-HTTP download failure as a generic row error', async () => {
+    const { fixture } = await loaded();
+    const learn = TestBed.inject(LearnService);
+    vi.spyOn(learn, 'requestDownloadUrl').mockRejectedValue(new Error('offline'));
+
+    await fixture.componentInstance.onDownloadMaterial('mat-x' as MaterialId);
+
+    expect(fixture.componentInstance.rowState('mat-x' as MaterialId)).toEqual({ status: 'error', kind: 'other' });
+  });
+
+  it('mark-complete leaves the view empty when no lesson view has loaded yet', async () => {
+    // Arrange: the lesson request is still in flight, so view() is null.
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1');
+    expect(fixture.componentInstance.view()).toBeNull();
+
+    // Act
+    const p = fixture.componentInstance.onMarkComplete();
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-1/complete')
+      .flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+    await p;
+
+    // Assert: no half-built view is fabricated from the completion alone.
+    expect(fixture.componentInstance.view()).toBeNull();
+    expect(fixture.componentInstance.markBusy()).toBe(false);
   });
 });

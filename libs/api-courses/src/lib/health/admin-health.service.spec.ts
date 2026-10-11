@@ -123,6 +123,15 @@ describe('AdminHealthService.getReport', () => {
     expect(row(report, 'webServer').status).toBe('UP');
   });
 
+  it('a probe rejecting with a non-Error reports its string form as the detail', async () => {
+    const { svc } = makeService({
+      config: { ...FAKE_CONFIG, storageImpl: 'real' },
+      bucketError: 'quota exhausted' as unknown as Error,
+    });
+    const report = await svc.getReport();
+    expect(row(report, 'objectStorage')).toEqual({ key: 'objectStorage', status: 'DOWN', detail: 'quota exhausted' });
+  });
+
   it('a failing bucket listing degrades objectStorage to DOWN', async () => {
     const { svc } = makeService({
       config: { ...FAKE_CONFIG, storageImpl: 'real' },

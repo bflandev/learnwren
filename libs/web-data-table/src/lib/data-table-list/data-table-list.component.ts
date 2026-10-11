@@ -24,6 +24,7 @@ import {
   getSortedRowModel,
   type ColumnDef,
   type ColumnPinningState,
+  type HeaderGroup,
   type Row,
   type RowSelectionState,
   type SortingState,
@@ -365,8 +366,9 @@ export class DataTableListComponent {
    * "Clear sort" action when there is nothing to clear. */
   protected readonly hasActiveSort = computed(() => this.sorting().length > 0);
 
+  // #scrollContainer is unconditionally in the template.
   protected readonly scrollRef =
-    viewChild<ElementRef<HTMLDivElement>>('scrollContainer');
+    viewChild.required<ElementRef<HTMLDivElement>>('scrollContainer');
 
   protected readonly selectionColumnId = SELECTION_COLUMN_ID;
 
@@ -521,11 +523,14 @@ export class DataTableListComponent {
       const selection = this.rowSelection();
       if (!this.enableSelection()) return;
       const selectedIds = Object.keys(selection).filter((id) => selection[id]);
-      // Stryker disable MethodExpression,OptionalChaining,ConditionalExpression,EqualityOperator: equivalent — TanStack getRow throws (it never returns undefined) for an unknown id, so the undefined-narrowing chain below is unreachable; it exists only to satisfy the types
+      // Look ids up in the core row model rather than via getRow(): a selected
+      // row can leave the `rows` input while its id stays in rowSelection, and
+      // getRow throws for an unknown id (inside this effect). Such stale ids
+      // are skipped.
+      const { rowsById } = this.table.getCoreRowModel();
       const selected = selectedIds
-        .map((id) => this.table.getRow(id)?.original)
+        .map((id) => rowsById[id]?.original)
         .filter((r): r is DataTableRow => r !== undefined);
-      // Stryker restore MethodExpression,OptionalChaining,ConditionalExpression,EqualityOperator
       this.selectionChange.emit(selected);
     });
     // Clear the internal selection whenever the reset token changes. Reading
@@ -668,8 +673,9 @@ export class DataTableListComponent {
   );
 
   protected readonly virtualizer = injectVirtualizer(() => ({
-    // Stryker disable next-line OptionalChaining: equivalent — #scrollContainer is unconditionally in the template and the adapter resolves options lazily after render, so scrollRef() is always set here
-    scrollElement: this.scrollRef()?.nativeElement,
+    // The adapter resolves options lazily after render, so the required query
+    // is already set here.
+    scrollElement: this.scrollRef().nativeElement,
     count: this.table.getRowModel().rows.length,
     estimateSize: () => this.effectiveRowHeightPx(),
     overscan: this.overscanRows(),
@@ -719,12 +725,12 @@ export class DataTableListComponent {
    * CDK's indices are relative to the rendered center (non-pinned) headers. */
   protected onColumnDrop(event: CdkDragDrop<unknown>): void {
     if (!this.enableColumnReorder()) return;
-    // Stryker disable OptionalChaining,ArrayDeclaration: equivalent — a drop can only originate from a rendered center header, so at least one header group with headers always exists; the fallbacks are unreachable type narrowing
-    const centerIds =
-      this.table.getCenterHeaderGroups()[0]?.headers.map(
-        (h) => h.column.id,
-      ) ?? [];
-    // Stryker restore OptionalChaining,ArrayDeclaration
+    // A drop can only originate from a rendered center header, so the first
+    // center header group always exists.
+    const [centerGroup] = this.table.getCenterHeaderGroups() as [
+      HeaderGroup<DataTableRow>,
+    ];
+    const centerIds = centerGroup.headers.map((h) => h.column.id);
     const full = this.state.columnOrder().length
       ? this.state.columnOrder()
       : this.columns().map((c) => c.id);
@@ -771,12 +777,9 @@ export class DataTableListComponent {
       this.editState.set(null);
       return;
     }
-    // Stryker disable next-line OptionalChaining: equivalent — #scrollContainer is unconditionally in the template, so scrollRef() is always set once the view exists
-    const el = this.scrollRef()?.nativeElement;
-    // Stryker disable next-line ConditionalExpression: equivalent — el can never be undefined (see above); the guard is SSR defense-in-depth
-    if (!el) return;
-    // Stryker disable next-line OptionalChaining: equivalent — <thead> is unconditionally in the template, so the query always matches
-    const headerH = el.querySelector<HTMLElement>('thead')?.offsetHeight ?? 0;
+    const el = this.scrollRef().nativeElement;
+    // <thead> is unconditionally in the template, so the query always matches.
+    const headerH = (el.querySelector('thead') as HTMLElement).offsetHeight;
     this.editState.set({
       rowId: row.id,
       fields: this.buildEditFields(row),
@@ -820,10 +823,7 @@ export class DataTableListComponent {
   private syncEditLayerToViewport(): void {
     const current = this.editState();
     if (!current) return;
-    // Stryker disable next-line OptionalChaining: equivalent — #scrollContainer is unconditionally in the template, so scrollRef() is always set once the view exists
-    const el = this.scrollRef()?.nativeElement;
-    // Stryker disable next-line ConditionalExpression: equivalent — el can never be undefined (see above); the guard is SSR defense-in-depth
-    if (!el) return;
+    const el = this.scrollRef().nativeElement;
     const layerWidth = el.clientWidth;
     const layerHeight = el.clientHeight;
     if (
@@ -839,10 +839,7 @@ export class DataTableListComponent {
    * layer's `scrollLeft` onto the scroll container. One-way (editor → table);
    * the table's own scroll handler doesn't touch the editor, so no feedback. */
   protected onEditorScrollX(scrollLeft: number): void {
-    // Stryker disable next-line OptionalChaining: equivalent — #scrollContainer is unconditionally in the template, so scrollRef() is always set once the view exists
-    const el = this.scrollRef()?.nativeElement;
-    // Stryker disable next-line ConditionalExpression: equivalent — el can never be undefined (see above); the guard is SSR defense-in-depth
-    if (el) el.scrollLeft = scrollLeft;
+    this.scrollRef().nativeElement.scrollLeft = scrollLeft;
   }
 
   /** Resolves the generic menu actions for a row via the `rowMenuActions` input
@@ -872,15 +869,16 @@ export class DataTableListComponent {
     ]
       .filter((c) => c.column.id !== SELECTION_COLUMN_ID)
       .map((c) => {
-        const col = colById.get(c.column.id);
+        // colById is built from the same columns() input that produced the
+        // table's columns, so every non-selection cell's column resolves.
+        const col = colById.get(c.column.id) as DataTableColumn;
         const rawValue = row.original[c.column.id];
         // Option values are typed as strings, but a row's cell value may arrive
         // as a number/boolean. The dynamic field (combobox) and displayValue()
         // both match options by strict ===, so coerce an option-backed value to
         // a string here or the initial selection/label won't resolve.
         const value =
-          // Stryker disable next-line OptionalChaining: equivalent — colById is built from the same columns() input that produced the table's columns, so every non-selection cell's column id resolves and col is always defined
-          col?.options?.length && rawValue != null
+          col.options?.length && rawValue != null
             ? String(rawValue)
             : rawValue;
         // The per-row predicate (when supplied) can mark an otherwise-editable
@@ -891,24 +889,22 @@ export class DataTableListComponent {
           : false;
         return {
           id: c.column.id,
-          // Stryker disable next-line StringLiteral: equivalent — header is a required DataTableColumn field and the selection column is filtered out above, so the ?? '' fallback is unreachable
-          header: String(c.column.columnDef.header ?? ''),
+          header: col.header,
           width: c.column.getSize(),
-          minWidth: c.column.columnDef.minSize ?? DEFAULT_COLUMN_MIN_WIDTH_PX,
-          maxWidth: c.column.columnDef.maxSize ?? DEFAULT_COLUMN_MAX_WIDTH_PX,
+          // Every user column def sets minSize/maxSize (see the column defs).
+          minWidth: c.column.columnDef.minSize as number,
+          maxWidth: c.column.columnDef.maxSize as number,
           resizable: c.column.getCanResize(),
           type: fieldTypeForColumn(col),
           value,
-          // Stryker disable next-line OptionalChaining: equivalent — col is always defined (colById is built from the same columns() input; see `value` above)
-          readonly: (col?.readonly ?? false) || readOnlyForRow,
+          readonly: (col.readonly ?? false) || readOnlyForRow,
           // Only a field read-only *for the row* carries a reason note; a
           // column-level readonly cell keeps its plain static value.
           readOnlyNote:
             readOnlyForRow && noteForRow
               ? noteForRow(c.column.id, row.original)
               : undefined,
-          // Stryker disable next-line OptionalChaining: equivalent — col is always defined (colById is built from the same columns() input; see `value` above)
-          options: col?.options?.map((o) => ({
+          options: col.options?.map((o) => ({
             label: o.label,
             value: o.value,
           })),
@@ -929,10 +925,7 @@ export class DataTableListComponent {
   }
 
   private handleScroll(): void {
-    // Stryker disable next-line OptionalChaining: equivalent — #scrollContainer is unconditionally in the template, so scrollRef() is always set once the view exists
-    const el = this.scrollRef()?.nativeElement;
-    // Stryker disable next-line ConditionalExpression: equivalent — el can never be undefined (see above); the guard is SSR defense-in-depth
-    if (!el) return;
+    const el = this.scrollRef().nativeElement;
     const top = el.scrollTop;
     const items = this.virtualizer.getVirtualItems();
     const firstVisible =
@@ -964,7 +957,7 @@ export class DataTableListComponent {
   /** @internal Test-only escape hatch — the scroll container, so specs can set
    * scroll metrics and dispatch a `scroll` event against the real element. */
   scrollRefForTesting(): ElementRef<HTMLDivElement> {
-    return this.scrollRef()!;
+    return this.scrollRef();
   }
 
   /** @internal Test-only — the resolved virtualized row height (px) the
@@ -997,13 +990,9 @@ export class DataTableListComponent {
  * the dynamic-field control the inline editor renders. Options win — an
  * enumerated column edits as a select; otherwise number/boolean/date map to
  * their controls and everything else falls back to a text input. */
-function fieldTypeForColumn(
-  col: DataTableColumn | undefined,
-): DynamicFieldType {
-  // Stryker disable next-line OptionalChaining: equivalent — the only call site passes a colById hit that is always defined; the undefined signature exists for type completeness
-  if (col?.options?.length) return 'combobox';
-  // Stryker disable next-line OptionalChaining: equivalent — col is always defined at the only call site (see above)
-  switch (col?.type) {
+function fieldTypeForColumn(col: DataTableColumn): DynamicFieldType {
+  if (col.options?.length) return 'combobox';
+  switch (col.type) {
     case 'number':
       return 'number';
     case 'boolean':
@@ -1020,9 +1009,8 @@ function fieldTypeForColumn(
 function sameSortState(a: SortingState, b: SortingState): boolean {
   if (a.length !== b.length) return false;
   return a.every((s, i) => {
-    const other = b[i];
-    // Stryker disable next-line ConditionalExpression,BooleanLiteral: equivalent — the length equality above guarantees b[i] exists, so this guard and its false return are unreachable type narrowing
-    if (other === undefined) return false;
+    // The length check above guarantees b[i] exists.
+    const other = b[i] as SortingState[number];
     return s.id === other.id && s.desc === other.desc;
   });
 }

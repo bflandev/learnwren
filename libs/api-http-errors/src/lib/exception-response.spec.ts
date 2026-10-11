@@ -94,6 +94,11 @@ describe('formatLogLine', () => {
     const e = new Error('boom');
     expect(formatLogLine(e)).toBe(e.stack);
   });
+  it('falls back to the message for an Error with no stack', () => {
+    const e = new Error('boom');
+    e.stack = undefined;
+    expect(formatLogLine(e)).toBe('boom');
+  });
   it('stringifies a non-Error', () => {
     expect(formatLogLine('weird')).toBe('weird');
   });

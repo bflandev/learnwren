@@ -272,6 +272,43 @@ describe('AdminInstructorApplicationService', () => {
     expect(auth.setRole).not.toHaveBeenCalled();
   });
 
+  it('approve: a user doc with no role is treated as a STUDENT and promoted', async () => {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => undefined),
+    };
+    docs['users/u1'] = {
+      get: vi.fn(async () => ({ exists: true, data: () => ({}) })),
+      update: vi.fn(async () => undefined),
+    };
+
+    const view = await svc.approve('u1' as never);
+
+    expect(view.status).toBe('APPROVED');
+    expect(auth.setRole).toHaveBeenCalledWith('u1', 'INSTRUCTOR');
+  });
+
+  it('approve: applicant whose user doc is gone -> ApplicantNotEligibleException, no claim', async () => {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => undefined),
+    };
+    docs['users/u1'] = {
+      get: vi.fn(async () => ({ exists: false, data: () => undefined })),
+      update: vi.fn(async () => undefined),
+    };
+
+    await expect(svc.approve('u1' as never)).rejects.toBeInstanceOf(ApplicantNotEligibleException);
+    expect(txn.update).not.toHaveBeenCalled();
+    expect(auth.setRole).not.toHaveBeenCalled();
+  });
+
   it('approve: missing app -> ApplicationNotFoundException', async () => {
     docs['instructorApplications/u1'] = {
       get: vi.fn(async () => ({ exists: false, data: () => undefined })),

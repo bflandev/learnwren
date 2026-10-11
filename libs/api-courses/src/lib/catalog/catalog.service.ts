@@ -78,7 +78,8 @@ export class CatalogService {
     );
     const lessonCount = outline.reduce((n, m) => n + m.lessons.length, 0);
     const refs = await this.instructors.instructorRefsFor([course.instructorId]);
-    const ref = refs.get(course.instructorId);
+    // instructorRefsFor returns a ref (with a fallback name) for every uid asked for.
+    const ref = refs.get(course.instructorId)!;
     return {
       id: course.id,
       title: course.title,
@@ -87,12 +88,9 @@ export class CatalogService {
       category: course.category,
       difficulty: course.difficulty,
       instructorId: course.instructorId,
-      // Stryker disable next-line OptionalChaining,StringLiteral: InstructorDirectory.instructorRefsFor always returns a ref for every requested uid (it maps over the unique uids, building { displayName: 'Instructor' } when the user doc is missing), so `ref` is never undefined and `displayName` is never empty — the optional chain and the `?? ''` literal are unreachable.
-      instructorDisplayName: ref?.displayName ?? 'Instructor',
-      // Stryker disable next-line OptionalChaining: `ref` is never undefined (see above); `ref?.photoUrl` and `ref.photoUrl` are observationally identical.
-      ...(ref?.photoUrl ? { instructorPhotoUrl: ref.photoUrl } : {}),
-      // Stryker disable next-line OptionalChaining: `ref` is never undefined (see above); `ref?.biography` and `ref.biography` are observationally identical.
-      ...(ref?.biography ? { instructorBiography: ref.biography } : {}),
+      instructorDisplayName: ref.displayName,
+      ...(ref.photoUrl ? { instructorPhotoUrl: ref.photoUrl } : {}),
+      ...(ref.biography ? { instructorBiography: ref.biography } : {}),
       lessonCount,
       modules: outline,
       publishedAt: publishedAt(course),
@@ -149,7 +147,8 @@ function relevanceScore(course: Course, q: string): number {
 }
 
 function toSummary(course: Course, refs: Map<UserId, InstructorRef>): CourseSummary {
-  const ref = refs.get(course.instructorId);
+  // instructorRefsFor returns a ref (with a fallback name) for every uid asked for.
+  const ref = refs.get(course.instructorId)!;
   return {
     id: course.id,
     title: course.title,
@@ -157,10 +156,8 @@ function toSummary(course: Course, refs: Map<UserId, InstructorRef>): CourseSumm
     category: course.category,
     difficulty: course.difficulty,
     instructorId: course.instructorId,
-    // Stryker disable next-line OptionalChaining,StringLiteral: InstructorDirectory.instructorRefsFor always returns a ref for every requested uid (default { displayName: 'Instructor' }), so `ref` is never undefined and `displayName` is never empty — the optional chain and the `?? ''` literal are unreachable.
-    instructorDisplayName: ref?.displayName ?? 'Instructor',
-    // Stryker disable next-line OptionalChaining: `ref` is never undefined (see above); `ref?.photoUrl` and `ref.photoUrl` are observationally identical.
-    ...(ref?.photoUrl ? { instructorPhotoUrl: ref.photoUrl } : {}),
+    instructorDisplayName: ref.displayName,
+    ...(ref.photoUrl ? { instructorPhotoUrl: ref.photoUrl } : {}),
     publishedAt: publishedAt(course),
     coverImageUrl: course.coverImageUrl,
   };

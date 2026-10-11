@@ -251,6 +251,20 @@ describe('FirebaseIdentityProvider.deleteUser', () => {
   });
 });
 
+describe('FirebaseIdentityProvider.updateUser', () => {
+  it('forwards the changes to Firebase Auth unchanged', async () => {
+    // Arrange
+    const auth = buildFakeAuth();
+    const provider = buildProvider(auth);
+
+    // Act
+    await provider.updateUser('uid-123', { password: 'New-Pass-1!', disabled: true, emailVerified: true });
+
+    // Assert
+    expect(auth.updateUser).toHaveBeenCalledWith('uid-123', { password: 'New-Pass-1!', disabled: true, emailVerified: true });
+  });
+});
+
 describe('FirebaseIdentityProvider.setRole', () => {
   it('sets the role custom claim', async () => {
     const auth = buildFakeAuth();

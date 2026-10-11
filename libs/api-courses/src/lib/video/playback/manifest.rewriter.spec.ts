@@ -59,6 +59,13 @@ describe('rewriteMaster', () => {
     expect(out).not.toContain('hls_720p.m3u8');
   });
 
+  it('accepts a bare `<rendition>.m3u8` variant name with no mux-key prefix', () => {
+    const body = `#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nsub/480p.m3u8\n`;
+    const out = rewriteMaster(body, VID);
+    expect(out).toContain(`/api/playback/manifest/${VID}/rendition/480p`);
+    expect(out).not.toContain('480p.m3u8');
+  });
+
   it('preserves #EXTM3U, version, and comment directives', () => {
     const out = rewriteMaster(MASTER, VID);
     expect(out).toMatch(/^#EXTM3U/);

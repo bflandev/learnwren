@@ -152,7 +152,7 @@ describe('durationToParts / partsToDuration', () => {
       seconds: 4,
       milliseconds: 5,
     };
-    expect(partsToDuration(parts)?.toMillis()).toBe(
+    expect(partsToDuration(parts).toMillis()).toBe(
       Duration.fromObject(parts).toMillis(),
     );
   });

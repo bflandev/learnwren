@@ -27,8 +27,8 @@ const DEFAULT_DENSITY: DataTableDensity = 'normal';
  * inject(PLATFORM_ID)) because this service is sometimes `new`-ed outside an
  * injection context by the list's provideDataTableState fallback. */
 function readInitialDensity(): DataTableDensity | undefined {
-  // Stryker disable next-line ConditionalExpression,StringLiteral: equivalent — without the guard, touching an undeclared localStorage throws a ReferenceError into the catch below, returning undefined all the same
-  if (typeof localStorage === 'undefined') return undefined;
+  // No `typeof localStorage` guard: where it is undeclared, the access throws a
+  // ReferenceError into the catch below, which returns undefined all the same.
   try {
     const raw = localStorage.getItem(DENSITY_KEY);
     return raw === 'compact' || raw === 'normal' || raw === 'spacious'
@@ -291,13 +291,13 @@ export class DataTableStateService {
    * Persistence is best-effort. */
   setDensity(density: DataTableDensity): void {
     this._density.set(density === DEFAULT_DENSITY ? undefined : density);
-    // Stryker disable next-line ConditionalExpression,StringLiteral: equivalent — without the guard, touching an undeclared localStorage throws a ReferenceError into the try/catch below
-    if (typeof localStorage === 'undefined') return;
+    // An undeclared localStorage throws a ReferenceError into the catch below.
     try {
       if (density === DEFAULT_DENSITY) localStorage.removeItem(DENSITY_KEY);
       else localStorage.setItem(DENSITY_KEY, density);
     } catch {
-      // Quota / SecurityError — the in-memory signal is still authoritative.
+      // Quota / SecurityError / no storage — the in-memory signal is still
+      // authoritative.
     }
   }
 

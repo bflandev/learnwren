@@ -124,6 +124,23 @@ describe('HlmDurationPicker', () => {
     expect(el.value).toBe('');
   });
 
+  it('re-masks an uncommitted draft without a skeleton when the hint is off', () => {
+    // Arrange — hint off: typing heals into the mask with no slot skeleton.
+    const { fixture, host, field } = setup();
+    host.formatHint.set(false);
+    fixture.detectChanges();
+    field().value = '1234';
+    field().dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(field().value).toBe('12:34');
+    // Act — the days lever switches the template to `999 99:99` mid-entry.
+    host.showDays.set(true);
+    fixture.detectChanges();
+    // Assert — the same digits reflow into the new template, still uncommitted.
+    expect(field().value).toBe('123 4');
+    expect(host.picked()).toBeNull();
+  });
+
   it('re-masks the focus skeleton when the precision lever changes mid-focus', () => {
     const { fixture, host, field } = setup();
     field().dispatchEvent(new FocusEvent('focus'));
@@ -386,6 +403,51 @@ describe('HlmDurationPicker', () => {
       minutes.dispatchEvent(new Event('change'));
       expect(host.picked()?.toMillis()).toBe(
         Duration.fromObject({ minutes: 45 }).toMillis(),
+      );
+    });
+
+    it('keeps every visible unit when one box commits (days…ms)', () => {
+      // Arrange
+      const { fixture, host, root } = setup();
+      host.inputType.set('segmented');
+      host.showDays.set(true);
+      host.showSeconds.set(true);
+      host.showMilliseconds.set(true);
+      host.picked.set(
+        Duration.fromObject({
+          days: 1,
+          hours: 2,
+          minutes: 3,
+          seconds: 4,
+          milliseconds: 5,
+        }),
+      );
+      fixture.detectChanges();
+      // Act
+      editBox(root, 'Minutes', '30');
+      // Assert — only the edited unit changed.
+      expect(host.picked()?.toMillis()).toBe(
+        Duration.fromObject({
+          days: 1,
+          hours: 2,
+          minutes: 30,
+          seconds: 4,
+          milliseconds: 5,
+        }).toMillis(),
+      );
+    });
+
+    it('treats an emptied box as zero for that unit', () => {
+      // Arrange
+      const { fixture, host, root } = setup();
+      host.inputType.set('segmented');
+      host.picked.set(Duration.fromObject({ hours: 2, minutes: 45 }));
+      fixture.detectChanges();
+      // Act
+      editBox(root, 'Minutes', '');
+      // Assert
+      expect(host.picked()?.toMillis()).toBe(
+        Duration.fromObject({ hours: 2 }).toMillis(),
       );
     });
 

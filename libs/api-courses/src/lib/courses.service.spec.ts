@@ -1,3 +1,4 @@
+import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -14,7 +15,11 @@ import type {
 } from '@learnwren/shared-data-models';
 
 import { CategoryNotFoundException } from './categories/categories.exception';
-import type { CategoriesRepository } from './categories/categories.repository';
+import { CategoriesRepository } from './categories/categories.repository';
+import { CoverImageService } from './cover/cover-image.service';
+import { EnrollmentRepository } from './enrollment/enrollment.repository';
+import { MaterialsService } from './materials/materials.service';
+import { VideoService } from './video/video.service';
 import { CoursesRepository } from './courses.repository';
 import { CoursesService } from './courses.service';
 import { AccountDeletedException, CourseNotFoundException } from './errors/courses.exception';
@@ -1056,5 +1061,28 @@ describe('CoursesService — lesson operations', () => {
         service.reorderLessons(CID, MID, ['a'] as LessonId[]),
       ).rejects.toBeInstanceOf(ModuleNotFoundException);
     });
+  });
+});
+
+describe('CoursesService — Nest DI wiring', () => {
+  it('resolves the forwardRef-injected VideoService and MaterialsService', async () => {
+    const videoSvc = { tag: 'video' };
+    const materialsSvc = { tag: 'materials' };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        CoursesService,
+        { provide: CoursesRepository, useValue: {} },
+        { provide: VideoService, useValue: videoSvc },
+        { provide: MaterialsService, useValue: materialsSvc },
+        { provide: CoverImageService, useValue: {} },
+        { provide: EnrollmentRepository, useValue: {} },
+        { provide: CategoriesRepository, useValue: {} },
+      ],
+    }).compile();
+    const svc = moduleRef.get(CoursesService) as unknown as { videoSvc: unknown; materialsSvc: unknown };
+
+    expect(svc.videoSvc).toBe(videoSvc);
+    expect(svc.materialsSvc).toBe(materialsSvc);
   });
 });
