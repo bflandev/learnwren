@@ -1,6 +1,6 @@
 # CRAP Score Report
 
-> Generated 2026-05-26T13:49:28.630Z
+> Generated 2026-10-11T23:59:35.913Z
 
 Threshold: **30** (canonical Savoia/Evans cutoff for "crappy").
 
@@ -10,13 +10,22 @@ Formula: `CRAP(m) = comp(m)² × (1 − cov(m)/100)³ + comp(m)`. Complexity cou
 
 - ✅ `coverage/libs/api-auth`
 - ✅ `coverage/libs/api-courses`
+- ✅ `coverage/libs/api-document-store`
 - ✅ `coverage/libs/api-firebase`
+- ✅ `coverage/libs/api-http-errors`
+- ✅ `coverage/libs/api-object-storage`
+- ✅ `coverage/libs/api-profile`
 - ✅ `coverage/libs/shared-data-models`
+- ✅ `coverage/libs/web-admin`
 - ✅ `coverage/libs/web-auth`
 - ✅ `coverage/libs/web-catalog`
 - ✅ `coverage/libs/web-courses`
+- ✅ `coverage/libs/web-data-table`
+- ✅ `coverage/libs/web-design-system`
 - ✅ `coverage/libs/web-enrollment`
+- ✅ `coverage/libs/web-landing`
 - ✅ `coverage/libs/web-learn`
+- ✅ `coverage/libs/web-profile`
 - ✅ `coverage/libs/web-ui`
 - ✅ `coverage/libs/web-video`
 - ✅ `coverage/apps/api`
@@ -24,9 +33,9 @@ Formula: `CRAP(m) = comp(m)² × (1 − cov(m)/100)³ + comp(m)`. Complexity cou
 
 ## Codebase summary
 
-- Functions analyzed (excluding modules/configs/tests): **941**
-- Clean (≤5): **875**
-- Acceptable (6–15): **66**
+- Functions analyzed (excluding modules/configs/tests): **2766**
+- Clean (≤5): **2647**
+- Acceptable (6–15): **119**
 - Risky (16–30): **0**
 - Crappy (>30): **0**
 
@@ -34,49 +43,49 @@ Formula: `CRAP(m) = comp(m)² × (1 − cov(m)/100)³ + comp(m)`. Complexity cou
 
 | # | Function | File:line | Comp | Cov % | Basis | CRAP | Verdict |
 |---|----------|-----------|------|-------|-------|------|---------|
-| 1 | `deleteObject` | `libs/api-courses/src/lib/cover/cover-storage.adapter.ts:40` | 3 | 0.0 | branch | 12.00 | acceptable |
-| 2 | `<anonymous>` | `libs/web-catalog/src/lib/course-detail-page/course-detail-page.component.ts:68` | 3 | 0.0 | branch | 12.00 | acceptable |
-| 3 | `onMetadata` | `libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:180` | 9 | 80.5 | file-branch-fallback | 9.60 | acceptable |
-| 4 | `<anonymous>` | `libs/api-courses/src/lib/enrollment/enrollment.repository.ts:133` | 9 | 93.8 | branch | 9.02 | acceptable |
-| 5 | `<anonymous>` | `libs/api-courses/src/lib/enrollment/enrollment.repository.ts:217` | 9 | 93.8 | branch | 9.02 | acceptable |
-| 6 | `uploadCover` | `libs/api-courses/src/lib/cover/cover-image.service.ts:32` | 8 | 75.0 | branch | 9.00 | acceptable |
-| 7 | `canActivate` | `libs/api-courses/src/lib/learn/guards/lesson-enrollment.guard.ts:21` | 9 | 100.0 | branch | 9.00 | acceptable |
-| 8 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:58` | 9 | 100.0 | branch | 9.00 | acceptable |
-| 9 | `userMessageFor` | `libs/web-video/src/lib/player/video-player.service.ts:12` | 9 | 100.0 | file-branch-fallback | 9.00 | acceptable |
-| 10 | `onConfirmClosed` | `libs/web-courses/src/lib/course-editor-page/course-editor-page.component.ts:121` | 8 | 82.5 | file-branch-fallback | 8.34 | acceptable |
-| 11 | `<anonymous>` | `libs/web-video/src/lib/video-state-badge.component.ts:28` | 8 | 93.8 | file-branch-fallback | 8.02 | acceptable |
-| 12 | `<anonymous>` | `libs/web-video/src/lib/video-state-badge.component.ts:47` | 8 | 93.8 | file-branch-fallback | 8.02 | acceptable |
-| 13 | `canActivate` | `libs/api-courses/src/lib/video/playback/enrollment-or-owner.guard.ts:23` | 8 | 100.0 | branch | 8.00 | acceptable |
-| 14 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/fake-transcoder.adapter.ts:41` | 8 | 100.0 | branch | 8.00 | acceptable |
-| 15 | `<anonymous>` | `libs/web-auth/src/lib/password-policy.validator.ts:21` | 8 | 100.0 | file-branch-fallback | 8.00 | acceptable |
-| 16 | `load` | `libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:131` | 7 | 80.5 | file-branch-fallback | 7.36 | acceptable |
-| 17 | `savePosition` | `libs/api-courses/src/lib/learn/learn.controller.ts:51` | 7 | 90.0 | branch | 7.05 | acceptable |
-| 18 | `getLessonView` | `libs/api-courses/src/lib/learn/learn.service.ts:32` | 7 | 90.0 | branch | 7.05 | acceptable |
-| 19 | `toLoginErr` | `libs/web-auth/src/lib/auth.service.ts:119` | 7 | 90.5 | file-branch-fallback | 7.04 | acceptable |
-| 20 | `start` | `libs/web-video/src/lib/upload/video-upload.service.ts:66` | 7 | 93.2 | file-branch-fallback | 7.02 | acceptable |
+| 1 | `<anonymous>` | `libs/api-courses/src/lib/enrollment/enrollment.repository.ts:167` | 13 | 100.0 | branch | 13.00 | acceptable |
+| 2 | `getReport` | `libs/api-courses/src/lib/health/admin-health.service.ts:35` | 13 | 100.0 | branch | 13.00 | acceptable |
+| 3 | `applyMaskWithSkeleton` | `libs/web-ui/src/lib/masked-date/masked-date-core.ts:123` | 13 | 100.0 | file-branch-fallback | 13.00 | acceptable |
+| 4 | `projectOutline` | `libs/api-courses/src/lib/learn/learn.service.ts:111` | 11 | 100.0 | branch | 11.00 | acceptable |
+| 5 | `displayValue` | `libs/web-data-table/src/lib/inline-editor/data-table-inline-editor.component.ts:230` | 11 | 100.0 | file-branch-fallback | 11.00 | acceptable |
+| 6 | `<anonymous>` | `libs/api-courses/src/lib/analytics/analytics.service.ts:61` | 10 | 100.0 | branch | 10.00 | acceptable |
+| 7 | `parseEvent` | `libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:63` | 10 | 100.0 | branch | 10.00 | acceptable |
+| 8 | `store` | `libs/api-courses/src/lib/video/upload/video-upload-proxy.controller.ts:112` | 10 | 100.0 | branch | 10.00 | acceptable |
+| 9 | `codeForStatus` | `libs/api-http-errors/src/lib/exception-response.ts:39` | 10 | 100.0 | branch | 10.00 | acceptable |
+| 10 | `<anonymous>` | `libs/web-ui/src/lib/state/hlm-state-pill.component.ts:52` | 10 | 100.0 | file-branch-fallback | 10.00 | acceptable |
+| 11 | `<anonymous>` | `libs/api-auth/src/lib/auth-attempts.repository.ts:73` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 12 | `<anonymous>` | `libs/api-auth/src/lib/identity/local-identity-provider.ts:236` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 13 | `uploadCover` | `libs/api-courses/src/lib/cover/cover-image.service.ts:33` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 14 | `<anonymous>` | `libs/api-courses/src/lib/enrollment/enrollment.repository.ts:303` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 15 | `canActivate` | `libs/api-courses/src/lib/learn/guards/lesson-enrollment.guard.ts:21` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 16 | `getDetail` | `libs/api-profile/src/lib/users/admin-users.service.ts:80` | 9 | 100.0 | branch | 9.00 | acceptable |
+| 17 | `load` | `libs/web-catalog/src/lib/catalog-page/catalog-page.component.ts:91` | 9 | 100.0 | file-branch-fallback | 9.00 | acceptable |
+| 18 | `load` | `libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:185` | 9 | 100.0 | file-branch-fallback | 9.00 | acceptable |
+| 19 | `onMetadata` | `libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:238` | 9 | 100.0 | file-branch-fallback | 9.00 | acceptable |
+| 20 | `applyMask` | `libs/web-ui/src/lib/masked-date/masked-date-core.ts:58` | 9 | 100.0 | file-branch-fallback | 9.00 | acceptable |
 
 ## Recommendation per offender
 
-1. `deleteObject` (libs/api-courses/src/lib/cover/cover-storage.adapter.ts:40) — **test — modest complexity; a handful of branch-covering tests will collapse the score**
-2. `<anonymous>` (libs/web-catalog/src/lib/course-detail-page/course-detail-page.component.ts:68) — **test — modest complexity; a handful of branch-covering tests will collapse the score**
-3. `onMetadata` (libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:180) — **refactor — coverage is fine; the branching is the problem**
-4. `<anonymous>` (libs/api-courses/src/lib/enrollment/enrollment.repository.ts:133) — **refactor — coverage is fine; the branching is the problem**
-5. `<anonymous>` (libs/api-courses/src/lib/enrollment/enrollment.repository.ts:217) — **refactor — coverage is fine; the branching is the problem**
-6. `uploadCover` (libs/api-courses/src/lib/cover/cover-image.service.ts:32) — **refactor — coverage is fine; the branching is the problem**
-7. `canActivate` (libs/api-courses/src/lib/learn/guards/lesson-enrollment.guard.ts:21) — **refactor — coverage is fine; the branching is the problem**
-8. `parseEvent` (libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:58) — **refactor — coverage is fine; the branching is the problem**
-9. `userMessageFor` (libs/web-video/src/lib/player/video-player.service.ts:12) — **refactor — coverage is fine; the branching is the problem**
-10. `onConfirmClosed` (libs/web-courses/src/lib/course-editor-page/course-editor-page.component.ts:121) — **refactor — coverage is fine; the branching is the problem**
-11. `<anonymous>` (libs/web-video/src/lib/video-state-badge.component.ts:28) — **refactor — coverage is fine; the branching is the problem**
-12. `<anonymous>` (libs/web-video/src/lib/video-state-badge.component.ts:47) — **refactor — coverage is fine; the branching is the problem**
-13. `canActivate` (libs/api-courses/src/lib/video/playback/enrollment-or-owner.guard.ts:23) — **refactor — coverage is fine; the branching is the problem**
-14. `parseEvent` (libs/api-courses/src/lib/video/transcoder/fake-transcoder.adapter.ts:41) — **refactor — coverage is fine; the branching is the problem**
-15. `<anonymous>` (libs/web-auth/src/lib/password-policy.validator.ts:21) — **refactor — coverage is fine; the branching is the problem**
-16. `load` (libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:131) — **refactor — coverage is fine; the branching is the problem**
-17. `savePosition` (libs/api-courses/src/lib/learn/learn.controller.ts:51) — **refactor — coverage is fine; the branching is the problem**
-18. `getLessonView` (libs/api-courses/src/lib/learn/learn.service.ts:32) — **refactor — coverage is fine; the branching is the problem**
-19. `toLoginErr` (libs/web-auth/src/lib/auth.service.ts:119) — **refactor — coverage is fine; the branching is the problem**
-20. `start` (libs/web-video/src/lib/upload/video-upload.service.ts:66) — **refactor — coverage is fine; the branching is the problem**
+1. `<anonymous>` (libs/api-courses/src/lib/enrollment/enrollment.repository.ts:167) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+2. `getReport` (libs/api-courses/src/lib/health/admin-health.service.ts:35) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+3. `applyMaskWithSkeleton` (libs/web-ui/src/lib/masked-date/masked-date-core.ts:123) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+4. `projectOutline` (libs/api-courses/src/lib/learn/learn.service.ts:111) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+5. `displayValue` (libs/web-data-table/src/lib/inline-editor/data-table-inline-editor.component.ts:230) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+6. `<anonymous>` (libs/api-courses/src/lib/analytics/analytics.service.ts:61) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+7. `parseEvent` (libs/api-courses/src/lib/video/transcoder/gcp-transcoder.adapter.ts:63) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+8. `store` (libs/api-courses/src/lib/video/upload/video-upload-proxy.controller.ts:112) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+9. `codeForStatus` (libs/api-http-errors/src/lib/exception-response.ts:39) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+10. `<anonymous>` (libs/web-ui/src/lib/state/hlm-state-pill.component.ts:52) — **refactor — branching dominates; extract until each piece has comp ≤ 5, then test**
+11. `<anonymous>` (libs/api-auth/src/lib/auth-attempts.repository.ts:73) — **refactor — coverage is fine; the branching is the problem**
+12. `<anonymous>` (libs/api-auth/src/lib/identity/local-identity-provider.ts:236) — **refactor — coverage is fine; the branching is the problem**
+13. `uploadCover` (libs/api-courses/src/lib/cover/cover-image.service.ts:33) — **refactor — coverage is fine; the branching is the problem**
+14. `<anonymous>` (libs/api-courses/src/lib/enrollment/enrollment.repository.ts:303) — **refactor — coverage is fine; the branching is the problem**
+15. `canActivate` (libs/api-courses/src/lib/learn/guards/lesson-enrollment.guard.ts:21) — **refactor — coverage is fine; the branching is the problem**
+16. `getDetail` (libs/api-profile/src/lib/users/admin-users.service.ts:80) — **refactor — coverage is fine; the branching is the problem**
+17. `load` (libs/web-catalog/src/lib/catalog-page/catalog-page.component.ts:91) — **refactor — coverage is fine; the branching is the problem**
+18. `load` (libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:185) — **refactor — coverage is fine; the branching is the problem**
+19. `onMetadata` (libs/web-learn/src/lib/lesson-player-page/lesson-player-page.component.ts:238) — **refactor — coverage is fine; the branching is the problem**
+20. `applyMask` (libs/web-ui/src/lib/masked-date/masked-date-core.ts:58) — **refactor — coverage is fine; the branching is the problem**
 
 ## Caveats
 
