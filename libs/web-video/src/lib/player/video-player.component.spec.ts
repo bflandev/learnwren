@@ -302,7 +302,7 @@ describe('VideoPlayerComponent', () => {
     expect(track.getAttribute('kind')).toBe('subtitles');
   });
 
-  it('renders no <track> when there are no captions', () => {
+  it('renders no <track> when the captions input is left at its default', () => {
     const stub = makeStubService();
     TestBed.configureTestingModule({
       imports: [VideoPlayerComponent],
@@ -310,7 +310,6 @@ describe('VideoPlayerComponent', () => {
     });
     const fixture = TestBed.createComponent(VideoPlayerComponent);
     fixture.componentRef.setInput('videoId', 'v1' as VideoId);
-    fixture.componentRef.setInput('captions', []);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('track')).toBeNull();
   });
