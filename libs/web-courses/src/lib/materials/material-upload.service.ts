@@ -7,6 +7,7 @@ import {
   MATERIAL_MAX_SIZE_BYTES,
   SUPPORTED_MATERIAL_EXTENSIONS,
   type SupportedMaterialExtension,
+  apiErrorOf,
 } from '@learnwren/shared-data-models';
 
 import { MaterialsService } from './materials.service';
@@ -56,8 +57,9 @@ function checkFile(file: File): FileCheck {
   return { ok: true, extension: ext as SupportedMaterialExtension };
 }
 
+/** The api's own wording first: HttpErrorResponse is not an Error, so it used to collapse to the generic text. */
 function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : 'Upload failed.';
+  return apiErrorOf(err)?.message ?? (err instanceof Error ? err.message : 'Upload failed.');
 }
 
 @Injectable()

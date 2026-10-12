@@ -147,6 +147,20 @@ describe('CourseDetailPageComponent', () => {
     ).not.toBeNull();
   });
 
+  it.each([
+    [{ category: 'DATA_SCIENCE_AI', categoryName: 'Data Science & AI' }, 'Data Science & AI'],
+    [{ category: 'LEGACY_ID' }, 'LEGACY_ID'],
+  ])('badges the category by its display name, falling back to the id (%j)', async (cat, shown) => {
+    const { http } = setup({ id: 'c-1' });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush({ ...COURSE_WITH_LESSONS, ...cat });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const badge = (fixture.nativeElement as HTMLElement).querySelector('[variant="category"]');
+    expect(badge?.textContent?.trim()).toBe(shown);
+  });
+
   it('renders the not-found state on a 404', async () => {
     const { http } = setup({ id: 'c-missing' });
     const fixture = TestBed.createComponent(CourseDetailPageComponent);

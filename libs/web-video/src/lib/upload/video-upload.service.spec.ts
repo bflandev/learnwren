@@ -262,7 +262,7 @@ describe('VideoUploadService', () => {
   });
 
   it('reports a failure with the underlying message when createUploadSession fails', async () => {
-    api.createUploadSession.mockReturnValue(throwError(() => new Error('quota exceeded')));
+    api.createUploadSession.mockReturnValue(throwError(() => ({ error: { error: { code: 'QUOTA', message: 'quota exceeded' } } })));
 
     const file = new File([new Uint8Array(4)], 'demo.mp4', { type: 'video/mp4' });
     await svc.start(
@@ -285,7 +285,7 @@ describe('VideoUploadService', () => {
     );
     expect(svc.state()).toEqual({
       kind: 'failed',
-      reason: 'Unknown error.',
+      reason: 'Upload failed. Please try again.',
     });
   });
 
@@ -293,7 +293,7 @@ describe('VideoUploadService', () => {
     api.createUploadSession.mockReturnValue(
       of({ videoId: 'v9' as never, uploadSessionUri: 'u', expiresAt: 'e' }),
     );
-    api.completeUpload.mockReturnValue(throwError(() => new Error('finalize boom')));
+    api.completeUpload.mockReturnValue(throwError(() => ({ error: { error: { code: 'UPLOAD_OBJECT_MISSING', message: 'finalize boom' } } })));
 
     const file = new File([new Uint8Array(8)], 'demo.mp4', { type: 'video/mp4' });
     const done = svc.start(
@@ -918,24 +918,26 @@ describe('VideoUploadService — transient states & guards (mutation hardening)'
     }
   });
 
-  // ---- L209: errorMessage object/message-in guard ----
-  it('extracts the message from an error object that HAS a message field', async () => {
-    api.createUploadSession.mockReturnValue(throwError(() => ({ message: 'boom-from-object' })));
+  // ---- errorMessage: the api's message, never Angular's transport text ----
+  it('shows the api error message from the response envelope', async () => {
+    api.createUploadSession.mockReturnValue(
+      throwError(() => ({
+        message: 'Http failure response for /api/…: 409 Conflict',
+        error: { error: { code: 'LESSON_ALREADY_HAS_VIDEO', message: 'This lesson already has a video.' } },
+      })),
+    );
     await svc.start(CTX, sized(8));
-    expect(svc.state()).toEqual({ kind: 'failed', reason: 'boom-from-object' });
+    expect(svc.state()).toEqual({ kind: 'failed', reason: 'This lesson already has a video.' });
   });
 
-  it('falls back to "Unknown error." for a null-ish error (no message field)', async () => {
-    api.createUploadSession.mockReturnValue(throwError(() => null));
-    await svc.start(CTX, sized(8));
-    expect(svc.state()).toEqual({ kind: 'failed', reason: 'Unknown error.' });
-  });
-
-  it('falls back to "Unknown error." for an object WITHOUT a message field', async () => {
-    api.createUploadSession.mockReturnValue(throwError(() => ({ code: 42 })));
-    await svc.start(CTX, sized(8));
-    expect(svc.state()).toEqual({ kind: 'failed', reason: 'Unknown error.' });
-  });
+  it.each([[null], [{ message: 'Http failure response for /api/…: 0 Unknown Error' }], [{ code: 42 }]])(
+    'falls back to a generic message without an api envelope (%j)',
+    async (err) => {
+      api.createUploadSession.mockReturnValue(throwError(() => err));
+      await svc.start(CTX, sized(8));
+      expect(svc.state()).toEqual({ kind: 'failed', reason: 'Upload failed. Please try again.' });
+    },
+  );
 
   // ---- L116: cancel from the 'finalizing' state must delete (||-clause live) ----
   it('cancel() while finalizing enters canceling and deletes the video', async () => {

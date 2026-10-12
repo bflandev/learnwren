@@ -8,7 +8,7 @@ import type {
   SupportedVideoContentType,
   VideoId,
 } from '@learnwren/shared-data-models';
-import { SUPPORTED_VIDEO_CONTENT_TYPES } from '@learnwren/shared-data-models';
+import { SUPPORTED_VIDEO_CONTENT_TYPES, apiErrorOf } from '@learnwren/shared-data-models';
 
 import { VideoService } from '../video.service';
 
@@ -231,11 +231,11 @@ export class VideoUploadService {
     });
   }
 
+  /**
+   * The api's own wording (e.g. "This lesson already has a video…"); never
+   * Angular's "Http failure response for …" transport text.
+   */
   private errorMessage(err: unknown): string {
-    const msg =
-      typeof err === 'object' && err !== null && 'message' in err
-        ? String((err as { message: unknown }).message)
-        : 'Unknown error.';
-    return msg;
+    return apiErrorOf(err)?.message ?? 'Upload failed. Please try again.';
   }
 }

@@ -26,7 +26,7 @@
             <span hlmBadge>{{ course()!.difficulty }}</span>
           }
           @if (course()!.category) {
-            <span hlmBadge variant="category">{{ course()!.category }}</span>
+            <span hlmBadge variant="category">{{ course()!.categoryName ?? course()!.category }}</span>
           }
           <span hlmBadge>{{ course()!.lessonCount }} lessons</span>
         </div>

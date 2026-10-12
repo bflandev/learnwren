@@ -14,6 +14,7 @@ import {
   type UserId,
 } from '@learnwren/shared-data-models';
 
+import { CategoriesRepository } from '../categories/categories.repository';
 import { CoursesRepository } from '../courses.repository';
 import { CourseNotFoundException } from '../errors/courses.exception';
 import { InstructorDirectory, type InstructorRef } from './instructor-directory';
@@ -35,6 +36,7 @@ export class CatalogService {
   constructor(
     private readonly repo: CoursesRepository,
     private readonly instructors: InstructorDirectory,
+    private readonly categories: CategoriesRepository,
   ) {}
 
   async listCatalogue(query: CatalogQuery): Promise<CourseCatalogPage> {
@@ -80,12 +82,14 @@ export class CatalogService {
     const refs = await this.instructors.instructorRefsFor([course.instructorId]);
     // instructorRefsFor returns a ref (with a fallback name) for every uid asked for.
     const ref = refs.get(course.instructorId)!;
+    const category = course.category ? await this.categories.get(course.category) : null;
     return {
       id: course.id,
       title: course.title,
       description: course.description,
       longDescription: course.longDescription,
       category: course.category,
+      ...(category ? { categoryName: category.name } : {}),
       difficulty: course.difficulty,
       instructorId: course.instructorId,
       instructorDisplayName: ref.displayName,
