@@ -1,8 +1,8 @@
 # Mutation Test Report — `libs/web-data-table`
 
-> Generated 2026-07-25T10:26:40.851Z
+> Generated 2026-10-12T01:50:53.630Z
 
-**Headline mutation score: 100.00%** (killed=1634, survived=0, no-cov=0, ignored=111). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
+**Headline mutation score: 100.00%** (killed=1631, survived=0, no-cov=0, ignored=64). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
 
 
 Target band: unclassified.
@@ -12,16 +12,16 @@ Target band: unclassified.
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
 | `src/lib/column-menu/column-menu.component.ts` | 100.0% | 26 | 0 | 0 |
-| `src/lib/data-table-list/data-table-list.component.ts` | 100.0% | 477 | 0 | 0 |
+| `src/lib/data-table-list/data-table-list.component.ts` | 100.0% | 475 | 0 | 0 |
 | `src/lib/filter-editor/data-table-filter-editor.component.ts` | 100.0% | 73 | 0 | 0 |
 | `src/lib/filter-editor/filter-field.util.ts` | 100.0% | 93 | 0 | 0 |
-| `src/lib/inline-editor/data-table-inline-editor.component.ts` | 100.0% | 107 | 0 | 0 |
+| `src/lib/inline-editor/data-table-inline-editor.component.ts` | 100.0% | 106 | 0 | 0 |
 | `src/lib/sidebar/data-table-sidebar.component.ts` | 100.0% | 54 | 0 | 0 |
-| `src/lib/state/data-table-state.service.ts` | 100.0% | 259 | 0 | 0 |
+| `src/lib/state/data-table-state.service.ts` | 100.0% | 257 | 0 | 0 |
 | `src/lib/state/view-favorites.service.ts` | 100.0% | 55 | 0 | 0 |
 | `src/lib/title-bar/data-table-title-bar.component.ts` | 100.0% | 77 | 0 | 0 |
 | `src/lib/util/cell-control.util.ts` | 100.0% | 19 | 0 | 0 |
-| `src/lib/util/column-order.util.ts` | 100.0% | 22 | 0 | 0 |
+| `src/lib/util/column-order.util.ts` | 100.0% | 24 | 0 | 0 |
 | `src/lib/util/group-columns.ts` | 100.0% | 54 | 0 | 0 |
 | `src/lib/view-picker/view-picker.component.ts` | 100.0% | 32 | 0 | 0 |
 | `src/lib/domain/data-table-filter.model.ts` | 100.0% | 46 | 0 | 0 |
