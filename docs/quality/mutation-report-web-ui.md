@@ -1,8 +1,8 @@
 # Mutation Test Report — `libs/web-ui`
 
-> Generated 2026-10-12T02:46:45.848Z
+> Generated 2026-10-12T04:29:14.036Z
 
-**Headline mutation score: 99.93%** (killed=2907, survived=2, no-cov=0, ignored=478). Score on covered mutants only: 99.93%. Adjusted (equivalent candidates excluded): 99.93%.
+**Headline mutation score: 100.00%** (killed=2909, survived=0, no-cov=0, ignored=478). Score on covered mutants only: 100.00%. Adjusted (equivalent candidates excluded): 100.00%.
 
 
 Target band: web glue/orchestration — 50–70% target.
@@ -11,7 +11,6 @@ Target band: web glue/orchestration — 50–70% target.
 
 | File | Score | Killed | Survived | No-Coverage |
 |------|-------|--------|----------|-------------|
-| `src/lib/input/hlm-input.directive.ts` | 86.7% | 13 | 2 | 0 |
 | `src/lib/_internal/cn.ts` | 100.0% | 190 | 0 | 0 |
 | `src/lib/_internal/selection-flash.ts` | 100.0% | 34 | 0 | 0 |
 | `src/lib/alert/hlm-alert.component.ts` | 100.0% | 24 | 0 | 0 |
@@ -43,6 +42,7 @@ Target band: web glue/orchestration — 50–70% target.
 | `src/lib/grid-state/hlm-grid-state.component.ts` | 100.0% | 7 | 0 | 0 |
 | `src/lib/heading/hlm-heading.directive.ts` | 100.0% | 3 | 0 | 0 |
 | `src/lib/icon/hlm-icon.component.ts` | 100.0% | 2 | 0 | 0 |
+| `src/lib/input/hlm-input.directive.ts` | 100.0% | 15 | 0 | 0 |
 | `src/lib/label/hlm-label.directive.ts` | 100.0% | 6 | 0 | 0 |
 | `src/lib/list/hlm-list.directive.ts` | 100.0% | 8 | 0 | 0 |
 | `src/lib/lookup/option-lookup.ts` | 100.0% | 67 | 0 | 0 |
@@ -104,19 +104,7 @@ Target band: web glue/orchestration — 50–70% target.
 
 ## Survivor clusters — gaps to close
 
-### `src/lib/input/hlm-input.directive.ts` — 2 surviving mutants
-
-**Cluster 1** (lines 76–82 — `onFocus()`): 2 mutants surviving — ConditionalExpression×1, BlockStatement×1
-
-Sample mutation:
-```diff
-- if (document.activeElement === node) node.select();
-+ <replaced with: true>
-```
-
-_Diagnosis._ The condition's outcome isn't observed: hardcoding the branch to true or false leaves tests passing. Add a test that drives both sides of the condition with distinguishing assertions.
-
-_Recommended test._ Add a test that drives both sides of the conditional at `hlm-input.directive.ts:76` in `onFocus` with assertions that distinguish the outcomes.
+_No actionable survivors after filtering equivalent candidates._
 
 ## Equivalent-mutant candidates (excluded from adjusted score)
 
