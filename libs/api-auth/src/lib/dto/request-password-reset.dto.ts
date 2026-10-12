@@ -1,7 +1,9 @@
 import { IsString, MaxLength } from 'class-validator';
 
+import { EMAIL_MAX_LENGTH } from '@learnwren/shared-data-models';
+
 export class RequestPasswordResetDto {
   @IsString()
-  @MaxLength(254)
+  @MaxLength(EMAIL_MAX_LENGTH)
   email!: string;
 }

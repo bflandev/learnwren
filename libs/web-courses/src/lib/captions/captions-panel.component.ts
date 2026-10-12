@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 
-import { MAX_CAPTION_TRACKS } from '@learnwren/shared-data-models';
+import { MAX_CAPTION_TRACKS, apiErrorOf } from '@learnwren/shared-data-models';
 import type { VideoCaptionsMeta, VideoId } from '@learnwren/shared-data-models';
 import { HlmButton, HlmInput } from '@learnwren/web-ui';
 
@@ -61,7 +61,7 @@ export class CaptionsPanelComponent implements OnInit {
       const others = this.tracks().filter((t) => t.language !== uploaded.language);
       this.setTracks([...others, uploaded].sort(byLabel));
     } catch (err) {
-      const code = (err as { error?: { error?: { code?: string } } }).error?.error?.code;
+      const code = apiErrorOf(err)?.code;
       this.error.set(uploadErrorMessage(code));
     } finally {
       this.busy.set(false);

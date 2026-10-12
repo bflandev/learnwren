@@ -423,7 +423,7 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
   afterEach(() => vi.clearAllMocks());
 
   const sized = (bytes: number, type = 'video/mp4'): File => {
-    const f = new File([new Uint8Array(1)], 'f.mp4', { type });
+    const f = new File([new Uint8Array(1)], 'f.bin', { type });
     Object.defineProperty(f, 'size', { value: bytes });
     return f;
   };
@@ -443,6 +443,20 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
 
   it('selectFile returns { ok: false } for an unsupported type', () => {
     expect(svc.selectFile(sized(10, 'text/plain'))).toEqual({ ok: false });
+  });
+
+  it.each([
+    ['clip.MKV', '', 'video/x-matroska'],
+    ['clip.m4v', 'video/x-m4v', 'video/mp4'],
+    ['clip.mov', '', 'video/quicktime'],
+    ['clip.mp4', '', 'video/mp4'],
+  ])('selectFile falls back to the extension for %s reported as %j', (name, type, expected) => {
+    const f = new File([new Uint8Array(1)], name, { type });
+    expect(svc.selectFile(f)).toEqual({ ok: true, contentType: expected });
+  });
+
+  it('selectFile rejects an unknown extension with no usable type', () => {
+    expect(svc.selectFile(new File([new Uint8Array(1)], 'notes', { type: '' }))).toEqual({ ok: false });
   });
 
   it('start() does not create a session when the file is invalid', async () => {
@@ -657,12 +671,18 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
     expect(api.delete).not.toHaveBeenCalled();
   });
 
-  it('retry() is a no-op when the failed state carries no videoId', async () => {
+  it('retry() returns to idle without a delete when the failed state carries no videoId', async () => {
     svc.selectFile(sized(10, 'text/plain')); // failed WITHOUT a videoId
     expect(svc.state().kind).toBe('failed');
     await svc.retry();
     expect(api.delete).not.toHaveBeenCalled();
-    expect(svc.state().kind).toBe('failed'); // unchanged — guard returned early
+    expect(svc.state().kind).toBe('idle'); // picker comes back
+  });
+
+  it('retry() is a no-op outside the failed state', async () => {
+    await svc.retry();
+    expect(svc.state().kind).toBe('idle');
+    expect(api.delete).not.toHaveBeenCalled();
   });
 
   it('cancel() from a failed state with no videoId does not call delete', async () => {
@@ -725,7 +745,7 @@ describe('VideoUploadService — transient states & guards (mutation hardening)'
   afterEach(() => vi.clearAllMocks());
 
   const sized = (bytes: number, type = 'video/mp4'): File => {
-    const f = new File([new Uint8Array(1)], 'f.mp4', { type });
+    const f = new File([new Uint8Array(1)], 'f.bin', { type });
     Object.defineProperty(f, 'size', { value: bytes });
     return f;
   };

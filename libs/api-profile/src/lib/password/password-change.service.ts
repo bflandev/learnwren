@@ -9,10 +9,12 @@ import {
   type EmailTransport,
   type IdentityProvider,
 } from '@learnwren/api-auth';
+import { PASSWORD_MAX_LENGTH } from '@learnwren/shared-data-models';
 import type { ChangePasswordRequest, UserId } from '@learnwren/shared-data-models';
 
 import {
   CurrentPasswordInvalidException,
+  NewPasswordTooLongException,
   NewPasswordWeakException,
   PasswordChangeFailedException,
   PasswordUnchangedException,
@@ -37,6 +39,10 @@ export class PasswordChangeService {
   ): Promise<void> {
     await this.verifyCurrentPassword(currentEmail, input.currentPassword);
 
+    // Login rejects longer passwords, so accepting one here locks the user out.
+    if (input.newPassword.length > PASSWORD_MAX_LENGTH) {
+      throw new NewPasswordTooLongException();
+    }
     const policy = this.passwordPolicy.validate(input.newPassword);
     if (!policy.valid) {
       throw new NewPasswordWeakException(policy.unmet);

@@ -10,6 +10,16 @@ import type { PolicyRequirement } from './profile';
 /** Minimum password length. */
 export const PASSWORD_MIN_LENGTH = 12;
 
+/**
+ * Maximum password length. Every password-setting flow (register, reset,
+ * change) must enforce it: login rejects anything longer, so a password set
+ * past it can never be used to sign in.
+ */
+export const PASSWORD_MAX_LENGTH = 256;
+
+/** Maximum email address length (RFC 5321 path limit); login rejects longer. */
+export const EMAIL_MAX_LENGTH = 254;
+
 /** Canonical display/return order of policy requirements. */
 export const PASSWORD_REQUIREMENT_ORDER: PolicyRequirement[] = [
   'MIN_LENGTH',

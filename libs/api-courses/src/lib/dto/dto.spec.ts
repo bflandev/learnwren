@@ -100,6 +100,32 @@ describe('UpdateCourseDto', () => {
   });
 });
 
+describe('null optional fields (stored nulls crashed catalogue search/sort)', () => {
+  it.each(['title', 'description', 'longDescription', 'category', 'difficulty'])(
+    'UpdateCourseDto rejects %s: null',
+    async (field) => {
+      expect(await errorsFor(UpdateCourseDto, { [field]: null })).not.toEqual([]);
+    },
+  );
+
+  it.each(['longDescription', 'category', 'difficulty'])('CreateCourseDto rejects %s: null', async (field) => {
+    expect(await errorsFor(CreateCourseDto, { title: 'T', description: 'D', [field]: null })).not.toEqual([]);
+  });
+
+  it('rejects an empty category id (it would skip the existence check)', async () => {
+    expect(await errorsFor(UpdateCourseDto, { category: '' })).toContain('isNotEmpty');
+    expect(await errorsFor(CreateCourseDto, { title: 'T', description: 'D', category: '' })).toContain('isNotEmpty');
+  });
+
+  it.each(['title', 'description'])('UpdateLessonDto rejects %s: null', async (field) => {
+    expect(await errorsFor(UpdateLessonDto, { [field]: null })).not.toEqual([]);
+  });
+
+  it('CreateLessonDto rejects description: null', async () => {
+    expect(await errorsFor(CreateLessonDto, { title: 'T', description: null })).not.toEqual([]);
+  });
+});
+
 describe('Module DTOs', () => {
   it('CreateModuleDto rejects missing title', async () => {
     const errors = await errorsFor(CreateModuleDto, {});

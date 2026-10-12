@@ -11,9 +11,9 @@ import {
 import type {
   Course,
   CourseStatus,
-  CoursesApiErrorBody,
   PublishNotEligibleDetails,
 } from '@learnwren/shared-data-models';
+import { apiErrorOf } from '@learnwren/shared-data-models';
 
 import { HlmBadge, HlmButton, HlmCard } from '@learnwren/web-ui';
 
@@ -99,10 +99,10 @@ export class CoursePublishBarComponent {
       const updated = await call();
       this.courseUpdated.emit(updated);
     } catch (e: unknown) {
-      const err = e as Partial<CoursesApiErrorBody>;
-      const code = err.error?.code;
+      const body = apiErrorOf(e);
+      const code = body?.code;
       if (code === 'PUBLISH_NOT_ELIGIBLE') {
-        const details = err.error?.details as PublishNotEligibleDetails | undefined;
+        const details = body?.details as PublishNotEligibleDetails | undefined;
         const reasons = details?.reasons ?? [];
         this.publishSvc.setEligibility({ eligible: false, reasons });
       } else if (code === 'INVALID_TRANSITION') {

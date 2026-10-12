@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
-import { nowIso } from '@learnwren/shared-data-models';
+import { EMAIL_MAX_LENGTH, nowIso } from '@learnwren/shared-data-models';
 import type {
   ISODateString,
   MeResponse,
@@ -66,7 +66,6 @@ export interface LoginResult {
 export type { MeResponse } from '@learnwren/shared-data-models';
 
 const DISPLAY_NAME_MAX = 80;
-const EMAIL_MAX = 254;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 @Injectable()
@@ -113,7 +112,7 @@ export class AuthService {
     if (displayName.length === 0 || displayName.length > DISPLAY_NAME_MAX) {
       throw new InvalidDisplayNameException();
     }
-    if (input.email.length > EMAIL_MAX) {
+    if (input.email.length > EMAIL_MAX_LENGTH) {
       throw new EmailTooLongException();
     }
     if (!EMAIL_REGEX.test(input.email)) {

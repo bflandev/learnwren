@@ -56,6 +56,14 @@ describe('EmailChangeService.requestChange', () => {
     expect(verification.verifyPassword).not.toHaveBeenCalled();
   });
 
+  it('rejects a new email over 254 chars (login would refuse it)', async () => {
+    const { svc, verification } = makeService();
+    const long = `${'a'.repeat(243)}@example.com`; // 255 chars
+    await expect(svc.requestChange(UID, 'old@example.com', { ...valid, newEmail: long }))
+      .rejects.toBeInstanceOf(EmailInvalidException);
+    expect(verification.verifyPassword).not.toHaveBeenCalled();
+  });
+
   it.each([
     'plainaddress',
     'no-at-sign.com',

@@ -9,7 +9,7 @@ import {
   signal,
 } from '@angular/core';
 
-import { nowIso } from '@learnwren/shared-data-models';
+import { nowIso, apiErrorOf } from '@learnwren/shared-data-models';
 import type { CourseId, ISODateString } from '@learnwren/shared-data-models';
 import {
   HlmAlert,
@@ -93,7 +93,7 @@ export class CourseCoverUploaderComponent {
   }
 
   private extractReason(err: unknown): string {
-    const body = (err as { error?: { error?: { message?: string } } })?.error?.error;
+    const body = apiErrorOf(err);
     return body?.message ?? 'Cover image upload failed.';
   }
 }

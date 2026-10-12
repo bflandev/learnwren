@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { evaluatePasswordPolicy } from '@learnwren/shared-data-models';
+import { PASSWORD_MAX_LENGTH, evaluatePasswordPolicy } from '@learnwren/shared-data-models';
 export type { PolicyRequirement } from '@learnwren/shared-data-models';
 import type { PolicyRequirement } from '@learnwren/shared-data-models';
 
@@ -9,9 +9,6 @@ import { PasswordTooLongException, WeakPasswordException } from './errors/auth.e
 export type PasswordPolicyResult =
   | { valid: true }
   | { valid: false; unmet: PolicyRequirement[] };
-
-/** Shared with register's own length check (auth.service.ts validateRegisterInput). */
-export const PASSWORD_MAX = 256;
 
 @Injectable()
 export class PasswordPolicyService {
@@ -29,7 +26,7 @@ export class PasswordPolicyService {
  * or WeakPasswordException; returns normally when the password is acceptable.
  */
 export function assertAcceptablePassword(policy: PasswordPolicyService, password: string): void {
-  if (password.length > PASSWORD_MAX) {
+  if (password.length > PASSWORD_MAX_LENGTH) {
     throw new PasswordTooLongException();
   }
   const result = policy.validate(password);
