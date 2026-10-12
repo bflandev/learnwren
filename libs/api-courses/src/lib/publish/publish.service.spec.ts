@@ -1,4 +1,7 @@
+import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { DOCUMENT_STORE } from '@learnwren/api-document-store';
 
 import type {
   Course,
@@ -13,7 +16,9 @@ import type {
   VideoId,
 } from '@learnwren/shared-data-models';
 
+import { CoursesRepository } from '../courses.repository';
 import { VideoNotFoundException } from '../video/errors/video.exception';
+import { VideoService } from '../video/video.service';
 import { PublishService } from './publish.service';
 
 const COURSE = 'c1' as CourseId;
@@ -364,5 +369,22 @@ describe('PublishService.restore', () => {
       code: 'INVALID_TRANSITION',
       details: { currentState: 'DRAFT', requested: 'DRAFT' },
     });
+  });
+});
+
+describe('PublishService — Nest DI wiring', () => {
+  it('resolves the forwardRef-injected VideoService', async () => {
+    const videoSvc = { tag: 'video' };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        PublishService,
+        { provide: CoursesRepository, useValue: {} },
+        { provide: VideoService, useValue: videoSvc },
+        { provide: DOCUMENT_STORE, useValue: {} },
+      ],
+    }).compile();
+
+    expect((moduleRef.get(PublishService) as unknown as { videoSvc: unknown }).videoSvc).toBe(videoSvc);
   });
 });

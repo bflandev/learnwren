@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '@learnwren/web-auth';
 import type { AuthenticatedUser } from '@learnwren/web-auth';
+import { avatarToneFor, deriveInitials } from '@learnwren/web-ui';
 
 import { ProfilePictureService, ProfilePictureError } from './profile-picture.service';
 import { ProfilePictureUploaderComponent } from './profile-picture-uploader.component';
@@ -56,6 +57,19 @@ describe('ProfilePictureUploaderComponent', () => {
         { provide: AuthService, useValue: auth },
       ],
     });
+  });
+
+  it('avatar tone and initials derive from the signed-in user', () => {
+    const c = TestBed.createComponent(ProfilePictureUploaderComponent).componentInstance;
+    expect(c.avatarTone()).toBe(avatarToneFor('u1'));
+    expect(c.avatarInitials()).toBe(deriveInitials('Ada'));
+  });
+
+  it('avatar tone and initials fall back safely when no user is signed in', () => {
+    auth.currentUser.set(null);
+    const c = TestBed.createComponent(ProfilePictureUploaderComponent).componentInstance;
+    expect(c.avatarTone()).toBe(avatarToneFor(''));
+    expect(c.avatarInitials()).toBe(deriveInitials(''));
   });
 
   it('initial state is "idle" before any interaction', () => {

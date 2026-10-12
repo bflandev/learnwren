@@ -119,6 +119,17 @@ describe('S3ObjectStorage', () => {
     expect(abort.input).toEqual({ Bucket: 'b', Key: 'dir/obj.bin', UploadId: 'u' });
   });
 
+  it('putStream rethrows the part failure even when the abort itself fails', async () => {
+    const { storage, send } = make((c) => {
+      if (c instanceof CreateMultipartUploadCommand) return { UploadId: 'u' };
+      if (c instanceof UploadPartCommand) throw new Error('part failed');
+      if (c instanceof AbortMultipartUploadCommand) throw new Error('abort failed');
+      return {};
+    }, 2);
+    await expect(storage.putStream({ ...ref, body: Readable.from([Buffer.from('abcd')]), contentType: 'x' })).rejects.toThrow('part failed');
+    expect(send.mock.calls.some((c) => c[0] instanceof AbortMultipartUploadCommand)).toBe(true);
+  });
+
   it('putStream rethrows a single-put failure without trying to abort', async () => {
     const { storage, send } = make((c) => { if (c instanceof PutObjectCommand) throw new Error('put failed'); return {}; });
     await expect(storage.putStream({ ...ref, body: Readable.from([Buffer.from('a')]), contentType: 'x' })).rejects.toThrow('put failed');
@@ -178,6 +189,7 @@ describe('S3ObjectStorage', () => {
     expect(await storage.headObject(ref)).toEqual({ size: 9 });
     expect(cmd<HeadObjectCommand>().input).toEqual({ Bucket: 'b', Key: 'dir/obj.bin' });
     expect(await make(() => ({ ContentLength: 2, ContentType: 'image/png' })).storage.headObject(ref)).toEqual({ size: 2, contentType: 'image/png' });
+    expect(await make(() => ({})).storage.headObject(ref)).toEqual({ size: 0 });
     const plain = make(() => { throw new Error('plain failure'); });
     await expect(plain.storage.headObject(ref)).rejects.toThrow('plain failure');
     expect(cmd<HeadObjectCommand>()).toBeInstanceOf(HeadObjectCommand);

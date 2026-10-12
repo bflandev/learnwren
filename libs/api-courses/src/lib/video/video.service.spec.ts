@@ -1280,3 +1280,87 @@ describe('VideoService.delete — slice B state widening', () => {
     expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
   });
 });
+
+describe('VideoService — best-effort cleanup failures never mask the real outcome', () => {
+  function build(repo: RepoFake, storage: StorageFake) {
+    return new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+  }
+
+  it('rethrows the verify error and warns when releasing the claim also fails', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    repo.claimUploadCompletion.mockResolvedValue(baseVideo());
+    storage.headObject.mockResolvedValue(null);
+    repo.releaseUploadCompletionClaim.mockRejectedValue(new Error('release boom'));
+    const svc = build(repo, storage);
+    const warn = vi
+      .spyOn((svc as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn')
+      .mockImplementation(() => undefined);
+
+    await expect(svc.completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(
+      UploadObjectMissingException,
+    );
+    expect(warn).toHaveBeenCalledWith('releaseUploadCompletionClaim failed for v1: release boom');
+  });
+
+  it('still rejects with UPLOAD_OBJECT_SIZE_MISMATCH when deleting the oversized object fails', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    repo.claimUploadCompletion.mockResolvedValue(
+      baseVideo({ source: { bucket: 'src-bucket', path: 'p', sizeBytes: 100 } }),
+    );
+    storage.headObject.mockResolvedValue({ size: 200 });
+    storage.deleteObject.mockRejectedValue(new Error('delete boom'));
+
+    await expect(build(repo, storage).completeUpload('v1' as VideoId)).rejects.toBeInstanceOf(
+      UploadObjectSizeMismatchException,
+    );
+    expect(storage.deleteObject).toHaveBeenCalledWith({ bucket: 'src-bucket', path: 'p' });
+  });
+
+  it('delete still detaches the video when the source object delete fails', async () => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    repo.getVideo.mockResolvedValue(baseVideo());
+    storage.deleteObject.mockRejectedValue(new Error('delete boom'));
+
+    await expect(build(repo, storage).delete('v1' as VideoId)).resolves.toBeUndefined();
+    expect(repo.deleteVideoAndDetach).toHaveBeenCalledWith('v1', 'l1', expect.any(String));
+  });
+});
+
+describe('VideoService — default sleep (no deps injected)', () => {
+  it('waits the real backoff delay before retrying a failed submit', async () => {
+    vi.useFakeTimers();
+    try {
+      const repo = makeRepo();
+      const storage = makeStorage();
+      const transcoder = makeTranscoder();
+      transcoder.submitJob
+        .mockRejectedValueOnce(new Error('transient'))
+        .mockResolvedValueOnce({ jobName: 'jobs/ok' });
+      repo.claimUploadCompletion.mockResolvedValue(baseVideo());
+      storage.headObject.mockResolvedValue({ size: 1024 });
+      repo.finalizeUploadWithJob.mockResolvedValue(baseVideo({ state: 'TRANSCODING' }));
+      const svc = new VideoService(repo as never, storage as never, cfg, transcoder as never);
+      vi.spyOn((svc as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn')
+        .mockImplementation(() => undefined);
+
+      const done = svc.completeUpload('v1' as VideoId);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(transcoder.submitJob).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await done;
+
+      expect(transcoder.submitJob).toHaveBeenCalledTimes(2);
+      expect(repo.finalizeUploadWithJob).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

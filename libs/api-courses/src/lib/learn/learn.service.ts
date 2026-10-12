@@ -150,8 +150,8 @@ export class LearnService {
       modules: modules.map((m, i) => ({
         id: m.id,
         title: m.title,
-        // Stryker disable next-line ArrayDeclaration: `?? []` fallback is unreachable — lessonsByModule is built by Promise.all over the same modules array, so every index resolves to an array
-        lessons: (lessonsByModule[i] ?? []).map((l) => ({
+        // lessonsByModule is Promise.all over the same modules array: index i always exists.
+        lessons: lessonsByModule[i]!.map((l) => ({
           id: l.id,
           title: l.title,
           videoState: (stateByLesson.get(l.id) ?? null) as VideoState | null,

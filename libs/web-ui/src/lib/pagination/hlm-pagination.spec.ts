@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import {
   HlmPagination,
   type PaginationItem,
@@ -221,6 +222,25 @@ describe('HlmPagination', () => {
     five?.click();
     fixture.detectChanges();
     expect(fixture.componentInstance.page()).toBe(5);
+  });
+
+  it('clicking the already-active page emits no page change', () => {
+    // Arrange
+    const { fixture, nums } = setup();
+    const pagination = fixture.debugElement.query(By.directive(HlmPagination))
+      .componentInstance as HlmPagination;
+    const emitted: number[] = [];
+    pagination.page.subscribe((p) => emitted.push(p));
+    const button = (label: string) =>
+      nums().find((b) => b.textContent?.trim() === label);
+
+    // Act — click the current page (1), then a different one (2).
+    button('1')?.click();
+    button('2')?.click();
+    fixture.detectChanges();
+
+    // Assert — only the real change was emitted.
+    expect(emitted).toEqual([2]);
   });
 
   it('labels the Previous/Next buttons with their visible default text', () => {

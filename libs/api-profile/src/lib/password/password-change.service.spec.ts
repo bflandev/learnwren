@@ -137,6 +137,14 @@ describe('PasswordChangeService.changePassword', () => {
     });
   });
 
+  it('maps a non-Error updateUser failure to PASSWORD_CHANGE_FAILED with no cause', async () => {
+    const updateUser = vi.fn().mockRejectedValue('down');
+    const { svc } = makeService({ updateUser });
+    const err = await svc.changePassword(UID, EMAIL, valid).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PasswordChangeFailedException);
+    expect((err as Error).cause).toBeUndefined();
+  });
+
   it('maps an unexpected re-auth error to PASSWORD_CHANGE_FAILED with the cause, and never updates', async () => {
     const boom = new Error('network down');
     const verifyPassword = vi.fn().mockRejectedValue(boom);

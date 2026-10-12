@@ -114,6 +114,23 @@ describe('PostgresDocumentStore transactions (fake pool)', () => {
     expect(released).toEqual([rollbackFailure]);
   });
 
+  it('wraps a non-Error ROLLBACK failure in an Error so release() still destroys the connection', async () => {
+    const client = Object.assign(new EventEmitter(), {
+      query: async (sql: string) => {
+        if (sql === 'ROLLBACK') throw 'socket gone';
+        return { rows: [], rowCount: 0 };
+      },
+      release: vi.fn(),
+    });
+    const pool = { connect: async () => client } as unknown as Pool;
+    const store = new PostgresDocumentStore(pool);
+    const boom = new Error('domain');
+
+    await expect(store.runTransaction(async () => Promise.reject(boom))).rejects.toBe(boom);
+    expect(client.release).toHaveBeenCalledWith(new Error('socket gone'));
+    expect(client.release.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+  });
+
   it('survives a connection error event while the client is checked out, and destroys that client', async () => {
     // pg emits 'error' on a checked-out client when its socket drops, on top of
     // rejecting the pending query. With no listener, EventEmitter throws — in

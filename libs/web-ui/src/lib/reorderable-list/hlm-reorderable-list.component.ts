@@ -330,7 +330,6 @@ export class HlmReorderableList<T> {
     // than splice out of range and emit an array with an `undefined` hole.
     if (
       previousIndex < 0 ||
-      // Stryker disable next-line EqualityOperator, ConditionalExpression: equivalent — a previousIndex at/past the end makes splice() return no element, and the moved===undefined guard below bails identically
       previousIndex >= items.length ||
       currentIndex < 0 ||
       currentIndex >= items.length
@@ -338,10 +337,10 @@ export class HlmReorderableList<T> {
       return;
     }
     const next = [...items];
-    const [moved] = next.splice(previousIndex, 1);
-    // Unreachable after the bounds guard above; satisfies noUncheckedIndexedAccess.
-    // Stryker disable next-line ConditionalExpression: equivalent — the bounds guard above ensures previousIndex is a valid index, so splice() always yields an element and this branch never runs; it exists only for noUncheckedIndexedAccess
-    if (moved === undefined) return;
+    // The bounds guard above makes previousIndex valid, so splice yields exactly
+    // one element. It may itself be undefined when T admits it, so no
+    // `=== undefined` check here — that would refuse to move such an item.
+    const [moved] = next.splice(previousIndex, 1) as [T];
     next.splice(currentIndex, 0, moved);
     this.reordered.emit({ previousIndex, currentIndex, items: next });
     // Announce the new position so keyboard / screen-reader users get the

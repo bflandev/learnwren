@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { EnrollmentStatusView } from '@learnwren/shared-data-models';
 import { AuthService } from '@learnwren/web-auth';
+import { avatarToneFor, deriveInitials } from '@learnwren/web-ui';
 import { EnrollmentService } from '@learnwren/web-enrollment';
 
 import { CourseDetailPageComponent } from './course-detail-page.component';
@@ -990,5 +991,54 @@ describe('CourseDetailPageComponent computeds', () => {
 
     expect(getStatusSpy).not.toHaveBeenCalled();
     expect(c.enrollmentStatus()).toBeNull();
+  });
+
+  it('instructor avatar computeds read safely when there is no course', () => {
+    const c = makeComponent();
+    expect(c.course()).toBeNull();
+    expect(c.instructorTone()).toBe(avatarToneFor(''));
+    expect(c.instructorInitials()).toBe(deriveInitials(''));
+  });
+});
+
+describe('CourseDetailPageComponent enrollment-status staleness', () => {
+  it("ignores course A's enrollment status when it resolves after navigating to course B", async () => {
+    // Arrange: A's status request hangs; B's resolves at once.
+    let settleA!: (v: EnrollmentStatusView) => void;
+    const statusB = activeEnrollment({ courseId: 'c-2' });
+    const getEnrollmentStatus = vi.fn((courseId: string) =>
+      courseId === 'c-1'
+        ? new Promise<EnrollmentStatusView>((r) => { settleA = r; })
+        : Promise.resolve(statusB),
+    );
+    const paramMap$ = new BehaviorSubject<ParamMap>(convertToParamMap({ id: 'c-1' }));
+    TestBed.configureTestingModule({
+      imports: [CourseDetailPageComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ActivatedRoute, useValue: { paramMap: paramMap$.asObservable() } },
+        { provide: AuthService, useValue: { currentUser: signal({ uid: 'u-1' }) } },
+        { provide: EnrollmentService, useValue: { getEnrollmentStatus } },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    expect(getEnrollmentStatus).toHaveBeenCalledWith('c-1');
+
+    // Act: navigate to B (settles), then A's stale status lands last.
+    paramMap$.next(convertToParamMap({ id: 'c-2' }));
+    http.expectOne('/api/catalog/c-2').flush({ ...COURSE_WITH_LESSONS, id: 'c-2' });
+    await fixture.whenStable();
+    settleA({ enrollment: null, isOwner: true } as unknown as EnrollmentStatusView);
+    await fixture.whenStable();
+
+    // Assert
+    expect(fixture.componentInstance.course()?.id).toBe('c-2');
+    expect(fixture.componentInstance.enrollmentStatus()).toBe(statusB);
   });
 });

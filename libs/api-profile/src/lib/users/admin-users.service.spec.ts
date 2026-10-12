@@ -211,6 +211,13 @@ describe('AdminUsersService', () => {
       expect(res.users[0]?.email).toBe('');
     });
 
+    it('defaults a missing role to STUDENT and a missing createdAt to empty in a list row', async () => {
+      repo.scanUsers = vi.fn(async () => [userRecord('x', { role: undefined, createdAt: undefined })]);
+      const res = await svc.list('', 1, 20);
+      expect(res.users[0]?.role).toBe('STUDENT');
+      expect(res.users[0]?.createdAt).toBe('');
+    });
+
     it('falls back to "(no display name)" when displayName is entirely absent in a list row', async () => {
       // Distinct from the blank-name case: exercises the `?? ''` nullish fallback
       // (kills the StringLiteral ''→"Stryker was here!" mutant on the list-row map).
@@ -280,6 +287,13 @@ describe('AdminUsersService', () => {
       expect(detail.displayName).toBe('(no display name)');
       expect(detail.email).toBe('');
       expect(detail.biography).toBe('');
+    });
+
+    it('defaults a missing role to STUDENT and a missing createdAt to empty in the detail', async () => {
+      repo.getUser = vi.fn(async () => userRecord('u1', { role: undefined, createdAt: undefined }));
+      const detail = await svc.getDetail('u1' as UserId);
+      expect(detail.role).toBe('STUDENT');
+      expect(detail.createdAt).toBe('');
     });
 
     it('returns the trimmed displayName when present (left side of the || wins)', async () => {

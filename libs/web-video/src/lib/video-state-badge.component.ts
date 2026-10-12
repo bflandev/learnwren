@@ -52,10 +52,8 @@ export class VideoStateBadgeComponent implements OnInit {
         return 'Ready to publish';
       case 'FAILED':
         return 'Transcoding failed — delete and re-upload';
-      // Stryker disable ConditionalExpression,StringLiteral: switch is exhaustive over the VideoState union ('PENDING_UPLOAD'|'UPLOADED'|'TRANSCODING'|'READY'|'FAILED'); the default arm is unreachable.
-      default:
+      default: // a state newer than this client (server added one)
         return '';
-      // Stryker restore ConditionalExpression,StringLiteral
     }
   });
 
@@ -72,10 +70,8 @@ export class VideoStateBadgeComponent implements OnInit {
         return 'success';
       case 'FAILED':
         return 'destructive';
-      // Stryker disable ConditionalExpression,StringLiteral: switch is exhaustive over the VideoState union ('PENDING_UPLOAD'|'UPLOADED'|'TRANSCODING'|'READY'|'FAILED'); the default arm is unreachable.
       default:
         return 'default';
-      // Stryker restore ConditionalExpression,StringLiteral
     }
   });
 

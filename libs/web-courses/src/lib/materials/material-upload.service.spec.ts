@@ -103,6 +103,25 @@ describe('MaterialUploadService', () => {
     expect(api.remove).toHaveBeenCalledWith('mat1');
   });
 
+  it('reports the original PUT failure even when the orphan cleanup also fails', async () => {
+    // Arrange
+    const { svc, api } = setup({
+      put: 500,
+      api: { remove: vi.fn().mockReturnValue(throwError(() => new Error('cleanup down'))) },
+    });
+
+    // Act
+    const completed = await svc.uploadFiles(ctx, [makeFile('notes.pdf')]);
+
+    // Assert
+    expect(completed).toBe(0);
+    expect(api.remove).toHaveBeenCalledWith('mat1');
+    expect(svc.failures()).toEqual([
+      { filename: 'notes.pdf', reason: 'Upload failed with status 500.' },
+    ]);
+    expect(svc.inFlight()).toEqual([]);
+  });
+
   it('records a failure when createUploadUrl errors', async () => {
     const { svc } = setup({
       api: { createUploadUrl: vi.fn().mockReturnValue(throwError(() => new Error('network'))) },

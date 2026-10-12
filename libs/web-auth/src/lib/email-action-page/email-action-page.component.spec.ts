@@ -305,6 +305,13 @@ describe('EmailActionPageComponent', () => {
       expect(c.error()).toMatch(/^Password must include: .+; .+\.$/);
     });
 
+    it('shows an unmet rule the client has no prose for verbatim (newer server policy)', async () => {
+      const c = await submitWith({
+        error: { code: 'WEAK_PASSWORD', details: { unmetRequirements: ['FUTURE_RULE'] } },
+      });
+      expect(c.error()).toBe('Password must include: FUTURE_RULE.');
+    });
+
     it('WEAK_PASSWORD without unmet rules falls back to the generic message', async () => {
       const c = await submitWith({ error: { code: 'WEAK_PASSWORD' } });
       expect(c.error()).toBe('Something went wrong. Please try again.');

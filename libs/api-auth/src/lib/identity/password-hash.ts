@@ -1,4 +1,5 @@
 import { randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from 'node:crypto';
+import { promisify } from 'node:util';
 
 const SCHEME = 'scrypt';
 const COST = 32768; // N
@@ -9,16 +10,18 @@ const KEY_BYTES = 64;
 // N=32768, r=8 needs 128*N*r = 32 MiB, exactly Node's default maxmem; give headroom.
 const MAX_MEMORY_BYTES = 64 * 1024 * 1024;
 
-function derive(password: string, salt: Buffer, options: ScryptOptions, keyBytes: number): Promise<Buffer> {
-  return new Promise((resolve, reject) =>
-    scrypt(password, salt, keyBytes, options, (err, key) => (err ? reject(err) : resolve(key))),
-  );
-}
+// promisify runs scrypt inside a Promise executor, so a synchronous parameter error also rejects.
+const scryptAsync = promisify(scrypt) as (
+  password: string,
+  salt: Buffer,
+  keyBytes: number,
+  options: ScryptOptions,
+) => Promise<Buffer>;
 
 /** scrypt$N$r$p$salt$key: parameters travel with the hash so they can be raised later. */
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(SALT_BYTES);
-  const key = await derive(password, salt, { N: COST, r: BLOCK_SIZE, p: PARALLELISM, maxmem: MAX_MEMORY_BYTES }, KEY_BYTES);
+  const key = await scryptAsync(password, salt, KEY_BYTES, { N: COST, r: BLOCK_SIZE, p: PARALLELISM, maxmem: MAX_MEMORY_BYTES });
   return [SCHEME, COST, BLOCK_SIZE, PARALLELISM, salt.toString('base64'), key.toString('base64')].join('$');
 }
 
@@ -30,11 +33,11 @@ export async function verifyPasswordHash(password: string, stored: string): Prom
   const expected = Buffer.from(keyB64!, 'base64');
   if (expected.length === 0) return false;
   try {
-    const actual = await derive(
+    const actual = await scryptAsync(
       password,
       Buffer.from(saltB64!, 'base64'),
-      { N: Number(n!), r: Number(r!), p: Number(p!), maxmem: MAX_MEMORY_BYTES },
       expected.length,
+      { N: Number(n!), r: Number(r!), p: Number(p!), maxmem: MAX_MEMORY_BYTES },
     );
     return timingSafeEqual(actual, expected);
   } catch {

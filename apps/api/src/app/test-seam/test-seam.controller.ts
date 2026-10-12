@@ -92,10 +92,10 @@ export class TestSeamController {
     if (parts.length < 2 || parts.length % 2 !== 0 || parts.some((p) => p === '' || p === '.' || p === '..')) {
       throw new BadRequestException('Document path must be collection/doc[/collection/doc...]');
     }
-    const pairs = Array.from({ length: parts.length / 2 }, (_, i): [string, string] => [
-      parts[2 * i] ?? '',
-      parts[2 * i + 1] ?? '',
-    ]);
+    const pairs = Array.from(
+      { length: parts.length / 2 },
+      (_, i) => parts.slice(2 * i, 2 * i + 2) as [string, string],
+    );
     return pairs.reduce<DocRef | CollectionHolder>(
       (parent, [name, id]) => parent.collection(name).doc(id),
       this.store,

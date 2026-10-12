@@ -119,6 +119,7 @@ async function settleWithConcurrency<T, R>(
   limit: number,
   fn: (item: T) => Promise<R>,
 ): Promise<PromiseSettledResult<R>[]> {
+  // Stryker disable next-line ArrayDeclaration: equivalent — every index is assigned below, so preallocating vs growing gives the same array.
   const results: PromiseSettledResult<R>[] = new Array(items.length);
   let next = 0;
   const worker = async (): Promise<void> => {
@@ -127,6 +128,7 @@ async function settleWithConcurrency<T, R>(
       try {
         results[i] = { status: 'fulfilled', value: await fn(items[i] as T) };
       } catch (reason) {
+        // Stryker disable next-line StringLiteral: equivalent — the only reader branches on `=== 'fulfilled'`, so any other status takes the failure path.
         results[i] = { status: 'rejected', reason };
       }
     }

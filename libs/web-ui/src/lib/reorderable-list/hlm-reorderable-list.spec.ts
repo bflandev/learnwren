@@ -519,6 +519,35 @@ describe('HlmReorderableList keyboard bounds and announcements', () => {
     ) as HTMLElement[];
     expect(document.activeElement).toBe(rowsAfter[1]);
   });
+  it.each(['left', 'item'] as const)(
+    'skips the refocus when the parent shrank the list before the next render (%s mode)',
+    async (mode) => {
+      // Arrange
+      const f = TestBed.createComponent(Host);
+      f.componentInstance.handlePosition = mode;
+      f.detectChanges();
+      const first =
+        mode === 'item'
+          ? (f.nativeElement.querySelector('li') as HTMLElement)
+          : handleEls(f)[0];
+      // Act — move item 0 down (refocus target: index 1), then the parent
+      // replaces the list with a single item before the deferred refocus runs.
+      first.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }),
+      );
+      f.componentInstance.items = ['x'];
+      f.detectChanges();
+      await f.whenStable();
+      // Assert — the move was emitted and the missing target did not throw or
+      // steal focus onto the surviving row.
+      expect(f.componentInstance.last?.items).toEqual(['b', 'a', 'c']);
+      const survivor =
+        mode === 'item'
+          ? (f.nativeElement.querySelector('li') as HTMLElement)
+          : handleEls(f)[0];
+      expect(document.activeElement).not.toBe(survivor);
+    },
+  );
 });
 
 describe('HlmReorderableList move() bounds (drop path)', () => {
@@ -549,9 +578,25 @@ describe('HlmReorderableList move() bounds (drop path)', () => {
     f.detectChanges();
     const cmp = listCmp(f);
     cmp.onDrop({ previousIndex: -1, currentIndex: 1 });
+    cmp.onDrop({ previousIndex: 3, currentIndex: 0 });
     cmp.onDrop({ previousIndex: 0, currentIndex: -1 });
     cmp.onDrop({ previousIndex: 0, currentIndex: 3 });
     expect(f.componentInstance.last).toBeNull();
+  });
+
+  it('moves an undefined item like any other value', () => {
+    // Arrange — a list whose element type admits undefined.
+    const f = TestBed.createComponent(Host);
+    f.componentInstance.items = ['a', undefined as unknown as string, 'c'];
+    f.detectChanges();
+    // Act
+    listCmp(f).onDrop({ previousIndex: 1, currentIndex: 0 });
+    // Assert
+    expect(f.componentInstance.last).toEqual({
+      previousIndex: 1,
+      currentIndex: 0,
+      items: [undefined, 'a', 'c'],
+    });
   });
 
   it('accepts the boundary drop onto index 0', () => {

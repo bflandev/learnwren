@@ -39,8 +39,18 @@ describe('reorderVisibleColumns', () => {
     expect(reorderVisibleColumns(full, full, 0, -1)).toEqual(full);
     // currentIndex === length would otherwise append at the end.
     expect(reorderVisibleColumns(full, full, 0, 3)).toEqual(full);
-    // previousIndex === length is a no-op splice, rescued by the moved guard.
+    // previousIndex === length would otherwise splice nothing and insert undefined.
     expect(reorderVisibleColumns(full, full, 3, 1)).toEqual(full);
+  });
+
+  it('keeps a repeated center id in place instead of writing undefined', () => {
+    // Arrange — a corrupt full order lists center id 'a' twice.
+    const full = ['a', 'b', 'a'];
+    // Act
+    const out = reorderVisibleColumns(full, ['a', 'b'], 0, 1);
+    // Assert — the two reordered ids fill the first two center slots; the
+    // surplus slot falls back to its own id.
+    expect(out).toEqual(['b', 'a', 'a']);
   });
 
   it('does not mutate its inputs and returns a fresh array', () => {

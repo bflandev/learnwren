@@ -104,6 +104,14 @@ describe('VideoStateBadgeComponent — slice B copy', () => {
     expect(emissions).toEqual([]);
   });
 
+  it('renders an empty label and the default variant for a state this client does not know (newer server)', () => {
+    fixture.componentRef.setInput('video', video('ARCHIVED' as Video['state']));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.label()).toBe('');
+    expect(fixture.componentInstance.variant()).toBe('default');
+    expect(fixture.componentInstance.canRemove()).toBe(false);
+  });
+
   it('maps READY to the good badge variant', () => {
     fixture.componentRef.setInput('video', video('READY'));
     fixture.detectChanges();

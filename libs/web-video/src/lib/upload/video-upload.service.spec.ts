@@ -585,6 +585,65 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
     expect(svc.state().kind).toBe('idle');
   });
 
+  // ---- best-effort cleanup calls must never surface their own failure ----
+  const hardFail = async (): Promise<void> => {
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 403;
+    xhrs.at(-1)!.onload!();
+    await done;
+  };
+
+  it('still reports the upload failure when marking the video failed also errors', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.markFailed.mockReturnValue(throwError(() => new Error('api down')));
+
+    await hardFail();
+
+    expect(api.markFailed).toHaveBeenCalledWith('v1', 'Upload failed with status 403.');
+    expect(svc.state()).toEqual({ kind: 'failed', reason: 'Upload failed: status 403.', videoId: 'v1' });
+  });
+
+  it('cancel() from a failed state returns to idle even when the DELETE errors', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.markFailed.mockReturnValue(of({ id: 'v1', state: 'FAILED' }));
+    api.delete.mockReturnValue(throwError(() => new Error('api down')));
+    await hardFail();
+
+    await svc.cancel();
+
+    expect(api.delete).toHaveBeenCalledWith('v1');
+    expect(svc.state()).toEqual({ kind: 'idle' });
+  });
+
+  it('retry() returns to idle even when the DELETE errors', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.markFailed.mockReturnValue(of({ id: 'v1', state: 'FAILED' }));
+    api.delete.mockReturnValue(throwError(() => new Error('api down')));
+    await hardFail();
+
+    await svc.retry();
+
+    expect(api.delete).toHaveBeenCalledWith('v1');
+    expect(svc.state()).toEqual({ kind: 'idle' });
+  });
+
+  it('a cancel that raced the session response stays idle even when cleaning up the minted session errors', async () => {
+    const session$ = new Subject<CreateUploadSessionResponse>();
+    api.createUploadSession.mockReturnValue(session$.asObservable());
+    api.delete.mockReturnValue(throwError(() => new Error('api down')));
+    const done = svc.start(CTX, sized(8));
+    await svc.cancel();
+
+    session$.next({ videoId: 'v9' as never, uploadSessionUri: 'u', expiresAt: 'e' } as CreateUploadSessionResponse);
+    session$.complete();
+    await done;
+
+    expect(api.delete).toHaveBeenCalledWith('v9');
+    expect(svc.state()).toEqual({ kind: 'idle' });
+    expect(xhrs).toHaveLength(0);
+  });
+
   it('cancel() from a complete state does NOT delete the video', async () => {
     api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
     api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));

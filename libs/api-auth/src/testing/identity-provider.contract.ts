@@ -12,7 +12,8 @@ export interface IdentityContractOptions {
 }
 
 const PASSWORD = 'Correct-Horse-9-battery';
-const tokenOf = (link: string) => new URL(link).searchParams.get('token') ?? '';
+// Every adapter's link carries a token query param.
+const tokenOf = (link: string) => new URL(link).searchParams.get('token') as string;
 
 /** Behaviour every IdentityProvider adapter must share (spec §5.1). */
 export function describeIdentityProviderContract(

@@ -1119,6 +1119,24 @@ describe('EnrollmentRepository.stampCompleted', () => {
     );
     expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBeUndefined();
   });
+
+  it('writes nothing and never lists lessons when the enrollment doc is missing', async () => {
+    const { repo, db } = repoWith({});
+    const lister = vi.fn(async () => ['l1' as LessonId]);
+    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString, lister);
+    expect(lister).not.toHaveBeenCalled();
+    expect(db.__store.has(`enrollments/${ID}`)).toBe(false);
+  });
+
+  it('treats a legacy enrollment with no progress field as nothing completed', async () => {
+    const legacy: Record<string, unknown> = { ...activeEnrollment() };
+    delete legacy['progress'];
+    const { repo, db } = repoWith({ [`enrollments/${ID}`]: legacy });
+    await repo.stampCompleted(UID, CID, '2026-07-09T00:00:00.000Z' as ISODateString, async () => [
+      'l1' as LessonId,
+    ]);
+    expect(db.__store.get(`enrollments/${ID}`)?.['completedAt']).toBeUndefined();
+  });
 });
 
 describe('EnrollmentRepository.listActiveByUser', () => {

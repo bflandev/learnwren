@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { GcsObjectStorage } from './gcs-object-storage';
-import { makeObjectStorage } from './object-storage.module';
+import { OBJECT_STORAGE_CONFIG } from './object-storage.config';
+import { makeObjectStorage, ObjectStorageModule } from './object-storage.module';
 import { S3ObjectStorage } from './s3-object-storage';
 
 describe('makeObjectStorage', () => {
@@ -17,5 +18,20 @@ describe('makeObjectStorage', () => {
     );
     expect(store).toBeInstanceOf(S3ObjectStorage);
     expect(store.kind).toBe('s3');
+  });
+});
+
+describe('ObjectStorageModule', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('reads OBJECT_STORAGE_CONFIG from process.env', () => {
+    // Arrange
+    vi.stubEnv('LEARNWREN_OBJECT_STORAGE', 'gcs');
+    vi.stubEnv('LEARNWREN_PUBLIC_BUCKETS', 'covers');
+    const providers = Reflect.getMetadata('providers', ObjectStorageModule) as Array<{ provide: unknown; useFactory: () => unknown }>;
+    const configProvider = providers.find((p) => p.provide === OBJECT_STORAGE_CONFIG);
+
+    // Act + Assert
+    expect(configProvider?.useFactory()).toEqual({ kind: 'gcs', publicBuckets: ['covers'] });
   });
 });

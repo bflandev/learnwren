@@ -33,6 +33,24 @@ describe('VideoStatePollingService', () => {
     httpMock = TestBed.inject(HttpTestingController);
   });
 
+  it('defaults to a 5-second poll interval when no options are given', () => {
+    vi.useFakeTimers();
+    try {
+      // Arrange
+      const sub = svc.poll('v1' as VideoId).subscribe();
+      httpMock.expectOne('/api/videos/v1').flush(video('TRANSCODING'));
+
+      // Act + Assert: nothing before 5 s, the next fetch at 5 s.
+      vi.advanceTimersByTime(4_999);
+      httpMock.expectNone('/api/videos/v1');
+      vi.advanceTimersByTime(1);
+      httpMock.expectOne('/api/videos/v1').flush(video('READY'));
+      sub.unsubscribe();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('emits the initial video then polls until READY', async () => {
     const collected: Video['state'][] = [];
     const sub = svc.poll('v1' as VideoId, { intervalMs: 10, capMs: 60_000 }).subscribe((v) => {

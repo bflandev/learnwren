@@ -9,6 +9,6 @@ export function coverToneForId(id: string): LwCoverTone {
     hash = (hash * 31 + id.charCodeAt(i)) | 0;
   }
   const index = Math.abs(hash) % COVER_TONES.length;
-  // Stryker disable next-line StringLiteral: index is always in [0,5) so COVER_TONES[index] is never undefined; the `?? 'moss'` fallback is unreachable (only present for noUncheckedIndexedAccess). Equivalent.
-  return COVER_TONES[index] ?? 'moss';
+  // index is always in [0, COVER_TONES.length), so the lookup is defined.
+  return COVER_TONES[index] as LwCoverTone;
 }

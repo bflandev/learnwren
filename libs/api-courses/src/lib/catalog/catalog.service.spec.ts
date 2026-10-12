@@ -297,6 +297,17 @@ describe('CatalogService.search', () => {
     expect(page.items.map((i) => i.id)).toEqual(['title-hit', 'desc-only']);
   });
 
+  it('orders equally relevant matches newest first', async () => {
+    const svc = makeService([
+      course({ id: 'rust-old' as CourseId, title: 'Rust Old', publishedAt: '2026-01-01T00:00:00.000Z' as ISODateString }),
+      course({ id: 'rust-new' as CourseId, title: 'Rust New', publishedAt: '2026-06-01T00:00:00.000Z' as ISODateString }),
+    ]);
+
+    const page = await svc.search({ q: 'rust' });
+
+    expect(page.items.map((i) => i.id)).toEqual(['rust-new', 'rust-old']);
+  });
+
   it('trims surrounding whitespace from the query (kills the dropped `.trim()`)', async () => {
     // The mutant drops `.trim()`, so the search term becomes "  rust  " which
     // would not be a substring of any title/description and would match nothing.
@@ -352,6 +363,16 @@ describe('CatalogService.getCourseDetail', () => {
     expect(detail.modules).toEqual([
       { title: 'Module 1', lessons: [{ id: 'l-1', title: 'Lesson 1' }, { id: 'l-2', title: 'Lesson 2' }] },
     ]);
+  });
+
+  it('falls back to createdAt when a published course carries no publishedAt', async () => {
+    const legacy = course({ id: 'c-legacy' as CourseId, createdAt: '2025-12-01T00:00:00.000Z' as ISODateString });
+    delete (legacy as Partial<Course>).publishedAt;
+    const svc = makeService([legacy]);
+
+    const detail = await svc.getCourseDetail('c-legacy' as CourseId);
+
+    expect(detail.publishedAt).toBe('2025-12-01T00:00:00.000Z');
   });
 
   it('exposes lesson IDs on the outline so /learn can link to them', async () => {
@@ -433,6 +454,17 @@ describe('CatalogService.listCatalogue — POPULAR sort', () => {
     const page = await svc.listCatalogue({ sort: 'POPULAR' });
 
     expect(page.items.map((i) => i.id)).toEqual(['c-high', 'c-low', 'c-none']);
+  });
+
+  it('ranks a newer course with no enrollmentCount below an older one with enrolments', async () => {
+    const svc = makeService([
+      course({ id: 'c-none' as CourseId, publishedAt: '2026-09-02T00:00:00.000Z' as ISODateString }),
+      course({ id: 'c-some' as CourseId, enrollmentCount: 3, publishedAt: '2026-09-01T00:00:00.000Z' as ISODateString }),
+    ]);
+
+    const page = await svc.listCatalogue({ sort: 'POPULAR' });
+
+    expect(page.items.map((i) => i.id)).toEqual(['c-some', 'c-none']);
   });
 
   it('breaks an enrollmentCount tie by NEWEST (kills `|| compareNewest` and the compareNewest body)', async () => {
@@ -662,5 +694,32 @@ describe('CatalogService — cover image projection', () => {
     ]);
     const detail = await svc.getCourseDetail('c-cover' as CourseId);
     expect(detail.coverImageUrl).toBe('https://cdn/x.jpg?v=1');
+  });
+});
+
+describe('CatalogService.listCatalogue — sorts on its own, whatever order the repository returns', () => {
+  // listPublished happens to return publishedAt-desc today; the service must not
+  // depend on that, so these feed it the reverse order through a stub repository.
+  function serviceOver(courses: Course[]): CatalogService {
+    const repo = { listPublished: async () => courses } as unknown as CoursesRepository;
+    const directory = new InstructorDirectory(createInMemoryDocumentStore() as never);
+    return new CatalogService(repo, directory);
+  }
+  const older = course({ id: 'older' as CourseId, publishedAt: '2026-01-01T00:00:00.000Z' as ISODateString });
+  const newer = course({ id: 'newer' as CourseId, publishedAt: '2026-03-01T00:00:00.000Z' as ISODateString });
+
+  it('NEWEST re-sorts oldest-first input to newest-first', async () => {
+    const page = await serviceOver([older, newer]).listCatalogue({ sort: 'NEWEST' });
+
+    expect(page.items.map((i) => i.id)).toEqual(['newer', 'older']);
+  });
+
+  it('POPULAR breaks an enrollmentCount tie newest-first even from oldest-first input', async () => {
+    const page = await serviceOver([
+      { ...older, enrollmentCount: 5 },
+      { ...newer, enrollmentCount: 5 },
+    ]).listCatalogue({ sort: 'POPULAR' });
+
+    expect(page.items.map((i) => i.id)).toEqual(['newer', 'older']);
   });
 });

@@ -115,6 +115,29 @@ class MultiMessageHost {
   readonly showErrorB = signal(true);
 }
 
+// Two hints and two errors sharing an author id — the field registers each id
+// once, so aria-describedby never repeats a reference.
+@Component({
+  standalone: true,
+  imports: [
+    HlmFormField,
+    HlmFormFieldControl,
+    HlmFormFieldHint,
+    HlmFormFieldError,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <hlm-form-field>
+      <input hlmFormFieldControl />
+      <span hlmFormFieldHint id="dup-hint">Hint A</span>
+      <span hlmFormFieldHint id="dup-hint">Hint B</span>
+      <span hlmFormFieldError id="dup-err">Error A</span>
+      <span hlmFormFieldError id="dup-err">Error B</span>
+    </hlm-form-field>
+  `,
+})
+class DuplicateIdHost {}
+
 function setupWired() {
   const fixture = TestBed.createComponent(WiredHost);
   fixture.detectChanges();
@@ -253,6 +276,18 @@ describe('HlmFormFieldControl (automated aria-describedby)', () => {
     expect(control.getAttribute('aria-describedby')).toBe(
       'hint-a hint-b err-a',
     );
+  });
+
+  it('registers a repeated hint or error id only once', () => {
+    // Arrange
+    const fixture = TestBed.createComponent(DuplicateIdHost);
+    // Act
+    fixture.detectChanges();
+    // Assert
+    const control = fixture.nativeElement.querySelector(
+      '[hlmFormFieldControl]',
+    ) as HTMLElement;
+    expect(control.getAttribute('aria-describedby')).toBe('dup-hint dup-err');
   });
 
   it('mints monotonically increasing error ids across instances', () => {

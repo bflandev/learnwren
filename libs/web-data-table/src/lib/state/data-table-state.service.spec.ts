@@ -548,6 +548,23 @@ describe('DataTableStateService (mutation hardening)', () => {
     expect(svc.getPinSide('city')).toBe(false);
   });
 
+  it('getPinSide copes with an absent left side', () => {
+    const svc = build();
+    svc.setPinning({ right: ['city'] });
+    expect(svc.getPinSide('city')).toBe('right');
+    expect(svc.getPinSide('name')).toBe(false);
+  });
+
+  it('setColumns normalizes absent pinning sides to empty lists', () => {
+    // Arrange — an updater (e.g. from TanStack) that drops both sides.
+    const svc = build();
+    svc.setPinning({});
+    // Act
+    svc.setColumns(COLS);
+    // Assert
+    expect(svc.columnPinning()).toEqual({ left: [], right: [] });
+  });
+
   it('setPinSide works when a prior setPinning dropped a side', () => {
     const svc = build();
     svc.setPinning({});
@@ -629,6 +646,18 @@ describe('DataTableStateService (density hydration variants)', () => {
     localStorage.setItem('lw.density', 'normal');
     TestBed.configureTestingModule({ providers: [DataTableStateService] });
     expect(TestBed.inject(DataTableStateService).density()).toBe('normal');
+  });
+
+  it('inherits density and keeps setDensity in memory when there is no storage', () => {
+    // Arrange — an environment without localStorage at all.
+    vi.stubGlobal('localStorage', undefined);
+    TestBed.configureTestingModule({ providers: [DataTableStateService] });
+    const svc = TestBed.inject(DataTableStateService);
+    expect(svc.density()).toBeUndefined();
+    // Act
+    svc.setDensity('compact');
+    // Assert
+    expect(svc.density()).toBe('compact');
   });
 
   it('hydrates to undefined when reading localStorage throws', () => {

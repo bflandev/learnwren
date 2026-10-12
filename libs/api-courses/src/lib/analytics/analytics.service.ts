@@ -35,8 +35,8 @@ export class AnalyticsService {
 
     const ordered: Array<{ lessonId: LessonId; moduleId: ModuleId; title: string }> = [];
     modules.forEach((m, i) => {
-      // Stryker disable next-line ArrayDeclaration: `?? []` fallback is unreachable — lessonsByModule is built by Promise.all over the same modules array, so every index resolves to an array
-      const ls = (lessonsByModule[i] ?? []).slice().sort((a, b) => a.order - b.order);
+      // lessonsByModule is Promise.all over the same modules array: index i always exists.
+      const ls = lessonsByModule[i]!.slice().sort((a, b) => a.order - b.order);
       for (const l of ls) ordered.push({ lessonId: l.id, moduleId: m.id, title: l.title });
     });
     const lessonIds = ordered.map((o) => o.lessonId);

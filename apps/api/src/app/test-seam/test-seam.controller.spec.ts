@@ -55,6 +55,12 @@ describe('TestSeamController', () => {
     expect(await controller.getDoc(path)).toEqual({ exists: true, data: { title: 'one', n: 2 } });
   });
 
+  it('accepts the path as one slash-joined string too', async () => {
+    await controller.setDoc('courses/abc/modules/m1', { t: 1 });
+    expect((await store.collection('courses').doc('abc').collection('modules').doc('m1').get()).data()).toEqual({ t: 1 });
+    await expect(controller.getDoc('courses/abc/modules')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('getDoc of a missing doc is exists:false, data:null', async () => {
     expect(await controller.getDoc(['courses', 'missing'])).toEqual({ exists: false, data: null });
   });
@@ -66,6 +72,7 @@ describe('TestSeamController', () => {
   });
 
   it.each([
+    [[]],
     [['courses']],
     [['courses', 'a', 'modules']],
     [['courses', '..']],
@@ -73,6 +80,7 @@ describe('TestSeamController', () => {
     [['.', 'a']],
   ])('rejects bad document path %j with 400', async (path) => {
     await expect(controller.getDoc(path)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.getDoc(path)).rejects.toThrow('Document path must be collection/doc[/collection/doc...]');
     await expect(controller.setDoc(path, {})).rejects.toBeInstanceOf(BadRequestException);
     await expect(controller.updateDoc(path, {})).rejects.toBeInstanceOf(BadRequestException);
   });

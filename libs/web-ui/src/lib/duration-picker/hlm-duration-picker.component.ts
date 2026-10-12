@@ -519,7 +519,8 @@ export class HlmDurationPicker {
       seconds: this.precision().seconds ? merged.seconds : 0,
       milliseconds: this.precision().milliseconds ? merged.milliseconds : 0,
     };
-    const built = partsToDuration(next);
-    this.value.set(built ? clampDuration(built, this.min(), this.max()) : null);
+    this.value.set(
+      clampDuration(partsToDuration(next), this.min(), this.max()),
+    );
   }
 }

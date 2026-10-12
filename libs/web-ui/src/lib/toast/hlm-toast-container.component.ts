@@ -46,8 +46,8 @@ export function resolveToastIconName(
   severity: ToastSeverity,
 ): string | null {
   if (icon === null) return null;
-  if (typeof icon === 'string' && icon.length > 0) return icon;
-  return DEFAULT_TOAST_SEVERITY_ICONS[severity] ?? null;
+  // Omitted or '' → the severity default (the Record covers every severity).
+  return icon || DEFAULT_TOAST_SEVERITY_ICONS[severity];
 }
 
 @Component({

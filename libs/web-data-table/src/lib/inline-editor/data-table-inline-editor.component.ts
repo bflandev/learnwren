@@ -158,9 +158,10 @@ export class DataTableInlineEditorComponent {
     return map;
   });
 
-  /** The dot-safe control name for a field id (falls back to the id itself). */
+  /** The dot-safe control name for a field id. Only ever asked for ids of the
+   * current `fields`, all of which `controlNames` maps. */
   protected controlNameFor(id: string): string {
-    return this.controlNames().get(id) ?? id;
+    return this.controlNames().get(id) as string;
   }
 
   /** Collects dirty, non-readonly controls as {field,value}[]. Control names are
@@ -170,8 +171,7 @@ export class DataTableInlineEditorComponent {
     const group = this.form();
     const out: InlineEditValue[] = [];
     for (const field of this.fields()) {
-      // Stryker disable next-line ConditionalExpression: equivalent — readonly fields never receive a control, so the !control guard below skips them anyway
-      if (field.readonly) continue;
+      // Readonly fields have no control, so the !control guard skips them.
       const control = group.get(this.controlNameFor(field.id));
       if (!control || !control.dirty) continue;
       const raw = control.value;

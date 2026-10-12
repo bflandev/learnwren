@@ -54,6 +54,23 @@ describe('CatalogPageComponent', () => {
     http.expectOne((r) => r.url === '/api/catalog').flush(page());
   });
 
+  it('a failed categories load leaves the filter options empty and the catalogue unaffected', async () => {
+    // Arrange
+    await router.navigate(['/catalog']);
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    fixture.detectChanges();
+
+    // Act
+    http.expectOne('/api/categories').flush('boom', { status: 500, statusText: 'Server Error' });
+    http.expectOne((r) => r.url === '/api/catalog').flush(page());
+    await fixture.whenStable();
+
+    // Assert
+    expect(fixture.componentInstance.categories()).toEqual([]);
+    expect(fixture.componentInstance.error()).toBe(false);
+    expect(fixture.componentInstance.result()).toEqual(page());
+  });
+
   it('renders course cards from the catalogue response', async () => {
     await router.navigate(['/catalog']);
     const fixture = TestBed.createComponent(CatalogPageComponent);

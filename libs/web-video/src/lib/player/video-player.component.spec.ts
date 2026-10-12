@@ -187,6 +187,29 @@ describe('VideoPlayerComponent', () => {
     expect(stub.attach).toHaveBeenCalledTimes(1);
   });
 
+  it('Try again after a loader failure reloads the page through the injected document', async () => {
+    // Arrange
+    const stub = makeStubService();
+    stub.attach.mockRejectedValueOnce(new Error('Failed to fetch dynamically imported module'));
+    TestBed.configureTestingModule({
+      imports: [VideoPlayerComponent],
+      providers: [{ provide: VideoPlayerService, useValue: stub }, provideConfig(false)],
+    });
+    const fixture = TestBed.createComponent(VideoPlayerComponent);
+    fixture.componentRef.setInput('videoId', 'v1' as VideoId);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // jsdom's location.reload is not spy-able, so swap the injected document.
+    const reload = vi.fn();
+    (fixture.componentInstance as unknown as { document: unknown }).document = { location: { reload } };
+
+    // Act
+    fixture.componentInstance.retry();
+
+    // Assert
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
   it('ignores a load failure from a mount the component already abandoned', async () => {
     const stub = makeStubService();
     let rejectAttach!: (e: Error) => void;
@@ -279,7 +302,7 @@ describe('VideoPlayerComponent', () => {
     expect(track.getAttribute('kind')).toBe('subtitles');
   });
 
-  it('renders no <track> when there are no captions', () => {
+  it('renders no <track> when the captions input is left at its default', () => {
     const stub = makeStubService();
     TestBed.configureTestingModule({
       imports: [VideoPlayerComponent],
@@ -287,7 +310,6 @@ describe('VideoPlayerComponent', () => {
     });
     const fixture = TestBed.createComponent(VideoPlayerComponent);
     fixture.componentRef.setInput('videoId', 'v1' as VideoId);
-    fixture.componentRef.setInput('captions', []);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('track')).toBeNull();
   });

@@ -115,18 +115,22 @@ function make(
 describe('FfmpegTranscoderAdapter.submitJob', () => {
   it('still delivers the result when the temp dir cannot be removed afterwards', async () => {
     fsFaults.rm = new Error('EBUSY: resource busy or locked');
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     try {
       const { adapter, sink } = make();
       const { jobName } = await adapter.submitJob(input());
       await adapter.whenDone(jobName);
       expect(sink).toHaveBeenCalledWith(expect.objectContaining({ type: 'JOB_SUCCEEDED', videoId: 'v1' }));
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^Could not remove .*lw-ffmpeg-.*: EBUSY: resource busy or locked$/));
     } finally {
       fsFaults.rm = undefined;
+      warn.mockRestore();
     }
   });
 
   it('reports JOB_FAILED (not an unhandled rejection) when the temp dir cannot be created', async () => {
     fsFaults.mkdtemp = new Error('ENOSPC: no space left on device');
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     try {
       const { adapter, sink } = make();
       const { jobName } = await adapter.submitJob(input());
@@ -134,8 +138,11 @@ describe('FfmpegTranscoderAdapter.submitJob', () => {
       expect(sink).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'JOB_FAILED', videoId: 'v1', reason: expect.stringContaining('ENOSPC') }),
       );
+      // No temp dir was made, so there is nothing to clean up (and nothing to warn about).
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('Could not remove'));
     } finally {
       fsFaults.mkdtemp = undefined;
+      warn.mockRestore();
     }
   });
 
@@ -442,6 +449,11 @@ describe('FfmpegTranscoderAdapter — edge paths', () => {
   it('defaults to about a minute of redelivery', () => {
     expect(DEFAULT_RETRY_DELAYS_MS).toHaveLength(6);
     expect(DEFAULT_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0)).toBe(60000);
+  });
+
+  it('uses the default redelivery schedule when none is given', () => {
+    const adapter = new FfmpegTranscoderAdapter({ storage: fakeStorage(), runner: fakeRunner().runner, ffmpegPath: 'f', ffprobePath: 'p' });
+    expect((adapter as unknown as { retryDelaysMs: number[] }).retryDelaysMs).toBe(DEFAULT_RETRY_DELAYS_MS);
   });
 });
 

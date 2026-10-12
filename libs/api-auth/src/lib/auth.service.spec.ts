@@ -158,6 +158,35 @@ describe('AuthService.register', () => {
     expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
   });
 
+  it('rollback: rethrows the original Error instance when auto-login fails', async () => {
+    // Arrange
+    const boom = new Error('upstream down');
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => {
+        throw boom;
+      }),
+    });
+    const service = await buildModule(identity, buildFakeFirestore());
+
+    // Act + Assert
+    await expect(service.register(validInput)).rejects.toBe(boom);
+    expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
+  });
+
+  it('rollback: wraps a non-Error thrown during auto-login in InternalAuthException', async () => {
+    // Arrange
+    const identity = buildIdentity({
+      verifyPassword: vi.fn(async () => {
+        throw 'not an Error';
+      }),
+    });
+    const service = await buildModule(identity, buildFakeFirestore());
+
+    // Act + Assert
+    await expect(service.register(validInput)).rejects.toBeInstanceOf(InternalAuthException);
+    expect(identity.deleteUser).toHaveBeenCalledWith('uid-123');
+  });
+
   it('rejects with WeakPasswordException before any SDK call when password fails policy', async () => {
     const identity = buildIdentity();
     const firestore = buildFakeFirestore();

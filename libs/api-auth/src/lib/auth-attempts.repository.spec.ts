@@ -232,6 +232,20 @@ describe('AuthAttemptsRepository.recordFailure', () => {
     expect(fs._docs.get('hash-1')?.['firstFailureAt']).toBe(original);
   });
 
+  it('treats a doc with no failedCount as zero prior failures', async () => {
+    // Arrange: a partial doc (e.g. written before failedCount existed).
+    const original = new Date(Date.now() - 60_000).toISOString();
+    const fs = buildFakeFirestore({ 'hash-1': { firstFailureAt: original } });
+    const repo = await buildRepo(fs);
+
+    // Act
+    const result = await repo.recordFailure('hash-1');
+
+    // Assert
+    expect(result.locked).toBe(false);
+    expect(fs._docs.get('hash-1')?.['failedCount']).toBe(1);
+  });
+
   it('locks on third failure with lockedUntil exactly LOCKOUT_MS in the future', async () => {
     // Pins LOCKOUT_MS = 15 * 60 * 1000 (15 minutes). ArithmeticOperator mutants
     // on the constant or on `now + LOCKOUT_MS` would shift the value.

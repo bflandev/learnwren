@@ -283,3 +283,20 @@ describe('VideoStorageAdapter playback reads', () => {
     expect(storage.signReadUrl).not.toHaveBeenCalled();
   });
 });
+
+describe('VideoStorageAdapter default ffprobe runner', () => {
+  it('executes the binary with the given args and resolves its stdout', async () => {
+    const adapter = new VideoStorageAdapter(
+      makeStorage() as unknown as ObjectStorage,
+      realCfg,
+      new VideoUploadSessions(),
+    );
+    const runner = (adapter as unknown as {
+      runner: (b: string, a: string[]) => Promise<{ stdout: string }>;
+    }).runner;
+
+    const { stdout } = await runner(process.execPath, ['-e', 'process.stdout.write("probe-ok")']);
+
+    expect(stdout).toBe('probe-ok');
+  });
+});

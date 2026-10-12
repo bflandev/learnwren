@@ -510,6 +510,27 @@ describe('HlmDatePicker format hint + slot skeleton', () => {
     expect(field().value).toBe('2025-12-31');
   });
 
+  it('re-masks an uncommitted draft without a skeleton when the hint is off', () => {
+    // Arrange — hint off: typed text is masked by insert-and-heal, no skeleton.
+    const { fixture, host, field } = setupHint();
+    host.formatHint.set(false);
+    host.mode.set('datetime');
+    host.hour12.set(false);
+    host.showSeconds.set(false);
+    host.showMilliseconds.set(false);
+    fixture.detectChanges();
+    field().value = '202512311430';
+    field().dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(field().value).toBe('2025-12-31 14:30');
+    // Act — switch to date mode while the draft is still uncommitted.
+    host.mode.set('date');
+    fixture.detectChanges();
+    fixture.detectChanges();
+    // Assert — the draft is re-masked to the date template, with no skeleton.
+    expect(field().value).toBe('2025-12-31');
+  });
+
   it('reflows a focused empty skeleton when the dateFormat preset changes', () => {
     const { fixture, host, field } = setupHint();
     field().dispatchEvent(new FocusEvent('focus'));
@@ -648,6 +669,21 @@ describe('HlmDatePicker custom format', () => {
     expect(picked?.toFormat('yyyy-MM-dd')).toBe('2025-12-31');
     // The fallback parse must land in the picker's zone, not the host's.
     expect(picked?.zoneName).toBe('UTC');
+  });
+
+  it('flags an entry that fails both the standard and the custom-format parse', () => {
+    // Arrange
+    const { fixture, host, field } = setupFormat();
+    host.format.set('dd-MMM-yyyy');
+    fixture.detectChanges();
+    const picker = host.pickerRef() as any;
+    // Act — a month name Luxon cannot read under either format.
+    picker.draft.set('31-Foo-2025');
+    picker.commit();
+    fixture.detectChanges();
+    // Assert
+    expect(host.picked()).toBeNull();
+    expect(field().getAttribute('aria-invalid')).toBe('true');
   });
 
   it('trims the draft before the custom-format fallback parse', () => {
@@ -975,6 +1011,25 @@ describe('HlmDatePicker time-entry select mode', () => {
     fixture.detectChanges();
     expect(host.picked()?.second).toBe(15);
   });
+
+  it.each(['setHour', 'setMinute', 'setSecond'] as const)(
+    'ignores a cleared (null) %s selection, leaving the value untouched',
+    (setter) => {
+      // Arrange
+      const { fixture, host, picker } = setupTimeSelect();
+      const before = DateTime.fromObject(
+        { year: 2025, month: 6, day: 15, hour: 8, minute: 30, second: 5 },
+        { zone: 'utc' },
+      );
+      host.picked.set(before);
+      fixture.detectChanges();
+      // Act
+      (picker() as any)[setter](null);
+      fixture.detectChanges();
+      // Assert
+      expect(host.picked()).toBe(before);
+    },
+  );
 
   it('renders meridiem select and exercises onMeridiem (lines 291, 301, 303-304, 306)', () => {
     const { fixture, host, trigger, picker } = setupTimeSelect();

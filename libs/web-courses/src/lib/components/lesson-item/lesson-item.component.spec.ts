@@ -442,6 +442,21 @@ describe('LessonItemComponent video-state refetch + effect branches', () => {
     expect(c.video()?.state).toBe('READY');
   });
 
+  it('onVideoStateChanged() keeps the current video when the refetch fails', () => {
+    // Arrange
+    const getVideo = vi.fn()
+      .mockReturnValueOnce(of(UPLOADED))
+      .mockReturnValueOnce(throwError(() => new Error('boom')));
+    const c = bootstrap(getVideo, LESSON_WITH_VIDEO).componentInstance;
+
+    // Act
+    c.onVideoStateChanged('READY');
+
+    // Assert
+    expect(getVideo).toHaveBeenCalledTimes(2);
+    expect(c.video()).toEqual(UPLOADED);
+  });
+
   it('onVideoStateChanged() still emits but skips the refetch when the lesson has no video', () => {
     const getVideo = vi.fn();
     const c = bootstrap(getVideo, LESSON).componentInstance; // LESSON has no videoId
@@ -576,6 +591,23 @@ describe('LessonItemComponent FAILED-video removal (dead-end escape hatch)', () 
 
     expect(del).not.toHaveBeenCalled();
     expect(fixture.componentInstance.video()).toEqual(FAILED_VIDEO);
+  });
+
+  it('confirming is a no-op when the lesson lost its video while the dialog was open', async () => {
+    // Arrange
+    const del = vi.fn();
+    const fixture = bootstrap({ getVideo: vi.fn().mockReturnValue(of(FAILED_VIDEO)), delete: del });
+    const changed = vi.spyOn(fixture.componentInstance.videoChanged, 'emit');
+    fixture.componentInstance.requestVideoRemoval();
+    fixture.componentRef.setInput('lesson', LESSON); // parent refresh detached the video
+
+    // Act
+    await fixture.componentInstance.onVideoRemovalClosed(true);
+
+    // Assert
+    expect(del).not.toHaveBeenCalled();
+    expect(changed).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.videoActionError()).toBeNull();
   });
 
   it('surfaces an error and keeps the video when the delete fails', async () => {

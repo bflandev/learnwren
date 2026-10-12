@@ -102,6 +102,52 @@ describe('AdminCategoriesPageComponent', () => {
     expect(fixture.componentInstance.reassignOptions().map((c) => c.id)).toEqual(['DESIGN']);
   });
 
+  it('renders the delete panel with the preselected target named on the select trigger', async () => {
+    // Arrange
+    const fixture = await setup();
+
+    // Act
+    fixture.componentInstance.startDelete(cat('BUSINESS', 'Business'));
+    fixture.detectChanges();
+
+    // Assert
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="reassign-select"]')?.textContent?.trim()).toBe('Design');
+    expect(el.querySelector<HTMLButtonElement>('[data-testid="delete-confirm-button"]')?.disabled).toBe(false);
+  });
+
+  it('onReassignChange stores a picked category id as the target', async () => {
+    // Arrange
+    svc.list.mockResolvedValue([cat('BUSINESS', 'Business'), cat('DESIGN', 'Design'), cat('ART', 'Art')]);
+    const fixture = await setup();
+    fixture.componentInstance.startDelete(cat('BUSINESS', 'Business'));
+
+    // Act
+    fixture.componentInstance.onReassignChange('ART');
+    fixture.detectChanges();
+
+    // Assert
+    expect(fixture.componentInstance.reassignTo()).toBe('ART');
+    expect(fixture.componentInstance.reassignToName()).toBe('Art');
+  });
+
+  it('onReassignChange normalises a cleared (null) selection to no target and blocks confirm', async () => {
+    // Arrange
+    const fixture = await setup();
+    fixture.componentInstance.startDelete(cat('BUSINESS', 'Business'));
+
+    // Act
+    fixture.componentInstance.onReassignChange(null);
+    fixture.detectChanges();
+
+    // Assert
+    const el = fixture.nativeElement as HTMLElement;
+    expect(fixture.componentInstance.reassignTo()).toBe('');
+    expect(fixture.componentInstance.reassignToName()).toBeNull();
+    expect(el.querySelector('[data-testid="reassign-select"]')?.textContent?.trim()).toBe('Choose a category…');
+    expect(el.querySelector<HTMLButtonElement>('[data-testid="delete-confirm-button"]')?.disabled).toBe(true);
+  });
+
   it('confirmDelete passes the reassignment target and reloads', async () => {
     const fixture = await setup();
     fixture.componentInstance.startDelete(cat('BUSINESS', 'Business'));

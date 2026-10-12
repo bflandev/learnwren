@@ -85,19 +85,19 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
   }
 
   async promote(): Promise<void> {
-    await this.changeRole(() => this.svc.promote(this.user()!.id), 'Promoted to Instructor.');
+    await this.changeRole((id) => this.svc.promote(id), 'Promoted to Instructor.');
   }
 
   async confirmDemote(): Promise<void> {
-    await this.changeRole(() => this.svc.demote(this.user()!.id), 'Demoted to Student.');
+    await this.changeRole((id) => this.svc.demote(id), 'Demoted to Student.');
   }
 
   async suspend(): Promise<void> {
-    await this.changeStatus(() => this.svc.suspend(this.user()!.id), 'User suspended.');
+    await this.changeStatus((id) => this.svc.suspend(id), 'User suspended.');
   }
 
   async unsuspend(): Promise<void> {
-    await this.changeStatus(() => this.svc.unsuspend(this.user()!.id), 'User unsuspended.');
+    await this.changeStatus((id) => this.svc.unsuspend(id), 'User unsuspended.');
   }
 
   async confirmDelete(): Promise<void> {
@@ -116,18 +116,21 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
   }
 
   private async changeRole(
-    action: () => Promise<AdminUserRoleResponse>,
+    action: (id: AdminUserDetail['id']) => Promise<AdminUserRoleResponse>,
     successMsg: string,
   ): Promise<void> {
+    const id = this.user()!.id;
     this.busy.set(true);
     this.actionError.set(undefined);
     this.actionSuccess.set(undefined);
     try {
-      const res = await action();
-      this.user.update((u) => (u ? { ...u, role: res.role } : u));
+      const res = await action(id);
+      if (!this.isShowing(id)) return;
+      this.user.update((u) => ({ ...u!, role: res.role }));
       this.confirmingDemote.set(false);
       this.actionSuccess.set(successMsg);
     } catch (err) {
+      if (!this.isShowing(id)) return;
       this.actionError.set(this.messageFor(err));
     } finally {
       this.busy.set(false);
@@ -135,21 +138,33 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
   }
 
   private async changeStatus(
-    action: () => Promise<AdminUserStatusResponse>,
+    action: (id: AdminUserDetail['id']) => Promise<AdminUserStatusResponse>,
     successMsg: string,
   ): Promise<void> {
+    const id = this.user()!.id;
     this.busy.set(true);
     this.actionError.set(undefined);
     this.actionSuccess.set(undefined);
     try {
-      const res = await action();
-      this.user.update((u) => (u ? { ...u, status: res.status } : u));
+      const res = await action(id);
+      if (!this.isShowing(id)) return;
+      this.user.update((u) => ({ ...u!, status: res.status }));
       this.actionSuccess.set(successMsg);
     } catch (err) {
+      if (!this.isShowing(id)) return;
       this.actionError.set(this.messageFor(err));
     } finally {
       this.busy.set(false);
     }
+  }
+
+  /**
+   * Role/status actions are non-cancellable Promises: if the admin navigated to
+   * another user while one was in flight, its result belongs to the old user and
+   * must not be painted onto the user now on screen.
+   */
+  private isShowing(id: AdminUserDetail['id']): boolean {
+    return this.user()?.id === id;
   }
 
   private messageFor(err: unknown): string {

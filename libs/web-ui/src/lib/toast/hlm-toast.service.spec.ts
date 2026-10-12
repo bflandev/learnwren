@@ -447,6 +447,26 @@ describe('HlmToastService — overlay re-assertion (top layer)', () => {
     expect(showPopover).not.toHaveBeenCalled();
   });
 
+  it('swallows a popover state race during re-assertion and keeps the toast', async () => {
+    // Arrange — hidePopover throws as it would if the popover closed between
+    // the :popover-open check and the call.
+    TestBed.configureTestingModule({ providers: [provideHlmToast()] });
+    const svc = TestBed.inject(HlmToastService);
+    svc.show({ severity: 'info', summary: 'lingering', duration: 0 });
+    const { showPopover, hidePopover } = armPopoverStub(svc);
+    hidePopover.mockImplementation(() => {
+      throw new DOMException('not open', 'InvalidStateError');
+    });
+
+    // Act
+    await addOverlay('backdrop');
+
+    // Assert — the throw stopped the re-show but did not escape or drop the toast.
+    expect(hidePopover).toHaveBeenCalledTimes(1);
+    expect(showPopover).not.toHaveBeenCalled();
+    expect(svc.toasts().map((t) => t.summary)).toEqual(['lingering']);
+  });
+
   it('does NOT re-assert when no toast is visible', async () => {
     TestBed.configureTestingModule({ providers: [provideHlmToast()] });
     const svc = TestBed.inject(HlmToastService);

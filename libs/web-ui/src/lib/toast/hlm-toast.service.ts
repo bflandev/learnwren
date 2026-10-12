@@ -80,7 +80,6 @@ export class HlmToastService {
   private _attached = false;
   private _nextId = 0;
   private _overlayRef: OverlayRef | null = null;
-  private _topLayerObserver: MutationObserver | null = null;
 
   public show(input: ToastInput): number {
     this._ensureAttached();
@@ -157,11 +156,11 @@ export class HlmToastService {
   // lifetime (root service) and is cheap: it bails immediately when no toast is
   // visible.
   private _observeModalOverlays(): void {
-    // Stryker disable next-line ConditionalExpression: equivalent — the sole caller (_ensureAttached) runs once behind the _attached flag, so this re-entry guard can never fire; removing it changes nothing observable
-    if (this._topLayerObserver) return;
+    // Called once, from _ensureAttached behind its _attached flag, so no
+    // re-entry guard is needed.
     if (typeof MutationObserver === 'undefined') return;
     const container = this._overlayContainer.getContainerElement();
-    this._topLayerObserver = new MutationObserver((mutations) => {
+    const observer = new MutationObserver((mutations) => {
       if (this._toasts().length === 0) return;
       const otherOverlayOpened = mutations.some((m) =>
         Array.from(m.addedNodes).some(
@@ -170,7 +169,7 @@ export class HlmToastService {
       );
       if (otherOverlayOpened) this._reassertTopLayer();
     });
-    this._topLayerObserver.observe(container, {
+    observer.observe(container, {
       childList: true,
       subtree: true,
     });
@@ -201,8 +200,9 @@ export class HlmToastService {
   // Feature-detected: in non-top-layer fallbacks (older engines, jsdom) the
   // Popover API is absent and this is a no-op.
   private _reassertTopLayer(): void {
-    const host = this._overlayRef?.hostElement as PopoverHost | undefined;
-    if (!host || typeof host.showPopover !== 'function') return;
+    // The observer that calls this is created right after _overlayRef is set.
+    const host = (this._overlayRef as OverlayRef).hostElement as PopoverHost;
+    if (typeof host.showPopover !== 'function') return;
     if (!host.hasAttribute('popover') || !host.matches(':popover-open')) return;
     requestAnimationFrame(() => {
       if (this._toasts().length === 0 || !host.matches(':popover-open')) return;
