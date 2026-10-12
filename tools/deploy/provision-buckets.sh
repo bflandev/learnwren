@@ -47,8 +47,8 @@ echo "== Public buckets (cover/picture: allUsers read via storage.googleapis.com
 for b in "${PUBLIC_BUCKETS[@]}"; do
   create_bucket "${b}"
   gcloud storage buckets add-iam-policy-binding "gs://${b}" \
-    --member=allUsers --role=roles/storage.objectViewer >/dev/null
-  echo "   gs://${b}: allUsers objectViewer granted"
+    --member=allUsers --role=roles/storage.legacyObjectReader >/dev/null
+  echo "   gs://${b}: allUsers legacyObjectReader granted (get only; objectViewer would let anyone list every object)"
 done
 
 echo "== Bucket CORS =="

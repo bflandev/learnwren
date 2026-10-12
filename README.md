@@ -73,7 +73,6 @@ learnwren/
 │   ├── promote-to-instructor.ts                    # CLI: promote a STUDENT to INSTRUCTOR via custom claim
 │   ├── promote-to-admin.ts                         # CLI: promote a STUDENT or INSTRUCTOR to ADMIN (either backend)
 │   ├── firebase-admin-init.ts                      # Shared admin-SDK bootstrap for CLI tools
-│   ├── migrate-auth-2026-05-cleanup-unverified.ts  # Pre-deploy script: prune unverified accounts
 │   ├── crap/                                       # CRAP score reporter (consumes Vitest coverage)
 │   └── mutation/                                   # Stryker mutation-test report aggregator
 └── docs/
