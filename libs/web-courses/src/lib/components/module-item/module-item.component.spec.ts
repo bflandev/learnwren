@@ -136,6 +136,16 @@ describe('ModuleItemComponent', () => {
     expect(spy).toHaveBeenCalledWith('Renamed');
   });
 
+  it('a blur after Escape (input removal) does not save the draft', () => {
+    const c = build().componentInstance;
+    const spy = vi.spyOn(c.renameModule, 'emit');
+    c.startEdit();
+    c.draftTitle.set('Discarded');
+    c.cancel();
+    c.commit(); // the removed input's blur
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it('cancel() exits edit mode without emitting', () => {
     const c = build().componentInstance;
     const spy = vi.spyOn(c.renameModule, 'emit');

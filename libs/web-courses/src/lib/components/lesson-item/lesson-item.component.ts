@@ -86,6 +86,9 @@ export class LessonItemComponent {
   }
 
   commit(): void {
+    // Escape/Enter remove the input, and the removal can fire blur → commit()
+    // again: without this, Escape saved the draft and Enter renamed twice.
+    if (!this.editing()) return;
     const next = this.draftTitle().trim();
     if (next.length === 0 || next === this.lesson().title) {
       this.editing.set(false);

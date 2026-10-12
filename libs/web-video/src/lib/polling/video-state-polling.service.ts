@@ -1,13 +1,15 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { EMPTY, Observable, defer, timer } from 'rxjs';
-import { expand, switchMap, takeWhile } from 'rxjs/operators';
+import { expand, retry, switchMap, takeWhile } from 'rxjs/operators';
 
 import type { Video, VideoId } from '@learnwren/shared-data-models';
 
 const TERMINAL: ReadonlyArray<Video['state']> = ['READY', 'FAILED'];
 const DEFAULT_INTERVAL_MS = 5_000;
 const DEFAULT_CAP_MS = 30 * 60 * 1_000;
+// One blip (network, cold start, 5xx) must not end polling for good.
+const MAX_FETCH_RETRIES = 5;
 
 export interface PollOptions {
   intervalMs?: number;
@@ -23,7 +25,9 @@ export class VideoStatePollingService {
     const capMs = opts.capMs ?? DEFAULT_CAP_MS;
     const start = Date.now();
     const fetch = (): Observable<Video> =>
-      this.http.get<Video>(`/api/videos/${vid}`, { withCredentials: true });
+      this.http
+        .get<Video>(`/api/videos/${vid}`, { withCredentials: true })
+        .pipe(retry({ count: MAX_FETCH_RETRIES, delay: intervalMs }));
     return defer(fetch).pipe(
       expand((v) => {
         // Stryker disable next-line ConditionalExpression: redundant fast-path. The inclusive takeWhile below stops the stream on the first terminal value and synchronously unsubscribes this expand (cancelling any pending timer), so removing this guard schedules a poll that is torn down before it can fire — no observable difference. Equivalent mutant.

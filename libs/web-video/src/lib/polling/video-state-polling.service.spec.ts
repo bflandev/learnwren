@@ -51,6 +51,46 @@ describe('VideoStatePollingService', () => {
     }
   });
 
+  it('retries a failed fetch on the poll interval instead of dying', () => {
+    vi.useFakeTimers();
+    try {
+      const states: Video['state'][] = [];
+      let errored = false;
+      const sub = svc
+        .poll('v1' as VideoId, { intervalMs: 100, capMs: 60_000 })
+        .subscribe({ next: (v) => states.push(v.state), error: () => (errored = true) });
+      httpMock.expectOne('/api/videos/v1').flush(video('TRANSCODING'));
+      vi.advanceTimersByTime(100);
+      httpMock.expectOne('/api/videos/v1').flush('down', { status: 503, statusText: 'Unavailable' });
+      vi.advanceTimersByTime(100);
+      httpMock.expectOne('/api/videos/v1').flush(video('READY'));
+      expect(states).toEqual(['TRANSCODING', 'READY']);
+      expect(errored).toBe(false);
+      sub.unsubscribe();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives up with an error after 5 consecutive failed retries', () => {
+    vi.useFakeTimers();
+    try {
+      let errored = false;
+      const sub = svc
+        .poll('v1' as VideoId, { intervalMs: 100, capMs: 60_000 })
+        .subscribe({ error: () => (errored = true) });
+      for (let i = 0; i < 6; i++) {
+        httpMock.expectOne('/api/videos/v1').flush('down', { status: 503, statusText: 'Unavailable' });
+        vi.advanceTimersByTime(100);
+      }
+      expect(errored).toBe(true);
+      httpMock.expectNone('/api/videos/v1');
+      sub.unsubscribe();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('emits the initial video then polls until READY', async () => {
     const collected: Video['state'][] = [];
     const sub = svc.poll('v1' as VideoId, { intervalMs: 10, capMs: 60_000 }).subscribe((v) => {

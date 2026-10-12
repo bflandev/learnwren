@@ -49,6 +49,9 @@ export class ModuleItemComponent {
   }
 
   commit(): void {
+    // Escape/Enter remove the input, and the removal can fire blur → commit()
+    // again: without this, Escape saved the draft and Enter renamed twice.
+    if (!this.editing()) return;
     const next = this.draftTitle().trim();
     if (next.length > 0 && next !== this.module().title) {
       this.renameModule.emit(next);

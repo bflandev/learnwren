@@ -163,8 +163,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     if (courseId === this.courseId && lessonId === this.lessonId && this.view() !== null) {
       return;
     }
-    this.saver?.stop();
-    this.saver = null;
+    this.flushAndStopSaver();
     this.hasResumed = false;
     this.markBusy.set(false);
     this.markError.set(null);
@@ -178,6 +177,17 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     window.removeEventListener('pagehide', this.onPageHide);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.desktopQuery.removeEventListener('change', this.onDesktopChange);
+    this.flushAndStopSaver();
+  }
+
+  /**
+   * Leaving a lesson by any route (back link, header nav, browser history)
+   * must not drop up to one save interval of progress. flush() reads the
+   * player time synchronously, so it is captured before stop() clears it;
+   * the server keeps the max, so a late or zero value never regresses it.
+   */
+  private flushAndStopSaver(): void {
+    void this.saver?.flush();
     this.saver?.stop();
     this.saver = null;
   }
