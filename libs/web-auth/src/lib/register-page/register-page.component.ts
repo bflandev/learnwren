@@ -7,6 +7,8 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
+import { PASSWORD_MAX_LENGTH } from '@learnwren/shared-data-models';
+
 import {
   HlmAlert,
   HlmButton,
@@ -111,7 +113,7 @@ export class RegisterPageComponent {
       return 'Display name is required and must be 80 characters or fewer.';
     }
     if (result.code === 'PASSWORD_TOO_LONG') {
-      return 'Password must be 256 characters or fewer.';
+      return `Password must be ${PASSWORD_MAX_LENGTH} characters or fewer.`;
     }
     return 'Something went wrong. Please try again.';
   }
