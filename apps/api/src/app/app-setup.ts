@@ -18,6 +18,11 @@ export function assertProdSafeEnv(env: NodeJS.ProcessEnv = process.env): void {
       'Refusing to start: LEARNWREN_TEST_OUTBOX_ENABLED=1 is incompatible with NODE_ENV=production',
     );
   }
+  // Emailed links (verify, reset, email change, new module) are built on it;
+  // the localhost fallback would mail unusable links.
+  if (!env['LEARNWREN_PUBLIC_URL']?.trim()) {
+    throw new Error('Refusing to start: LEARNWREN_PUBLIC_URL must be set in production');
+  }
 }
 
 /**

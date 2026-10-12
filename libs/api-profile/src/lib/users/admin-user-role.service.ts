@@ -120,7 +120,7 @@ export class AdminUserRoleService {
         const snap = await txn.get(ref);
         if (!snap.exists) return;
         if ((snap.data() as InstructorApplication).status !== 'APPROVED') return;
-        (txn as unknown as { update(ref: unknown, data: Record<string, unknown>): void }).update(
+        txn.update(
           ref,
           { status: 'DECLINED', resolvedAt },
         );
@@ -173,7 +173,7 @@ export class AdminUserRoleService {
       }
 
       // Claim the role inside the same transaction.
-      (txn as unknown as { update(ref: unknown, data: Record<string, unknown>): void }).update(
+      txn.update(
         this.firestore.collection(USERS).doc(uid),
         { role: toRole, updatedAt },
       );

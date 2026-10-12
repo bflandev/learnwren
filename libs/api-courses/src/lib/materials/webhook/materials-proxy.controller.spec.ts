@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ObjectStorage } from '@learnwren/api-object-storage';
 import type { Material, MaterialId } from '@learnwren/shared-data-models';
 
-import { MaterialNotFoundException } from '../errors/material.exception';
+import { InvalidMaterialStateException, MaterialNotFoundException } from '../errors/material.exception';
 import { MaterialsProxyController } from './materials-proxy.controller';
 
 const material = {
@@ -15,6 +15,7 @@ const material = {
   contentType: 'application/pdf',
   originalFilename: 'doc.pdf',
   sizeBytes: 11,
+  state: 'READY',
   storage: { bucket: 'b', path: 'materials/m1/source.pdf' },
 } as Material;
 
@@ -221,5 +222,15 @@ describe('MaterialsProxyController.download', () => {
   it('404s when the material does not exist', async () => {
     const ctrl = new MaterialsProxyController(repoReturning(null), makeStorage() as unknown as ObjectStorage);
     await expect(ctrl.download('m1' as MaterialId, makeRes() as never)).rejects.toBeInstanceOf(MaterialNotFoundException);
+  });
+
+  it('refuses a material whose upload is not verified yet, without opening the object', async () => {
+    const storage = makeStorage();
+    const ctrl = new MaterialsProxyController(
+      repoReturning({ ...material, state: 'PENDING_UPLOAD' } as Material),
+      storage as unknown as ObjectStorage,
+    );
+    await expect(ctrl.download('m1' as MaterialId, makeRes() as never)).rejects.toBeInstanceOf(InvalidMaterialStateException);
+    expect(storage.openReadStream).not.toHaveBeenCalled();
   });
 });

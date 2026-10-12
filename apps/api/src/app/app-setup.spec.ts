@@ -20,9 +20,18 @@ describe('assertProdSafeEnv', () => {
     ).toThrow('Refusing to start: LEARNWREN_TEST_OUTBOX_ENABLED=1 is incompatible with NODE_ENV=production');
   });
 
+  it.each([[{ NODE_ENV: 'production' }], [{ NODE_ENV: 'production', LEARNWREN_PUBLIC_URL: '  ' }]])(
+    'refuses a production start without LEARNWREN_PUBLIC_URL (%j)',
+    (env) => {
+      expect(() => assertProdSafeEnv(env)).toThrow(
+        'Refusing to start: LEARNWREN_PUBLIC_URL must be set in production',
+      );
+    },
+  );
+
   it.each([
-    [{ NODE_ENV: 'production' }],
-    [{ NODE_ENV: 'production', LEARNWREN_TEST_OUTBOX_ENABLED: '0' }],
+    [{ NODE_ENV: 'production', LEARNWREN_PUBLIC_URL: 'https://learnwren.com' }],
+    [{ NODE_ENV: 'production', LEARNWREN_PUBLIC_URL: 'https://learnwren.com', LEARNWREN_TEST_OUTBOX_ENABLED: '0' }],
     [{ NODE_ENV: 'development', LEARNWREN_TEST_OUTBOX_ENABLED: '1' }],
     [{ LEARNWREN_TEST_OUTBOX_ENABLED: '1' }],
   ])('allows %j', (env) => {

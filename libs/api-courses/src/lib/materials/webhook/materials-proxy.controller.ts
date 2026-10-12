@@ -7,7 +7,11 @@ import { FirebaseSessionGuard } from '@learnwren/api-auth';
 import { OBJECT_STORAGE, type ObjectStorage, pipeToResponse } from '@learnwren/api-object-storage';
 import type { MaterialId } from '@learnwren/shared-data-models';
 
-import { MaterialNotFoundException, UploadBodyInvalidException } from '../errors/material.exception';
+import {
+  InvalidMaterialStateException,
+  MaterialNotFoundException,
+  UploadBodyInvalidException,
+} from '../errors/material.exception';
 import { MaterialAccessGuard } from '../material-access.guard';
 import { MaterialOwnerGuard } from '../material-owner.guard';
 import { attachmentDisposition } from '../attachment-disposition';
@@ -80,6 +84,8 @@ export class MaterialsProxyController {
   async download(@Param('matId') matId: MaterialId, @Res() res: Response): Promise<void> {
     const material = await this.repo.get(matId);
     if (!material) throw new MaterialNotFoundException();
+    // Same gate as buildDownloadUrl: no serving a partial, unverified object.
+    if (material.state !== 'READY') throw new InvalidMaterialStateException(material.state);
     res.set('Content-Type', material.contentType);
     res.set('Content-Disposition', attachmentDisposition(material.originalFilename));
     pipeToResponse(this.storage.openReadStream({ bucket: material.storage.bucket, path: material.storage.path }), res);

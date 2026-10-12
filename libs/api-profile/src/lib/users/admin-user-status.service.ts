@@ -88,7 +88,7 @@ export class AdminUserStatusService {
       }
 
       // Claim the status inside the same transaction.
-      (txn as unknown as { update(ref: unknown, data: Record<string, unknown>): void }).update(
+      txn.update(
         this.firestore.collection(USERS).doc(targetUid),
         { status: 'SUSPENDED', updatedAt },
       );
@@ -140,7 +140,7 @@ export class AdminUserStatusService {
       }
 
       // Claim the status change inside the same transaction.
-      (txn as unknown as { update(ref: unknown, data: Record<string, unknown>): void }).update(
+      txn.update(
         this.firestore.collection(USERS).doc(targetUid),
         { status: 'ACTIVE', updatedAt },
       );

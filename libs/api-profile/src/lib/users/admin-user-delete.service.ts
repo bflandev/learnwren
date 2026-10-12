@@ -3,9 +3,10 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { IDENTITY_PROVIDER, type IdentityProvider } from '@learnwren/api-auth';
 import { DOCUMENT_STORE, type DocumentStore, type Transaction } from '@learnwren/api-document-store';
 import { nowIso } from '@learnwren/shared-data-models';
-import type { CourseId, UserId, UserStatus } from '@learnwren/shared-data-models';
+import type { CourseId, UserId } from '@learnwren/shared-data-models';
 
 import { AdminUsersRepository } from './admin-users.repository';
+import { resolveStatus } from './user-status';
 import {
   AdminUsersException,
   CannotActOnSelfException,
@@ -28,14 +29,6 @@ const COURSE_IDS_IN_ERROR = 10;
  * revoking first would leave a failed delete with no session to retry from.
  */
 export type TeardownOrder = 'access-first' | 'data-first';
-
-/** Resolved status (absent Firestore field ≡ ACTIVE). */
-function resolveStatus(raw?: string): UserStatus {
-  // Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral: resolveStatus's result is only ever consumed at the `=== 'DELETED'` re-entry check; none of these mutants change whether a DELETED input still yields 'DELETED' (SUSPENDED/ACTIVE distinctions are never read), so they are behaviourally equivalent here.
-  if (raw === 'SUSPENDED' || raw === 'DELETED') return raw;
-  // Stryker disable next-line StringLiteral: the non-special fallback is only compared via `!== 'DELETED'`; '' and 'ACTIVE' are indistinguishable to the sole consumer, so this is equivalent.
-  return 'ACTIVE';
-}
 
 /**
  * Admin hard-delete of a user account.
@@ -131,7 +124,7 @@ export class AdminUserDeleteService {
 
       // Claim: write status = DELETED inside the transaction.
       const updatedAt = nowIso();
-      (txn as unknown as { update(ref: unknown, data: Record<string, unknown>): void }).update(
+      txn.update(
         this.firestore.collection(USERS).doc(targetUid),
         { status: 'DELETED', updatedAt },
       );

@@ -11,6 +11,8 @@ import {
 } from '@learnwren/api-document-store';
 import type { Course, CourseId, Enrollment, UserId } from '@learnwren/shared-data-models';
 
+import { resolveStatus } from './user-status';
+
 const ENROLLMENTS = 'enrollments';
 const COURSES = 'courses';
 const USERS = 'users';
@@ -101,9 +103,7 @@ export class AdminUsersRepository {
     let count = 0;
     for (const doc of snap.docs) {
       const data = doc.data() as { status?: string };
-      // Stryker disable next-line StringLiteral: the fallback value is only tested against !== 'SUSPENDED' && !== 'DELETED'; any non-SUSPENDED/non-DELETED string (incl. '') yields the same count, so 'ACTIVE' vs '' is behaviourally equivalent.
-      const s = data.status ?? 'ACTIVE';
-      if (s !== 'SUSPENDED' && s !== 'DELETED') count++;
+      if (resolveStatus(data.status) === 'ACTIVE') count++;
     }
     return count;
   }
