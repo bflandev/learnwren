@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, type ParamMap, provideRouter, convertToParamMap } from '@angular/router';
 import { BehaviorSubject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { avatarToneFor, deriveInitials } from '@learnwren/web-ui';
 
 import { AdminUsersService } from '../admin-users.service';
 import { AdminUserDetailPageComponent } from './admin-user-detail-page.component';
@@ -81,6 +82,13 @@ describe('AdminUserDetailPageComponent', () => {
     expect(text).toContain('Ada Lovelace');
     expect(text).toContain('ada@example.com');
     expect(text).toContain('INSTRUCTOR');
+  });
+
+  it('renders the avatar with the tone and initials derived from the user', async () => {
+    const fixture = await setup('u1');
+    const avatar = (fixture.nativeElement as HTMLElement).querySelector('hlm-avatar') as HTMLElement;
+    expect(avatar.getAttribute('data-tone')).toBe(avatarToneFor('u1'));
+    expect(avatar.textContent?.trim()).toBe(deriveInitials('Ada Lovelace'));
   });
 
   it('renders the enrollments section with a deleted-course fallback row', async () => {
@@ -803,5 +811,31 @@ describe('AdminUserDetailPageComponent', () => {
     // Assert
     expect(fixture.componentInstance.actionError()).toBeUndefined();
     expect(fixture.componentInstance.busy()).toBe(false);
+  });
+
+  it('drops a promote result that settles after navigating to a user who failed to load', async () => {
+    // Arrange: u1 loads; u2 is not found, so no user is on screen when u1's promote settles.
+    let settle!: (v: unknown) => void;
+    svc.promote = vi.fn(() => new Promise((r) => { settle = r; }));
+    svc.getDetail = vi.fn(async (uid: string) => {
+      if (uid === 'u2') throw { error: { error: { code: 'USER_NOT_FOUND' } } };
+      return detail({ id: uid, role: 'STUDENT' });
+    });
+    const subject = new BehaviorSubject<ParamMap>(convertToParamMap({ uid: 'u1' }));
+    const fixture = createWithParamSubject(subject);
+    await fixture.whenStable();
+    const c = fixture.componentInstance;
+    const pending = c.promote();
+
+    // Act
+    subject.next(convertToParamMap({ uid: 'u2' }));
+    await fixture.whenStable();
+    settle({ id: 'u1', role: 'INSTRUCTOR' });
+
+    // Assert: settles quietly, paints nothing onto the empty page.
+    await expect(pending).resolves.toBeUndefined();
+    expect(c.user()).toBeUndefined();
+    expect(c.actionSuccess()).toBeUndefined();
+    expect(c.actionError()).toBeUndefined();
   });
 });

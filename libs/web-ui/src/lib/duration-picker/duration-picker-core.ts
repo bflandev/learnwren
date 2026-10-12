@@ -105,15 +105,10 @@ export function parseDuration(
   if (normalized.length !== template.length) return null;
   // A full-template-length applyMask output has every digit slot filled, so
   // match() finds one complete numeric run per segment (never null, never NaN).
+  // Segments run [days?] hours minutes [seconds [milliseconds]] — the template
+  // only carries the trailing ones its precision asks for, so absent ones default to 0.
   const nums = (normalized.match(/[0-9]+/g) as RegExpMatchArray).map(Number);
-  let i = 0;
-  const days = showDays ? nums[i++] : 0;
-  const hours = nums[i++];
-  const minutes = nums[i++];
-  const seconds = precision.seconds || precision.milliseconds ? nums[i++] : 0;
-  // Stryker disable next-line UpdateOperator: equivalent — post-op value is
-  // read before the update and `i` is never used again after this line.
-  const milliseconds = precision.milliseconds ? nums[i++] : 0;
+  const [days, hours, minutes, seconds = 0, milliseconds = 0] = showDays ? nums : [0, ...nums];
   // fromObject over finite integers always yields a valid Duration.
   return Duration.fromObject({ days, hours, minutes, seconds, milliseconds });
 }

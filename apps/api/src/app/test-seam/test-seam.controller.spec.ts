@@ -72,6 +72,7 @@ describe('TestSeamController', () => {
   });
 
   it.each([
+    [[]],
     [['courses']],
     [['courses', 'a', 'modules']],
     [['courses', '..']],
@@ -79,6 +80,7 @@ describe('TestSeamController', () => {
     [['.', 'a']],
   ])('rejects bad document path %j with 400', async (path) => {
     await expect(controller.getDoc(path)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.getDoc(path)).rejects.toThrow('Document path must be collection/doc[/collection/doc...]');
     await expect(controller.setDoc(path, {})).rejects.toBeInstanceOf(BadRequestException);
     await expect(controller.updateDoc(path, {})).rejects.toBeInstanceOf(BadRequestException);
   });

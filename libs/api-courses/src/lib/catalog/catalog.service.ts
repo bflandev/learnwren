@@ -119,7 +119,6 @@ function publishedAt(c: Course): ISODateString {
   return c.publishedAt ?? c.createdAt;
 }
 
-// Stryker disable next-line BlockStatement: equivalent — compareNewest is only reached via the NEWEST/default branch and the POPULAR enrollmentCount tiebreak; in both, the input comes from CoursesRepository.listPublished already ordered publishedAt-desc, so an emptied body (no comparison) leaves V8's stable sort at the same publishedAt-desc order.
 function compareNewest(a: Course, b: Course): number {
   return (publishedAt(b) as string).localeCompare(publishedAt(a) as string);
 }
@@ -133,7 +132,6 @@ function sortCourses(courses: Course[], sort: CatalogSort): Course[] {
       (a, b) => (b.enrollmentCount ?? 0) - (a.enrollmentCount ?? 0) || compareNewest(a, b),
     );
   } else {
-    // Stryker disable next-line MethodExpression: equivalent — listPublished already returns publishedAt-desc and the NEWEST/default re-sort by compareNewest produces that same order (PUBLISHED courses always carry publishedAt), so dropping the redundant re-sort leaves the order unchanged (proven: emptying the block leaves the full catalog spec green).
     copy.sort(compareNewest);
   }
   return copy;

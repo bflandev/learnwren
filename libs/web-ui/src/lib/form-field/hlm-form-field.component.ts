@@ -107,7 +107,7 @@ export class HlmFormFieldHint implements OnInit, OnDestroy {
 
   // The id registered in ngOnInit (which always runs first), kept so a later
   // id change still unregisters the right entry.
-  private registeredId = '';
+  private registeredId!: string; // set in ngOnInit, before any destroy
 
   public ngOnInit(): void {
     this.registeredId = this.id();
@@ -142,7 +142,7 @@ export class HlmFormFieldError implements OnInit, OnDestroy {
 
   // The id registered in ngOnInit (which always runs first), kept so a later
   // id change still unregisters the right entry.
-  private registeredId = '';
+  private registeredId!: string; // set in ngOnInit, before any destroy
 
   public ngOnInit(): void {
     this.registeredId = this.id();

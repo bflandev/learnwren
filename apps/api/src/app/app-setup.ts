@@ -45,6 +45,7 @@ export function readAllowedOrigins(env: NodeJS.ProcessEnv = process.env): string
  */
 export function configureApp(app: NestExpressApplication, env: NodeJS.ProcessEnv = process.env): void {
   app.use(helmet());
+  // Stryker disable next-line ObjectLiteral,StringLiteral: equivalent — body-parser's default limit is '100kb' (and `limit || '100kb'` maps '' to it); kept explicit so the cap is visible here.
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
   // Trust the configured proxy hops (default 1: Firebase Hosting, or the

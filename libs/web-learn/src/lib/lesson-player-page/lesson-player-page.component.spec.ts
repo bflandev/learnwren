@@ -191,6 +191,33 @@ describe('LessonPlayerPageComponent', () => {
     expect(fixture.componentInstance.markBusy()).toBe(false);
   });
 
+  it("a stale mark-complete settling does not clear the new lesson's in-flight markBusy", async () => {
+    // Arrange: A's completion is in flight; the user moves to B and marks B too.
+    const subject = configureWithParamMapSubject({ courseId: 'c-1', lessonId: 'l-1' });
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView({}, { completedAt: null, lastWatchedSeconds: 0 }));
+    await fixture.whenStable();
+    const pA = fixture.componentInstance.onMarkComplete();
+    const completeA = http.expectOne('/api/learn/courses/c-1/lessons/l-1/complete');
+    subject.next(convertToParamMap({ courseId: 'c-1', lessonId: 'l-2' }));
+    http
+      .expectOne('/api/learn/courses/c-1/lessons/l-2')
+      .flush(makeView({ id: 'l-2' as LessonView['lesson']['id'], title: 'Lesson B' }, { completedAt: null, lastWatchedSeconds: 0 }));
+    await fixture.whenStable();
+    const pB = fixture.componentInstance.onMarkComplete();
+    const completeB = http.expectOne('/api/learn/courses/c-1/lessons/l-2/complete');
+
+    // Act: A settles while B is still in flight.
+    completeA.flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+    await pA;
+
+    // Assert: B still shows as busy until its own request settles.
+    expect(fixture.componentInstance.markBusy()).toBe(true);
+    completeB.flush({ completedAt: '2026-05-25T12:01:00.000Z' });
+    await pB;
+    expect(fixture.componentInstance.markBusy()).toBe(false);
+  });
+
   it('sets state to NOT_FOUND and fires no request when courseId param is missing', async () => {
     configure({ courseId: null });
     const { fixture, http } = create();

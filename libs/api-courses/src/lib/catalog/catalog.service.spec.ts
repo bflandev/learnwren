@@ -696,3 +696,30 @@ describe('CatalogService — cover image projection', () => {
     expect(detail.coverImageUrl).toBe('https://cdn/x.jpg?v=1');
   });
 });
+
+describe('CatalogService.listCatalogue — sorts on its own, whatever order the repository returns', () => {
+  // listPublished happens to return publishedAt-desc today; the service must not
+  // depend on that, so these feed it the reverse order through a stub repository.
+  function serviceOver(courses: Course[]): CatalogService {
+    const repo = { listPublished: async () => courses } as unknown as CoursesRepository;
+    const directory = new InstructorDirectory(createInMemoryDocumentStore() as never);
+    return new CatalogService(repo, directory);
+  }
+  const older = course({ id: 'older' as CourseId, publishedAt: '2026-01-01T00:00:00.000Z' as ISODateString });
+  const newer = course({ id: 'newer' as CourseId, publishedAt: '2026-03-01T00:00:00.000Z' as ISODateString });
+
+  it('NEWEST re-sorts oldest-first input to newest-first', async () => {
+    const page = await serviceOver([older, newer]).listCatalogue({ sort: 'NEWEST' });
+
+    expect(page.items.map((i) => i.id)).toEqual(['newer', 'older']);
+  });
+
+  it('POPULAR breaks an enrollmentCount tie newest-first even from oldest-first input', async () => {
+    const page = await serviceOver([
+      { ...older, enrollmentCount: 5 },
+      { ...newer, enrollmentCount: 5 },
+    ]).listCatalogue({ sort: 'POPULAR' });
+
+    expect(page.items.map((i) => i.id)).toEqual(['newer', 'older']);
+  });
+});
