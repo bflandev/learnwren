@@ -119,6 +119,29 @@ describe('HlmInput', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  // The two guards above overlap in that test (blur both clears the timer and
+  // moves focus), so each is pinned on its own here.
+  it('blur cancels the pending select even while the element is still the active one', () => {
+    const { host } = setup();
+    const spy = vi.spyOn(host, 'select');
+    vi.useFakeTimers();
+    host.focus();
+    host.dispatchEvent(new FocusEvent('blur')); // fires onBlur without moving focus
+    vi.runAllTimers();
+    vi.useRealTimers();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('does not select when a focus event fires but the element is not the active one', () => {
+    const { host } = setup();
+    const spy = vi.spyOn(host, 'select');
+    vi.useFakeTimers();
+    host.dispatchEvent(new FocusEvent('focus')); // jsdom: listener runs, activeElement stays <body>
+    vi.runAllTimers();
+    vi.useRealTimers();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   // The directive can sit on any element via [hlmInput]; the typeof-select
   // guard keeps the deferred select() from exploding on non-input hosts.
   it('tolerates focus on a host element without a select() method', () => {

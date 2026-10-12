@@ -194,11 +194,11 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
         reason: (err as Error).message.slice(0, MAX_REASON_CHARS),
       };
     } finally {
-      // Stryker disable next-line BooleanLiteral: equivalent — the directory always exists here, so `force` never changes the outcome
       // A cleanup failure (EBUSY, EACCES) must neither skip delivering the
       // result nor escape as an unhandled rejection.
       if (dir) {
         const tempDir = dir;
+        // Stryker disable next-line BooleanLiteral: equivalent — the directory always exists here, so `force` never changes the outcome
         await rm(tempDir, { recursive: true, force: true }).catch((err: Error) =>
           this.logger.warn(`Could not remove ${tempDir}: ${err.message}`),
         );

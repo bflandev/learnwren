@@ -95,6 +95,7 @@ describe('VideoUploadProxyController.chunk', () => {
     expect(res2.statusCode).toBe(200);
     expect(res2.body).toEqual({ ok: true });
     expect(storage.uploadPart.mock.calls[1]![0]).toMatchObject({ uploadId: 'up1', partNumber: 2 });
+    expect(storage.createMultipartUpload).toHaveBeenCalledTimes(1);
     expect(storage.completeMultipartUpload).toHaveBeenCalledExactlyOnceWith({
       bucket: 'src',
       path: 'videos/v1/source.mp4',

@@ -35,4 +35,10 @@ describe('attachmentDisposition', () => {
     const header = attachmentDisposition('bad\uD800name.pdf');
     expect(header).toBe(`attachment; filename="bad_name.pdf"; filename*=UTF-8''bad%EF%BF%BDname.pdf`);
   });
+
+  it('replaces a lone LOW surrogate too, but keeps a valid surrogate pair', () => {
+    expect(attachmentDisposition('bad\uDC00name.pdf')).toContain(`filename*=UTF-8''bad%EF%BF%BDname.pdf`);
+    expect(attachmentDisposition('\uDC00start.pdf')).toContain(`filename*=UTF-8''%EF%BF%BDstart.pdf`);
+    expect(attachmentDisposition('ok\uD83D\uDE00.pdf')).toContain(`filename*=UTF-8''ok%F0%9F%98%80.pdf`);
+  });
 });
