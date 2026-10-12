@@ -1,9 +1,17 @@
 import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, ParamMap, Router, convertToParamMap, provideRouter } from '@angular/router';
+import {
+  ActivatedRoute,
+  NavigationEnd,
+  NavigationStart,
+  ParamMap,
+  Router,
+  convertToParamMap,
+  provideRouter,
+} from '@angular/router';
 import { By } from '@angular/platform-browser';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ISODateString, LessonId, LessonView, MaterialId } from '@learnwren/shared-data-models';
@@ -825,21 +833,36 @@ describe('LessonPlayerPageComponent pagehide / visibilitychange wiring', () => {
     expect(docRemove.mock.calls.some((c) => c[0] === 'visibilitychange')).toBe(true);
   });
 
-  it('ngOnDestroy flushes, then stops the saver and nulls it out', async () => {
+  it('flushes the saver on NavigationStart, while the player is still mounted', async () => {
     configure();
     const { fixture, http } = create();
     http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const calls: string[] = [];
-    const flush = vi.fn(async () => void calls.push('flush'));
-    const stop = vi.fn(() => void calls.push('stop'));
+    const flush = vi.fn(async () => undefined);
     (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
-      flush, stop,
+      flush, stop: () => undefined,
+    };
+    const router = TestBed.inject(Router);
+    (router.events as unknown as Subject<unknown>).next(new NavigationStart(1, '/courses'));
+    (router.events as unknown as Subject<unknown>).next(new NavigationEnd(1, '/courses', '/courses'));
+    expect(flush).toHaveBeenCalledTimes(1); // only NavigationStart, not other router events
+  });
+
+  it('ngOnDestroy stops the saver and nulls it out', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const stop = vi.fn();
+    (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
+      flush: async () => undefined, stop,
     };
     fixture.componentInstance.ngOnDestroy();
-    expect(calls).toEqual(['flush', 'stop']); // leaving by any route keeps the last position
+    expect(stop).toHaveBeenCalledTimes(1);
     expect((fixture.componentInstance as unknown as { saver: unknown }).saver).toBeNull();
   });
 });

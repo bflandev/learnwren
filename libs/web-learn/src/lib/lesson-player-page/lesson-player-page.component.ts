@@ -12,7 +12,8 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationStart, Router, RouterLink } from '@angular/router';
+import { filter } from 'rxjs';
 
 import type {
   CourseId,
@@ -142,6 +143,13 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     window.addEventListener('pagehide', this.onPageHide);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.desktopQuery.addEventListener('change', this.onDesktopChange);
+    // Leaving a lesson by any route (back link, header nav, browser history)
+    // must not drop up to one save interval of progress. NavigationStart is
+    // the last point the player is still mounted: by ngOnDestroy the child
+    // player has already been disposed and reports currentTime 0.
+    this.router.events
+      .pipe(filter((e) => e instanceof NavigationStart), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => void this.saver?.flush());
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((pm) => {
       void this.applyRouteParams(pm.get('courseId'), pm.get('lessonId'));
     });
@@ -163,7 +171,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     if (courseId === this.courseId && lessonId === this.lessonId && this.view() !== null) {
       return;
     }
-    this.flushAndStopSaver();
+    this.stopSaver();
     this.hasResumed = false;
     this.markBusy.set(false);
     this.markError.set(null);
@@ -177,17 +185,10 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     window.removeEventListener('pagehide', this.onPageHide);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.desktopQuery.removeEventListener('change', this.onDesktopChange);
-    this.flushAndStopSaver();
+    this.stopSaver();
   }
 
-  /**
-   * Leaving a lesson by any route (back link, header nav, browser history)
-   * must not drop up to one save interval of progress. flush() reads the
-   * player time synchronously, so it is captured before stop() clears it;
-   * the server keeps the max, so a late or zero value never regresses it.
-   */
-  private flushAndStopSaver(): void {
-    void this.saver?.flush();
+  private stopSaver(): void {
     this.saver?.stop();
     this.saver = null;
   }
