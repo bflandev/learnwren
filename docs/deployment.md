@@ -113,7 +113,7 @@ requires a redeploy. Env keys must never start with the reserved prefixes
 | `SMTP_PORT` | SMTP port — use 587 (STARTTLS). For SES the password is region-derived from the IAM secret key, not the secret key itself; credentials are per-region. | required when transport is `smtp` |
 | `SMTP_USER` | SMTP username | required when transport is `smtp` |
 | `SMTP_PASS` | SMTP password | required when transport is `smtp` |
-| `LEARNWREN_PUBLIC_URL` | Base URL for email links AND the pinned origin of GCS resumable video-upload sessions — browser video uploads only succeed from a page origin byte-equal to this value (bucket CORS does not override the session origin). Phased: https://learn-wren.web.app until the custom domain serves, then https://learnwren.com. | required in production |
+| `LEARNWREN_PUBLIC_URL` | Base URL for email links AND the pinned origin of GCS resumable video-upload sessions — browser video uploads only succeed from a page origin byte-equal to this value (bucket CORS does not override the session origin). Phased: https://learn-wren.web.app until the custom domain serves, then https://learnwren.com. No trailing slash needed (it is trimmed). | required in production — the api refuses to start without it |
 
 ### Video transcoding (GCP Transcoder API)
 
@@ -236,7 +236,10 @@ email). One-time provisioning is scripted:
 
 - `tools/deploy/provision-buckets.sh` — 5 GCS buckets, CORS, IAM (incl. the
   runtime SA's `iam.serviceAccountTokenCreator` self-grant required for v4
-  signed-URL minting), Transcoder service-agent grants.
+  signed-URL minting), Transcoder service-agent grants. The public cover/picture
+  buckets grant `allUsers` **`roles/storage.legacyObjectReader`** (get only); a
+  re-run also removes the old `objectViewer` binding, which let anyone list every
+  object. Verify with `gcloud storage buckets get-iam-policy gs://<project>-cover`.
 - `tools/deploy/provision-pubsub.sh` — transcoder-events topic + OIDC push
   subscription (gen2: `roles/run.invoker`, endpoint/audience from
   `serviceConfig.uri`) **and** the public `allUsers` → `roles/run.invoker`
