@@ -96,6 +96,7 @@ export class CourseDetailPageComponent {
 
   constructor() {
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      this.lastParams = params;
       void this.load(params);
     });
   }
@@ -121,6 +122,13 @@ export class CourseDetailPageComponent {
   protected async onEnrollmentStatusChanged(): Promise<void> {
     const id = this.course()?.id;
     if (id) await this.resolveEnrollmentStatus(id, this.loadToken);
+  }
+
+  private lastParams: ParamMap | null = null;
+
+  /** The error state's Retry: reload what the URL asks for. */
+  retry(): void {
+    if (this.lastParams) void this.load(this.lastParams);
   }
 
   private async load(params: ParamMap): Promise<void> {

@@ -99,6 +99,16 @@ describe('EmailActionPageComponent', () => {
       await initPromise;
       fixture.detectChanges();
       expect(fixture.componentInstance.state()).toEqual({ kind: 'error' });
+
+      // Try again re-applies the link (a token consumed meanwhile → 'invalid').
+      (fixture.nativeElement.querySelector('[data-testid="action-retry"]') as HTMLButtonElement).click();
+      expect(fixture.componentInstance.state()).toEqual({ kind: 'pending' });
+      // (detectChanges ran ngOnInit too, so flush every pending apply.)
+      httpMock
+        .match('/api/auth/email-action')
+        .forEach((r) => r.flush({ error: { code: 'TOKEN_INVALID_OR_EXPIRED' } }, { status: 400, statusText: 'Bad Request' }));
+      await fixture.whenStable();
+      expect(fixture.componentInstance.state()).toEqual({ kind: 'invalid' });
     });
   });
 

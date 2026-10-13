@@ -23,6 +23,8 @@ export class ModuleItemComponent {
   readonly lessons = input.required<Lesson[]>();
   readonly courseId = input.required<CourseId>();
   readonly coursePublished = input<boolean>(false);
+  /** A send can take up to a minute: show it, and block a second click. */
+  readonly notifying = input<boolean>(false);
   readonly renameModule = output<string>();
   readonly deleteModule = output<void>();
   readonly addLesson = output<string>();

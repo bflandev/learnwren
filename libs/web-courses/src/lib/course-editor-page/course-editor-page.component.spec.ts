@@ -315,6 +315,16 @@ describe('CourseEditorPageComponent', () => {
     expect(fixture.componentInstance.tree()).not.toBeNull();
   });
 
+  it('renders action errors and notices ABOVE the module tree, where they are seen', async () => {
+    const fixture = await initEditor();
+    fixture.componentInstance.error.set('Failed to rename module.');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const alert = el.querySelector('[data-testid="editor-error"]')!;
+    const tree = el.querySelector('lib-module-tree')!;
+    expect(alert.compareDocumentPosition(tree) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('says a missing or foreign course is not available, not a generic failure', async () => {
     const fixture = TestBed.createComponent(CourseEditorPageComponent);
     fixture.detectChanges();

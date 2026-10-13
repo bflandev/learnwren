@@ -31,6 +31,14 @@
     </div>
   } @else {
     <div class="space-y-5">
+      <!-- Above the tree, not below it: lesson cards are tall, and a failure
+           message rendered after them was never seen, so failures read as success. -->
+      @if (error()) {
+        <hlm-alert severity="error" data-testid="editor-error">{{ error() }}</hlm-alert>
+      }
+      @if (notice()) {
+        <hlm-alert severity="success" data-testid="editor-notice">{{ notice() }}</hlm-alert>
+      }
       <lib-course-publish-bar
         [course]="tree()!.course"
         (courseUpdated)="onCourseUpdated($event)"
@@ -113,20 +121,10 @@
         (reorderLessons)="onReorderLessons($event)"
         (videoChanged)="refresh()"
         (videoStateChanged)="onVideoStateChanged($event)"
+        [notifyingModuleIds]="notifyingModules()"
         (notifyModule)="onNotifyModule($event)"
       ></lib-module-tree>
     </div>
   }
 
-  @if (tree() !== null && error()) {
-    <hlm-alert severity="error" class="mt-4" data-testid="editor-error">
-      {{ error() }}
-    </hlm-alert>
-  }
-
-  @if (notice()) {
-    <hlm-alert severity="success" class="mt-4" data-testid="editor-notice">
-      {{ notice() }}
-    </hlm-alert>
-  }
 </div>

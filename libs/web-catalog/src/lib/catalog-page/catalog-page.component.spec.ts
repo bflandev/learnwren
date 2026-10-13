@@ -128,6 +128,11 @@ describe('CatalogPageComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Something went wrong');
+
+    ((fixture.nativeElement as HTMLElement).querySelector('[data-testid="catalog-retry"]') as HTMLButtonElement).click();
+    http.expectOne((r) => r.url === '/api/catalog').flush(page({ total: 0 }));
+    await fixture.whenStable();
+    expect(fixture.componentInstance.error()).toBe(false);
   });
 
   it('removes a filter param from the URL when onFilterChange is called with undefined', async () => {

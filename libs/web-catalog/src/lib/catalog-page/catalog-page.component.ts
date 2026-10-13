@@ -60,6 +60,7 @@ export class CatalogPageComponent {
 
   constructor() {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      this.lastParams = params;
       void this.load(params);
     });
 
@@ -86,6 +87,13 @@ export class CatalogPageComponent {
           // Badge overlay is best-effort — the catalog renders without it.
         });
     }
+  }
+
+  private lastParams: ParamMap | null = null;
+
+  /** The error state's Retry: reload what the URL asks for. */
+  retry(): void {
+    if (this.lastParams) void this.load(this.lastParams);
   }
 
   private async load(params: ParamMap): Promise<void> {

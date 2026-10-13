@@ -49,6 +49,7 @@
           (deleteLesson)="deleteLesson.emit({ moduleId: node.module.id, lessonId: $event })"
           (reorderLessons)="reorderLessons.emit({ moduleId: node.module.id, lessonIds: $event })"
           [coursePublished]="coursePublished()"
+          [notifying]="notifyingModuleIds().has(node.module.id)"
           (notifyModule)="notifyModule.emit(node.module.id)"
           (videoChanged)="videoChanged.emit()"
           (videoStateChanged)="videoStateChanged.emit($event)"

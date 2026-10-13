@@ -151,9 +151,12 @@ export class CourseEnrollmentPanelComponent implements OnInit {
     }
   }
 
-  retry(): void {
+  async retry(): Promise<void> {
     this.state.set('LOADING');
-    void this.resolveStatus();
+    await this.resolveStatus();
+    // The page fetches status separately for its Start/Continue Learning
+    // button; when that fetch failed too, only this retry can bring it back.
+    if (this.state() !== 'LOAD_ERROR') this.statusChanged.emit();
   }
 
   private clearEnrollParam(): void {

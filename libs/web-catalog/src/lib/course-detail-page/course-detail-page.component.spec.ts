@@ -196,6 +196,12 @@ describe('CourseDetailPageComponent', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Something went wrong');
     expect(text).not.toContain('Course not found');
+
+    ((fixture.nativeElement as HTMLElement).querySelector('[data-testid="detail-retry"]') as HTMLButtonElement).click();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Learn Rust');
   });
 
   // -------------------------------------------------------------------------

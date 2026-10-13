@@ -162,6 +162,13 @@ describe('SearchResultsPageComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Something went wrong');
+
+    ((fixture.nativeElement as HTMLElement).querySelector('[data-testid="search-retry"]') as HTMLButtonElement).click();
+    const again = http.expectOne((r) => r.url === '/api/catalog/search');
+    expect(again.request.params.get('q')).toBe('rust');
+    again.flush({ items: [], page: 1, pageSize: 20, total: 0, totalPages: 0 });
+    await fixture.whenStable();
+    expect(fixture.componentInstance.error()).toBe(false);
   });
 
   it('a page past the end replaces the URL with the last real page', async () => {

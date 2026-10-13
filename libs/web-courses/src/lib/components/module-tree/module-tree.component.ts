@@ -42,6 +42,8 @@ export class ModuleTreeComponent {
   readonly nodes = input.required<ModuleNode[]>();
   readonly courseId = input.required<CourseId>();
   readonly coursePublished = input<boolean>(false);
+  /** Module ids whose student notification is being sent. */
+  readonly notifyingModuleIds = input<ReadonlySet<string>>(new Set());
 
   /** Live region text for the keyboard reorder buttons (WCAG 4.1.3 — the drag path has no equivalent to announce since a mouse user sees the move happen). */
   readonly announcement = signal('');

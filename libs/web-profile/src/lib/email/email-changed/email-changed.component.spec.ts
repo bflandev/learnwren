@@ -45,22 +45,14 @@ describe('EmailChangedComponent', () => {
     expect(navigate).toHaveBeenCalledWith(['/settings/profile']);
   });
 
-  it('on a non-401 HttpErrorResponse routes back to the profile page without logging out', async () => {
-    const { fixture, navigate, logout } = setup(() =>
-      Promise.reject(new HttpErrorResponse({ status: 500 })),
-    );
+  it.each([
+    ['a 500', () => Promise.reject(new HttpErrorResponse({ status: 500 }))],
+    ['a network error', () => Promise.reject(new Error('boom'))],
+  ])('on %s still re-logs in: the link already applied the new address', async (_label, impl) => {
+    const { fixture, navigate, logout } = setup(impl);
     await fixture.componentInstance.ngOnInit();
-    // Kills L34 `&&`→`||` and `=== 401` mutants: a 500 must NOT be treated as success.
-    expect(logout).not.toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/settings/profile']);
-    expect(navigate).not.toHaveBeenCalledWith(['/login'], { queryParams: { emailChanged: 1 } });
-  });
-
-  it('on a non-HttpErrorResponse rejection routes back to the profile page', async () => {
-    const { fixture, navigate, logout } = setup(() => Promise.reject(new Error('boom')));
-    await fixture.componentInstance.ngOnInit();
-    // Kills the `instanceof HttpErrorResponse` side of the L34 guard.
-    expect(logout).not.toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/settings/profile']);
+    expect(logout).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { emailChanged: 1 } });
+    expect(navigate).not.toHaveBeenCalledWith(['/settings/profile']);
   });
 });

@@ -331,16 +331,21 @@ export class CourseEditorPageComponent {
   async onNotifyModule(moduleId: string): Promise<void> {
     // A send can take up to a minute; a second click would 409
     // (MODULE_ALREADY_NOTIFIED) and pin an error beside the success notice.
-    if (this.notifyingModules.has(moduleId)) return;
-    this.notifyingModules.add(moduleId);
+    if (this.notifyingModules().has(moduleId)) return;
+    this.notifyingModules.update((s) => new Set(s).add(moduleId));
     try {
       await this.notifyModule(moduleId);
     } finally {
-      this.notifyingModules.delete(moduleId);
+      this.notifyingModules.update((s) => {
+        const next = new Set(s);
+        next.delete(moduleId);
+        return next;
+      });
     }
   }
 
-  private readonly notifyingModules = new Set<string>();
+  /** Modules whose notification is in flight (drives the button's busy state). */
+  readonly notifyingModules = signal<ReadonlySet<string>>(new Set());
 
   private async notifyModule(moduleId: string): Promise<void> {
     this.error.set(null);

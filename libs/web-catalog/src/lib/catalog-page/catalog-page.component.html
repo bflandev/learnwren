@@ -11,7 +11,8 @@
   </header>
 
   @if (error()) {
-    <p class="text-sm text-ink-2">Something went wrong loading the catalogue. Please try again.</p>
+    <p class="text-sm text-ink-2">Something went wrong loading the catalogue.</p>
+    <button hlmBtn variant="secondary" type="button" class="mt-2" data-testid="catalog-retry" (click)="retry()">Try again</button>
   } @else if (result() === null) {
     <p class="text-sm text-ink-3">Loading…</p>
   } @else if (result()!.items.length === 0) {

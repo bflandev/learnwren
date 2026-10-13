@@ -211,6 +211,15 @@ function setup(inputs: { module?: Module; lessons?: Lesson[]; coursePublished?: 
 }
 
 describe('ModuleItemComponent — notify button', () => {
+  it('shows "Sending…" and is disabled while a notification is in flight', () => {
+    const f = setup({ coursePublished: true });
+    f.componentRef.setInput('notifying', true);
+    f.detectChanges();
+    const btn = (f.nativeElement as HTMLElement).querySelector('[data-testid="module-notify"]') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent?.trim()).toBe('Sending…');
+  });
+
   it('shows "Notify students" when published, has lessons, and not yet notified', () => {
     const f = setup({ coursePublished: true });
     expect((f.nativeElement as HTMLElement).querySelector('[data-testid="module-notify"]')).toBeTruthy();

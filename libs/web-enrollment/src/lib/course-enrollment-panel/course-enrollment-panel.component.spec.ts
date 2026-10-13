@@ -372,10 +372,27 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     await fixture.whenStable();
     expect(fixture.componentInstance.state()).toBe('LOAD_ERROR');
 
-    fixture.componentInstance.retry();
+    const emitted: unknown[] = [];
+    fixture.componentInstance.statusChanged.subscribe(() => emitted.push(true));
+    const retried = fixture.componentInstance.retry();
     expect(fixture.componentInstance.state()).toBe('LOADING');
-    http.expectOne('/api/enrollments/c-1').flush({ enrollment: null, isOwner: false });
+    http.expectOne('/api/enrollments/c-1').flush({ enrollment: { status: 'ACTIVE' }, isOwner: false });
+    await retried;
+    // The page re-fetches on this, restoring its Start/Continue Learning button.
+    expect(emitted).toHaveLength(1);
+  });
+
+  it('a retry that fails again does not tell the page anything changed', async () => {
+    configure({ user: { uid: 'u1' } });
+    const { fixture, http } = create();
+    http.expectOne('/api/enrollments/c-1').flush('boom', { status: 500, statusText: 'Server Error' });
     await fixture.whenStable();
+    const emitted: unknown[] = [];
+    fixture.componentInstance.statusChanged.subscribe(() => emitted.push(true));
+    const retried = fixture.componentInstance.retry();
+    http.expectOne('/api/enrollments/c-1').flush('boom', { status: 500, statusText: 'Server Error' });
+    await retried;
+    expect(emitted).toHaveLength(0);
   });
 
   it('does NOT strip enroll=1 when the auto-enroll POST fails (state stays ENROLLABLE)', async () => {
