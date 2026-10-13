@@ -21,7 +21,7 @@ import {
   HlmInput,
   HlmSelectSingleImports,
   HlmSkeleton,
-  LwAutofocusDirective,
+  LwAutofocusDirective, LwEnterDirective,
   focusAfterRender,
 } from '@learnwren/web-ui';
 
@@ -35,7 +35,7 @@ import { AdminCategoriesService } from '../admin-categories.service';
 @Component({
   selector: 'lib-admin-categories-page',
   standalone: true,
-  imports: [LwAutofocusDirective, 
+  imports: [LwAutofocusDirective, LwEnterDirective, 
     FormsModule,
     HlmAlert,
     HlmButton,

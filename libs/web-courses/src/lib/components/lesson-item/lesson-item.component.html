@@ -12,7 +12,7 @@
         [ngModel]="draftTitle()"
         (ngModelChange)="draftTitle.set($event)"
         (blur)="commit()"
-        (keydown.enter)="commit(); refocus('[data-testid=lesson-title]')"
+        (lwEnter)="commit(); refocus('[data-testid=lesson-title]')"
         (keydown.escape)="cancel(); refocus('[data-testid=lesson-title]')"
       />
     } @else {

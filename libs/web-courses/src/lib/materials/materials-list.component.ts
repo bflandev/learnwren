@@ -22,7 +22,7 @@ import type {
 } from '@learnwren/shared-data-models';
 import { MATERIAL_NAME_MAX_LENGTH } from '@learnwren/shared-data-models';
 
-import { ConfirmDialogService, HlmButton, HlmInput, LwAutofocusDirective, focusAfterRender } from '@learnwren/web-ui';
+import { ConfirmDialogService, HlmButton, HlmInput, LwAutofocusDirective, LwEnterDirective, focusAfterRender } from '@learnwren/web-ui';
 
 import { MaterialUploadService } from './material-upload.service';
 import { MaterialsService } from './materials.service';
@@ -30,7 +30,7 @@ import { MaterialsService } from './materials.service';
 @Component({
   selector: 'lib-materials-list',
   standalone: true,
-  imports: [LwAutofocusDirective, FormsModule, HlmButton, HlmInput],
+  imports: [LwAutofocusDirective, LwEnterDirective, FormsModule, HlmButton, HlmInput],
   templateUrl: './materials-list.component.html',
   providers: [MaterialUploadService],
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -33,6 +33,7 @@ import {
   HlmSkeleton,
   type ConfirmDialogConfig,
   LwAutofocusDirective,
+  focusAfterRender,
 } from '@learnwren/web-ui';
 
 type PendingConfirm =
@@ -91,6 +92,9 @@ function isNotified(tree: CourseTree, moduleId: string): boolean {
   imports: [LwAutofocusDirective, RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent, CourseCoverUploaderComponent, HlmAlert, HlmButton, HlmInput, HlmSkeleton],
   templateUrl: './course-editor-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Page-wide: a file dropped beside (not on) an upload zone would otherwise
+  // be opened by the browser, leaving the editor and killing other uploads.
+  host: { '(dragover)': '$event.preventDefault()', '(drop)': '$event.preventDefault()' },
 })
 export class CourseEditorPageComponent {
   protected readonly moduleTitleMax = MODULE_TITLE_MAX_LENGTH;
@@ -309,6 +313,13 @@ export class CourseEditorPageComponent {
   readonly addingModule = signal(false);
   readonly newModuleTitle = signal('');
 
+  /** The Add module button, once the form closes (focus otherwise fell to <body>). */
+  private refocusAddModule(): void {
+    focusAfterRender(this.injector, () =>
+      this.host.nativeElement.querySelector<HTMLElement>('[data-testid="add-module"]'),
+    );
+  }
+
   startAddModule(): void {
     this.newModuleTitle.set('');
     this.addingModule.set(true);
@@ -317,6 +328,7 @@ export class CourseEditorPageComponent {
   cancelAddModule(): void {
     this.addingModule.set(false);
     this.newModuleTitle.set('');
+    this.refocusAddModule();
   }
 
   /** Add module in flight: a double click or a second Enter would create two. */
@@ -334,6 +346,7 @@ export class CourseEditorPageComponent {
       // title so the instructor can retry. Replaces the inaccessible window.prompt.
       this.addingModule.set(false);
       this.newModuleTitle.set('');
+      this.refocusAddModule();
       await this.refresh();
     } catch {
       this.error.set('Failed to add module.');

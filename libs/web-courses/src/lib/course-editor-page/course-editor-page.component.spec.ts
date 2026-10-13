@@ -395,6 +395,34 @@ describe('CourseEditorPageComponent', () => {
       expect(fixture.componentInstance.newModuleTitle()).toBe('');
     });
 
+    it('Escape closes the add-module form and returns focus to the Add module button', async () => {
+      const fixture = await initEditor();
+      document.body.appendChild(fixture.nativeElement);
+      try {
+        const el = fixture.nativeElement as HTMLElement;
+        fixture.componentInstance.startAddModule();
+        fixture.detectChanges();
+        TestBed.tick();
+        (el.querySelector('[data-testid="new-module-title"]') as HTMLInputElement).dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape' }),
+        );
+        fixture.detectChanges();
+        TestBed.tick();
+        expect(fixture.componentInstance.addingModule()).toBe(false);
+        expect(document.activeElement).toBe(el.querySelector('[data-testid="add-module"]'));
+      } finally {
+        fixture.nativeElement.remove();
+      }
+    });
+
+    it('cancels a file drop anywhere on the page, so the browser does not open the file', async () => {
+      const fixture = await initEditor();
+      fixture.detectChanges();
+      const drop = new Event('drop', { cancelable: true, bubbles: true });
+      (fixture.nativeElement as HTMLElement).querySelector('header')!.dispatchEvent(drop);
+      expect(drop.defaultPrevented).toBe(true);
+    });
+
     it('a double submit creates one module, not two', async () => {
       const fixture = await initEditor();
       fixture.componentInstance.startAddModule();

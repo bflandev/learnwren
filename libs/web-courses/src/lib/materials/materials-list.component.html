@@ -33,7 +33,7 @@
             [ngModel]="draftName()"
             (ngModelChange)="draftName.set($event)"
             (blur)="commitRename(m)"
-            (keydown.enter)="commitRename(m); refocus('[data-material-id=&quot;' + m.id + '&quot;] [data-testid=material-name]')"
+            (lwEnter)="commitRename(m); refocus('[data-material-id=&quot;' + m.id + '&quot;] [data-testid=material-name]')"
             (keydown.escape)="cancelRename(); refocus('[data-material-id=&quot;' + m.id + '&quot;] [data-testid=material-name]')"
           />
         } @else {

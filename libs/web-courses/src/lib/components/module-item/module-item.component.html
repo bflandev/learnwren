@@ -12,7 +12,7 @@
         [ngModel]="draftTitle()"
         (ngModelChange)="draftTitle.set($event)"
         (blur)="commit()"
-        (keydown.enter)="commit(); refocus('[data-testid=module-title]')"
+        (lwEnter)="commit(); refocus('[data-testid=module-title]')"
         (keydown.escape)="cancel(); refocus('[data-testid=module-title]')"
       />
     } @else {
@@ -74,7 +74,7 @@
       [ngModel]="newLessonTitle()"
       (ngModelChange)="newLessonTitle.set($event)"
       (blur)="commitAddLesson()"
-      (keydown.enter)="commitAddLesson(); refocus('[data-testid=add-lesson]')"
+      (lwEnter)="commitAddLesson(); refocus('[data-testid=add-lesson]')"
       (keydown.escape)="addingLesson.set(false); refocus('[data-testid=add-lesson]')"
       placeholder="New lesson title"
     />
