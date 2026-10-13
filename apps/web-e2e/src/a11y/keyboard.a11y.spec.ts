@@ -58,9 +58,14 @@ async function expectVisibleFocus(page: Page): Promise<void> {
 async function tabTo(page: Page, accessibleName: RegExp, max = 40): Promise<void> {
   for (let i = 0; i < max; i++) {
     await page.keyboard.press('Tab');
+    // Read document.activeElement directly: a `locator(':focus')` auto-waits
+    // for a match, so a Tab that briefly leaves nothing focused (body during a
+    // lazy route render, or past the last control) hung until the 30 s test
+    // timeout — the cold-load flake in journey 3.
     const name = await page
-      .locator(':focus')
-      .evaluate((el) => {
+      .evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return '';
         const ariaLabel = el.getAttribute('aria-label');
         if (ariaLabel) return ariaLabel;
         const labelledBy = el.getAttribute('aria-labelledby');
@@ -81,7 +86,7 @@ async function tabTo(page: Page, accessibleName: RegExp, max = 40): Promise<void
         }
         return el.textContent?.trim() ?? el.getAttribute('placeholder') ?? '';
       })
-      .catch(() => '');
+      .catch(() => ''); // navigation destroyed the context mid-read
     if (accessibleName.test(name)) return;
   }
   throw new Error(`never reached a control matching ${accessibleName} within ${max} tabs`);
