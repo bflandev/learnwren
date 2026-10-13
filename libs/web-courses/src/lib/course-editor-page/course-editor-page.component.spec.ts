@@ -1202,6 +1202,40 @@ describe('CourseEditorPageComponent', () => {
       expect(fixture.componentInstance.cid()).toBe('cid-2');
     });
 
+    it('a move that fails after a Back/Forward round trip does not drop or revert moves made since', async () => {
+      const { params$, http: localHttp } = setupWithParams();
+      const fixture = TestBed.createComponent(CourseEditorPageComponent);
+      fixture.detectChanges();
+      const order = '/api/courses/cid-1/modules/order';
+
+      params$.next(new Map([['id', 'cid-1']]));
+      localHttp.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons());
+      await fixture.whenStable();
+      const first = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
+      const firstPut = localHttp.expectOne(order); // slow
+
+      params$.next(new Map([['id', 'cid-2']]));
+      localHttp.expectOne('/api/courses/cid-2').flush(treeFor('cid-2'));
+      await fixture.whenStable();
+      expect(fixture.componentInstance.tree()?.course.id).toBe('cid-2'); // painted despite A's pending move
+      params$.next(new Map([['id', 'cid-1']]));
+      localHttp.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons());
+      await fixture.whenStable();
+
+      const second = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']); // queued behind the first
+      firstPut.flush('stale', { status: 409, statusText: 'Conflict' });
+      await first;
+      await fixture.whenStable();
+      localHttp.expectOne(order).flush([]); // the second move still commits
+      await fixture.whenStable();
+      const reversed = buildTreeWithLessons() as { modules: unknown[] };
+      reversed.modules.reverse();
+      localHttp.expectOne('/api/courses/cid-1').flush(reversed); // drain refresh
+      await second;
+      expect(fixture.componentInstance.error()).toBeNull();
+      expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual(['mid-2', 'mid-1']);
+    });
+
     it('discards an in-flight response for the previous course id', async () => {
       const { params$, http: localHttp } = setupWithParams();
       const fixture = TestBed.createComponent(CourseEditorPageComponent);

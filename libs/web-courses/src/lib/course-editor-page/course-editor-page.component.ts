@@ -122,6 +122,9 @@ export class CourseEditorPageComponent {
 
   /** Drop per-course transient state when the route moves to another course. */
   private resetCourseState(): void {
+    // A new reorder epoch: moves from the page we left neither commit nor
+    // revert anything here, even if the route comes back to the same course.
+    this.reorderGeneration++;
     this.tree.set(null);
     this.error.set(null);
     this.notice.set(null);
@@ -150,8 +153,10 @@ export class CourseEditorPageComponent {
       const tree = await this.service.getCourseTree(cid);
       if (token !== this.loadToken) return tree; // superseded by a newer load
       // Moves still queued: this tree predates them and would flash the old
-      // order. The drain refresh (owed, see above) paints the final state.
-      if (this.reordersQueued > 0) return tree;
+      // order over the optimistic one. The drain refresh (owed, see above)
+      // paints the final state. Never withhold a first paint (tree reset by a
+      // route change while a move from the page we left is still pending).
+      if (this.reordersQueued > 0 && this.tree() !== null) return tree;
       this.tree.set(tree);
       this.publishSvc.bindToCourse(cid);
       this.publishSvc.refresh();
@@ -404,15 +409,15 @@ export class CourseEditorPageComponent {
     this.reordersQueued++;
     const go = async (): Promise<void> => {
       try {
-        // Skip a move queued behind a failure, or one for a course no longer shown.
-        if (generation !== this.reorderGeneration || cid !== this.cid()) return;
+        // Skip a move queued behind a failure, or one from a page since left.
+        if (generation !== this.reorderGeneration) return;
         try {
           await commit(cid);
         } catch {
           this.refreshAfterReorders = true;
-          // The page now shows another course: its own queued moves must not
-          // be dropped (this course's later moves skip on the cid check).
-          if (cid !== this.cid()) return;
+          // Left the page meanwhile (even if back on the same course): this
+          // failure must not revert or drop moves made since.
+          if (generation !== this.reorderGeneration) return;
           this.reorderGeneration++;
           this.tree.set(snapshot);
           this.notice.set(null);
