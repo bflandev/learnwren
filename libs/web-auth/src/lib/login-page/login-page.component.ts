@@ -18,6 +18,7 @@ import {
 } from '@learnwren/web-ui';
 
 import { AuthService } from '../auth.service';
+import { isSafeRedirect, safeRedirectParam } from '../safe-redirect';
 
 type LoginErrorState =
   | { kind: 'none' }
@@ -26,22 +27,6 @@ type LoginErrorState =
   | { kind: 'locked'; unlockAvailableAt: string }
   | { kind: 'generic'; message: string };
 
-/**
- * Accept only same-origin path redirects. Rejects:
- *   - Empty strings
- *   - Anything not starting with `/`
- *   - Protocol-relative URLs (`//evil.com/...`)
- *   - Backslash-after-slash variants browsers may also treat as protocol-relative (`/\evil.com`)
- * A bare `/` is accepted (root) because the second char is `undefined`.
- *
- * Note: Unicode lookalike slashes (U+2215 DIVISION SLASH, U+FF0F FULLWIDTH SOLIDUS)
- * are intentionally not handled — the router treats them as literal path characters,
- * so they are not a browser-redirect threat.
- */
-function isSafeRedirect(r: string): boolean {
-  // Stryker disable next-line ConditionalExpression,EqualityOperator: `r.length > 0` is fully implied by the next clause — String.prototype.startsWith('/') can only return true when r has length >= 1, so an empty string is already rejected by `r.startsWith('/')`. Forcing this clause to `true` (or `>= 0`) leaves the overall conjunction's value unchanged for every input; equivalent.
-  return r.length > 0 && r.startsWith('/') && r[1] !== '/' && r[1] !== '\\';
-}
 
 @Component({
   selector: 'app-login-page',
@@ -74,6 +59,11 @@ export class LoginPageComponent {
   readonly errorState = signal<LoginErrorState>({ kind: 'none' });
 
   private readonly queryParams = toSignal(this.route.queryParamMap);
+  /** Carried to Register, so a guest who clicked Enroll returns to the course. */
+  readonly registerQueryParams = computed(() => {
+    const redirect = safeRedirectParam(this.queryParams());
+    return redirect ? { redirect } : {};
+  });
 
   readonly justResetPassword = computed(() => this.queryParams()?.get('reset') === 'ok');
   readonly justChangedEmail = computed(() => this.queryParams()?.get('emailChanged') === '1');

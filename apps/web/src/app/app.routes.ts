@@ -69,4 +69,9 @@ export const appRoutes: Route[] = [
   ...learnRoutes,
   ...profileRoutes,
   ...landingRoutes,
+  // Last: anything unmatched (Hosting and nginx serve index.html for every path).
+  {
+    path: '**',
+    loadComponent: () => import('./not-found/not-found.component').then((m) => m.NotFoundComponent),
+  },
 ];

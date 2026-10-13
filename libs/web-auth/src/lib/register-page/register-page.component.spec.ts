@@ -4,19 +4,19 @@ import {
 } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
 import { RegisterPageComponent } from './register-page.component';
 
-function setup() {
+function setup(query: Record<string, string> = {}) {
   TestBed.configureTestingModule({
     imports: [RegisterPageComponent],
     providers: [
       provideHttpClient(),
       provideHttpClientTesting(),
       provideRouter([]),
-      { provide: ActivatedRoute, useValue: { snapshot: {} } },
+      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query) } } },
     ],
   });
   const fixture = TestBed.createComponent(RegisterPageComponent);
@@ -31,14 +31,28 @@ describe('RegisterPageComponent', () => {
     const { fixture, httpMock } = setup();
     const cmp = fixture.componentInstance;
     const router = TestBed.inject(Router);
-    const navSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const navSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     cmp.form.setValue({ email: 'alice@example.com', password: 'Aa1!aaaaaaaa', displayName: 'Alice' });
     const submitPromise = cmp.submit();
     httpMock.expectOne('/api/auth/register').flush(null, { status: 201, statusText: 'Created' });
     httpMock.expectOne('/api/auth/me').flush({ uid: '1', email: 'alice@example.com', displayName: 'Alice', emailVerified: false });
     await submitPromise;
-    expect(navSpy).toHaveBeenCalledWith('/register/confirm?email=alice%40example.com');
+    expect(navSpy).toHaveBeenCalledWith(['/register/confirm'], { queryParams: { email: 'alice@example.com' } });
     expect(cmp.error()).toBeNull();
+  });
+
+  it.each([
+    ['/catalog/c-1?enroll=1', { email: 'alice@example.com', redirect: '/catalog/c-1?enroll=1' }],
+    ['//evil.example', { email: 'alice@example.com' }],
+  ])('carries a safe redirect (%s) on to the confirm page, dropping an unsafe one', async (redirect, queryParams) => {
+    const { fixture, httpMock } = setup({ redirect });
+    const navSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture.componentInstance.form.setValue({ email: 'alice@example.com', password: 'Aa1!aaaaaaaa', displayName: 'Alice' });
+    const submitPromise = fixture.componentInstance.submit();
+    httpMock.expectOne('/api/auth/register').flush(null, { status: 201, statusText: 'Created' });
+    httpMock.expectOne('/api/auth/me').flush({ uid: '1', email: 'alice@example.com', displayName: 'Alice', emailVerified: false });
+    await submitPromise;
+    expect(navSpy).toHaveBeenCalledWith(['/register/confirm'], { queryParams });
   });
 
   it('shows the enumeration-resistant prose for EMAIL_ALREADY_EXISTS (UC-01-01 ext 3a)', async () => {

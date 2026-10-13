@@ -4,7 +4,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 import { PASSWORD_MAX_LENGTH } from '@learnwren/shared-data-models';
@@ -21,6 +21,7 @@ import {
 } from '@learnwren/web-ui';
 
 import { AuthService } from '../auth.service';
+import { safeRedirectParam } from '../safe-redirect';
 import {
   passwordPolicyValidator,
   PASSWORD_REQUIREMENT_PROSE,
@@ -47,6 +48,7 @@ import {
 export class RegisterPageComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder);
 
   readonly form = this.fb.nonNullable.group({
@@ -78,9 +80,10 @@ export class RegisterPageComponent {
     try {
       const result = await this.auth.register(this.form.getRawValue());
       if (result.ok) {
-        await this.router.navigateByUrl(
-          `/register/confirm?email=${encodeURIComponent(this.form.controls.email.value)}`,
-        );
+        const redirect = safeRedirectParam(this.route.snapshot.queryParamMap);
+        await this.router.navigate(['/register/confirm'], {
+          queryParams: { email: this.form.controls.email.value, ...(redirect ? { redirect } : {}) },
+        });
         return;
       }
       this.error.set(this.toMessage(result));

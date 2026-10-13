@@ -11,7 +11,7 @@ import { EMPTY, of } from 'rxjs';
 import { AuthService } from '../auth.service';
 import { RegisterConfirmPageComponent } from './register-confirm-page.component';
 
-function setup(email = 'a@b.c') {
+function setup(email = 'a@b.c', redirect: string | null = null) {
   TestBed.configureTestingModule({
     imports: [RegisterConfirmPageComponent],
     providers: [
@@ -20,7 +20,9 @@ function setup(email = 'a@b.c') {
       provideRouter([]),
       {
         provide: ActivatedRoute,
-        useValue: { queryParamMap: of({ get: (k: string) => (k === 'email' ? email : null) }) },
+        useValue: {
+          queryParamMap: of({ get: (k: string) => (k === 'email' ? email : k === 'redirect' ? redirect : null) }),
+        },
       },
     ],
   });
@@ -31,6 +33,17 @@ function setup(email = 'a@b.c') {
 
 describe('RegisterConfirmPageComponent', () => {
   beforeEach(() => undefined);
+
+  it.each([
+    [null, '/dashboard', 'Continue to dashboard'],
+    ['/catalog/c-1?enroll=1', '/catalog/c-1?enroll=1', 'Continue'],
+    ['//evil.example', '/dashboard', 'Continue to dashboard'],
+  ])('the continue link follows a safe redirect (%s)', (redirect, href, label) => {
+    const { fixture } = setup('a@b.c', redirect);
+    const link = (fixture.nativeElement as HTMLElement).querySelector('a') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe(href);
+    expect(link.textContent?.trim()).toBe(label);
+  });
 
   it('renders the confirmation prose with the email from the query', () => {
     const { fixture } = setup('alice@example.com');
