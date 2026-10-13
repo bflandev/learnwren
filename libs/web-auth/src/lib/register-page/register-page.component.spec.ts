@@ -55,6 +55,14 @@ describe('RegisterPageComponent', () => {
     expect(navSpy).toHaveBeenCalledWith(['/register/confirm'], { queryParams });
   });
 
+  it('the Sign in link carries the safe redirect back', () => {
+    const { fixture } = setup({ redirect: '/catalog/c-1?enroll=1' });
+    const link = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a')).find(
+      (el) => el.textContent?.trim() === 'Sign in',
+    );
+    expect(link?.getAttribute('href')).toBe('/login?redirect=%2Fcatalog%2Fc-1%3Fenroll%3D1');
+  });
+
   it('shows the enumeration-resistant prose for EMAIL_ALREADY_EXISTS (UC-01-01 ext 3a)', async () => {
     const { fixture, httpMock } = setup();
     const cmp = fixture.componentInstance;

@@ -406,9 +406,11 @@ export class CourseEditorPageComponent {
         try {
           await commit(cid);
         } catch {
-          this.reorderGeneration++;
           this.refreshAfterReorders = true;
-          if (cid !== this.cid()) return; // the page now shows another course
+          // The page now shows another course: its own queued moves must not
+          // be dropped (this course's later moves skip on the cid check).
+          if (cid !== this.cid()) return;
+          this.reorderGeneration++;
           this.tree.set(snapshot);
           this.notice.set(null);
           this.error.set('Reorder failed — reverted.');

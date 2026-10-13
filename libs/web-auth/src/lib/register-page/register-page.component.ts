@@ -49,6 +49,11 @@ export class RegisterPageComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  /** Carried back to Sign in, so the guest still returns to where they were headed. */
+  readonly loginQueryParams = (() => {
+    const redirect = safeRedirectParam(this.route.snapshot.queryParamMap);
+    return redirect ? { redirect } : {};
+  })();
   private readonly fb = inject(FormBuilder);
 
   readonly form = this.fb.nonNullable.group({
