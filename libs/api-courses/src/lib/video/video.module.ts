@@ -54,7 +54,10 @@ function makeTranscoder(cfg: VideoConfig, storage: VideoStorageAdapter): VideoTr
     });
   }
   return new GcpTranscoderAdapter({
-    client: new TranscoderServiceClient() as unknown as TranscoderClient,
+    // `satisfies` makes the compiler check every method the adapter calls
+    // exists on the real client (a bare cast once hid a non-existent cancelJob);
+    // the cast then narrows the SDK's overloaded, typed signatures.
+    client: (new TranscoderServiceClient() satisfies Record<keyof TranscoderClient, unknown>) as unknown as TranscoderClient,
     projectId: cfg.gcpProjectId!,
     location: cfg.transcoderLocation!,
   });

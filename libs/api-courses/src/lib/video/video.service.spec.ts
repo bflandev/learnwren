@@ -1161,7 +1161,7 @@ describe('VideoService.handleTranscoderEvent', () => {
     const transcoder = { submitJob: vi.fn(), parseEvent: vi.fn(), cancelJob: vi.fn() };
     repo.applyTranscoderResult = vi.fn();
     const svc = new VideoService(repo as never, storage as never, cfg as never, transcoder as never);
-    return { svc, repo };
+    return { svc, repo, storage };
   }
 
   const successEvent: TranscoderEvent = {
@@ -1208,12 +1208,24 @@ describe('VideoService.handleTranscoderEvent', () => {
     );
   });
 
-  it('passes through repo no-op reasons unchanged', async () => {
-    const { svc, repo } = build();
+  it('passes through repo no-op reasons unchanged, sweeping nothing', async () => {
+    const { svc, repo, storage } = build();
     repo.applyTranscoderResult.mockResolvedValue({ acted: false, reason: 'ALREADY_APPLIED' });
     const result = await svc.handleTranscoderEvent(successEvent);
     expect(result).toEqual({ acted: false, reason: 'ALREADY_APPLIED' });
+    expect(storage.deletePrefix).not.toHaveBeenCalled();
   });
+
+  it.each([['JOB_SUCCEEDED'], ['JOB_FAILED']])(
+    'a %s for a since-deleted video sweeps the output its job wrote after the delete',
+    async (type) => {
+      const { svc, repo, storage } = build();
+      repo.applyTranscoderResult.mockResolvedValue({ acted: false, reason: 'VIDEO_NOT_FOUND' });
+      const result = await svc.handleTranscoderEvent(type === 'JOB_SUCCEEDED' ? successEvent : failEvent);
+      expect(result).toEqual({ acted: false, reason: 'VIDEO_NOT_FOUND' });
+      expect(storage.deletePrefix).toHaveBeenCalledWith({ bucket: cfg.outputBucket, prefix: 'videos/v1/' });
+    },
+  );
 });
 
 describe('VideoService.delete — slice B state widening', () => {

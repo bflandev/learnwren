@@ -118,6 +118,14 @@ describe('ProfilePictureService', () => {
     });
   });
 
+  it('a truncated JPEG (valid header, cut body) → PictureDecodeFailedException, not a bare 500', async () => {
+    const full = await jpeg(600, 600);
+    const truncated = full.subarray(0, Math.floor(full.length / 2));
+    await expect(
+      service.uploadPicture('u1' as UserId, truncated, 'image/jpeg', { email: 'a@b.com', emailVerified: true }),
+    ).rejects.toMatchObject({ code: 'PROFILE_PICTURE_DECODE_FAILED', cause: expect.anything() });
+  });
+
   it('buildMe throws NotFoundException with the exact message when the user doc is absent', async () => {
     // firestore whose get() always reports the doc absent → exercises the
     // !snap.exists guard + its message in buildMe (via removePicture, which

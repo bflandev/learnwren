@@ -8,11 +8,11 @@ import { TranscoderEventLookupError } from './transcoder.port';
 interface MockClient {
   createJob: ReturnType<typeof vi.fn>;
   getJob: ReturnType<typeof vi.fn>;
-  cancelJob: ReturnType<typeof vi.fn>;
+  deleteJob: ReturnType<typeof vi.fn>;
 }
 
 function makeClient(): MockClient {
-  return { createJob: vi.fn(), getJob: vi.fn(), cancelJob: vi.fn() };
+  return { createJob: vi.fn(), getJob: vi.fn(), deleteJob: vi.fn() };
 }
 
 function makeAdapter(client: MockClient): GcpTranscoderAdapter {
@@ -222,23 +222,29 @@ describe('GcpTranscoderAdapter.parseEvent — optional-field fallbacks', () => {
 });
 
 describe('GcpTranscoderAdapter.cancelJob', () => {
-  it('calls client.cancelJob with the job name', async () => {
+  it('stops the job with client.deleteJob (the API has no cancel)', async () => {
     const client = makeClient();
-    client.cancelJob.mockResolvedValue([{}]);
+    client.deleteJob.mockResolvedValue([{}]);
     const adapter = makeAdapter(client);
     await adapter.cancelJob('projects/proj/locations/l/jobs/j1');
-    expect(client.cancelJob).toHaveBeenCalledWith({ name: 'projects/proj/locations/l/jobs/j1' });
+    expect(client.deleteJob).toHaveBeenCalledWith({ name: 'projects/proj/locations/l/jobs/j1', allowMissing: true });
+  });
+
+  it('matches the real SDK client: deleteJob exists and cancelJob does not', async () => {
+    const { TranscoderServiceClient } = await import('@google-cloud/video-transcoder');
+    expect(typeof TranscoderServiceClient.prototype.deleteJob).toBe('function');
+    expect((TranscoderServiceClient.prototype as unknown as Record<string, unknown>)['cancelJob']).toBeUndefined();
   });
   it('swallows NOT_FOUND from the SDK', async () => {
     const client = makeClient();
     const notFound = Object.assign(new Error('not found'), { code: 5 });
-    client.cancelJob.mockRejectedValue(notFound);
+    client.deleteJob.mockRejectedValue(notFound);
     const adapter = makeAdapter(client);
     await expect(adapter.cancelJob('j')).resolves.toBeUndefined();
   });
   it('propagates other errors', async () => {
     const client = makeClient();
-    client.cancelJob.mockRejectedValue(new Error('boom'));
+    client.deleteJob.mockRejectedValue(new Error('boom'));
     const adapter = makeAdapter(client);
     await expect(adapter.cancelJob('j')).rejects.toThrow(/boom/);
   });

@@ -56,14 +56,22 @@ export class ProfilePictureService {
     // Two-stage pipeline: a single sharp() chain only honours the *last*
     // .resize() call, so we centre-crop to a square in stage 1 and pipe its
     // PNG output into stage 2 which downscales to 512x512 (no upscaling).
-    const square = await sharp(body, { failOn: 'truncated' })
-      .resize(shorterSide, shorterSide, { fit: 'cover', position: 'centre' })
-      .png()
-      .toBuffer();
-    const jpeg = await sharp(square, { failOn: 'truncated' })
-      .resize(TARGET_SIDE, TARGET_SIDE, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 85, mozjpeg: true })
-      .toBuffer();
+    // metadata() reads only the header; the full decode happens here and can
+    // still fail on a truncated/corrupt body. Typed 400, not a bare 500 (the
+    // cover upload handles the same case).
+    let jpeg: Buffer;
+    try {
+      const square = await sharp(body, { failOn: 'truncated' })
+        .resize(shorterSide, shorterSide, { fit: 'cover', position: 'centre' })
+        .png()
+        .toBuffer();
+      jpeg = await sharp(square, { failOn: 'truncated' })
+        .resize(TARGET_SIDE, TARGET_SIDE, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85, mozjpeg: true })
+        .toBuffer();
+    } catch (err) {
+      throw new PictureDecodeFailedException({ cause: err });
+    }
 
     const path = this.pathFor(uid);
     await this.storage.putObject({

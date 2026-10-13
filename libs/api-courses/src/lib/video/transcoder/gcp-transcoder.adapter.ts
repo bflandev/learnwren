@@ -20,7 +20,10 @@ export interface TranscoderClient {
   getJob(req: { name: string }): Promise<
     [{ name?: string | null; outputDurationSec?: number; output?: { uri?: string } }]
   >;
-  cancelJob(req: { name: string }): Promise<[unknown]>;
+  // The Transcoder API has no cancel: deleteJob is how a running job is
+  // stopped and removed. (A `cancelJob` here once compiled behind a cast and
+  // threw at runtime on every delete, so jobs ran on, billed.)
+  deleteJob(req: { name: string; allowMissing?: boolean }): Promise<[unknown]>;
 }
 
 interface PubSubEnvelope { message?: { data?: string } }
@@ -105,7 +108,7 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
 
   async cancelJob(jobName: string): Promise<void> {
     try {
-      await this.opts.client.cancelJob({ name: jobName });
+      await this.opts.client.deleteJob({ name: jobName, allowMissing: true });
     } catch (err) {
       const code = (err as { code?: number }).code;
       if (code === GRPC_NOT_FOUND) return; // already deleted/never existed — tolerate.
