@@ -110,6 +110,10 @@ export function handleException(
   opts: HandleExceptionOptions = {},
 ): void {
   const res = host.switchToHttp().getResponse<Response>();
+  // An error must never be cached: a route's @Header('Cache-Control', public…)
+  // is set before the handler runs, so a 404/500 would otherwise sit in the
+  // CDN for minutes (a course opened just before publishing kept 404ing).
+  res.setHeader('Cache-Control', 'no-store');
 
   if (isDomainShaped(exception)) {
     const body: ErrorBody = { error: { code: exception.code, message: exception.message } };

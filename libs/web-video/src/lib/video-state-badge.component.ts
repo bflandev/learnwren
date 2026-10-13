@@ -9,7 +9,8 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { interval, map } from 'rxjs';
 
 import type { Video, VideoState } from '@learnwren/shared-data-models';
 
@@ -17,6 +18,7 @@ import { VideoStatePollingService } from './polling/video-state-polling.service'
 import { HlmBadge, HlmButton, type BadgeVariant } from '@learnwren/web-ui';
 
 const STUCK_THRESHOLD_MIN = 30;
+const CLOCK_TICK_MS = 60_000;
 const NON_TERMINAL: ReadonlyArray<Video['state']> = ['UPLOADED', 'TRANSCODING'];
 
 @Component({
@@ -34,6 +36,14 @@ export class VideoStateBadgeComponent implements OnInit {
 
   private readonly polling = inject(VideoStatePollingService);
   private readonly destroyRef = inject(DestroyRef);
+  /**
+   * A ticking clock signal: isStuck() reads it, so "stalled" (and the remove
+   * control) appear on their own. Date.now() alone is not reactive, and
+   * polling stops right at the stall threshold, so nothing else re-evaluates.
+   */
+  private readonly now = toSignal(interval(CLOCK_TICK_MS).pipe(map(() => Date.now())), {
+    initialValue: Date.now(),
+  });
   private readonly liveVideo = signal<Video | null>(null);
 
   private readonly current = computed(() => this.liveVideo() ?? this.video());
@@ -114,7 +124,7 @@ export class VideoStateBadgeComponent implements OnInit {
 
   private isStuck(v: Video, forState: Video['state']): boolean {
     if (v.state !== forState) return false;
-    const ageMs = Date.now() - new Date(v.updatedAt).getTime();
+    const ageMs = this.now() - new Date(v.updatedAt).getTime();
     return ageMs > STUCK_THRESHOLD_MIN * 60 * 1000;
   }
 }

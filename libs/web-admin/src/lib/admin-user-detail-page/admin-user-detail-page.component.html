@@ -34,7 +34,10 @@
     </div>
 
     <div class="mt-4 flex flex-col gap-2" data-testid="role-actions">
-      @if (u.role === 'STUDENT') {
+      @if (u.status && u.status !== 'ACTIVE') {
+        <!-- The api changes roles only on ACTIVE accounts (INVALID_ROLE_TRANSITION otherwise). -->
+        <p class="text-sm text-ink-3" data-testid="role-locked-note">Role changes are available once the account is active.</p>
+      } @else if (u.role === 'STUDENT') {
         <div>
           <button
             hlmBtn
@@ -50,11 +53,8 @@
         @if (confirmingDemote()) {
           <div class="rounded bg-bg-2 p-3" data-testid="demote-confirm">
             <p class="text-sm text-ink">
-              Demote {{ u.displayName }} to Student?
-              @if (u.authoredCourses.length > 0) {
-                They will keep {{ u.authoredCourses.length }} authored course(s) but lose the
-                ability to edit or create courses.
-              }
+              Demote {{ u.displayName }} to Student? They will lose the ability to create or
+              edit courses.
             </p>
             <div class="mt-2 flex gap-2">
               <button
@@ -81,16 +81,22 @@
           </div>
         } @else {
           <div>
+            <!-- The api refuses to demote an instructor who owns courses (USER_HAS_COURSES). -->
             <button
               hlmBtn
               variant="secondary"
               type="button"
               data-testid="demote-btn"
-              [disabled]="busy()"
+              [disabled]="busy() || u.authoredCourses.length > 0"
               (click)="startDemote()"
             >
               Demote to Student
             </button>
+            @if (u.authoredCourses.length > 0) {
+              <p class="mt-1 text-sm text-ink-3" data-testid="demote-blocked-note">
+                Transfer or delete their {{ u.authoredCourses.length }} course(s) before demoting.
+              </p>
+            }
           </div>
         }
       }

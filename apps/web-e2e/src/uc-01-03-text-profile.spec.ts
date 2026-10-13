@@ -47,7 +47,7 @@ test('UC-01-03 — user edits displayName and biography; header updates without 
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
 
   // Initials chip ("EW") is the entry point — click it to reach /settings/profile.
-  const chip = page.getByRole('img', {
+  const chip = page.getByRole('link', {
     name: new RegExp(`Profile settings for ${displayName}`),
   });
   await expect(chip).toBeVisible();
@@ -67,7 +67,7 @@ test('UC-01-03 — user edits displayName and biography; header updates without 
   await expect(page.getByText('Profile updated.')).toBeVisible();
 
   // Header chip reflects the new display name immediately (no reload).
-  const updatedChip = page.getByRole('img', { name: /Profile settings for Etta Updated/ });
+  const updatedChip = page.getByRole('link', { name: /Profile settings for Etta Updated/ });
   await expect(updatedChip).toBeVisible();
   await expect(updatedChip.locator('[data-testid="header-avatar-initials"]')).toHaveText('EU');
 

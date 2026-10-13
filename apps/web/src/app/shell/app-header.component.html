@@ -129,7 +129,6 @@
 
   @if (auth.isAuthenticated()) {
     <a
-      role="img"
       routerLink="/settings/profile"
       class="flex items-center gap-2"
       [attr.aria-label]="'Profile settings for ' + (auth.currentUser()?.displayName ?? '')"

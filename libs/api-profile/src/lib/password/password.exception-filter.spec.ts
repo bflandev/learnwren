@@ -15,7 +15,7 @@ function mockHost() {
   const json = vi.fn();
   const status = vi.fn().mockReturnValue({ json });
   const host = {
-    switchToHttp: () => ({ getResponse: () => ({ status }) }),
+    switchToHttp: () => ({ getResponse: () => ({ status, setHeader: () => undefined }) }),
   } as never;
   return { host, status, json };
 }

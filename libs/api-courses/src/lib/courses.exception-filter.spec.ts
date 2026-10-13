@@ -14,7 +14,7 @@ function buildHost(): { host: ArgumentsHost; status: ReturnType<typeof vi.fn>; j
   const status = vi.fn().mockReturnValue({ json });
   const host = {
     switchToHttp: () => ({
-      getResponse: () => ({ status }),
+      getResponse: () => ({ status, setHeader: () => undefined }),
       getRequest: () => ({}),
       getNext: () => undefined,
     }),

@@ -19,6 +19,7 @@ function hostCapturing(): { host: ArgumentsHost; status: () => number; body: () 
       payload = b;
       return res;
     },
+    setHeader: () => undefined,
   };
   return {
     host: { switchToHttp: () => ({ getResponse: () => res }) } as ArgumentsHost,

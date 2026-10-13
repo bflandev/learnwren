@@ -59,8 +59,10 @@ export class CourseDetailPageComponent {
 
   readonly firstLessonHref = computed<readonly [string, string, string] | null>(() => {
     const c = this.course();
-    const firstModule = c?.modules?.[0];
-    const firstLesson = firstModule?.lessons?.[0];
+    // The first lesson of the course, not of module 1: module 1 can be empty
+    // (a module added at the top of a published course), which left an
+    // enrolled student with no way in.
+    const firstLesson = c?.modules?.flatMap((m) => m.lessons ?? [])[0];
     return c && firstLesson ? (['/learn', c.id, firstLesson.id] as const) : null;
   });
 

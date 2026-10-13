@@ -47,10 +47,10 @@ test('UC-01-03 Slice B — user uploads profile picture, it persists across relo
   await page.getByRole('button', { name: /sign in/i }).click();
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
 
-  // The header chip is an <a role="img"> wrapping <hlm-avatar>. Initially the
+  // The header chip is a profile link wrapping <hlm-avatar>. Initially the
   // avatar has no photoUrl, so it projects the initials span
   // (data-testid="header-avatar-initials").
-  const headerChip = page.getByRole('img', {
+  const headerChip = page.getByRole('link', {
     name: new RegExp(`Profile settings for ${displayName}`),
   });
   await expect(headerChip).toBeVisible();

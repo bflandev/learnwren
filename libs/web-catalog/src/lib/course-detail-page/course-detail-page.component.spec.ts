@@ -326,6 +326,21 @@ describe('CourseDetailPageComponent', () => {
     expect(href).toContain('L_FIRST');
   });
 
+  it('Start Learning targets the first lesson of the course even when module 1 is empty', async () => {
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView: { enrollment: null, isOwner: true } });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush({
+      ...COURSE_WITH_LESSONS,
+      modules: [{ title: 'New intro', lessons: [] }, ...COURSE_WITH_LESSONS.modules],
+    });
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const href = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="start-learning"]')?.getAttribute('href') ?? '';
+    expect(href).toContain('L_FIRST');
+  });
+
   it('shows Start Learning for the course owner', async () => {
     const enrollmentView: EnrollmentStatusView = { enrollment: null, isOwner: true };
     const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView });

@@ -209,7 +209,7 @@ describe('AppHeaderComponent', () => {
     configureAuthTestBed(AppHeaderComponent, { displayName: 'Etta Wren' });
     const fixture = TestBed.createComponent(AppHeaderComponent);
     fixture.detectChanges();
-    const chip = fixture.nativeElement.querySelector('a[role="img"]') as HTMLAnchorElement | null;
+    const chip = fixture.nativeElement.querySelector('a[href="/settings/profile"]') as HTMLAnchorElement | null;
     expect(chip).toBeTruthy();
     expect(chip?.getAttribute('href')).toBe('/settings/profile');
   });

@@ -55,6 +55,12 @@ describe('RegisterPageComponent', () => {
     expect(navSpy).toHaveBeenCalledWith(['/register/confirm'], { queryParams });
   });
 
+  it('caps the display name at the 80 the form requires (no silently disabled submit)', () => {
+    const { fixture } = setup();
+    const input = (fixture.nativeElement as HTMLElement).querySelector('#register-display-name') as HTMLInputElement;
+    expect(input.getAttribute('maxlength')).toBe('80');
+  });
+
   it('the Sign in link carries the safe redirect back', () => {
     const { fixture } = setup({ redirect: '/catalog/c-1?enroll=1' });
     const link = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a')).find(

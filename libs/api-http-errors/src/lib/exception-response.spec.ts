@@ -25,7 +25,7 @@ function buildHost(): {
   const status = vi.fn().mockReturnValue({ json });
   const host = {
     switchToHttp: () => ({
-      getResponse: () => ({ status }),
+      getResponse: () => ({ status, setHeader: () => undefined }),
       getRequest: () => ({}),
       getNext: () => undefined,
     }),
@@ -105,6 +105,17 @@ describe('formatLogLine', () => {
 });
 
 describe('handleException', () => {
+  it('marks every error response no-store, overriding a route\'s public Cache-Control', () => {
+    const setHeader = vi.fn();
+    const status = vi.fn().mockReturnValue({ json: vi.fn() });
+    const host = {
+      switchToHttp: () => ({ getResponse: () => ({ status, setHeader }) }),
+    } as unknown as ArgumentsHost;
+    handleException(host, new Error('boom'), quietLogger());
+    expect(setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+    expect(status).toHaveBeenCalledWith(500);
+  });
+
   it('renders a domain-shaped exception with its status/code and details', () => {
     const { host, status, json } = buildHost();
     handleException(host, new FakeDomainException('NOT_OWNER', 'no', 403, { a: 1 }), quietLogger());
