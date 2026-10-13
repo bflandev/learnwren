@@ -163,7 +163,16 @@ export class VideoUploadService {
     // A client-side rejection (bad type, session create failed) has no video
     // yet; it must still return to idle or the picker never comes back.
     if (s.videoId) {
-      await firstValueFrom(this.api.delete(s.videoId)).catch(() => undefined);
+      const stillCompleting = await firstValueFrom(this.api.delete(s.videoId)).then(
+        () => false,
+        (err: unknown) => apiErrorOf(err)?.code === 'UPLOAD_COMPLETION_IN_PROGRESS',
+      );
+      // The request timed out client-side but the server is still finishing
+      // this upload: it will land on the lesson, so don't offer a fresh one.
+      if (stillCompleting) {
+        this._state.set({ kind: 'complete', videoId: s.videoId });
+        return;
+      }
     }
     this._state.set({ kind: 'idle' });
   }
