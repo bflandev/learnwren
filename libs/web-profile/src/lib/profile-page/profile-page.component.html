@@ -86,6 +86,8 @@
       </button>
       @if (status() === 'saved') {
         <span class="text-sm text-good">Profile updated.</span>
+      } @else if (saveFailed()) {
+        <span class="text-sm text-bad" role="alert" data-testid="profile-save-error">Couldn't save your profile. Please try again.</span>
       }
     </div>
   </form>

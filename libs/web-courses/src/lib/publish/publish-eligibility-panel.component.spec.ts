@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CoursesService } from '../courses.service';
 import { PublishEligibilityPanelComponent } from './publish-eligibility-panel.component';
@@ -72,11 +72,17 @@ describe('PublishEligibilityPanelComponent', () => {
     expect(jump).not.toBeNull();
   });
 
-  it('shows the inline retry banner when lastError is set', () => {
-    publishSvc.setEligibility({ eligible: true, reasons: [] });
-    (publishSvc as never as { _lastError: { set: (s: string) => void } })._lastError.set('boom');
+  it('shows the error with a working Retry even when the FIRST check failed (no eligibility yet)', () => {
+    (publishSvc as never as { _lastError: { set: (s: string) => void } })._lastError.set(
+      "Couldn't check publish status — please retry.",
+    );
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain("Couldn't check");
+    const banner = fixture.nativeElement.querySelector('[data-testid="eligibility-error"]') as HTMLElement;
+    expect(banner.textContent).toContain("Couldn't check publish status — please retry.");
+    expect(banner.textContent?.match(/Couldn't check/g)).toHaveLength(1); // no doubled prefix
+    const refresh = vi.spyOn(publishSvc, 'refresh').mockImplementation(() => undefined);
+    (fixture.nativeElement.querySelector('[data-testid="eligibility-retry"]') as HTMLButtonElement).click();
+    expect(refresh).toHaveBeenCalled();
   });
 
   it('renders the COURSE_HAS_NO_MODULES prose', () => {

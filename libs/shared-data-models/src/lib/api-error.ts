@@ -16,8 +16,9 @@ export interface ApiErrorBody<Code extends string = string> {
 /**
  * The `error` object of the envelope inside a rejected HttpClient call
  * (`HttpErrorResponse.error.error`), or undefined for any other rejection.
- * Every web error handler reads codes through this — hand-rolled casts drifted
- * one level too shallow once and silently lost every code.
+ * Prefer this over a hand-rolled cast: one drifted a level too shallow and
+ * silently lost every code (handlers that narrow HttpErrorResponse first read
+ * the same depth directly).
  */
 export function apiErrorOf(err: unknown): Partial<ApiErrorBody['error']> | undefined {
   return (err as { error?: Partial<ApiErrorBody> } | null | undefined)?.error?.error;

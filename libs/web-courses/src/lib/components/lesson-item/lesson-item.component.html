@@ -48,6 +48,10 @@
             (removeRequested)="requestVideoRemoval()"
           />
         }
+      } @else if (videoLoadFailed()) {
+        <p data-testid="video-load-error" class="text-sm text-bad" role="alert">
+          Couldn't load this lesson's video. Reload the page to try again.
+        </p>
       }
       @if (videoActionError(); as err) {
         <p data-testid="video-action-error" class="text-sm text-bad">{{ err }}</p>

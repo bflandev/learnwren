@@ -93,7 +93,24 @@ describe('ProfilePageComponent', () => {
     );
     await saved;
     expect(cmp.form.controls.displayName.errors).toEqual({ server: 'must be 1-80 characters' });
+    expect(cmp.form.controls.displayName.touched).toBe(true); // visible even after an Enter-key submit
     expect(cmp.status()).toBe('error');
+    expect(cmp.saveFailed()).toBe(false); // the field explains it
+  });
+
+  it.each([
+    [500, null],
+    [400, { error: { code: 'VALIDATION_FAILED', message: 'x' } }],
+  ])('a save failure no field explains (%s) shows an error instead of nothing', async (status, body) => {
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.form.setValue({ displayName: 'New', biography: '' });
+    const saved = cmp.save();
+    http.expectOne('/api/profile').flush(body, { status, statusText: 'x' });
+    await saved;
+    fixture.detectChanges();
+    expect(cmp.saveFailed()).toBe(true);
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="profile-save-error"]')).not.toBeNull();
   });
 
   it('blocks save when client-side validators fail (over-length biography)', async () => {

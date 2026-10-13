@@ -6,6 +6,7 @@ import { Subscription } from 'rxjs';
 import {
   HlmAvatar,
   HlmBadge,
+  HlmAlert,
   HlmButton,
   HlmSkeleton,
   avatarToneFor,
@@ -19,7 +20,7 @@ import { AdminUsersService } from '../admin-users.service';
 @Component({
   selector: 'lib-admin-user-detail-page',
   standalone: true,
-  imports: [DatePipe, RouterLink, HlmAvatar, HlmBadge, HlmButton, HlmSkeleton],
+  imports: [DatePipe, RouterLink, HlmAlert, HlmAvatar, HlmBadge, HlmButton, HlmSkeleton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin-user-detail-page.component.html',
 })
@@ -31,6 +32,9 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
   readonly user = signal<AdminUserDetail | undefined>(undefined);
   readonly loading = signal(true);
   readonly notFound = signal(false);
+  /** Any other load failure: shown with a retry, not as a blank page. */
+  readonly loadError = signal(false);
+  private shownUid: string | undefined;
   readonly busy = signal(false);
   readonly actionError = signal<string | undefined>(undefined);
   readonly actionSuccess = signal<string | undefined>(undefined);
@@ -192,6 +196,10 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
     return 'Something went wrong. Please try again.';
   }
 
+  retryLoad(): void {
+    if (this.shownUid) void this.load(this.shownUid);
+  }
+
   private async load(uid: string): Promise<void> {
     // Clear the previous user's action banners / open confirm before the await
     // so they never linger on the incoming user's detail view.
@@ -201,8 +209,10 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
     this.confirmingDelete.set(false);
     // Stryker disable next-line UpdateOperator: equivalent — ++ and -- both yield a unique monotonic token; the only consumer is the `token !== this.loadToken` staleness check, which is unaffected by direction.
     const token = ++this.loadToken;
+    this.shownUid = uid;
     this.loading.set(true);
     this.notFound.set(false);
+    this.loadError.set(false);
     try {
       const detail = await this.svc.getDetail(uid);
       if (token !== this.loadToken) return; // superseded by a newer load
@@ -212,6 +222,8 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
       const code = apiErrorOf(err)?.code;
       if (code === 'USER_NOT_FOUND') {
         this.notFound.set(true);
+      } else {
+        this.loadError.set(true);
       }
       this.user.set(undefined);
     } finally {

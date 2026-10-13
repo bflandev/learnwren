@@ -74,6 +74,8 @@ export class ProfilePageComponent implements OnInit {
   });
 
   readonly status = signal<Status>('idle');
+  /** True when a save failed in a way no field explains (5xx, network). */
+  readonly saveFailed = signal(false);
   readonly readonly = signal<{ email: string; role: ProfileView['role'] } | null>(null);
   // Rendered as page-level text (not just the form's input value) so the
   // page has a visible confirmation of whose profile is loaded, independent
@@ -244,24 +246,30 @@ export class ProfilePageComponent implements OnInit {
       return;
     }
     this.status.set('saving');
+    this.saveFailed.set(false);
     try {
       const updated = await this.profileSvc.updateProfile(this.form.getRawValue());
       this.authSvc.setCurrentUser(updated);
       this.displayName.set(updated.displayName);
       this.status.set('saved');
     } catch (err) {
-      this.applyServerError(err);
+      // A failure no field explains must still say so, or the user believes
+      // the save worked.
+      this.saveFailed.set(!this.applyServerError(err));
       this.status.set('error');
     }
   }
 
-  private applyServerError(err: unknown): void {
-    if (!(err instanceof HttpErrorResponse) || err.status !== 400) return;
+  /** Puts a PROFILE_INVALID reason on its field; false when no field explains the error. */
+  private applyServerError(err: unknown): boolean {
+    if (!(err instanceof HttpErrorResponse) || err.status !== 400) return false;
     const body = err.error as ProfileInvalidErrorBody | undefined;
-    if (body?.error?.code !== 'PROFILE_INVALID' || !body.error.details) return;
+    if (body?.error?.code !== 'PROFILE_INVALID' || !body.error.details) return false;
     const { field, reason } = body.error.details;
-    if (field === 'displayName' || field === 'biography') {
-      this.form.controls[field].setErrors({ server: reason });
-    }
+    if (field !== 'displayName' && field !== 'biography') return false;
+    this.form.controls[field].setErrors({ server: reason });
+    // Shown only once touched — an Enter-key submit never touches the field.
+    this.form.controls[field].markAsTouched();
+    return true;
   }
 }

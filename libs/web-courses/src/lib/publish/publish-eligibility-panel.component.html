@@ -45,14 +45,15 @@
         }
       </ul>
     }
-    @if (lastError(); as msg) {
-      <div
-        class="error-banner mt-3 text-sm text-bad"
-        role="alert"
-        data-testid="eligibility-error"
-      >
-        <span>Couldn't check publish status — {{ msg }}</span>
-      </div>
-    }
   </hlm-card>
+}
+<!-- Outside the eligibility block: a failed first check leaves eligibility
+     null, and Publish stays disabled with nothing else to explain why. -->
+@if (lastError(); as msg) {
+  <div class="error-banner mt-3 flex items-center gap-2 text-sm text-bad" role="alert" data-testid="eligibility-error">
+    <span>{{ msg }}</span>
+    <button hlmBtn variant="ghost" size="sm" type="button" data-testid="eligibility-retry" (click)="publishSvc.refresh()">
+      Retry
+    </button>
+  </div>
 }
