@@ -698,6 +698,22 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
     expect(svc.state().kind).toBe('idle'); // picker comes back
   });
 
+  it('retry() hands over to the lesson when the server is still completing that upload (409)', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.completeUpload.mockReturnValue(throwError(() => ({ status: 504 })));
+    api.delete.mockReturnValue(
+      throwError(() => ({ status: 409, error: { error: { code: 'UPLOAD_COMPLETION_IN_PROGRESS', message: 'x' } } })),
+    );
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 200;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(svc.state().kind).toBe('failed');
+    await svc.retry();
+    expect(svc.state()).toEqual({ kind: 'complete', videoId: 'v1' });
+  });
+
   it('retry() is a no-op outside the failed state', async () => {
     await svc.retry();
     expect(svc.state().kind).toBe('idle');

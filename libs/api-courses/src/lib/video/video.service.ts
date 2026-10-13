@@ -18,6 +18,7 @@ import { VIDEO_CONFIG, type VideoConfig } from './video.config';
 import {
   InvalidVideoStateException,
   LessonAlreadyHasVideoException,
+  UploadCompletionInProgressException,
   UploadObjectMissingException,
   UploadObjectSizeMismatchException,
   VideoNotFoundException,
@@ -353,6 +354,12 @@ export class VideoService {
     const v = await this.repo.getVideo(vid);
     if (!v) throw new VideoNotFoundException();
     if (!DELETABLE_STATES.has(v.state)) throw new InvalidVideoStateException(v.state);
+    // A completion in flight is about to submit a transcode job this delete
+    // could not see or cancel (a billed orphan); same freshness rule as the claim.
+    const staleBefore = new Date(Date.now() - CLAIM_TTL_MS).toISOString();
+    if (v.state === 'PENDING_UPLOAD' && v.completeClaimedAt && v.completeClaimedAt >= staleBefore) {
+      throw new UploadCompletionInProgressException();
+    }
     await this.tearDownVideoSideEffects(v, { logCancelFailures: true });
     await this.repo.deleteVideoAndDetach(v.id, v.lessonId, nowIso());
   }

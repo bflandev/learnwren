@@ -9,6 +9,11 @@
     </div>
   } @else if (notFound()) {
     <p class="mt-6 text-sm text-muted-foreground" data-testid="not-found">User not found.</p>
+  } @else if (loadError()) {
+    <hlm-alert severity="error" class="mt-6" data-testid="load-error">
+      <p>Couldn’t load this user. Check your connection and try again.</p>
+      <button hlmBtn variant="ghost" type="button" data-testid="retry-load" (click)="retryLoad()">Retry</button>
+    </hlm-alert>
   } @else if (user(); as u) {
     <div class="mt-6 flex items-center gap-4">
       <hlm-avatar [src]="u.photoUrl" [alt]="u.displayName" [attr.data-tone]="avatarTone(u)">

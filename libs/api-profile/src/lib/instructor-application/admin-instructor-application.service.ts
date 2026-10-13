@@ -128,6 +128,19 @@ export class AdminInstructorApplicationService {
     try {
       await promoteUserToInstructor(uid, this.identity, this.firestore, nowIso());
     } catch (err) {
+      // The claim is written before the users doc, so a failed users write
+      // left the account an INSTRUCTOR while the directory says STUDENT (and
+      // demote then refuses). Put both back, best effort, like admin promote.
+      await this.identity.setRole(uid, 'STUDENT').catch((revertErr: unknown) => {
+        this.logger.error(`[admin] approval role-claim revert failed uid=${uid}: ${String(revertErr)}`);
+      });
+      await this.firestore
+        .collection('users')
+        .doc(uid)
+        .update({ role: 'STUDENT', updatedAt: nowIso() })
+        .catch((revertErr: unknown) => {
+          this.logger.error(`[admin] approval role revert failed uid=${uid}: ${String(revertErr)}`);
+        });
       // Transaction committed APPROVED but the promotion failed; revert to a
       // clean PENDING state (resolvedAt cleared) so the admin can retry rather
       // than leaving the application stuck in a claimed-but-unpromoted

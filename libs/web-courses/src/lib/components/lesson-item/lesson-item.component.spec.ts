@@ -352,6 +352,12 @@ describe('LessonItemComponent effect memoization (ANG-3)', () => {
     return fixture;
   }
 
+  it('says so when the video fetch fails, instead of leaving a blank area', () => {
+    const fixture = bootstrap(vi.fn().mockReturnValue(throwError(() => new Error('500'))), LESSON_WITH_VIDEO);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="video-load-error"]')).not.toBeNull();
+  });
+
   it('does NOT call getVideo again when a new Lesson object has the SAME videoId', () => {
     const mockVideo: Video = {
       id: 'v1' as VideoId,

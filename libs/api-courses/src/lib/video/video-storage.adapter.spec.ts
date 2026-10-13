@@ -77,6 +77,17 @@ describe('VideoStorageAdapter.createResumableSession', () => {
     expect(storage.createResumableUpload.mock.calls[0]![0]).toMatchObject({ origin: 'http://localhost:4200' });
   });
 
+  it('gcs: trims a trailing slash so the session origin matches the browser Origin', async () => {
+    process.env['LEARNWREN_PUBLIC_URL'] = 'https://app.example/';
+    try {
+      const { adapter, storage } = make();
+      await adapter.createResumableSession({ ...ref, contentType: 'video/mp4', videoId: 'v' });
+      expect(storage.createResumableUpload.mock.calls[0]![0]).toMatchObject({ origin: 'https://app.example' });
+    } finally {
+      delete process.env['LEARNWREN_PUBLIC_URL'];
+    }
+  });
+
   it('s3: opens an api upload session and hands the browser the proxy route', async () => {
     const { adapter, storage, sessions } = make(realCfg, 's3');
     const r = await adapter.createResumableSession({ ...ref, contentType: 'video/quicktime', videoId: 'v' });

@@ -40,7 +40,9 @@ export class VideoUploadComponent {
     void this.svc.cancel();
   }
 
-  onRetry(): void {
-    void this.svc.retry();
+  async onRetry(): Promise<void> {
+    await this.svc.retry();
+    const s = this.svc.state();
+    if (s.kind === 'complete') this.uploaded.emit(s.videoId);
   }
 }

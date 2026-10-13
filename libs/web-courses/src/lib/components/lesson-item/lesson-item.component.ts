@@ -53,6 +53,7 @@ export class LessonItemComponent {
   readonly editing = signal(false);
   readonly draftTitle = signal('');
   readonly video = signal<Video | undefined>(undefined);
+  readonly videoLoadFailed = signal(false);
   readonly captionsMeta = signal<VideoCaptionsMeta[]>([]);
   readonly videoActionError = signal<string | null>(null);
 
@@ -71,11 +72,16 @@ export class LessonItemComponent {
         untracked(() => this.video.set(undefined));
         return;
       }
+      untracked(() => this.videoLoadFailed.set(false));
       this.api.getVideo(vid)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (v) => this.video.set(v),
-          error: () => this.video.set(undefined),
+          // Say so: a blank area hides both the player and the remove control.
+          error: () => {
+            this.video.set(undefined);
+            this.videoLoadFailed.set(true);
+          },
         });
     });
   }

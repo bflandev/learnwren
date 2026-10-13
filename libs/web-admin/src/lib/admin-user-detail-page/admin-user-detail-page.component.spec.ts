@@ -118,6 +118,24 @@ describe('AdminUserDetailPageComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="not-found"]')).toBeTruthy();
   });
 
+  it('shows a load error with Retry (not a blank page) on any other failure, and retry reloads', async () => {
+    svc.getDetail = vi.fn(async () => {
+      throw { status: 500, error: { error: { code: 'INTERNAL' } } };
+    });
+    const fixture = await setup('u1');
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="load-error"]')).toBeTruthy();
+    expect(el.querySelector('[data-testid="not-found"]')).toBeNull();
+
+    svc.getDetail = vi.fn(async () => detail());
+    (el.querySelector('[data-testid="retry-load"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(svc.getDetail).toHaveBeenCalledWith('u1');
+    expect(el.querySelector('[data-testid="load-error"]')).toBeNull();
+    expect(el.textContent).toContain('Ada Lovelace');
+  });
+
   it('shows Promote for a STUDENT and no Demote', async () => {
     svc.getDetail = vi.fn(async () => detail({ role: 'STUDENT' }));
     const fixture = await setup();
