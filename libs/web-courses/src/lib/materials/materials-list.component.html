@@ -20,20 +20,21 @@
 
   <ul class="m-0 list-none space-y-1 p-0">
     @for (m of materials(); track m.id) {
-      <li data-testid="material-row" class="flex flex-wrap items-center gap-2">
+      <li data-testid="material-row" class="flex flex-wrap items-center gap-2" [attr.data-material-id]="m.id">
         @if (editingId() === m.id) {
           <input
             hlmInput
             lwAutofocus
         data-testid="material-rename-input"
+            [attr.aria-label]="'Name of ' + m.displayName"
             [attr.maxlength]="materialNameMax"
             type="text"
             class="flex-1"
             [ngModel]="draftName()"
             (ngModelChange)="draftName.set($event)"
             (blur)="commitRename(m)"
-            (keydown.enter)="commitRename(m)"
-            (keydown.escape)="cancelRename()"
+            (keydown.enter)="commitRename(m); refocus('[data-material-id=&quot;' + m.id + '&quot;] [data-testid=material-name]')"
+            (keydown.escape)="cancelRename(); refocus('[data-material-id=&quot;' + m.id + '&quot;] [data-testid=material-name]')"
           />
         } @else {
           <button

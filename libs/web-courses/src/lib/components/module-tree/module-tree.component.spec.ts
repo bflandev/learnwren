@@ -51,6 +51,20 @@ describe('ModuleTreeComponent', () => {
     expect(spy).toHaveBeenCalledWith(['c', 'a', 'b']);
   });
 
+  it('drags only from a grip handle, so a mouse drag inside the card does not move the module', () => {
+    TestBed.configureTestingModule({
+      imports: [ModuleTreeComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), VideoService],
+    });
+    const fixture = TestBed.createComponent(ModuleTreeComponent);
+    fixture.componentRef.setInput('nodes', [node('a'), node('b')]);
+    fixture.componentRef.setInput('courseId', 'cid-1' as CourseId);
+    fixture.detectChanges();
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('[data-module-id]');
+    expect(rows).toHaveLength(2);
+    rows.forEach((row) => expect(row.querySelector(':scope > div > .cdk-drag-handle')).not.toBeNull());
+  });
+
   it('does NOT emit reorderModules when the item is dropped in place', () => {
     TestBed.configureTestingModule({
       imports: [ModuleTreeComponent],

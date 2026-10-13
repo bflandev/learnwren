@@ -9,6 +9,8 @@ import {
   output,
   signal,
   untracked,
+  ElementRef,
+  Injector,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -24,7 +26,7 @@ import {
   toCaptionTracks,
 } from '@learnwren/web-video';
 
-import { ConfirmDialogService, HlmButton, HlmInput, LwAutofocusDirective } from '@learnwren/web-ui';
+import { ConfirmDialogService, HlmButton, HlmInput, LwAutofocusDirective, focusAfterRender } from '@learnwren/web-ui';
 
 import { CaptionsPanelComponent } from '../../captions/captions-panel.component';
 import { MaterialsListComponent } from '../../materials/materials-list.component';
@@ -41,6 +43,14 @@ export class LessonItemComponent {
   private readonly api = inject(VideoService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly hostEl = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
+  /** After Enter/Escape closes an edit, put focus back on the lesson title (not <body>). */
+  protected refocus(selector: string): void {
+    focusAfterRender(this.injector, () => this.hostEl.nativeElement.querySelector<HTMLElement>(selector));
+  }
+
 
   readonly lesson = input.required<Lesson>();
   readonly courseId = input.required<CourseId>();

@@ -58,6 +58,8 @@
                 [(ngModel)]="renameName"
                 aria-label="Category name"
                 lwAutofocus
+                (keydown.enter)="renameByKey(cat.id, true)"
+                (keydown.escape)="renameByKey(cat.id, false)"
                 data-testid="rename-input"
               />
               <button

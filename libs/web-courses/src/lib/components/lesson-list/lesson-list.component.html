@@ -10,12 +10,19 @@
   @for (lesson of lessons(); track lesson.id; let i = $index) {
     <li cdkDrag [attr.data-lesson-id]="lesson.id" class="flex items-start gap-2">
       <!--
-        cdkDrag is pointer-only here: there is no cdkDragHandle, so it is
-        never reachable by Tab and Space/Arrow do nothing. These buttons are
-        the keyboard path — see ModuleTreeComponent's move buttons for the
-        identical pattern one level up.
+        cdkDrag is pointer-only and starts only from the grip (cdkDragHandle):
+        without a handle, selecting text in a rename field or scrubbing the
+        preview player picked the lesson up and reordered it. The arrow
+        buttons are the keyboard path — see ModuleTreeComponent's.
       -->
       <div class="flex flex-col gap-1 pt-1">
+        <span
+          cdkDragHandle
+          aria-hidden="true"
+          data-testid="lesson-drag-handle"
+          class="cursor-grab select-none text-center text-ink-3"
+          title="Drag to reorder"
+        >&#x283F;</span>
         <button
           hlmBtn
           variant="ghost"

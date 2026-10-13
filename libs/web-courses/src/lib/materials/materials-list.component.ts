@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  effect,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -12,7 +22,7 @@ import type {
 } from '@learnwren/shared-data-models';
 import { MATERIAL_NAME_MAX_LENGTH } from '@learnwren/shared-data-models';
 
-import { ConfirmDialogService, HlmButton, HlmInput, LwAutofocusDirective } from '@learnwren/web-ui';
+import { ConfirmDialogService, HlmButton, HlmInput, LwAutofocusDirective, focusAfterRender } from '@learnwren/web-ui';
 
 import { MaterialUploadService } from './material-upload.service';
 import { MaterialsService } from './materials.service';
@@ -30,6 +40,14 @@ export class MaterialsListComponent {
   private readonly api = inject(MaterialsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly hostEl = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
+  /** After Enter/Escape closes an edit, put focus back on the material's name button (not <body>). */
+  protected refocus(selector: string): void {
+    focusAfterRender(this.injector, () => this.hostEl.nativeElement.querySelector<HTMLElement>(selector));
+  }
+
   readonly upload = inject(MaterialUploadService);
 
   readonly courseId = input.required<CourseId>();

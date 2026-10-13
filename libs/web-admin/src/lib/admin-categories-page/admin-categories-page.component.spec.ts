@@ -95,6 +95,30 @@ describe('AdminCategoriesPageComponent', () => {
     expect(fixture.componentInstance.renamingId()).toBeNull();
   });
 
+  it('Enter in the rename field saves; Escape cancels — and focus returns to the row', async () => {
+    const fixture = await setup();
+    document.body.appendChild(fixture.nativeElement);
+    try {
+      const el = fixture.nativeElement as HTMLElement;
+      fixture.componentInstance.startRename(cat('DESIGN', 'Design'));
+      fixture.detectChanges();
+      fixture.componentInstance.renameName = 'Design & UX';
+      await fixture.componentInstance.renameByKey('DESIGN' as never, true);
+      fixture.detectChanges();
+      TestBed.tick();
+      expect(svc.rename).toHaveBeenCalledWith('DESIGN', 'Design & UX');
+      expect(document.activeElement).toBe(el.querySelector('[data-id="DESIGN"] [data-testid="rename-button"]'));
+
+      fixture.componentInstance.startRename(cat('DESIGN', 'Design'));
+      fixture.detectChanges();
+      await fixture.componentInstance.renameByKey('DESIGN' as never, false);
+      expect(fixture.componentInstance.renamingId()).toBeNull();
+      expect(svc.rename).toHaveBeenCalledTimes(1);
+    } finally {
+      fixture.nativeElement.remove();
+    }
+  });
+
   it('startDelete preselects another category as the reassignment target', async () => {
     const fixture = await setup();
     fixture.componentInstance.startDelete(cat('BUSINESS', 'Business'));
