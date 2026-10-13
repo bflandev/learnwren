@@ -92,7 +92,8 @@
                     aria-disabled="true">
                 ✓ Completed on {{ ts | date: 'mediumDate' }}
               </span>
-            } @else {
+            } @else if (state() === 'READY') {
+              <!-- Nothing to complete until the video plays (the outline blocks these rows too). -->
               <button data-testid="mark-complete"
                       hlmBtn
                       type="button"

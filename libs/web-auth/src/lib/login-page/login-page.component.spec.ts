@@ -129,6 +129,18 @@ describe('LoginPageComponent post-login navigation', () => {
     return navSpy;
   }
 
+  it.each([
+    ['/catalog/c-1?enroll=1', '/register?redirect=%2Fcatalog%2Fc-1%3Fenroll%3D1'],
+    ['//evil.example', '/register'],
+  ])('the Register link carries a safe redirect (%s) so a guest returns to the course', (redirect, href) => {
+    const { fixture } = setup(new Map([['redirect', redirect]]));
+    fixture.detectChanges();
+    const link = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a')).find(
+      (a) => a.textContent?.trim() === 'Register',
+    );
+    expect(link?.getAttribute('href')).toBe(href);
+  });
+
   it('navigates to the redirect param after a successful login', async () => {
     const navSpy = await loginOk(new Map([['redirect', '/catalog/c-1?enroll=1']]));
     expect(navSpy).toHaveBeenCalledWith('/catalog/c-1?enroll=1');

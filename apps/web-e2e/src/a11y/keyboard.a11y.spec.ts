@@ -197,7 +197,7 @@ test('journey 2: a student can go from catalogue to enrolled using only the keyb
 
 test('journey 3: a student can navigate lessons and mark complete using only the keyboard', async ({ page }) => {
   await stubAuth(page, 'student');
-  await stubJson(page, '**/api/playback/config', { impl: 'fake' });
+  await stubJson(page, '**/api/playback/config', { fakePlayback: true });
   await stubJson(page, '**/api/learn/courses/c-1/lessons/l-1', LESSON_PAYLOAD_L1);
   await stubJson(page, '**/api/learn/courses/c-1/lessons/l-2', LESSON_PAYLOAD_L2);
   await page.route('**/api/learn/courses/c-1/lessons/l-2/complete', (route) =>

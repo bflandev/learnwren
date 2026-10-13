@@ -262,7 +262,7 @@ describe('VideoUploadService', () => {
   });
 
   it('reports a failure with the underlying message when createUploadSession fails', async () => {
-    api.createUploadSession.mockReturnValue(throwError(() => new Error('quota exceeded')));
+    api.createUploadSession.mockReturnValue(throwError(() => ({ error: { error: { code: 'QUOTA', message: 'quota exceeded' } } })));
 
     const file = new File([new Uint8Array(4)], 'demo.mp4', { type: 'video/mp4' });
     await svc.start(
@@ -285,7 +285,7 @@ describe('VideoUploadService', () => {
     );
     expect(svc.state()).toEqual({
       kind: 'failed',
-      reason: 'Unknown error.',
+      reason: 'Upload failed. Please try again.',
     });
   });
 
@@ -293,7 +293,7 @@ describe('VideoUploadService', () => {
     api.createUploadSession.mockReturnValue(
       of({ videoId: 'v9' as never, uploadSessionUri: 'u', expiresAt: 'e' }),
     );
-    api.completeUpload.mockReturnValue(throwError(() => new Error('finalize boom')));
+    api.completeUpload.mockReturnValue(throwError(() => ({ error: { error: { code: 'UPLOAD_OBJECT_MISSING', message: 'finalize boom' } } })));
 
     const file = new File([new Uint8Array(8)], 'demo.mp4', { type: 'video/mp4' });
     const done = svc.start(
@@ -423,7 +423,7 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
   afterEach(() => vi.clearAllMocks());
 
   const sized = (bytes: number, type = 'video/mp4'): File => {
-    const f = new File([new Uint8Array(1)], 'f.mp4', { type });
+    const f = new File([new Uint8Array(1)], 'f.bin', { type });
     Object.defineProperty(f, 'size', { value: bytes });
     return f;
   };
@@ -445,10 +445,43 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
     expect(svc.selectFile(sized(10, 'text/plain'))).toEqual({ ok: false });
   });
 
+  it.each([
+    ['clip.MKV', '', 'video/x-matroska'],
+    ['clip.m4v', 'video/x-m4v', 'video/mp4'],
+    ['clip.mov', '', 'video/quicktime'],
+    ['clip.mp4', '', 'video/mp4'],
+  ])('selectFile falls back to the extension for %s reported as %j', (name, type, expected) => {
+    const f = new File([new Uint8Array(1)], name, { type });
+    expect(svc.selectFile(f)).toEqual({ ok: true, contentType: expected });
+  });
+
+  it('selectFile rejects an unknown extension with no usable type', () => {
+    expect(svc.selectFile(new File([new Uint8Array(1)], 'notes', { type: '' }))).toEqual({ ok: false });
+  });
+
   it('start() does not create a session when the file is invalid', async () => {
     await svc.start(CTX, sized(10, 'text/plain'));
     expect(api.createUploadSession).not.toHaveBeenCalled();
     expect(svc.state().kind).toBe('failed');
+  });
+
+  it('a file the pipeline rejects (200 with a FAILED video) lands in failed, so retry brings the picker back', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'FAILED', failureReason: 'SOURCE_PROBE_FAILED: internal' }));
+    api.delete.mockReturnValue(of(undefined));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 200;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(svc.state()).toEqual({
+      kind: 'failed',
+      reason: "This video couldn't be processed. Try a different file.",
+      videoId: 'v1',
+    });
+    await svc.retry();
+    expect(api.delete).toHaveBeenCalledWith('v1');
+    expect(svc.state().kind).toBe('idle');
   });
 
   it('createUploadSession is called with the declared size and content type', async () => {
@@ -657,12 +690,18 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
     expect(api.delete).not.toHaveBeenCalled();
   });
 
-  it('retry() is a no-op when the failed state carries no videoId', async () => {
+  it('retry() returns to idle without a delete when the failed state carries no videoId', async () => {
     svc.selectFile(sized(10, 'text/plain')); // failed WITHOUT a videoId
     expect(svc.state().kind).toBe('failed');
     await svc.retry();
     expect(api.delete).not.toHaveBeenCalled();
-    expect(svc.state().kind).toBe('failed'); // unchanged — guard returned early
+    expect(svc.state().kind).toBe('idle'); // picker comes back
+  });
+
+  it('retry() is a no-op outside the failed state', async () => {
+    await svc.retry();
+    expect(svc.state().kind).toBe('idle');
+    expect(api.delete).not.toHaveBeenCalled();
   });
 
   it('cancel() from a failed state with no videoId does not call delete', async () => {
@@ -725,7 +764,7 @@ describe('VideoUploadService — transient states & guards (mutation hardening)'
   afterEach(() => vi.clearAllMocks());
 
   const sized = (bytes: number, type = 'video/mp4'): File => {
-    const f = new File([new Uint8Array(1)], 'f.mp4', { type });
+    const f = new File([new Uint8Array(1)], 'f.bin', { type });
     Object.defineProperty(f, 'size', { value: bytes });
     return f;
   };
@@ -898,24 +937,26 @@ describe('VideoUploadService — transient states & guards (mutation hardening)'
     }
   });
 
-  // ---- L209: errorMessage object/message-in guard ----
-  it('extracts the message from an error object that HAS a message field', async () => {
-    api.createUploadSession.mockReturnValue(throwError(() => ({ message: 'boom-from-object' })));
+  // ---- errorMessage: the api's message, never Angular's transport text ----
+  it('shows the api error message from the response envelope', async () => {
+    api.createUploadSession.mockReturnValue(
+      throwError(() => ({
+        message: 'Http failure response for /api/…: 409 Conflict',
+        error: { error: { code: 'LESSON_ALREADY_HAS_VIDEO', message: 'This lesson already has a video.' } },
+      })),
+    );
     await svc.start(CTX, sized(8));
-    expect(svc.state()).toEqual({ kind: 'failed', reason: 'boom-from-object' });
+    expect(svc.state()).toEqual({ kind: 'failed', reason: 'This lesson already has a video.' });
   });
 
-  it('falls back to "Unknown error." for a null-ish error (no message field)', async () => {
-    api.createUploadSession.mockReturnValue(throwError(() => null));
-    await svc.start(CTX, sized(8));
-    expect(svc.state()).toEqual({ kind: 'failed', reason: 'Unknown error.' });
-  });
-
-  it('falls back to "Unknown error." for an object WITHOUT a message field', async () => {
-    api.createUploadSession.mockReturnValue(throwError(() => ({ code: 42 })));
-    await svc.start(CTX, sized(8));
-    expect(svc.state()).toEqual({ kind: 'failed', reason: 'Unknown error.' });
-  });
+  it.each([[null], [{ message: 'Http failure response for /api/…: 0 Unknown Error' }], [{ code: 42 }]])(
+    'falls back to a generic message without an api envelope (%j)',
+    async (err) => {
+      api.createUploadSession.mockReturnValue(throwError(() => err));
+      await svc.start(CTX, sized(8));
+      expect(svc.state()).toEqual({ kind: 'failed', reason: 'Upload failed. Please try again.' });
+    },
+  );
 
   // ---- L116: cancel from the 'finalizing' state must delete (||-clause live) ----
   it('cancel() while finalizing enters canceling and deletes the video', async () => {

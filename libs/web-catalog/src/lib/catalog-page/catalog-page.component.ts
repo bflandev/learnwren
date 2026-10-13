@@ -106,6 +106,12 @@ export class CatalogPageComponent {
     try {
       const result = await this.service.getCatalogue({ page, sort, category, difficulty });
       if (token !== this.loadToken) return; // superseded by a newer load
+      // A bookmark past the last page (courses since unpublished) would show a
+      // false "no courses" with no pagination — go to the last real page.
+      if (page > result.totalPages && result.totalPages > 0) {
+        this.goToPage(result.totalPages, true);
+        return;
+      }
       this.result.set(result);
     } catch {
       if (token !== this.loadToken) return; // superseded by a newer load
@@ -121,11 +127,12 @@ export class CatalogPageComponent {
     });
   }
 
-  goToPage(page: number): void {
+  goToPage(page: number, replaceUrl = false): void {
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { page },
       queryParamsHandling: 'merge',
+      replaceUrl,
     });
   }
 }

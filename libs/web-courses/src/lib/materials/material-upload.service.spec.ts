@@ -131,6 +131,18 @@ describe('MaterialUploadService', () => {
     expect(svc.failures()).toHaveLength(1);
   });
 
+  it('shows the api error message from an HTTP error envelope', async () => {
+    const { svc } = setup({
+      api: {
+        createUploadUrl: vi.fn().mockReturnValue(
+          throwError(() => ({ error: { error: { code: 'VALIDATION_FAILED', message: 'File type not allowed.' } } })),
+        ),
+      },
+    });
+    await svc.uploadFiles(ctx, [makeFile('notes.pdf')]);
+    expect(svc.failures()[0].reason).toBe('File type not allowed.');
+  });
+
   it('falls back to "Upload failed." when the thrown error is not an Error instance', async () => {
     const { svc } = setup({
       api: { createUploadUrl: vi.fn().mockReturnValue(throwError(() => 'opaque-string')) },

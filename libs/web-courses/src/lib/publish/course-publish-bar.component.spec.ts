@@ -177,7 +177,7 @@ describe('CoursePublishBarComponent', () => {
     publishSvc.setEligibility({ eligible: true, reasons: [] });
     const reasons = [{ kind: 'COURSE_HAS_NO_MODULES' }];
     coursesSvc.publishCourse.mockRejectedValue({
-      error: { code: 'PUBLISH_NOT_ELIGIBLE', details: { reasons } },
+      error: { error: { code: 'PUBLISH_NOT_ELIGIBLE', details: { reasons } } },
     });
     fixture.detectChanges();
 
@@ -191,7 +191,7 @@ describe('CoursePublishBarComponent', () => {
     fixture.componentRef.setInput('course', COURSE_DRAFT_BASE);
     publishSvc.setEligibility({ eligible: true, reasons: [] });
     // details omitted entirely — details?.reasons must guard against undefined.
-    coursesSvc.publishCourse.mockRejectedValue({ error: { code: 'PUBLISH_NOT_ELIGIBLE' } });
+    coursesSvc.publishCourse.mockRejectedValue({ error: { error: { code: 'PUBLISH_NOT_ELIGIBLE' } } });
     fixture.detectChanges();
 
     (fixture.nativeElement.querySelector('[data-testid="publish-bar-primary"]') as HTMLButtonElement).click();
@@ -202,7 +202,7 @@ describe('CoursePublishBarComponent', () => {
 
   it('shows a refresh prompt when a transition fails with INVALID_TRANSITION', async () => {
     fixture.componentRef.setInput('course', { ...COURSE_DRAFT_BASE, status: 'PUBLISHED' });
-    coursesSvc.unpublishCourse.mockRejectedValue({ error: { code: 'INVALID_TRANSITION' } });
+    coursesSvc.unpublishCourse.mockRejectedValue({ error: { error: { code: 'INVALID_TRANSITION' } } });
     fixture.detectChanges();
 
     fixture.componentInstance.runConfirmedTransition('unpublish');

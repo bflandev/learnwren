@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AdminUsersService } from '../admin-users.service';
@@ -465,5 +466,55 @@ describe('AdminUsersPageComponent', () => {
 
     expect(fixture.componentInstance.error()).toBe(false);
     expect(fixture.componentInstance.users()[0]?.id).toBe('ok');
+  });
+});
+
+describe('AdminUsersPageComponent — delete confirmation', () => {
+  async function arrive(state?: Record<string, unknown>): Promise<HTMLElement> {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'admin/users', component: AdminUsersPageComponent },
+          { path: 'admin/users/:uid', children: [] }, // stands in for the detail page
+        ]),
+        { provide: AdminUsersService, useValue: { list: vi.fn(async () => ({ users: [], total: 0, page: 1, pageSize: 20 })) } },
+      ],
+    });
+    const harness = await RouterTestingHarness.create('/admin/users/u1');
+    await TestBed.inject(Router).navigateByUrl('/admin/users', { state });
+    harness.detectChanges();
+    return harness.routeNativeElement as HTMLElement;
+  }
+
+  it('shows "User deleted." when the detail page navigates here after a delete', async () => {
+    const el = await arrive({ deleted: true });
+    expect(el.querySelector('[data-testid="user-deleted-notice"]')?.textContent?.trim()).toBe('User deleted.');
+  });
+
+  it.each([
+    ['popstate', { previousNavigation: {} }],
+    ['hashchange', { previousNavigation: {} }],
+    ['imperative', { previousNavigation: null }], // a reload: the initial navigation restores history state
+  ])(
+    'does not replay the notice on a %s navigation restoring history state (%j)',
+    (trigger, extra) => {
+      TestBed.configureTestingModule({
+        imports: [AdminUsersPageComponent],
+        providers: [
+          provideRouter([]),
+          { provide: AdminUsersService, useValue: { list: vi.fn(async () => ({ users: [], total: 0, page: 1, pageSize: 20 })) } },
+        ],
+      });
+      const router = TestBed.inject(Router);
+      Object.defineProperty(router, 'currentNavigation', {
+        value: () => ({ trigger, ...extra, extras: { state: { deleted: true } } }),
+      });
+      expect(TestBed.createComponent(AdminUsersPageComponent).componentInstance.deletedNotice()).toBe(false);
+    },
+  );
+
+  it('shows no notice on an ordinary visit', async () => {
+    const el = await arrive();
+    expect(el.querySelector('[data-testid="user-deleted-notice"]')).toBeNull();
   });
 });

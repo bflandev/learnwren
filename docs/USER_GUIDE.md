@@ -167,7 +167,9 @@ next to the avatar hides below `md`.
    special character** (e.g. `Aa1!aaaaaaaa`). The form validates this live before you
    can submit.
 3. On submit you land on **`/register/confirm`** with a "Check your email" message and
-   a **Resend** button (throttled to once per 60 seconds).
+   a **Resend** button (throttled to once per 60 seconds). If you came from a
+   course's **Enroll** button, the page's **Continue** link takes you back to that
+   course (and enrols you) instead of the dashboard.
 
 Behind the scenes registration creates a Firebase Auth user, a `users/{uid}` Firestore
 document, assigns the **`STUDENT`** role, sends a verification email, and signs you in
@@ -273,6 +275,7 @@ From the `/settings/profile` page, click **Change email** to start the flow:
    in — nothing changes yet.
 3. Open the email on the new address and click the link. The platform swaps the
    address in Firebase and redirects you to `/settings/profile/email-changed`.
+   Mistyped the address? **Use a different address** reopens the form.
 4. On that page the platform syncs your Firestore profile, revokes your existing
    session (force re-login), and redirects to `/login?emailChanged=1`.
 5. Sign in with your **new email address** to continue.
@@ -423,11 +426,13 @@ to enrolled students and the course owner.
 
 ### Marking a lesson complete
 
-While watching a lesson, you see a **Mark as Complete** button below the video.
-Clicking it:
+While watching a lesson, you see a **Mark as Complete** button below the video
+(only once the lesson's video is ready to play). Clicking it:
 
 - Records `completedAt` on your per-lesson progress.
 - Swaps the button for a disabled **✓ Completed on \<date\>** pill.
+- Ticks the lesson in the course outline straight away (module tick and the
+  course-completed banner follow without a reload).
 - The pill persists across reload and across leaving and re-enrolling in the course.
 
 Marking complete is idempotent: clicking again (or retrying after a flaky network) is
@@ -448,8 +453,9 @@ When you re-open a course you are enrolled in, the course detail page shows a
 **Continue Learning** button (falling back to **Start Learning** for new enrollments).
 Clicking it takes you back to the last lesson you watched. The lesson player also
 auto-saves your playback position every ~15 seconds (and flushes on pause, tab-hide,
-and page exit) — when you return to that lesson, the video resumes from where you
-left off.
+and page exit, and when you navigate away by any route) — when you return to that
+lesson, the video resumes from where you left off. A lesson watched to the end
+restarts from the beginning.
 
 The lesson player includes a collapsible **course outline** panel listing every
 module and lesson in the course, in the order the instructor set:
@@ -580,12 +586,15 @@ Uploads that fail validation (wrong file type, exceeds 10 MB, smaller than
 Each lesson holds at most one video. In the lesson editor:
 
 1. Choose a video file. Supported formats and limit:
-   - **MP4** (`video/mp4`), **MOV** (`video/quicktime`), **MKV**
-     (`video/x-matroska`).
+   - **MP4** (`video/mp4`, including `.m4v`), **MOV** (`video/quicktime`), **MKV**
+     (`video/x-matroska`). A file whose browser-reported type is blank is matched by
+     its extension.
    - **Maximum 10 GB.**
 2. The upload is **resumable** — the API hands the browser a Cloud Storage upload
    session URI and the file streams directly to storage. You can **cancel** or, if it
-   fails, **retry**.
+   fails, **Try again** (which returns to the file picker). A file the transcoder
+   cannot read (corrupt, audio-only, too small) fails here with "This video couldn't
+   be processed" rather than leaving an empty lesson.
 3. Once the bytes land, the platform transcodes the file. The lesson shows a **status
    badge** that you can watch (the editor polls every ~5 seconds):
 
@@ -1044,7 +1053,7 @@ All admin endpoints require a valid session cookie **and** the `ADMIN` role
 
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
-| `POST` | `/api/admin/categories` | Create `{ name }` (≤ 60 chars); id = slugified name. |
+| `POST` | `/api/admin/categories` | Create `{ name }` (≤ 60 chars); id = slugified name (numeric suffix if taken). |
 | `PATCH` | `/api/admin/categories/:id` | Rename `{ name }` — display name only; course docs are never rewritten. |
 | `DELETE` | `/api/admin/categories/:id?reassignTo=` | Delete; `reassignTo` required when courses reference the category. Returns `{ reassignedCourses }`. |
 
@@ -1135,11 +1144,12 @@ authenticated student with an `ACTIVE` enrollment). Manifests and keys are serve
 | `/search` | — | Search results page (the catalogue search bar navigates here). |
 | `/catalog/:id` | — | Public course detail page; shows the enrollment panel (state varies by auth/enrollment). |
 | `/login` | — | Sign-in page. Honours a `?redirect=` query param on success (used by guest auto-enroll and deep links). |
-| `/register` | — | Registration page (mirrors the password policy client-side). |
-| `/register/confirm` | — | "Check your email" + Resend. |
+| `/register` | — | Registration page (mirrors the password policy client-side). Carries a safe `?redirect=` through to the confirm page. |
+| `/register/confirm` | — | "Check your email" + Resend; **Continue** follows a safe `?redirect=`, else the dashboard. |
 | `/forgot-password` | — | Request a password reset. |
 | `/auth/unlock` | — | Redeems an unlock token from the URL. |
 | `/dashboard` | `authGuard` | Display name + role; instructor course grid; sign-out. |
+| any unknown path | — | "Page not found" with a link to the catalogue. |
 | `/settings/profile` | `authGuard` | Profile settings: text profile, picture, email/password change, instructor request, completed courses. |
 | `/settings/profile/email-changed` | — | Unguarded landing page for the email-change confirmation link. |
 | `/learn/:courseId/:lessonId` | `authGuard` | Student lesson player: video, outline panel, materials, mark-complete. |

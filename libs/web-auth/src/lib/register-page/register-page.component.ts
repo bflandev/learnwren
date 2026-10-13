@@ -4,8 +4,10 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
+
+import { PASSWORD_MAX_LENGTH } from '@learnwren/shared-data-models';
 
 import {
   HlmAlert,
@@ -19,6 +21,7 @@ import {
 } from '@learnwren/web-ui';
 
 import { AuthService } from '../auth.service';
+import { safeRedirectParam } from '../safe-redirect';
 import {
   passwordPolicyValidator,
   PASSWORD_REQUIREMENT_PROSE,
@@ -45,6 +48,12 @@ import {
 export class RegisterPageComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  /** Carried back to Sign in, so the guest still returns to where they were headed. */
+  readonly loginQueryParams = (() => {
+    const redirect = safeRedirectParam(this.route.snapshot.queryParamMap);
+    return redirect ? { redirect } : {};
+  })();
   private readonly fb = inject(FormBuilder);
 
   readonly form = this.fb.nonNullable.group({
@@ -76,9 +85,10 @@ export class RegisterPageComponent {
     try {
       const result = await this.auth.register(this.form.getRawValue());
       if (result.ok) {
-        await this.router.navigateByUrl(
-          `/register/confirm?email=${encodeURIComponent(this.form.controls.email.value)}`,
-        );
+        const redirect = safeRedirectParam(this.route.snapshot.queryParamMap);
+        await this.router.navigate(['/register/confirm'], {
+          queryParams: { email: this.form.controls.email.value, ...(redirect ? { redirect } : {}) },
+        });
         return;
       }
       this.error.set(this.toMessage(result));
@@ -111,7 +121,7 @@ export class RegisterPageComponent {
       return 'Display name is required and must be 80 characters or fewer.';
     }
     if (result.code === 'PASSWORD_TOO_LONG') {
-      return 'Password must be 256 characters or fewer.';
+      return `Password must be ${PASSWORD_MAX_LENGTH} characters or fewer.`;
     }
     return 'Something went wrong. Please try again.';
   }

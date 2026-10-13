@@ -99,6 +99,9 @@ export class MaterialsListComponent {
   }
 
   async commitRename(m: Material): Promise<void> {
+    // Escape/Enter remove the input and the removal can fire blur → here
+    // again: without this, Escape saved the draft and Enter renamed twice.
+    if (this.editingId() !== m.id) return;
     const next = this.draftName().trim();
     this.editingId.set(null);
     if (next.length === 0 || next === m.displayName) return;

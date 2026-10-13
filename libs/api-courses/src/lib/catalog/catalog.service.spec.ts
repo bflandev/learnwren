@@ -9,6 +9,7 @@ import type {
 
 import { CoursesException } from '../errors/courses.exception';
 import { createInMemoryDocumentStore } from '@learnwren/api-document-store';
+import { CategoriesRepository } from '../categories/categories.repository';
 import { CoursesRepository } from '../courses.repository';
 import { InstructorDirectory } from './instructor-directory';
 import { CatalogService } from './catalog.service';
@@ -36,7 +37,7 @@ function makeService(
   const firestore = createInMemoryDocumentStore(seed);
   const repo = new CoursesRepository(firestore as never);
   const directory = new InstructorDirectory(firestore as never);
-  return new CatalogService(repo, directory);
+  return new CatalogService(repo, directory, new CategoriesRepository(firestore as never));
 }
 
 describe('CatalogService.listCatalogue', () => {
@@ -353,6 +354,7 @@ describe('CatalogService.getCourseDetail', () => {
     const svc = new CatalogService(
       new CoursesRepository(firestore as never),
       new InstructorDirectory(firestore as never),
+      new CategoriesRepository(firestore as never),
     );
 
     const detail = await svc.getCourseDetail('c-1' as CourseId);
@@ -363,6 +365,22 @@ describe('CatalogService.getCourseDetail', () => {
     expect(detail.modules).toEqual([
       { title: 'Module 1', lessons: [{ id: 'l-1', title: 'Lesson 1' }, { id: 'l-2', title: 'Lesson 2' }] },
     ]);
+  });
+
+  it('resolves the category id to its current display name', async () => {
+    const svc = makeService([course({ id: 'c-cat' as CourseId, category: 'PROGRAMMING' as Course['category'] })]);
+    const detail = await svc.getCourseDetail('c-cat' as CourseId);
+    expect(detail.category).toBe('PROGRAMMING');
+    expect(detail.categoryName).toBe('Programming');
+  });
+
+  it('omits categoryName for an uncategorised course or a since-deleted category', async () => {
+    const svc = makeService([
+      course({ id: 'c-none' as CourseId }),
+      course({ id: 'c-gone' as CourseId, category: 'NO_SUCH' as Course['category'] }),
+    ]);
+    expect(await svc.getCourseDetail('c-none' as CourseId)).not.toHaveProperty('categoryName');
+    expect(await svc.getCourseDetail('c-gone' as CourseId)).not.toHaveProperty('categoryName');
   });
 
   it('falls back to createdAt when a published course carries no publishedAt', async () => {
@@ -395,6 +413,7 @@ describe('CatalogService.getCourseDetail', () => {
     const svc = new CatalogService(
       new CoursesRepository(firestore as never),
       new InstructorDirectory(firestore as never),
+      new CategoriesRepository(firestore as never),
     );
 
     const detail = await svc.getCourseDetail('c-1' as CourseId);
@@ -581,6 +600,7 @@ describe('CatalogService — instructor avatar projection', () => {
     const svc = new CatalogService(
       new CoursesRepository(countingFirestore as never),
       new InstructorDirectory(countingFirestore as never),
+      new CategoriesRepository(countingFirestore as never),
     );
 
     const page = await svc.listCatalogue({});
@@ -611,6 +631,7 @@ describe('CatalogService — instructor avatar projection', () => {
     const svc = new CatalogService(
       new CoursesRepository(firestore as never),
       new InstructorDirectory(firestore as never),
+      new CategoriesRepository(firestore as never),
     );
 
     const detail = await svc.getCourseDetail('c-1' as CourseId);
@@ -664,6 +685,7 @@ describe('CatalogService — instructor avatar projection', () => {
     const svc = new CatalogService(
       new CoursesRepository(firestore as never),
       new InstructorDirectory(firestore as never),
+      new CategoriesRepository(firestore as never),
     );
 
     const detail = await svc.getCourseDetail('c-1' as CourseId);
@@ -702,8 +724,8 @@ describe('CatalogService.listCatalogue — sorts on its own, whatever order the 
   // depend on that, so these feed it the reverse order through a stub repository.
   function serviceOver(courses: Course[]): CatalogService {
     const repo = { listPublished: async () => courses } as unknown as CoursesRepository;
-    const directory = new InstructorDirectory(createInMemoryDocumentStore() as never);
-    return new CatalogService(repo, directory);
+    const store = createInMemoryDocumentStore();
+    return new CatalogService(repo, new InstructorDirectory(store as never), new CategoriesRepository(store as never));
   }
   const older = course({ id: 'older' as CourseId, publishedAt: '2026-01-01T00:00:00.000Z' as ISODateString });
   const newer = course({ id: 'newer' as CourseId, publishedAt: '2026-03-01T00:00:00.000Z' as ISODateString });

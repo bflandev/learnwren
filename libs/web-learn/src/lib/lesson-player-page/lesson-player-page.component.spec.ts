@@ -1,9 +1,17 @@
 import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, ParamMap, Router, convertToParamMap, provideRouter } from '@angular/router';
+import {
+  ActivatedRoute,
+  NavigationEnd,
+  NavigationStart,
+  ParamMap,
+  Router,
+  convertToParamMap,
+  provideRouter,
+} from '@angular/router';
 import { By } from '@angular/platform-browser';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ISODateString, LessonId, LessonView, MaterialId } from '@learnwren/shared-data-models';
@@ -347,6 +355,18 @@ describe('LessonPlayerPageComponent', () => {
       expect(query(fixture, '[data-testid="completed-pill"]')).toBeNull();
     });
 
+    it('offers no Mark as Complete while the video is still processing', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({ videoState: 'TRANSCODING' } as never));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(query(fixture, '[data-testid="video-processing"]')).not.toBeNull();
+      expect(query(fixture, '[data-testid="mark-complete"]')).toBeNull();
+    });
+
     it('swaps the button for the pill after clicking Mark as Complete', async () => {
       configure();
       const { fixture, http } = create();
@@ -363,6 +383,24 @@ describe('LessonPlayerPageComponent', () => {
 
       expect(query(fixture, '[data-testid="completed-pill"]')).not.toBeNull();
       expect(query(fixture, '[data-testid="mark-complete"]')).toBeNull();
+    });
+
+    it('ticks the lesson in the outline too, so module/course completion shows without a reload', async () => {
+      configure();
+      const { fixture, http } = create();
+      const lesson = (id: string) => ({ id, title: id, videoState: 'READY', completedAt: null }) as never;
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, undefined, [{ id: 'm-1', title: 'M', lessons: [lesson('l-1'), lesson('l-2')] }] as never));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      (query(fixture, '[data-testid="mark-complete"]') as HTMLButtonElement).click();
+      http.expectOne('/api/learn/courses/c-1/lessons/l-1/complete').flush({ completedAt: '2026-05-25T12:00:00.000Z' });
+      await fixture.whenStable();
+
+      const rows = fixture.componentInstance.view()!.outline.modules[0].lessons;
+      expect(rows.map((l) => l.completedAt)).toEqual(['2026-05-25T12:00:00.000Z', null]);
     });
 
     it('shows the revoked banner on a 403 from POST /complete', async () => {
@@ -449,6 +487,19 @@ describe('LessonPlayerPageComponent', () => {
         .mockImplementation(() => undefined);
 
       fixture.componentInstance.onMetadata(60);
+      expect(seek).toHaveBeenCalledWith(0);
+    });
+
+    it('restarts a fully watched lesson: saved whole seconds vs a fractional duration', async () => {
+      configure();
+      const { fixture, http } = create();
+      http
+        .expectOne('/api/learn/courses/c-1/lessons/l-1')
+        .flush(makeView({}, { completedAt: null, lastWatchedSeconds: 612 }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const seek = vi.spyOn(fixture.componentInstance, 'seekVideoTo').mockImplementation(() => undefined);
+      fixture.componentInstance.onMetadata(612.48);
       expect(seek).toHaveBeenCalledWith(0);
     });
 
@@ -757,7 +808,7 @@ describe('LessonPlayerPageComponent pagehide / visibilitychange wiring', () => {
     const flushBeacon = vi.fn();
     type WithPrivates = { saver: { flushBeacon: () => void; stop: () => void } | null; onPageHide: () => void };
     const withPrivates = fixture.componentInstance as unknown as WithPrivates;
-    withPrivates.saver = { flushBeacon, stop: () => undefined };
+    withPrivates.saver = { flushBeacon, stop: () => undefined, flush: async () => undefined } as never;
     withPrivates.onPageHide();
     expect(flushBeacon).toHaveBeenCalledTimes(1);
   });
@@ -776,7 +827,7 @@ describe('LessonPlayerPageComponent pagehide / visibilitychange wiring', () => {
     const flushBeacon = vi.fn();
     type WithPrivates = { saver: { flushBeacon: () => void; stop: () => void } | null; onVisibilityChange: () => void };
     const withPrivates = fixture.componentInstance as unknown as WithPrivates;
-    withPrivates.saver = { flushBeacon, stop: () => undefined };
+    withPrivates.saver = { flushBeacon, stop: () => undefined, flush: async () => undefined } as never;
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
     withPrivates.onVisibilityChange();
     expect(flushBeacon).toHaveBeenCalledTimes(1);
@@ -788,7 +839,7 @@ describe('LessonPlayerPageComponent pagehide / visibilitychange wiring', () => {
     const flushBeacon = vi.fn();
     type WithPrivates = { saver: { flushBeacon: () => void; stop: () => void } | null; onVisibilityChange: () => void };
     const withPrivates = fixture.componentInstance as unknown as WithPrivates;
-    withPrivates.saver = { flushBeacon, stop: () => undefined };
+    withPrivates.saver = { flushBeacon, stop: () => undefined, flush: async () => undefined } as never;
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     withPrivates.onVisibilityChange();
     expect(flushBeacon).not.toHaveBeenCalled();
@@ -825,6 +876,23 @@ describe('LessonPlayerPageComponent pagehide / visibilitychange wiring', () => {
     expect(docRemove.mock.calls.some((c) => c[0] === 'visibilitychange')).toBe(true);
   });
 
+  it('flushes the saver on NavigationStart, while the player is still mounted', async () => {
+    configure();
+    const { fixture, http } = create();
+    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const flush = vi.fn(async () => undefined);
+    (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
+      flush, stop: () => undefined,
+    };
+    const router = TestBed.inject(Router);
+    (router.events as unknown as Subject<unknown>).next(new NavigationStart(1, '/courses'));
+    (router.events as unknown as Subject<unknown>).next(new NavigationEnd(1, '/courses', '/courses'));
+    expect(flush).toHaveBeenCalledTimes(1); // only NavigationStart, not other router events
+  });
+
   it('ngOnDestroy stops the saver and nulls it out', async () => {
     configure();
     const { fixture, http } = create();
@@ -833,8 +901,8 @@ describe('LessonPlayerPageComponent pagehide / visibilitychange wiring', () => {
     fixture.detectChanges();
 
     const stop = vi.fn();
-    (fixture.componentInstance as unknown as { saver: { flushBeacon: () => void; stop: () => void } | null }).saver = {
-      flushBeacon: () => undefined, stop,
+    (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
+      flush: async () => undefined, stop,
     };
     fixture.componentInstance.ngOnDestroy();
     expect(stop).toHaveBeenCalledTimes(1);
@@ -995,8 +1063,8 @@ describe('LessonPlayerPageComponent onPlayed wiring', () => {
     fixture.detectChanges();
 
     const stop = vi.fn();
-    (fixture.componentInstance as unknown as { saver: { flushBeacon: () => void; stop: () => void } | null }).saver = {
-      flushBeacon: () => undefined, stop,
+    (fixture.componentInstance as unknown as { saver: unknown }).saver = {
+      flush: async () => undefined, flushBeacon: () => undefined, stop,
     };
     fixture.componentInstance.onSaverRevoked();
     expect(stop).toHaveBeenCalledTimes(1);
@@ -1046,7 +1114,7 @@ describe('LessonPlayerPageComponent outline integration (Slice D)', () => {
     expect(fixture.componentInstance.outlineOpen()).toBe(!before);
   });
 
-  it('flushes the saver, then navigates, when lessonSelected fires', async () => {
+  it('navigates at once on lessonSelected, without waiting on a position flush', async () => {
     configure();
     const { fixture, http } = create();
     http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
@@ -1055,38 +1123,17 @@ describe('LessonPlayerPageComponent outline integration (Slice D)', () => {
 
     const router = TestBed.inject(Router);
     const navSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
-    const flushSpy = vi.fn().mockResolvedValue(undefined);
+    const flush = vi.fn(() => new Promise<void>(() => undefined)); // never settles
     (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
-      flush: flushSpy,
+      flush,
       stop: () => undefined,
     };
 
+    // Waiting on a flush let fast clicks (B, then C) navigate in
+    // flush-completion order; NavigationStart does the flush instead.
     await fixture.componentInstance.onLessonSelected('lnext' as LessonId);
 
-    expect(flushSpy).toHaveBeenCalledTimes(1);
     expect(navSpy).toHaveBeenCalledWith('/learn/c-1/lnext');
-    expect(flushSpy.mock.invocationCallOrder[0]).toBeLessThan(navSpy.mock.invocationCallOrder[0]);
-  });
-
-  it('still navigates if the flush rejects, and logs a warning', async () => {
-    configure();
-    const { fixture, http } = create();
-    http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    const router = TestBed.inject(Router);
-    const navSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
-      flush: vi.fn().mockRejectedValue(new Error('network')),
-      stop: () => undefined,
-    };
-
-    await fixture.componentInstance.onLessonSelected('lnext' as LessonId);
-
-    expect(navSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy).toHaveBeenCalled();
   });
 });
 
@@ -1591,8 +1638,8 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       const handler = winAdd.mock.calls.find((c) => c[0] === 'pagehide')?.[1] as () => void;
       expect(handler).toBeDefined();
       const flushBeacon = vi.fn();
-      (fixture.componentInstance as unknown as { saver: { flushBeacon: () => void; stop: () => void } | null }).saver = {
-        flushBeacon, stop: () => undefined,
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = {
+        flush: async () => undefined, flushBeacon, stop: () => undefined,
       };
       handler();
       expect(flushBeacon).toHaveBeenCalledTimes(1);
@@ -1605,8 +1652,8 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       const handler = docAdd.mock.calls.find((c) => c[0] === 'visibilitychange')?.[1] as () => void;
       expect(handler).toBeDefined();
       const flushBeacon = vi.fn();
-      (fixture.componentInstance as unknown as { saver: { flushBeacon: () => void; stop: () => void } | null }).saver = {
-        flushBeacon, stop: () => undefined,
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = {
+        flush: async () => undefined, flushBeacon, stop: () => undefined,
       };
       Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
       handler();
@@ -1799,29 +1846,6 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
     });
   });
 
-  describe('onLessonSelected warning string (L216)', () => {
-    it('logs exactly the expected warning text when flush rejects', async () => {
-      configure();
-      const { fixture, http } = create();
-      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
-      await fixture.whenStable();
-      fixture.detectChanges();
-
-      const router = TestBed.inject(Router);
-      vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
-        flush: vi.fn().mockRejectedValue(new Error('network')),
-        stop: () => undefined,
-      };
-      await fixture.componentInstance.onLessonSelected('lnext' as LessonId);
-      expect(warnSpy).toHaveBeenCalledWith(
-        '[learn] flushPosition rejected during outline nav',
-        expect.anything(),
-      );
-    });
-  });
-
   describe('onMetadata seek math (L232, real seekVideoTo via playerRef)', () => {
     function withFakePlayer(fixture: ComponentFixture<LessonPlayerPageComponent>): {
       seekTo: ReturnType<typeof vi.fn>; currentTime: ReturnType<typeof vi.fn>;
@@ -1874,8 +1898,8 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       fixture.detectChanges();
 
       const start = vi.fn();
-      (fixture.componentInstance as unknown as { saver: { start: (cb: () => number) => void; stop: () => void } | null }).saver = {
-        start, stop: () => undefined,
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = {
+        flush: async () => undefined, start, stop: () => undefined,
       };
       const currentTime = vi.fn(() => 42);
       (fixture.componentInstance as unknown as { playerRef: unknown }).playerRef = { currentTime };
@@ -1896,8 +1920,8 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       fixture.detectChanges();
 
       const start = vi.fn();
-      (fixture.componentInstance as unknown as { saver: { start: (cb: () => number) => void; stop: () => void } | null }).saver = {
-        start, stop: () => undefined,
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = {
+        flush: async () => undefined, start, stop: () => undefined,
       };
       (fixture.componentInstance as unknown as { playerRef: unknown }).playerRef = undefined;
       fixture.componentInstance.onPlayed();
@@ -1914,8 +1938,8 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       await fixture.whenStable();
       fixture.detectChanges();
       const start = vi.fn();
-      (fixture.componentInstance as unknown as { saver: { start: () => void; stop: () => void } | null }).saver = {
-        start, stop: () => undefined,
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = {
+        flush: async () => undefined, start, stop: () => undefined,
       };
       fixture.componentInstance.onPlayed();
       expect(start).toHaveBeenCalledTimes(1);
@@ -1942,25 +1966,9 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       await fixture.whenStable();
       fixture.detectChanges();
       const stop = vi.fn();
-      (fixture.componentInstance as unknown as { saver: { stop: () => void } | null }).saver = { stop };
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = { flush: async () => undefined, stop };
       fixture.componentInstance.onSaverRevoked();
       expect(stop).toHaveBeenCalledTimes(1);
-    });
-
-    it('onLessonSelected calls saver.flush before navigating (kills L214 OptionalChaining)', async () => {
-      configure();
-      const { fixture, http } = create();
-      http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
-      await fixture.whenStable();
-      fixture.detectChanges();
-      const router = TestBed.inject(Router);
-      vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
-      const flush = vi.fn().mockResolvedValue(undefined);
-      (fixture.componentInstance as unknown as { saver: { flush: () => Promise<void>; stop: () => void } | null }).saver = {
-        flush, stop: () => undefined,
-      };
-      await fixture.componentInstance.onLessonSelected('lnext' as LessonId);
-      expect(flush).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -2122,7 +2130,7 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       await fixture.whenStable();
       fixture.detectChanges();
       const start = vi.fn();
-      (fixture.componentInstance as unknown as { saver: unknown }).saver = { start, stop: () => undefined };
+      (fixture.componentInstance as unknown as { saver: unknown }).saver = { start, stop: () => undefined, flush: async () => undefined };
       fixture.componentInstance.onPlayed();
       expect(start).not.toHaveBeenCalled();
     });
@@ -2174,7 +2182,7 @@ describe('LessonPlayerPageComponent mutation hardening', () => {
       http.expectOne('/api/learn/courses/c-1/lessons/l-1').flush(makeView());
       await fixture.whenStable();
       fixture.detectChanges();
-      const sentinel = { start: vi.fn(), stop: vi.fn() };
+      const sentinel = { start: vi.fn(), stop: vi.fn(), flush: vi.fn(async () => undefined) };
       (fixture.componentInstance as unknown as { saver: unknown }).saver = sentinel;
       fixture.componentInstance.onPlayed();
       expect((fixture.componentInstance as unknown as { saver: unknown }).saver).toBe(sentinel);

@@ -12,6 +12,7 @@ import {
   deriveInitials,
 } from '@learnwren/web-ui';
 import type { AdminUserDetail, AdminUserRoleResponse, AdminUserStatusResponse } from '@learnwren/shared-data-models';
+import { apiErrorOf } from '@learnwren/shared-data-models';
 
 import { AdminUsersService } from '../admin-users.service';
 
@@ -168,7 +169,7 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
   }
 
   private messageFor(err: unknown): string {
-    const body = (err as { error?: { error?: { code?: string; details?: Record<string, unknown> } } })?.error?.error;
+    const body = apiErrorOf(err);
     const code = body?.code;
     if (code === 'INVALID_ROLE_TRANSITION' || code === 'INVALID_STATUS_TRANSITION') {
       return "This user's status changed elsewhere. Refresh to see the current state.";
@@ -208,7 +209,7 @@ export class AdminUserDetailPageComponent implements OnInit, OnDestroy {
       this.user.set(detail);
     } catch (err) {
       if (token !== this.loadToken) return; // superseded by a newer load
-      const code = (err as { error?: { error?: { code?: string } } })?.error?.error?.code;
+      const code = apiErrorOf(err)?.code;
       if (code === 'USER_NOT_FOUND') {
         this.notFound.set(true);
       }

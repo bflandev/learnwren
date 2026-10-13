@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { FormsModule } from '@angular/forms';
 
 import type { CategoryId, CourseCategoryDoc } from '@learnwren/shared-data-models';
+import { apiErrorOf } from '@learnwren/shared-data-models';
 import {
   HlmAlert,
   HlmButton,
@@ -159,9 +160,7 @@ export class AdminCategoriesPageComponent implements OnInit {
   }
 
   private messageFor(err: unknown): string {
-    // Stryker disable next-line OptionalChaining: the first ?. only differs from . when err is null/undefined, and a rejection value is always an Error or HttpErrorResponse here — equivalent in practice.
-    const code = (err as { error?: { error?: { code?: string; message?: string } } })?.error
-      ?.error;
+    const code = apiErrorOf(err);
     switch (code?.code) {
       case 'CATEGORY_EXISTS':
         return 'A category with this name already exists.';

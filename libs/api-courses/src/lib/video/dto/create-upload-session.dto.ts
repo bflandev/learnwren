@@ -1,7 +1,6 @@
 import {
   IsIn,
   IsInt,
-  IsOptional,
   IsString,
   Max,
   MaxLength,
@@ -13,6 +12,8 @@ import {
   type SupportedVideoContentType,
 } from '@learnwren/shared-data-models';
 
+import { OptionalField } from '../../dto/optional-field';
+
 export class CreateUploadSessionDto {
   @IsInt()
   @Min(1)
@@ -22,7 +23,7 @@ export class CreateUploadSessionDto {
   @IsIn(SUPPORTED_VIDEO_CONTENT_TYPES as readonly string[])
   contentType!: SupportedVideoContentType;
 
-  @IsOptional()
+  @OptionalField()
   @IsString()
   @MaxLength(255)
   filename?: string;

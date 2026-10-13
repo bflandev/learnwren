@@ -77,6 +77,16 @@ describe('PasswordChangeService.changePassword', () => {
     expect(auth.updateUser).not.toHaveBeenCalled();
   });
 
+  it('rejects a new password over 256 chars (login would refuse it) and accepts exactly 256', async () => {
+    const { svc, auth } = makeService();
+    const long = VALID_NEW + 'a'.repeat(257 - VALID_NEW.length);
+    await expect(svc.changePassword(UID, EMAIL, { ...valid, newPassword: long }))
+      .rejects.toMatchObject({ code: 'NEW_PASSWORD_WEAK', status: 400, details: { field: 'newPassword' } });
+    expect(auth.updateUser).not.toHaveBeenCalled();
+    await svc.changePassword(UID, EMAIL, { ...valid, newPassword: long.slice(0, 256) });
+    expect(auth.updateUser).toHaveBeenCalled();
+  });
+
   it('rejects when the new password equals the current one', async () => {
     const { svc, auth } = makeService();
     await expect(

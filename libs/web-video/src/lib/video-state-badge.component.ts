@@ -97,12 +97,17 @@ export class VideoStateBadgeComponent implements OnInit {
       this.polling
         .poll(v.id)
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((next) => {
-          const prevState = this.liveVideo()?.state ?? this.video().state;
-          this.liveVideo.set(next);
-          if (next.state !== prevState) {
-            this.stateChanged.emit(next.state);
-          }
+        .subscribe({
+          next: (next) => {
+            const prevState = this.liveVideo()?.state ?? this.video().state;
+            this.liveVideo.set(next);
+            if (next.state !== prevState) {
+              this.stateChanged.emit(next.state);
+            }
+          },
+          // Polling already retried; keep the last known state. The stuck
+          // threshold surfaces the remove control, and a reload re-polls.
+          error: () => undefined,
         });
     }
   }

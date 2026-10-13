@@ -13,6 +13,16 @@ export interface ApiErrorBody<Code extends string = string> {
   };
 }
 
+/**
+ * The `error` object of the envelope inside a rejected HttpClient call
+ * (`HttpErrorResponse.error.error`), or undefined for any other rejection.
+ * Every web error handler reads codes through this — hand-rolled casts drifted
+ * one level too shallow once and silently lost every code.
+ */
+export function apiErrorOf(err: unknown): Partial<ApiErrorBody['error']> | undefined {
+  return (err as { error?: Partial<ApiErrorBody> } | null | undefined)?.error?.error;
+}
+
 /** Authoritative courses-domain error codes (the `code` of every CoursesException). */
 export type CoursesErrorCode =
   | 'VALIDATION_FAILED'

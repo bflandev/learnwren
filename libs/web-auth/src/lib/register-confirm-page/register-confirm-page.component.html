@@ -30,6 +30,6 @@
   </button>
 
   <p class="text-sm text-ink-2">
-    <a routerLink="/dashboard" class="text-ochre hover:underline">Continue to dashboard</a>
+    <a [routerLink]="continueTo()" class="text-ochre hover:underline">{{ continueLabel() }}</a>
   </p>
 </section>

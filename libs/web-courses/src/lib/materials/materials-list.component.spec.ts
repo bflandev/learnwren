@@ -395,6 +395,19 @@ describe('MaterialsListComponent', () => {
   });
 
   describe('rename editing state', () => {
+    it('a blur after Escape (input removal) does not save the draft', async () => {
+      const api = apiMock();
+      const { fixture } = render(api);
+      const cmp = fixture.componentInstance;
+      cmp.startRename(mat('m1', 'Doc One'));
+      cmp.draftName.set('Discarded');
+      cmp.cancelRename();
+
+      await cmp.commitRename(mat('m1', 'Doc One')); // the removed input's blur
+
+      expect(api.rename).not.toHaveBeenCalled();
+    });
+
     it('commitRename does nothing when the draft name is blank', async () => {
       const api = apiMock();
       const { fixture } = render(api);

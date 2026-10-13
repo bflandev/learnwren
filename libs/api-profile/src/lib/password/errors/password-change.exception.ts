@@ -1,4 +1,5 @@
 import type { PolicyRequirement } from '@learnwren/api-auth';
+import { PASSWORD_MAX_LENGTH } from '@learnwren/shared-data-models';
 
 import type { PasswordChangeErrorCode } from './password-change-error.codes';
 
@@ -28,6 +29,16 @@ export class NewPasswordWeakException extends PasswordChangeException {
     super('NEW_PASSWORD_WEAK', 'New password does not meet complexity requirements.', 400, {
       field: 'newPassword',
       unmetRequirements,
+    });
+  }
+}
+
+export class NewPasswordTooLongException extends PasswordChangeException {
+  constructor() {
+    // NEW_PASSWORD_WEAK so the existing client handling shows it on the field.
+    super('NEW_PASSWORD_WEAK', `New password must be at most ${PASSWORD_MAX_LENGTH} characters.`, 400, {
+      field: 'newPassword',
+      unmetRequirements: [],
     });
   }
 }

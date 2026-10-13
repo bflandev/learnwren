@@ -8,6 +8,7 @@ import {
   APPLICATION_NOT_PENDING,
   DECLINE_REASON_INVALID,
   DECLINE_REASON_MAX_LENGTH,
+  apiErrorOf,
 } from '@learnwren/shared-data-models';
 import type {
   AdminInstructorApplicationView,
@@ -124,7 +125,7 @@ export class AdminInstructorApplicationsPageComponent implements OnInit {
   }
 
   private messageFor(err: unknown): string {
-    const code = (err as { error?: { error?: { code?: string } } })?.error?.error?.code;
+    const code = apiErrorOf(err)?.code;
     if (code === APPLICANT_NOT_VERIFIED) {
       return 'Applicant must verify their email before approval.';
     }

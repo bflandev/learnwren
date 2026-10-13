@@ -17,6 +17,7 @@
 
 import { requireVerifiedUser } from '../libs/api-profile/src/lib/instructor-application/admin-promotion';
 import { promoteUserToInstructor } from '../libs/api-profile/src/lib/instructor-application/instructor-promotion';
+import { nowIso } from '@learnwren/shared-data-models';
 import type { UserId } from '@learnwren/shared-data-models';
 
 import { initBackend } from './backend-init';
@@ -36,7 +37,12 @@ async function main(): Promise<void> {
   console.log(`[promote] Target: ${backend.description}.`);
   try {
     const user = await requireVerifiedUser(email, backend.identity);
-    await promoteUserToInstructor(user.uid as UserId, backend.identity, backend.store, new Date().toISOString());
+    // setRole overwrites: without this check the tool silently demoted an admin.
+    const current = (await backend.store.collection('users').doc(user.uid).get()).data()?.['role'];
+    if (current === 'ADMIN') {
+      throw new Error(`Refusing to change ${email}: the account is an ADMIN (this would demote it).`);
+    }
+    await promoteUserToInstructor(user.uid as UserId, backend.identity, backend.store, nowIso());
     console.log(`[promote] Promoted ${email} to INSTRUCTOR.`);
     console.log('[promote] User must sign out and sign back in for the new role to take effect.');
   } catch (err) {

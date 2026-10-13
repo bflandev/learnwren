@@ -14,6 +14,7 @@ import type {
 
 import { AdminUsersRepository } from './admin-users.repository';
 import { UserNotFoundException } from './errors/admin-users.exception';
+import { resolveStatus } from './user-status';
 
 /** Cap on the all-users scan; one extra is read (CAP + 1) to detect overflow. */
 const ADMIN_USER_SCAN_CAP = 5000;
@@ -26,12 +27,6 @@ const MAX_SEARCH_LENGTH = 200;
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, Math.trunc(value)));
-}
-
-/** Absent status field means ACTIVE (backward-compatible with pre-existing documents). */
-function resolveStatus(raw?: string): UserStatus {
-  if (raw === 'SUSPENDED' || raw === 'DELETED') return raw;
-  return 'ACTIVE';
 }
 
 @Injectable()

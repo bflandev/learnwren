@@ -1,5 +1,6 @@
 import type { IdentityProvider, IdentityUser } from '@learnwren/api-auth';
 import type { DocumentStore } from '@learnwren/api-document-store';
+import { nowIso } from '@learnwren/shared-data-models';
 
 /** Structural slice of the identity port the operator tools need. */
 export type OperatorIdentity = Pick<IdentityProvider, 'getUserByEmail' | 'setRole'>;
@@ -26,5 +27,5 @@ export async function promoteToAdmin(
 ): Promise<void> {
   const user = await requireVerifiedUser(email, identity);
   await identity.setRole(user.uid, 'ADMIN');
-  await store.collection('users').doc(user.uid).update({ role: 'ADMIN' });
+  await store.collection('users').doc(user.uid).update({ role: 'ADMIN', updatedAt: nowIso() });
 }

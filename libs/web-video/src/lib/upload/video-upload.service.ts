@@ -8,7 +8,7 @@ import type {
   SupportedVideoContentType,
   VideoId,
 } from '@learnwren/shared-data-models';
-import { SUPPORTED_VIDEO_CONTENT_TYPES } from '@learnwren/shared-data-models';
+import { SUPPORTED_VIDEO_CONTENT_TYPES, apiErrorOf } from '@learnwren/shared-data-models';
 
 import { VideoService } from '../video.service';
 
@@ -23,6 +23,21 @@ export const XHR_FACTORY = new InjectionToken<() => XMLHttpRequest>(
 );
 
 const SUPPORTED_MIME = new Set<SupportedVideoContentType>(SUPPORTED_VIDEO_CONTENT_TYPES);
+// Browsers report '' for .mkv on some platforms and video/x-m4v for .m4v (an
+// MP4 container), so fall back to the extension the picker's accept list offers.
+const CONTENT_TYPE_BY_EXT: Record<string, SupportedVideoContentType> = {
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  mkv: 'video/x-matroska',
+};
+
+function contentTypeOf(file: File): SupportedVideoContentType | undefined {
+  if (SUPPORTED_MIME.has(file.type as SupportedVideoContentType)) {
+    return file.type as SupportedVideoContentType;
+  }
+  return CONTENT_TYPE_BY_EXT[file.name.split('.').pop()?.toLowerCase() ?? ''];
+}
 const MAX_BYTES = 10_000_000_000;
 const CHUNK_BYTES = 8 * 1024 * 1024;
 const BACKOFF_MS = [1000, 2000, 4000];
@@ -60,14 +75,15 @@ export class VideoUploadService {
       this._state.set({ kind: 'failed', reason: 'File size exceeds the 10 GB limit.' });
       return { ok: false };
     }
-    if (!SUPPORTED_MIME.has(file.type as SupportedVideoContentType)) {
+    const contentType = contentTypeOf(file);
+    if (!contentType) {
       this._state.set({
         kind: 'failed',
         reason: 'Unsupported format. Please upload MP4, MOV, or MKV.',
       });
       return { ok: false };
     }
-    return { ok: true, contentType: file.type as SupportedVideoContentType };
+    return { ok: true, contentType };
   }
 
   async start(ctx: UploadContext, file: File): Promise<void> {
@@ -105,7 +121,18 @@ export class VideoUploadService {
 
     this._state.set({ kind: 'finalizing', videoId });
     try {
-      await firstValueFrom(this.api.completeUpload(videoId));
+      const video = await firstValueFrom(this.api.completeUpload(videoId));
+      // A file the pipeline rejects (probe/submit failure) still answers 200
+      // with a FAILED video and no lesson link: without this the widget showed
+      // 'complete' — a blank box with no way to upload a replacement.
+      if (video.state === 'FAILED') {
+        this._state.set({
+          kind: 'failed',
+          reason: "This video couldn't be processed. Try a different file.",
+          videoId,
+        });
+        return;
+      }
       this._state.set({ kind: 'complete', videoId });
     } catch (err) {
       this._state.set({
@@ -132,8 +159,12 @@ export class VideoUploadService {
 
   async retry(): Promise<void> {
     const s = this._state();
-    if (s.kind !== 'failed' || !s.videoId) return;
-    await firstValueFrom(this.api.delete(s.videoId)).catch(() => undefined);
+    if (s.kind !== 'failed') return;
+    // A client-side rejection (bad type, session create failed) has no video
+    // yet; it must still return to idle or the picker never comes back.
+    if (s.videoId) {
+      await firstValueFrom(this.api.delete(s.videoId)).catch(() => undefined);
+    }
     this._state.set({ kind: 'idle' });
   }
 
@@ -211,11 +242,11 @@ export class VideoUploadService {
     });
   }
 
+  /**
+   * The api's own wording (e.g. "This lesson already has a video…"); never
+   * Angular's "Http failure response for …" transport text.
+   */
   private errorMessage(err: unknown): string {
-    const msg =
-      typeof err === 'object' && err !== null && 'message' in err
-        ? String((err as { message: unknown }).message)
-        : 'Unknown error.';
-    return msg;
+    return apiErrorOf(err)?.message ?? 'Upload failed. Please try again.';
   }
 }

@@ -222,7 +222,9 @@ export const LESSON_PAYLOAD_L1 = {
 
 export const LESSON_PAYLOAD_L2 = {
   ...LESSON_PAYLOAD,
-  lesson: { ...LESSON_PAYLOAD.lesson, id: 'l-2', title: 'Going further' },
+  // READY with a video, like its outline row: Mark as Complete is only offered
+  // once the lesson's video can play.
+  lesson: { ...LESSON_PAYLOAD.lesson, id: 'l-2', title: 'Going further', videoId: 'v-2', videoState: 'READY' },
   outline: TWO_READY_LESSONS_OUTLINE,
 };
 
@@ -381,7 +383,7 @@ export const AUTHED_ROUTES: RouteFixture[] = [
     path: '/learn/c-1/l-1',
     role: 'student',
     stubs: async (page) => {
-      await stubJson(page, '**/api/playback/config', { impl: 'fake' });
+      await stubJson(page, '**/api/playback/config', { fakePlayback: true });
       await stubJson(page, '**/api/learn/courses/c-1/lessons/l-1', LESSON_PAYLOAD);
     },
     // Not the lesson title — it renders twice (the <h1> and the matching

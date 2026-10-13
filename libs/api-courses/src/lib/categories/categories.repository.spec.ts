@@ -168,7 +168,7 @@ describe('CategoriesRepository', () => {
       expect(fake.__store.get('courseCategories/DATA_SCIENCE')).toEqual(created);
     });
 
-    it('throws CategoryExistsException on an id collision', async () => {
+    it('throws CategoryExistsException when the name already exists (same id)', async () => {
       const fake = createInMemoryDocumentStore({ 'courseCategories/DESIGN': makeCategory() });
       const repo = await buildRepo(fake);
 
@@ -177,18 +177,25 @@ describe('CategoriesRepository', () => {
       );
     });
 
-    it('throws CategoryExistsException on an id collision even when the name differs', async () => {
+    it('suffixes a colliding id when the name is new (C++ vs C#, or a renamed slug)', async () => {
       const fake = createInMemoryDocumentStore({
-        'courseCategories/DESIGN': makeCategory(),
+        'courseCategories/DESIGN': makeCategory({ name: 'Visual Arts' }), // renamed; id kept
+        'courseCategories/DESIGN_2': makeCategory({ id: 'DESIGN_2' as CategoryId, name: 'UX' }),
         'courseCategories/BUSINESS': makeCategory({ id: 'BUSINESS' as CategoryId, name: 'Business' }),
       });
       const repo = await buildRepo(fake);
 
-      // Only DESIGN collides (by id, not name) — kills a some→every mutant and
-      // an id-check-dropped mutant in one go.
-      await expect(
-        repo.create('DESIGN' as CategoryId, 'Totally Different'),
-      ).rejects.toBeInstanceOf(CategoryExistsException);
+      const created = await repo.create('DESIGN' as CategoryId, 'Design');
+
+      expect(created.id).toBe('DESIGN_3');
+      expect(fake.__store.get('courseCategories/DESIGN_3')).toEqual(created);
+      expect(fake.__store.get('courseCategories/DESIGN')).toMatchObject({ name: 'Visual Arts' }); // untouched
+    });
+
+    it('takes the _2 suffix for the first collision', async () => {
+      const fake = createInMemoryDocumentStore({ 'courseCategories/C': makeCategory({ id: 'C' as CategoryId, name: 'C++' }) });
+      const repo = await buildRepo(fake);
+      expect((await repo.create('C' as CategoryId, 'C#')).id).toBe('C_2');
     });
 
     it('throws CategoryExistsException on a case-insensitive name collision', async () => {

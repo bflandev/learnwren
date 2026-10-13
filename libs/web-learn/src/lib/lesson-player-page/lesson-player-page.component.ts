@@ -12,7 +12,8 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationStart, Router, RouterLink } from '@angular/router';
+import { filter } from 'rxjs';
 
 import type {
   CourseId,
@@ -142,6 +143,13 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     window.addEventListener('pagehide', this.onPageHide);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.desktopQuery.addEventListener('change', this.onDesktopChange);
+    // Leaving a lesson by any route (back link, header nav, browser history)
+    // must not drop up to one save interval of progress. NavigationStart is
+    // the last point the player is still mounted: by ngOnDestroy the child
+    // player has already been disposed and reports currentTime 0.
+    this.router.events
+      .pipe(filter((e) => e instanceof NavigationStart), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => void this.saver?.flush());
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((pm) => {
       void this.applyRouteParams(pm.get('courseId'), pm.get('lessonId'));
     });
@@ -163,8 +171,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     if (courseId === this.courseId && lessonId === this.lessonId && this.view() !== null) {
       return;
     }
-    this.saver?.stop();
-    this.saver = null;
+    this.stopSaver();
     this.hasResumed = false;
     this.markBusy.set(false);
     this.markError.set(null);
@@ -178,6 +185,10 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     window.removeEventListener('pagehide', this.onPageHide);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.desktopQuery.removeEventListener('change', this.onDesktopChange);
+    this.stopSaver();
+  }
+
+  private stopSaver(): void {
     this.saver?.stop();
     this.saver = null;
   }
@@ -222,11 +233,9 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   }
 
   async onLessonSelected(nextLessonId: LessonId): Promise<void> {
-    try {
-      await this.saver?.flush();
-    } catch (err) {
-      console.warn('[learn] flushPosition rejected during outline nav', err);
-    }
+    // No await on a flush first: the NavigationStart hook flushes, and waiting
+    // here let fast clicks (B then C) navigate in flush-completion order,
+    // landing the student on B.
     await this.router.navigateByUrl(`/learn/${this.courseId}/${nextLessonId}`);
   }
 
@@ -241,7 +250,10 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     const d = duration ?? this.playerRef?.playerEl?.nativeElement.duration ?? 0;
     const saved = this.lastWatchedSeconds();
     if (!Number.isFinite(d) || d <= 0 || saved <= 0) return;
-    if (saved >= d) {
+    // The saver stores whole seconds and HLS durations are fractional (612 of
+    // 612.48), so a fully watched lesson would otherwise resume 5 s before the
+    // end forever (the stored position never decreases).
+    if (saved >= Math.floor(d)) {
       this.seekVideoTo(0);
       return;
     }
@@ -284,6 +296,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     try {
       const { completedAt } = await this.learn.markLessonComplete(this.courseId, this.lessonId);
       if (token !== this.loadToken) return;
+      const lessonId = this.lessonId;
       this.view.update((v) =>
         v
           ? {
@@ -291,6 +304,13 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
               progress: {
                 completedAt,
                 lastWatchedSeconds: v.progress?.lastWatchedSeconds ?? 0,
+              },
+              // The outline drives the row tick, module tick and course banner.
+              outline: {
+                modules: v.outline.modules.map((m) => ({
+                  ...m,
+                  lessons: m.lessons.map((l) => (l.id === lessonId ? { ...l, completedAt } : l)),
+                })),
               },
             }
           : v,

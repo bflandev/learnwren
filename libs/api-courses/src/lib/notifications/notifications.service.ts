@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { EMAIL_TRANSPORT, type EmailTransport } from '@learnwren/api-auth';
+import { EMAIL_TRANSPORT, publicUrl, type EmailTransport } from '@learnwren/api-auth';
 import {
   DOCUMENT_STORE,
   type DocumentStore,
@@ -66,7 +66,7 @@ export class NotificationsService {
     // lost retry on email failure, and sends are already best-effort.
     await this.courses.claimModuleNotification(course.id, mid, nowIso());
 
-    const courseUrl = this.continueUrl(`/catalog/${course.id}`);
+    const courseUrl = publicUrl(`/catalog/${course.id}`);
     const settled = await settleWithConcurrency(deliverable, NOTIFY_CONCURRENCY, (r) =>
       this.email.sendNewModuleEmail({
         to: r.email,
@@ -98,11 +98,6 @@ export class NotificationsService {
       const data = stored.get(uid);
       return { email: data?.email ?? '', displayName: data?.displayName ?? FALLBACK_NAME };
     });
-  }
-
-  private continueUrl(path: string): string {
-    const base = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
-    return `${base}${path}`;
   }
 }
 

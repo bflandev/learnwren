@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { provideIcons } from '@ng-icons/core';
 import { lucideSearch } from '@ng-icons/lucide';
 
@@ -40,6 +40,15 @@ const SEARCH_DEBOUNCE_MS = 300;
 })
 export class AdminUsersPageComponent implements OnInit, OnDestroy {
   private readonly svc = inject(AdminUsersService);
+  private readonly router = inject(Router);
+
+  /**
+   * The detail page navigates here with `state: { deleted: true }` after a
+   * delete. Only that in-app navigation counts: the state also lives in
+   * history, and Back/Forward (popstate) or a reload (the initial navigation,
+   * which has no predecessor) would replay it.
+   */
+  readonly deletedNotice = signal(this.isDeleteRedirect());
 
   readonly users = signal<AdminUserListRow[]>([]);
   readonly total = signal(0);
@@ -59,6 +68,15 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
    */
   private loadToken = 0;
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+  private isDeleteRedirect(): boolean {
+    const nav = this.router.currentNavigation();
+    return (
+      nav?.trigger === 'imperative' &&
+      nav.previousNavigation != null &&
+      nav.extras.state?.['deleted'] === true
+    );
+  }
 
   async ngOnInit(): Promise<void> {
     await this.reload();

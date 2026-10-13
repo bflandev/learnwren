@@ -11,7 +11,7 @@ import {
   type IdentityUser,
 } from '@learnwren/api-auth';
 import { DOCUMENT_STORE, type DocumentStore } from '@learnwren/api-document-store';
-import { nowIso } from '@learnwren/shared-data-models';
+import { EMAIL_MAX_LENGTH, nowIso } from '@learnwren/shared-data-models';
 import type { ConfirmEmailChangeResponse, UserId } from '@learnwren/shared-data-models';
 
 import {
@@ -43,7 +43,7 @@ export class EmailChangeService {
   ): Promise<void> {
     const newEmail = input.newEmail.trim().toLowerCase();
     // Stryker disable next-line ConditionalExpression: the `length === 0` check is a redundant fast-path — EMAIL_REGEX requires >=1 char before '@', so `!EMAIL_REGEX.test('')` is already true; dropping the left operand is provably equivalent.
-    if (newEmail.length === 0 || !EMAIL_REGEX.test(newEmail)) {
+    if (newEmail.length === 0 || newEmail.length > EMAIL_MAX_LENGTH || !EMAIL_REGEX.test(newEmail)) {
       throw new EmailInvalidException();
     }
     if (newEmail === currentEmail.trim().toLowerCase()) {

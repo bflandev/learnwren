@@ -92,6 +92,7 @@ function fakeStorage(): VideoStoragePort & { uploads: { path: string; contentTyp
     uploadFile: vi.fn(async ({ path, contentType, bucket }: { path: string; contentType: string; bucket: string }) => {
       uploads.push({ path, contentType, bucket });
     }),
+    deletePrefix: vi.fn(async () => undefined),
   } as unknown as VideoStoragePort & { uploads: { path: string; contentType: string; bucket: string }[] };
 }
 
@@ -401,6 +402,37 @@ describe('FfmpegTranscoderAdapter — edge paths', () => {
     ref.job = jobName;
     await made.adapter.whenDone(jobName);
     expect(made.storage.uploads).toHaveLength(0);
+    expect(made.sink).not.toHaveBeenCalled();
+  });
+
+  it('cancelling mid-upload stops uploading and deletes what already landed', async () => {
+    const made = make();
+    let job = '';
+    made.storage.uploadFile = vi.fn(async ({ path }: { path: string }) => {
+      made.storage.uploads.push({ path, contentType: '', bucket: '' });
+      await made.adapter.cancelJob(job); // deleted while the first file is going up
+    }) as never;
+    const { jobName } = await made.adapter.submitJob(input(360));
+    job = jobName;
+    await made.adapter.whenDone(jobName);
+    expect(made.storage.uploads).toHaveLength(1);
+    expect(made.storage.deletePrefix).toHaveBeenCalledWith({ bucket: 'out', prefix: expect.stringMatching(/\/$/) });
+    expect(made.sink).not.toHaveBeenCalled();
+  });
+
+  it('still deletes what landed when an upload rejects because the video was deleted', async () => {
+    const made = make();
+    let job = '';
+    let n = 0;
+    made.storage.uploadFile = vi.fn(async () => {
+      if (n++ === 0) return; // first file lands
+      await made.adapter.cancelJob(job);
+      throw new Error('bucket prefix gone');
+    }) as never;
+    const { jobName } = await made.adapter.submitJob(input(360));
+    job = jobName;
+    await made.adapter.whenDone(jobName);
+    expect(made.storage.deletePrefix).toHaveBeenCalledTimes(1);
     expect(made.sink).not.toHaveBeenCalled();
   });
 

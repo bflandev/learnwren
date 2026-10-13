@@ -47,8 +47,12 @@ echo "== Public buckets (cover/picture: allUsers read via storage.googleapis.com
 for b in "${PUBLIC_BUCKETS[@]}"; do
   create_bucket "${b}"
   gcloud storage buckets add-iam-policy-binding "gs://${b}" \
-    --member=allUsers --role=roles/storage.objectViewer >/dev/null
-  echo "   gs://${b}: allUsers objectViewer granted"
+    --member=allUsers --role=roles/storage.legacyObjectReader >/dev/null
+  # IAM bindings are additive: drop the objectViewer grant earlier runs made
+  # (it includes objects.list). No-op when absent.
+  gcloud storage buckets remove-iam-policy-binding "gs://${b}" \
+    --member=allUsers --role=roles/storage.objectViewer >/dev/null 2>&1 || true
+  echo "   gs://${b}: allUsers legacyObjectReader granted (get only; objectViewer would let anyone list every object)"
 done
 
 echo "== Bucket CORS =="

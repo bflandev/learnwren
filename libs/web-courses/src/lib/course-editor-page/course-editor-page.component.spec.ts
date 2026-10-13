@@ -735,6 +735,26 @@ describe('CourseEditorPageComponent', () => {
       expect(fixture.componentInstance.notice()).toContain('Notified 5 students');
     });
 
+    it('ignores a second click while the send is in flight, then allows a new one', async () => {
+      notifications.notifyModule.mockClear();
+      let release!: (v: { notifiedCount: number }) => void;
+      notifications.notifyModule.mockImplementation(() => new Promise((r) => (release = r)));
+      const fixture = await initEditor();
+
+      const first = fixture.componentInstance.onNotifyModule('mid-1');
+      await fixture.componentInstance.onNotifyModule('mid-1'); // double click: no-op
+      expect(notifications.notifyModule).toHaveBeenCalledTimes(1);
+      release({ notifiedCount: 3 });
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await first;
+      expect(fixture.componentInstance.error()).toBeNull();
+
+      notifications.notifyModule.mockRejectedValue(new Error('x'));
+      await fixture.componentInstance.onNotifyModule('mid-1'); // guard released
+      expect(notifications.notifyModule).toHaveBeenCalledTimes(2);
+    });
+
     it('uses the singular "student" when exactly one is notified', async () => {
       notifications.notifyModule.mockResolvedValue({ notifiedCount: 1 });
       const fixture = await initEditor();
@@ -934,6 +954,66 @@ describe('CourseEditorPageComponent', () => {
       expect(reordered?.[1].lessons.map((l) => l.id)).toEqual(['lid-1', 'lid-2']);
       http.expectOne('/api/courses/cid-1/modules/order').flush([]);
       await pending;
+    });
+
+    it('a tree load in flight cannot paint the old order back, and is re-run once the reorder lands', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+      const loading = fixture.componentInstance.refresh(); // e.g. the refresh after an add
+      const pending = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
+      http.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons()); // pre-reorder order
+      await loading;
+      expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual(['mid-2', 'mid-1']);
+      http.expectOne('/api/courses/cid-1/modules/order').flush([]);
+      await fixture.whenStable();
+      // The superseded load is re-run so whatever it carried (the added lesson) appears.
+      const server = buildTreeWithLessons() as { modules: unknown[] };
+      server.modules.reverse();
+      http.expectOne('/api/courses/cid-1').flush(server);
+      await pending;
+      expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual(['mid-2', 'mid-1']);
+    });
+
+    it('a load started while moves are queued is re-run once they all commit', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+      const first = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
+      const second = fixture.componentInstance.onReorderModules(['mid-1', 'mid-2']);
+      const loading = fixture.componentInstance.refresh(); // e.g. after a rename
+      http.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons());
+      await loading;
+      http.expectOne('/api/courses/cid-1/modules/order').flush([]);
+      await first;
+      http.expectOne('/api/courses/cid-1/modules/order').flush([]);
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons()); // the drain refresh
+      await second;
+    });
+
+    it('a failed move drops the moves queued behind it and refreshes once', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+      const first = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
+      const second = fixture.componentInstance.onReorderModules(['mid-1', 'mid-2']);
+      http.expectOne('/api/courses/cid-1/modules/order').flush('stale', { status: 409, statusText: 'Conflict' });
+      await first;
+      await fixture.whenStable();
+      http.expectNone('/api/courses/cid-1/modules/order'); // the queued move never commits
+      http.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons());
+      await second;
+      expect(fixture.componentInstance.error()).toBe('Reorder failed — reverted.');
+      expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual(['mid-1', 'mid-2']);
+    });
+
+    it('two quick reorders reach the server in click order', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+      const first = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
+      const second = fixture.componentInstance.onReorderModules(['mid-1', 'mid-2']);
+      const puts = http.match('/api/courses/cid-1/modules/order');
+      expect(puts.map((r) => r.request.body)).toEqual([{ ids: ['mid-2', 'mid-1'] }]); // second waits
+      puts[0].flush([]);
+      await first;
+      const next = http.expectOne('/api/courses/cid-1/modules/order');
+      expect(next.request.body).toEqual({ ids: ['mid-1', 'mid-2'] });
+      next.flush([]);
+      await second;
     });
 
     it('onReorderModules drops ids that are not present in the tree', async () => {

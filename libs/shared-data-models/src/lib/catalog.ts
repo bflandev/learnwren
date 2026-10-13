@@ -49,6 +49,8 @@ export interface CourseCatalogDetail {
   description: string;
   longDescription?: string;
   category?: CourseCategory;
+  /** Display name for `category` (the id is a slug, and a rename keeps the id). */
+  categoryName?: string;
   difficulty?: CourseDifficulty;
   instructorId: UserId;
   instructorDisplayName: string;

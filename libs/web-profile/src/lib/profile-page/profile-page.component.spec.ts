@@ -77,6 +77,7 @@ describe('ProfilePageComponent', () => {
     req.flush({ uid: 'u-1', email: 'a@b.c', displayName: 'New', role: 'STUDENT', emailVerified: true });
     await saved;
     expect(auth.currentUser()?.displayName).toBe('New');
+    expect(cmp.displayName()).toBe('New'); // the page subtitle, not just the header
     expect(cmp.status()).toBe('saved');
   });
 
@@ -449,6 +450,22 @@ describe('ProfilePageComponent — change email', () => {
     await p;
     expect(cmp.emailStatus()).toBe('sent');
     expect(cmp.pendingEmail()).toBe('new@x.com');
+  });
+
+  it('after a send, the form can be reopened to correct a mistyped address', async () => {
+    await flushGet();
+    const cmp = fixture.componentInstance;
+    cmp.emailForm.setValue({ newEmail: 'typo@x.con', currentPassword: 'pw' });
+    const p = cmp.submitEmailChange();
+    http.expectOne('/api/profile/email').flush(null, { status: 202, statusText: 'Accepted' });
+    await p;
+    fixture.detectChanges();
+    const toggle = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '[data-testid="toggle-email-change"]',
+    );
+    expect(toggle?.textContent?.trim()).toBe('Use a different address');
+    toggle!.click();
+    expect(cmp.emailFormOpen()).toBe(true);
   });
 
   it('sets emailStatus to "sending" mid-flight before the request resolves', async () => {

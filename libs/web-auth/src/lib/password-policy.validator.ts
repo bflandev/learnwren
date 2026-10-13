@@ -1,11 +1,11 @@
 import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
-import { evaluatePasswordPolicy } from '@learnwren/shared-data-models';
+import { PASSWORD_MIN_LENGTH, evaluatePasswordPolicy } from '@learnwren/shared-data-models';
 
 export type { PolicyRequirement } from '@learnwren/shared-data-models';
 import type { PolicyRequirement } from '@learnwren/shared-data-models';
 
 export const PASSWORD_REQUIREMENT_PROSE: Record<PolicyRequirement, string> = {
-  MIN_LENGTH: 'at least 12 characters',
+  MIN_LENGTH: `at least ${PASSWORD_MIN_LENGTH} characters`,
   UPPERCASE: 'at least one uppercase letter',
   LOWERCASE: 'at least one lowercase letter',
   DIGIT: 'at least one digit',
