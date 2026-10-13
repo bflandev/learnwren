@@ -136,6 +136,40 @@ describe('ModuleItemComponent', () => {
     expect(spy).toHaveBeenCalledWith('Renamed');
   });
 
+  it('Escape in the rename field returns focus to the module title, not <body>', () => {
+    const fixture = build();
+    document.body.appendChild(fixture.nativeElement);
+    try {
+      const el = fixture.nativeElement as HTMLElement;
+      (el.querySelector('[data-testid="module-title"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      TestBed.tick();
+      const input = el.querySelector('[data-testid="module-rename-input"]') as HTMLInputElement;
+      expect(document.activeElement).toBe(input); // lwAutofocus
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      fixture.detectChanges();
+      TestBed.tick();
+      expect(document.activeElement).toBe(el.querySelector('[data-testid="module-title"]'));
+    } finally {
+      fixture.nativeElement.remove();
+    }
+  });
+
+  it('Escape in the add-lesson field cancels instead of creating the lesson on blur', () => {
+    const fixture = build();
+    const emit = vi.spyOn(fixture.componentInstance.addLesson, 'emit');
+    fixture.componentInstance.beginAddLesson();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    fixture.componentInstance.newLessonTitle.set('Intro');
+    (el.querySelector('[data-testid="add-lesson-input"]') as HTMLInputElement).dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape' }),
+    );
+    fixture.detectChanges();
+    expect(fixture.componentInstance.addingLesson()).toBe(false);
+    expect(emit).not.toHaveBeenCalled();
+  });
+
   it('a blur after Escape (input removal) does not save the draft', () => {
     const c = build().componentInstance;
     const spy = vi.spyOn(c.renameModule, 'emit');

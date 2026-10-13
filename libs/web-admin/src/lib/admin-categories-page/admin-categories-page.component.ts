@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Injector,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import type { CategoryId, CourseCategoryDoc } from '@learnwren/shared-data-models';
@@ -12,6 +21,8 @@ import {
   HlmInput,
   HlmSelectSingleImports,
   HlmSkeleton,
+  LwAutofocusDirective, LwEnterDirective,
+  focusAfterRender,
 } from '@learnwren/web-ui';
 
 import { AdminCategoriesService } from '../admin-categories.service';
@@ -24,7 +35,7 @@ import { AdminCategoriesService } from '../admin-categories.service';
 @Component({
   selector: 'lib-admin-categories-page',
   standalone: true,
-  imports: [
+  imports: [LwAutofocusDirective, LwEnterDirective, 
     FormsModule,
     HlmAlert,
     HlmButton,
@@ -40,6 +51,17 @@ import { AdminCategoriesService } from '../admin-categories.service';
 })
 export class AdminCategoriesPageComponent implements OnInit {
   private readonly svc = inject(AdminCategoriesService);
+  private readonly hostEl = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
+  /** Enter/Escape in the rename field: run it, then put focus back on the row's Rename button. */
+  async renameByKey(id: CategoryId, save: boolean): Promise<void> {
+    if (save) await this.confirmRename(id);
+    else this.cancelRowAction();
+    focusAfterRender(this.injector, () =>
+      this.hostEl.nativeElement.querySelector<HTMLElement>(`[data-id="${id}"] [data-testid="rename-button"]`),
+    );
+  }
 
   readonly categories = signal<CourseCategoryDoc[]>([]);
   readonly loading = signal(true);

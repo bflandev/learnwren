@@ -1,6 +1,7 @@
 import {
   CdkDragDrop,
   CdkDrag,
+  CdkDragHandle,
   CdkDropList,
   moveItemInArray,
 } from '@angular/cdk/drag-drop';
@@ -26,7 +27,7 @@ import { LessonItemComponent } from '../lesson-item/lesson-item.component';
 @Component({
   selector: 'lib-lesson-list',
   standalone: true,
-  imports: [CdkDropList, CdkDrag, LessonItemComponent, HlmButton],
+  imports: [CdkDropList, CdkDrag, CdkDragHandle, LessonItemComponent, HlmButton],
   templateUrl: './lesson-list.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

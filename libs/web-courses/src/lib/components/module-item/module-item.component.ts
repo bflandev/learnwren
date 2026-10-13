@@ -1,18 +1,28 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Injector,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import type { CourseId, Lesson, Module, VideoState } from '@learnwren/shared-data-models';
 import { LESSON_TITLE_MAX_LENGTH, MODULE_TITLE_MAX_LENGTH } from '@learnwren/shared-data-models';
 
-import { HlmButton, HlmCard, HlmInput } from '@learnwren/web-ui';
+import { HlmButton, HlmCard, HlmInput, LwAutofocusDirective, LwEnterDirective, focusAfterRender } from '@learnwren/web-ui';
 
 import { LessonListComponent } from '../lesson-list/lesson-list.component';
 
 @Component({
   selector: 'lib-module-item',
   standalone: true,
-  imports: [DatePipe, FormsModule, LessonListComponent, HlmButton, HlmCard, HlmInput],
+  imports: [LwAutofocusDirective, LwEnterDirective, DatePipe, FormsModule, LessonListComponent, HlmButton, HlmCard, HlmInput],
   templateUrl: './module-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -41,6 +51,14 @@ export class ModuleItemComponent {
   );
 
   readonly editing = signal(false);
+  private readonly hostEl = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
+  /** After Enter/Escape closes an edit, put focus back on the title or Add lesson button (not <body>). */
+  protected refocus(selector: string): void {
+    focusAfterRender(this.injector, () => this.hostEl.nativeElement.querySelector<HTMLElement>(selector));
+  }
+
   readonly draftTitle = signal('');
   readonly addingLesson = signal(false);
   readonly newLessonTitle = signal('');

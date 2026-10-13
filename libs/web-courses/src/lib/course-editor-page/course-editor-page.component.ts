@@ -1,5 +1,16 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, ViewChild, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Injector,
+  ViewChild,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
@@ -21,6 +32,8 @@ import {
   HlmInput,
   HlmSkeleton,
   type ConfirmDialogConfig,
+  LwAutofocusDirective,
+  focusAfterRender,
 } from '@learnwren/web-ui';
 
 type PendingConfirm =
@@ -76,9 +89,13 @@ function isNotified(tree: CourseTree, moduleId: string): boolean {
 @Component({
   selector: 'lib-course-editor-page',
   standalone: true,
-  imports: [RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent, CourseCoverUploaderComponent, HlmAlert, HlmButton, HlmInput, HlmSkeleton],
+  imports: [LwAutofocusDirective, RouterLink, CourseMetaPanelComponent, ModuleTreeComponent, CoursePublishBarComponent, PublishEligibilityPanelComponent, CourseCoverUploaderComponent, HlmAlert, HlmButton, HlmInput, HlmSkeleton],
   templateUrl: './course-editor-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Page-wide: a file dropped beside (not on) an upload zone would otherwise
+  // be opened by the browser, leaving the editor and killing other uploads.
+  // Files only: dragging text into a title or rename field must still work.
+  host: { '(dragover)': 'cancelFileDrop($event)', '(drop)': 'cancelFileDrop($event)' },
 })
 export class CourseEditorPageComponent {
   protected readonly moduleTitleMax = MODULE_TITLE_MAX_LENGTH;
@@ -110,7 +127,24 @@ export class CourseEditorPageComponent {
    */
   private loadToken = 0;
 
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
   constructor() {
+    // A failure from an action far down the page (the tenth lesson) renders
+    // at the top, off-screen, so it read as success: bring it into view. Each
+    // action clears the error first, so every new failure re-renders the alert.
+    effect(() => {
+      if (!this.error()) return;
+      afterNextRender(
+        () => {
+          const alert = this.host.nativeElement.querySelector<HTMLElement>('[data-testid="editor-error"]');
+          // scrollIntoView is absent in some test DOMs; nothing to do there.
+          alert?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+        },
+        { injector: this.injector },
+      );
+    });
     // Angular reuses the component instance when only the :id param changes
     // (browser back/forward between two courses), so reload on every emission
     // and drop the previous course's transient state.
@@ -280,6 +314,17 @@ export class CourseEditorPageComponent {
   readonly addingModule = signal(false);
   readonly newModuleTitle = signal('');
 
+  protected cancelFileDrop(event: DragEvent): void {
+    if (event.dataTransfer?.types.includes('Files')) event.preventDefault();
+  }
+
+  /** The Add module button, once the form closes (focus otherwise fell to <body>). */
+  private refocusAddModule(): void {
+    focusAfterRender(this.injector, () =>
+      this.host.nativeElement.querySelector<HTMLElement>('[data-testid="add-module"]'),
+    );
+  }
+
   startAddModule(): void {
     this.newModuleTitle.set('');
     this.addingModule.set(true);
@@ -288,11 +333,16 @@ export class CourseEditorPageComponent {
   cancelAddModule(): void {
     this.addingModule.set(false);
     this.newModuleTitle.set('');
+    this.refocusAddModule();
   }
+
+  /** Add module in flight: a double click or a second Enter would create two. */
+  readonly addingModuleBusy = signal(false);
 
   async confirmAddModule(): Promise<void> {
     const title = this.newModuleTitle().trim();
-    if (!title) return;
+    if (!title || this.addingModuleBusy()) return;
+    this.addingModuleBusy.set(true);
     this.error.set(null);
     this.notice.set(null);
     try {
@@ -301,9 +351,12 @@ export class CourseEditorPageComponent {
       // title so the instructor can retry. Replaces the inaccessible window.prompt.
       this.addingModule.set(false);
       this.newModuleTitle.set('');
+      this.refocusAddModule();
       await this.refresh();
     } catch {
       this.error.set('Failed to add module.');
+    } finally {
+      this.addingModuleBusy.set(false);
     }
   }
 

@@ -87,15 +87,17 @@
           <input
             hlmInput
             id="new-module-title"
-            data-testid="new-module-title"
+            lwAutofocus
+        data-testid="new-module-title"
             [attr.maxlength]="moduleTitleMax"
             type="text"
             class="flex-1"
             placeholder="Module title"
             [value]="newModuleTitle()"
             (input)="newModuleTitle.set($any($event.target).value)"
+            (keydown.escape)="cancelAddModule()"
           />
-          <button hlmBtn data-testid="add-module-confirm" type="submit">Add</button>
+          <button hlmBtn data-testid="add-module-confirm" type="submit" [disabled]="addingModuleBusy()">Add</button>
           <button
             hlmBtn
             variant="ghost"

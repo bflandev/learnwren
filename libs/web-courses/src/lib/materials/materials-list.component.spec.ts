@@ -186,6 +186,11 @@ describe('MaterialsListComponent', () => {
     expect(cmp.materials()).toHaveLength(1);
     expect(cmp.removedNotice()).toBeNull();
     expect(cmp.actionError()).toBe('Couldn\'t download "Doc One" — please retry.'); // not a silent dead button
+
+    (api.getDownloadUrl as ReturnType<typeof vi.fn>).mockReturnValue(of({ downloadUrl: 'https://x/doc.pdf' }));
+    vi.spyOn(cmp as unknown as { openDownload: (u: string) => void }, 'openDownload').mockImplementation(() => undefined);
+    await cmp.download(mat('m1', 'Doc One'));
+    expect(cmp.actionError()).toBeNull(); // a successful retry clears the stale error
   });
 
   it('openDownload creates an anchor with download="" and rel="noopener", then clicks and removes it', () => {

@@ -109,6 +109,18 @@ describe('VideoUploadComponent', () => {
     expect(svc.cancel).toHaveBeenCalled();
   });
 
+  it('a dropped file is uploaded, not opened by the browser', async () => {
+    const { fixture, svc } = build();
+    const zone = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="upload-video"]')!;
+    const file = new File([new Uint8Array(1)], 'clip.mp4', { type: 'video/mp4' });
+    const drop = new Event('drop', { cancelable: true }) as Event & { dataTransfer: unknown };
+    Object.defineProperty(drop, 'dataTransfer', { value: { files: [file] } });
+    zone.dispatchEvent(drop);
+    expect(drop.defaultPrevented).toBe(true);
+    await fixture.whenStable();
+    expect(svc.start).toHaveBeenCalledWith(expect.anything(), file);
+  });
+
   it('onFile is a no-op when called with null (drop-zone clears)', async () => {
     const svc = buildFakeSvc();
     const { fixture } = build(svc);

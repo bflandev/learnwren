@@ -9,6 +9,8 @@ import {
   output,
   signal,
   untracked,
+  ElementRef,
+  Injector,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -24,7 +26,7 @@ import {
   toCaptionTracks,
 } from '@learnwren/web-video';
 
-import { ConfirmDialogService, HlmButton, HlmInput } from '@learnwren/web-ui';
+import { ConfirmDialogService, HlmButton, HlmInput, LwAutofocusDirective, LwEnterDirective, focusAfterRender } from '@learnwren/web-ui';
 
 import { CaptionsPanelComponent } from '../../captions/captions-panel.component';
 import { MaterialsListComponent } from '../../materials/materials-list.component';
@@ -32,7 +34,7 @@ import { MaterialsListComponent } from '../../materials/materials-list.component
 @Component({
   selector: 'lib-lesson-item',
   standalone: true,
-  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, CaptionsPanelComponent, HlmButton, HlmInput],
+  imports: [LwAutofocusDirective, LwEnterDirective, FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, CaptionsPanelComponent, HlmButton, HlmInput],
   templateUrl: './lesson-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -41,6 +43,14 @@ export class LessonItemComponent {
   private readonly api = inject(VideoService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly hostEl = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
+  /** After Enter/Escape closes an edit, put focus back on the lesson title (not <body>). */
+  protected refocus(selector: string): void {
+    focusAfterRender(this.injector, () => this.hostEl.nativeElement.querySelector<HTMLElement>(selector));
+  }
+
 
   readonly lesson = input.required<Lesson>();
   readonly courseId = input.required<CourseId>();

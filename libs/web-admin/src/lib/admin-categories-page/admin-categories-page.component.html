@@ -56,6 +56,10 @@
                 class="flex-1"
                 maxlength="60"
                 [(ngModel)]="renameName"
+                aria-label="Category name"
+                lwAutofocus
+                (lwEnter)="renameByKey(cat.id, true)"
+                (keydown.escape)="renameByKey(cat.id, false)"
                 data-testid="rename-input"
               />
               <button

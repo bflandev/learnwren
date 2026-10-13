@@ -1,6 +1,7 @@
 import {
   CdkDragDrop,
   CdkDrag,
+  CdkDragHandle,
   CdkDropList,
   moveItemInArray,
 } from '@angular/cdk/drag-drop';
@@ -31,7 +32,7 @@ export interface ModuleNode {
 @Component({
   selector: 'lib-module-tree',
   standalone: true,
-  imports: [CdkDropList, CdkDrag, ModuleItemComponent, HlmButton],
+  imports: [CdkDropList, CdkDrag, CdkDragHandle, ModuleItemComponent, HlmButton],
   templateUrl: './module-tree.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

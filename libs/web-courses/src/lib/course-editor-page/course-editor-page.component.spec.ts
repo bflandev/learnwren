@@ -395,6 +395,70 @@ describe('CourseEditorPageComponent', () => {
       expect(fixture.componentInstance.newModuleTitle()).toBe('');
     });
 
+    it('Escape closes the add-module form and returns focus to the Add module button', async () => {
+      const fixture = await initEditor();
+      document.body.appendChild(fixture.nativeElement);
+      try {
+        const el = fixture.nativeElement as HTMLElement;
+        fixture.componentInstance.startAddModule();
+        fixture.detectChanges();
+        TestBed.tick();
+        (el.querySelector('[data-testid="new-module-title"]') as HTMLInputElement).dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape' }),
+        );
+        fixture.detectChanges();
+        TestBed.tick();
+        expect(fixture.componentInstance.addingModule()).toBe(false);
+        expect(document.activeElement).toBe(el.querySelector('[data-testid="add-module"]'));
+      } finally {
+        fixture.nativeElement.remove();
+      }
+    });
+
+    it('cancels a file drop anywhere on the page, so the browser does not open the file', async () => {
+      const fixture = await initEditor();
+      fixture.detectChanges();
+      const header = (fixture.nativeElement as HTMLElement).querySelector('header')!;
+      const drag = (types: string[]): Event => {
+        const e = new Event('drop', { cancelable: true, bubbles: true });
+        Object.defineProperty(e, 'dataTransfer', { value: { types } });
+        header.dispatchEvent(e);
+        return e;
+      };
+      expect(drag(['Files']).defaultPrevented).toBe(true);
+      // Text dragged into a title field must still drop.
+      expect(drag(['text/plain']).defaultPrevented).toBe(false);
+    });
+
+    it('a double submit creates one module, not two', async () => {
+      const fixture = await initEditor();
+      fixture.componentInstance.startAddModule();
+      fixture.componentInstance.newModuleTitle.set('Module 2');
+      const first = fixture.componentInstance.confirmAddModule();
+      await fixture.componentInstance.confirmAddModule(); // second Enter / double click
+      const posts = http.match('/api/courses/cid-1/modules');
+      expect(posts).toHaveLength(1);
+      posts[0].flush({ id: 'mid-2' });
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await first;
+      expect(fixture.componentInstance.addingModuleBusy()).toBe(false);
+    });
+
+    it('scrolls a new action error into view (it renders at the top of a long page)', async () => {
+      const fixture = await initEditor();
+      const scroll = vi.fn();
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scroll, configurable: true });
+      try {
+        fixture.componentInstance.error.set('Failed to rename lesson.');
+        fixture.detectChanges();
+        TestBed.tick();
+        expect(scroll).toHaveBeenCalled();
+      } finally {
+        delete (HTMLElement.prototype as unknown as Record<string, unknown>)['scrollIntoView'];
+      }
+    });
+
     it('surfaces an error and keeps the form open when the POST fails', async () => {
       const fixture = await initEditor();
       fixture.componentInstance.startAddModule();

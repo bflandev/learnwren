@@ -1,4 +1,6 @@
 export * from './lib/_internal/cn';
+export * from './lib/autofocus/lw-autofocus.directive';
+export * from './lib/autofocus/lw-enter.directive';
 export * from './lib/theme/theme.service';
 export * from './lib/wordmark/lw-wordmark.component';
 export * from './lib/cover/lw-cover.component';

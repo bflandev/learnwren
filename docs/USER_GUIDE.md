@@ -556,8 +556,13 @@ Open a course to reach the **course editor** (`/courses/:id/edit`). There you ca
 - Add **modules** (a course is a list of modules).
 - Add **lessons** inside each module (a module is a list of lessons; a lesson has a
   title, optional description, and one video).
-- **Reorder** modules and lessons by **drag and drop** — the new order is saved to the
-  API immediately.
+- **Reorder** modules and lessons by dragging the **⠿ grip** beside each one (or with
+  the ↑/↓ buttons from the keyboard) — the new order is saved to the API immediately.
+  Moves are sent in click order; a failed move reverts and the editor reloads the
+  saved order.
+- Rename inline: click a title, type, then **Enter** to save or **Escape** to cancel
+  (focus returns to the title). Errors appear at the top of the editor, scrolled into
+  view.
 - Delete courses, modules, and lessons (a confirmation dialog guards destructive
   actions).
 

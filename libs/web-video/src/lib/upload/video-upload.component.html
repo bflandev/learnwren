@@ -1,9 +1,13 @@
 @let s = svc.state();
 @switch (s.kind) {
   @case ('idle') {
+    <!-- Handle drops ourselves: unhandled, the browser opened the dropped video
+         in the tab and the instructor left the editor mid-upload. -->
     <label
       class="upload-zone flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed border-line bg-bg p-6 text-center"
       data-testid="upload-video"
+      (dragover)="$event.preventDefault()"
+      (drop)="$event.preventDefault(); onFile($event.dataTransfer?.files?.[0] ?? null)"
     >
       <span class="text-sm text-ink-2">
         Drag a video file here, or click to choose. MP4, MOV, or MKV up to 10 GB.

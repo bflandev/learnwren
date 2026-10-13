@@ -3,6 +3,7 @@
     @if (editing()) {
       <input
         hlmInput
+        lwAutofocus
         data-testid="lesson-rename-input"
         [attr.maxlength]="lessonTitleMax"
         type="text"
@@ -11,8 +12,8 @@
         [ngModel]="draftTitle()"
         (ngModelChange)="draftTitle.set($event)"
         (blur)="commit()"
-        (keydown.enter)="commit()"
-        (keydown.escape)="cancel()"
+        (lwEnter)="commit(); refocus('[data-testid=lesson-title]')"
+        (keydown.escape)="cancel(); refocus('[data-testid=lesson-title]')"
       />
     } @else {
       <button

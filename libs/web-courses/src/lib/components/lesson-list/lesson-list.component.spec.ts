@@ -52,6 +52,13 @@ describe('LessonListComponent', () => {
     expect(spy).toHaveBeenCalledWith(['b', 'c', 'a']);
   });
 
+  it('drags only from a grip handle, so selecting text or scrubbing a player does not move the lesson', () => {
+    const fixture = build([lesson('a', 0), lesson('b', 1)]);
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('[data-lesson-id]');
+    expect(rows).toHaveLength(2);
+    rows.forEach((row) => expect(row.querySelector(':scope > div > .cdk-drag-handle')).not.toBeNull());
+  });
+
   it('does not emit reorder when previousIndex === currentIndex', () => {
     const fixture = build([lesson('a', 0), lesson('b', 1)]);
     const spy = vi.spyOn(fixture.componentInstance.reorder, 'emit');
