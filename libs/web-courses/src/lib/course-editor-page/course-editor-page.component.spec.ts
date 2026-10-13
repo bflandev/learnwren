@@ -988,6 +988,22 @@ describe('CourseEditorPageComponent', () => {
       await second;
     });
 
+    it('a load answered while a move is queued does not flash the old order', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+      const move = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
+      const loading = fixture.componentInstance.refresh(); // e.g. after a rename, PUT still pending
+      http.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons()); // pre-move order
+      await loading;
+      expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual(['mid-2', 'mid-1']);
+      http.expectOne('/api/courses/cid-1/modules/order').flush([]);
+      await fixture.whenStable();
+      const server = buildTreeWithLessons() as { modules: unknown[] };
+      server.modules.reverse();
+      http.expectOne('/api/courses/cid-1').flush(server); // drain refresh paints the final state
+      await move;
+      expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual(['mid-2', 'mid-1']);
+    });
+
     it('a failed move drops the moves queued behind it and refreshes once', async () => {
       const fixture = await initEditor(buildTreeWithLessons());
       const first = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
