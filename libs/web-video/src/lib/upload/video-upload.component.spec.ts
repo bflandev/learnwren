@@ -63,6 +63,22 @@ describe('VideoUploadComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Preparing');
   });
 
+  it('says the upload was received in the complete state instead of rendering nothing', () => {
+    const svc = buildFakeSvc({ kind: 'complete', videoId: 'v1' as never });
+    const { fixture } = build(svc);
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="upload-complete"]')).toBeTruthy();
+  });
+
+  it('onRetry emits uploaded when the retry hands the video over (server still completing)', async () => {
+    const svc = buildFakeSvc({ kind: 'failed', reason: 'timeout', videoId: 'v1' as never });
+    svc.retry.mockImplementation(async () => svc._state.set({ kind: 'complete', videoId: 'v1' as never }));
+    const { fixture } = build(svc);
+    const emitted: unknown[] = [];
+    fixture.componentInstance.uploaded.subscribe((v: unknown) => emitted.push(v));
+    await fixture.componentInstance.onRetry();
+    expect(emitted).toEqual(['v1']);
+  });
+
   it('emits uploaded event when svc completes after onFile', async () => {
     const svc = buildFakeSvc();
     const { fixture } = build(svc);
