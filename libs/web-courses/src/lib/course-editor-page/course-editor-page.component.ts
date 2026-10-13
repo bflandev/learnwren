@@ -69,6 +69,10 @@ const CONFIRM_COPY: Record<PendingConfirm['kind'], ConfirmDialogConfig> = {
 
 const HTTP_GATEWAY_TIMEOUT = 504;
 
+function isNotified(tree: CourseTree, moduleId: string): boolean {
+  return tree.modules.some((m) => m.module.id === moduleId && m.module.studentsNotifiedAt != null);
+}
+
 @Component({
   selector: 'lib-course-editor-page',
   standalone: true,
@@ -133,21 +137,27 @@ export class CourseEditorPageComponent {
   private refreshAfterReorders = false;
   private loadsInFlight = 0;
 
-  async refresh(): Promise<void> {
+  /** Re-fetch the tree. Resolves with the tree it fetched (even if a newer load superseded painting it), or null on failure. */
+  async refresh(): Promise<CourseTree | null> {
     const cid = this.cid();
-    if (!cid) return;
+    if (!cid) return null;
     const token = ++this.loadToken;
     this.loadsInFlight++;
+    // A load answered before queued moves commit would paint their old order:
+    // let the queue's drain refresh re-run it.
+    if (this.reordersQueued > 0) this.refreshAfterReorders = true;
     try {
       const tree = await this.service.getCourseTree(cid);
-      if (token !== this.loadToken) return; // superseded by a newer load
+      if (token !== this.loadToken) return tree; // superseded by a newer load
       this.tree.set(tree);
       this.publishSvc.bindToCourse(cid);
       this.publishSvc.refresh();
+      return tree;
     } catch {
-      if (token !== this.loadToken) return; // superseded by a newer load
+      if (token !== this.loadToken) return null; // superseded by a newer load
       this.notice.set(null);
       this.error.set('Failed to load course.');
+      return null;
     } finally {
       this.loadsInFlight--;
     }
@@ -325,9 +335,10 @@ export class CourseEditorPageComponent {
       // keeps sending (and has already marked the module notified), so a
       // large class reads as a failure that cannot be retried. Say so.
       if (err instanceof HttpErrorResponse && err.status === HTTP_GATEWAY_TIMEOUT) {
-        await this.refresh();
-        // Only a stamped module proves the server got as far as sending.
-        if (this.isNotified(moduleId)) {
+        // Only a stamped module proves the server got as far as sending. Read
+        // the fetched tree: the painted one may be a reorder's projection.
+        const fresh = await this.refresh();
+        if (fresh && isNotified(fresh, moduleId)) {
           this.notice.set('Emails are still being sent to your students. This can take a few minutes for a large class.');
           return;
         }
@@ -336,9 +347,6 @@ export class CourseEditorPageComponent {
     }
   }
 
-  private isNotified(moduleId: string): boolean {
-    return this.tree()?.modules.some((m) => m.module.id === moduleId && m.module.studentsNotifiedAt != null) ?? false;
-  }
 
   async onReorderModules(ids: string[]): Promise<void> {
     await this.runOptimisticReorder(
@@ -400,6 +408,7 @@ export class CourseEditorPageComponent {
         } catch {
           this.reorderGeneration++;
           this.refreshAfterReorders = true;
+          if (cid !== this.cid()) return; // the page now shows another course
           this.tree.set(snapshot);
           this.notice.set(null);
           this.error.set('Reorder failed — reverted.');

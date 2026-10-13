@@ -973,6 +973,21 @@ describe('CourseEditorPageComponent', () => {
       expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual(['mid-2', 'mid-1']);
     });
 
+    it('a load started while moves are queued is re-run once they all commit', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+      const first = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
+      const second = fixture.componentInstance.onReorderModules(['mid-1', 'mid-2']);
+      const loading = fixture.componentInstance.refresh(); // e.g. after a rename
+      http.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons());
+      await loading;
+      http.expectOne('/api/courses/cid-1/modules/order').flush([]);
+      await first;
+      http.expectOne('/api/courses/cid-1/modules/order').flush([]);
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons()); // the drain refresh
+      await second;
+    });
+
     it('a failed move drops the moves queued behind it and refreshes once', async () => {
       const fixture = await initEditor(buildTreeWithLessons());
       const first = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
