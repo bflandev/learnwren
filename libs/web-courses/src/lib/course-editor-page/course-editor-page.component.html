@@ -17,7 +17,13 @@
     </span>
   </header>
 
-  @if (tree() === null) {
+  @if (tree() === null && error(); as message) {
+    <!-- The first load failed: no skeleton pulsing forever above the error. -->
+    <hlm-alert severity="error" data-testid="editor-load-error">
+      <p>{{ message }}</p>
+      <button hlmBtn variant="ghost" type="button" data-testid="editor-retry" (click)="retryLoad()">Retry</button>
+    </hlm-alert>
+  } @else if (tree() === null) {
     <div class="flex flex-col gap-3">
       <hlm-skeleton label="Loading course" class="h-16 w-full" />
       <hlm-skeleton class="h-40 w-full" />
@@ -25,6 +31,14 @@
     </div>
   } @else {
     <div class="space-y-5">
+      <!-- Above the tree, not below it: lesson cards are tall, and a failure
+           message rendered after them was never seen, so failures read as success. -->
+      @if (error()) {
+        <hlm-alert severity="error" data-testid="editor-error">{{ error() }}</hlm-alert>
+      }
+      @if (notice()) {
+        <hlm-alert severity="success" data-testid="editor-notice">{{ notice() }}</hlm-alert>
+      }
       <lib-course-publish-bar
         [course]="tree()!.course"
         (courseUpdated)="onCourseUpdated($event)"
@@ -107,20 +121,10 @@
         (reorderLessons)="onReorderLessons($event)"
         (videoChanged)="refresh()"
         (videoStateChanged)="onVideoStateChanged($event)"
+        [notifyingModuleIds]="notifyingModules()"
         (notifyModule)="onNotifyModule($event)"
       ></lib-module-tree>
     </div>
   }
 
-  @if (error()) {
-    <hlm-alert severity="error" class="mt-4" data-testid="editor-error">
-      {{ error() }}
-    </hlm-alert>
-  }
-
-  @if (notice()) {
-    <hlm-alert severity="success" class="mt-4" data-testid="editor-notice">
-      {{ notice() }}
-    </hlm-alert>
-  }
 </div>

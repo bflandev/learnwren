@@ -333,21 +333,25 @@ export class VideoService {
     event: TranscoderEvent,
   ): Promise<{ acted: boolean; reason?: string }> {
     const common = { videoId: event.videoId, jobName: event.jobName, nowIso: nowIso() };
-    if (event.type === 'JOB_SUCCEEDED') {
-      return this.repo.applyTranscoderResult({
-        ...common,
-        outcome: {
-          kind: 'READY',
-          manifestPath: event.manifestPath,
-          durationSec: event.durationSec,
-          outputBucket: this.cfg.outputBucket,
-        },
-      });
-    }
-    return this.repo.applyTranscoderResult({
+    const result = await this.repo.applyTranscoderResult({
       ...common,
-      outcome: { kind: 'FAILED', reason: event.reason },
+      outcome:
+        event.type === 'JOB_SUCCEEDED'
+          ? {
+              kind: 'READY',
+              manifestPath: event.manifestPath,
+              durationSec: event.durationSec,
+              outputBucket: this.cfg.outputBucket,
+            }
+          : { kind: 'FAILED', reason: event.reason },
     });
+    if (result.reason === 'VIDEO_NOT_FOUND') {
+      // The video was deleted while its job ran (or the cancel failed): the
+      // job wrote output after the delete's prefix sweep, full or partial,
+      // and nothing else will ever remove it.
+      await this.storage.deletePrefix({ bucket: this.cfg.outputBucket, prefix: `videos/${event.videoId}/` });
+    }
+    return result;
   }
 
   async delete(vid: VideoId): Promise<void> {

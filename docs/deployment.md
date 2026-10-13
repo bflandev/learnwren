@@ -126,6 +126,7 @@ These are all required when `LEARNWREN_VIDEO_TRANSCODER=gcp` (the production def
 | `LEARNWREN_GCP_PROJECT_ID` | GCP project hosting the Transcoder API and Pub/Sub topic |
 | `LEARNWREN_TRANSCODER_LOCATION` | GCP region for the Transcoder API (e.g. `us-central1`) |
 | `LEARNWREN_TRANSCODER_TOPIC` | Pub/Sub topic for Transcoder job-complete events — must be the **full resource path** `projects/<project>/topics/<name>` (the code passes it raw into `JobConfig.pubsubDestination`) |
+| `LEARNWREN_TRANSCODER_KEY_SECRET` | Optional; default `learnwren-video-keys`. Secret Manager secret id for per-job AES-128 content keys — the Transcoder API reads keys only from a secret version (JSON `encryptionKeys` payload). `provision-buckets.sh` creates it and grants the runtime SA `secretVersionManager` and the Transcoder agent `secretAccessor`. Each version is destroyed when its job reports back. |
 | `LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE` | Expected `aud` claim on the Pub/Sub push token |
 | `LEARNWREN_TRANSCODER_INVOKER_SA_EMAIL` | Service-account email allowed to push Transcoder events |
 

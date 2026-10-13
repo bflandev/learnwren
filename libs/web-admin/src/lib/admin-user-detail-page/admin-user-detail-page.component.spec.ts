@@ -136,6 +136,24 @@ describe('AdminUserDetailPageComponent', () => {
     expect(el.textContent).toContain('Ada Lovelace');
   });
 
+  it('offers no role change for a suspended account (the api refuses it) and says why', async () => {
+    svc.getDetail = vi.fn(async () => detail({ role: 'STUDENT', status: 'SUSPENDED' }));
+    const fixture = await setup();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="promote-btn"]')).toBeNull();
+    expect(el.querySelector('[data-testid="role-locked-note"]')).not.toBeNull();
+  });
+
+  it('disables Demote for an instructor who owns courses (the api refuses it) and says why', async () => {
+    svc.getDetail = vi.fn(async () =>
+      detail({ authoredCourses: [{ id: 'c1', title: 'C', status: 'PUBLISHED', enrollmentCount: 0 }] }),
+    );
+    const fixture = await setup();
+    const el = fixture.nativeElement as HTMLElement;
+    expect((el.querySelector('[data-testid="demote-btn"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(el.querySelector('[data-testid="demote-blocked-note"]')?.textContent).toContain('1 course(s)');
+  });
+
   it('shows Promote for a STUDENT and no Demote', async () => {
     svc.getDetail = vi.fn(async () => detail({ role: 'STUDENT' }));
     const fixture = await setup();

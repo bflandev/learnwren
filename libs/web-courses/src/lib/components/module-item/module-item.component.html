@@ -39,9 +39,10 @@
         variant="ghost"
         data-testid="module-notify"
         type="button"
+        [disabled]="notifying()"
         (click)="notifyModule.emit()"
       >
-        Notify students
+        {{ notifying() ? 'Sending…' : 'Notify students' }}
       </button>
     } @else if (coursePublished() && alreadyNotified()) {
       <span class="text-xs text-ink-3" data-testid="module-notified">

@@ -32,18 +32,23 @@ describe('ForgotPasswordPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('If an account exists');
   });
 
-  it('still shows the generic confirmation on a network error', async () => {
+  it.each([
+    [500, 'Server Error'],
+    [429, 'Too Many Requests'],
+  ])('a %s says the link could not be sent and keeps the form, instead of claiming it was sent', async (status, statusText) => {
     const { fixture, httpMock } = setup();
     fixture.componentInstance.form.setValue({ email: 'a@b.c' });
     const submitPromise = fixture.componentInstance.submit();
     httpMock
       .expectOne('/api/auth/request-password-reset')
-      .flush({ error: { code: 'INTERNAL' } }, { status: 500, statusText: 'Server Error' });
-    await submitPromise.catch(() => undefined);
+      .flush({ error: { code: 'X' } }, { status, statusText });
+    await submitPromise;
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain(
-      'If an account exists',
-    );
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).not.toContain('If an account exists');
+    expect(el.querySelector('[data-testid="forgot-error"]')).not.toBeNull();
+    expect(el.querySelector('form')).not.toBeNull();
+    expect(fixture.componentInstance.busy()).toBe(false);
   });
 
   it('does nothing when the form is invalid (no HTTP call)', async () => {

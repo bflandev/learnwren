@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ThemeService } from './theme.service';
 
@@ -69,5 +69,23 @@ describe('ThemeService', () => {
     expect(document.documentElement.classList.contains('lw-theme-light')).toBe(true);
     service.set('dark');
     expect(document.documentElement.classList.contains('lw-theme-light')).toBe(false);
+  });
+
+  describe('with site data blocked (storage access throws)', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('still starts (dark) and still toggles instead of blanking the app', () => {
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new DOMException('blocked', 'SecurityError');
+      });
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('blocked', 'SecurityError');
+      });
+      const service = TestBed.inject(ThemeService);
+      expect(service.theme()).toBe('dark');
+      service.toggle();
+      expect(service.theme()).toBe('light');
+      expect(document.documentElement.classList.contains('lw-theme-light')).toBe(true);
+    });
   });
 });

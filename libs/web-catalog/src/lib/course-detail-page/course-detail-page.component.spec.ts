@@ -196,6 +196,12 @@ describe('CourseDetailPageComponent', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Something went wrong');
     expect(text).not.toContain('Course not found');
+
+    ((fixture.nativeElement as HTMLElement).querySelector('[data-testid="detail-retry"]') as HTMLButtonElement).click();
+    http.expectOne('/api/catalog/c-1').flush(COURSE_WITH_LESSONS);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Learn Rust');
   });
 
   // -------------------------------------------------------------------------
@@ -317,6 +323,21 @@ describe('CourseDetailPageComponent', () => {
     const href = btn?.getAttribute('href') ?? '';
     expect(href).toContain('learn');
     expect(href).toContain('c-1');
+    expect(href).toContain('L_FIRST');
+  });
+
+  it('Start Learning targets the first lesson of the course even when module 1 is empty', async () => {
+    const { http } = setup({ id: 'c-1', isAuthenticated: true, enrollmentView: { enrollment: null, isOwner: true } });
+    const fixture = TestBed.createComponent(CourseDetailPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/catalog/c-1').flush({
+      ...COURSE_WITH_LESSONS,
+      modules: [{ title: 'New intro', lessons: [] }, ...COURSE_WITH_LESSONS.modules],
+    });
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const href = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="start-learning"]')?.getAttribute('href') ?? '';
     expect(href).toContain('L_FIRST');
   });
 

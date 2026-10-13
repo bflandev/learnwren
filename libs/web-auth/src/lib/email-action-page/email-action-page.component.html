@@ -23,7 +23,10 @@
       </p>
     }
     @case ('error') {
-      <hlm-alert severity="error">Something went wrong. Please try again.</hlm-alert>
+      <hlm-alert severity="error">
+        <p>Something went wrong.</p>
+        <button hlmBtn variant="secondary" type="button" class="mt-2" data-testid="action-retry" (click)="retry()">Try again</button>
+      </hlm-alert>
     }
     @case ('resetForm') {
       <h1 class="mb-4 text-xl">Set a new password</h1>

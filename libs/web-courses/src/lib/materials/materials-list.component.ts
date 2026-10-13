@@ -156,8 +156,10 @@ export class MaterialsListComponent {
         // The material was removed since the page loaded — drop it from the list and notify.
         this.materials.update((list) => list.filter((x) => x.id !== m.id));
         this.removedNotice.set('This material is no longer available.');
+        return;
       }
-      // For non-404 errors (e.g. 500), leave the row in place and surface no notice.
+      // Leave the row in place, but say so: a silent no-op reads as a dead button.
+      this.actionError.set(`Couldn't download "${m.displayName}" — please retry.`);
     }
   }
 

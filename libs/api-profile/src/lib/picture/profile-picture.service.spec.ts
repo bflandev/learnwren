@@ -118,6 +118,30 @@ describe('ProfilePictureService', () => {
     });
   });
 
+  it('applies EXIF orientation, so a phone photo is not stored sideways', async () => {
+    // White top half, black bottom half, tagged "rotate 90° clockwise": as
+    // displayed, the LEFT half is black — so the top-left pixel must be dark.
+    const black = await sharp({ create: { width: 600, height: 300, channels: 3, background: { r: 0, g: 0, b: 0 } } }).png().toBuffer();
+    const buf = await sharp({ create: { width: 600, height: 600, channels: 3, background: { r: 255, g: 255, b: 255 } } })
+      .composite([{ input: black, top: 300, left: 0 }])
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    await service.uploadPicture('u1' as UserId, buf, 'image/jpeg', { email: 'a@b.com', emailVerified: true });
+    const stored = storage.get('profile-pictures/u1/avatar.jpg')!;
+    const { data, info } = await sharp(stored.body).raw().toBuffer({ resolveWithObject: true });
+    const topLeft = data[(10 * info.width + 10) * info.channels]!;
+    expect(topLeft).toBeLessThan(64);
+  });
+
+  it('a truncated JPEG (valid header, cut body) → PictureDecodeFailedException, not a bare 500', async () => {
+    const full = await jpeg(600, 600);
+    const truncated = full.subarray(0, Math.floor(full.length / 2));
+    await expect(
+      service.uploadPicture('u1' as UserId, truncated, 'image/jpeg', { email: 'a@b.com', emailVerified: true }),
+    ).rejects.toMatchObject({ code: 'PROFILE_PICTURE_DECODE_FAILED', cause: expect.anything() });
+  });
+
   it('buildMe throws NotFoundException with the exact message when the user doc is absent', async () => {
     // firestore whose get() always reports the doc absent → exercises the
     // !snap.exists guard + its message in buildMe (via removePicture, which

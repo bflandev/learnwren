@@ -106,6 +106,7 @@ describe('AuthExceptionFilter — hardening exceptions', () => {
       json: vi.fn((body: unknown) => {
         captured.body = body;
       }),
+      setHeader: vi.fn(),
     };
     return {
       switchToHttp: () => ({ getResponse: () => res }),

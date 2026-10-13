@@ -3,11 +3,12 @@
     <div class="text-center">
       <h1 class="mb-2 text-2xl text-ink">Course not found</h1>
       <p class="text-ink-2">
-        This course is not available. <a href="/catalog" class="underline">Browse the catalogue</a>.
+        This course is not available. <a routerLink="/catalog" class="underline">Browse the catalogue</a>.
       </p>
     </div>
   } @else if (error()) {
-    <p class="text-sm text-ink-2">Something went wrong loading this course. Please try again.</p>
+    <p class="text-sm text-ink-2">Something went wrong loading this course.</p>
+    <button hlmBtn variant="secondary" type="button" class="mt-2" data-testid="detail-retry" (click)="retry()">Try again</button>
   } @else if (course() === null) {
     <p class="text-sm text-ink-3">Loading…</p>
   } @else {

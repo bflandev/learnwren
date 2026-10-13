@@ -93,6 +93,12 @@ export class EmailActionPageComponent implements OnInit {
     return policy.unmet.map((r) => PASSWORD_REQUIREMENT_PROSE[r]);
   });
 
+  /** The error state's Retry: re-apply the link (a used token lands on 'invalid'). */
+  retry(): void {
+    this.state.set({ kind: 'pending' });
+    void this.ngOnInit();
+  }
+
   async ngOnInit(): Promise<void> {
     const mode = this.route.snapshot.queryParamMap.get('mode');
     const token = this.route.snapshot.queryParamMap.get('token');

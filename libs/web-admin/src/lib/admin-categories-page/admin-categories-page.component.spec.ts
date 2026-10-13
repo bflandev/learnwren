@@ -102,6 +102,16 @@ describe('AdminCategoriesPageComponent', () => {
     expect(fixture.componentInstance.reassignOptions().map((c) => c.id)).toEqual(['DESIGN']);
   });
 
+  it('explains that the last category cannot be deleted instead of a dead Delete button', async () => {
+    svc.list = vi.fn(async () => [cat('BUSINESS', 'Business')]);
+    const fixture = await setup();
+    fixture.componentInstance.startDelete(cat('BUSINESS', 'Business'));
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="last-category-note"]')?.textContent).toContain('cannot be deleted');
+    expect(el.querySelector('[data-testid="delete-confirm-button"]')).toBeNull();
+  });
+
   it('renders the delete panel with the preselected target named on the select trigger', async () => {
     // Arrange
     const fixture = await setup();

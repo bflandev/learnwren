@@ -20,12 +20,22 @@ export class ThemeService {
 
   set(theme: LwTheme): void {
     this.themeSignal.set(theme);
-    localStorage.setItem(STORAGE_KEY, theme);
+    try {
+      localStorage.setItem(STORAGE_KEY, theme);
+    } catch {
+      // Blocked site data: the theme still applies, it just isn't remembered.
+    }
     this.apply(theme);
   }
 
   private readInitial(): LwTheme {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      // Blocked site data throws on access; this runs while the header is
+      // built, so an uncaught throw rendered a blank app.
+    }
     // Stryker disable next-line ConditionalExpression,StringLiteral: equivalent — the `|| stored === 'dark'` clause is redundant because its else-branch fallback is also 'dark'. Blanking/removing it yields identical output for every input.
     return stored === 'light' || stored === 'dark' ? stored : 'dark';
   }

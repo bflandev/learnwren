@@ -41,7 +41,7 @@ describe('AccountDeletionExceptionFilter', () => {
   it('renders an unknown error as a 500 INTERNAL envelope', () => {
     const json = vi.fn();
     const status = vi.fn().mockReturnValue({ json });
-    const host = { switchToHttp: () => ({ getResponse: () => ({ status }) }) } as never;
+    const host = { switchToHttp: () => ({ getResponse: () => ({ status, setHeader: () => undefined }) }) } as never;
     new AccountDeletionExceptionFilter().catch(new Error('identity provider down'), host);
     expect(status).toHaveBeenCalledWith(500);
     expect(json).toHaveBeenCalledWith({ error: expect.objectContaining({ code: 'INTERNAL' }) });
@@ -50,7 +50,7 @@ describe('AccountDeletionExceptionFilter', () => {
   it('renders a domain exception with its code, status and details', () => {
     const json = vi.fn();
     const status = vi.fn().mockReturnValue({ json });
-    const host = { switchToHttp: () => ({ getResponse: () => ({ status }) }) } as never;
+    const host = { switchToHttp: () => ({ getResponse: () => ({ status, setHeader: () => undefined }) }) } as never;
     new AccountDeletionExceptionFilter().catch(new UserHasCoursesException(2, []), host);
     expect(status).toHaveBeenCalledWith(409);
     expect(json).toHaveBeenCalledWith({

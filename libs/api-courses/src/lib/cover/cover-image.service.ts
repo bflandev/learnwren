@@ -42,8 +42,11 @@ export class CoverImageService {
     } catch {
       throw new CoverDecodeFailedException();
     }
-    const width = meta.width ?? 0;
-    const height = meta.height ?? 0;
+    // EXIF orientations 5–8 are stored rotated a quarter turn: judge the size
+    // the viewer will see, which .rotate() below produces.
+    const quarterTurn = (meta.orientation ?? 1) >= 5;
+    const width = (quarterTurn ? meta.height : meta.width) ?? 0;
+    const height = (quarterTurn ? meta.width : meta.height) ?? 0;
     if (!width || !height) throw new CoverDecodeFailedException();
     if (width < MIN_WIDTH || height < MIN_HEIGHT) {
       throw new CoverDimensionsTooSmallException({ width, height });
@@ -54,7 +57,10 @@ export class CoverImageService {
     // renders as the typed 400 instead of escaping the filter as a 500.
     let jpeg: Buffer;
     try {
+      // .rotate() applies the EXIF orientation; the JPEG output drops the tag,
+      // so without it a phone photo is stored sideways.
       jpeg = await pipeline
+        .rotate()
         .resize({ width: MAX_WIDTH, height: MAX_HEIGHT, fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 85, mozjpeg: true })
         .toBuffer();

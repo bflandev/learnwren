@@ -138,6 +138,27 @@ describe('CoverImageService — happy path', () => {
     expect(blob!.metadata).toEqual({ courseId: 'c1' });
   });
 
+  it('applies EXIF orientation: a phone portrait (stored landscape, orientation 6) stays portrait', async () => {
+    const buf = await sharp({ create: { width: 2400, height: 1800, channels: 3, background: { r: 1, g: 2, b: 3 } } })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    await svc.uploadCover(CID, buf, 'image/jpeg');
+    const meta = await sharp(storage.get('course-covers/c1/cover.jpg')!.body).metadata();
+    expect(meta.height!).toBeGreaterThan(meta.width!);
+  });
+
+  it('judges the minimum size on the displayed (rotated) dimensions', async () => {
+    // Stored 2000x800 but displayed 800x2000: too narrow for a cover.
+    const buf = await sharp({ create: { width: 2000, height: 800, channels: 3, background: { r: 1, g: 2, b: 3 } } })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    await expect(svc.uploadCover(CID, buf, 'image/jpeg')).rejects.toMatchObject({
+      details: { width: 800, height: 2000 },
+    });
+  });
+
   it('resizes a 3000x1500 source down within 1920x1080 preserving aspect', async () => {
     const buf = await makeJpegBuffer(3000, 1500);
     await svc.uploadCover(CID, buf, 'image/jpeg');

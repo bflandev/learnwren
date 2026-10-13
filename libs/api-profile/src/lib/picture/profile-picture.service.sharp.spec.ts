@@ -27,6 +27,7 @@ vi.mock('sharp', () => {
       return chain;
     };
     chain['png'] = () => chain;
+    chain['rotate'] = () => chain;
     chain['jpeg'] = (opts2: unknown) => {
       holder.calls.jpegOpts.push(opts2);
       return chain;

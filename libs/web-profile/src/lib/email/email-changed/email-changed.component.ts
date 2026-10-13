@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 
 import { AuthService } from '@learnwren/web-auth';
@@ -29,13 +28,13 @@ export class EmailChangedComponent implements OnInit {
       } else {
         await this.router.navigate(['/settings/profile']);
       }
-    } catch (err) {
-      // A 401 means the swap already revoked this session — treat as success.
-      if (err instanceof HttpErrorResponse && err.status === 401) {
-        await this.finishWithRelogin();
-        return;
-      }
-      await this.router.navigate(['/settings/profile']);
+    } catch {
+      // The email-action link already applied the change before landing here.
+      // A 401 means the swap revoked this session; any other failure still
+      // leaves the NEW address live, so the profile page (showing the old one
+      // from the cookie) would mislead. Re-login either way — sign-in also
+      // repairs the stored profile email.
+      await this.finishWithRelogin();
     }
   }
 

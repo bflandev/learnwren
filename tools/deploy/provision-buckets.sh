@@ -92,4 +92,20 @@ gcloud storage buckets add-iam-policy-binding "gs://${PROJECT_ID}-video-output" 
   --member="serviceAccount:${TRANSCODER_SA}" --role=roles/storage.objectAdmin >/dev/null
 echo "   ${TRANSCODER_SA}: source objectViewer + output objectAdmin granted"
 
+echo "== Transcoder content-key secret =="
+# The Transcoder API takes an AES-128 key only from a Secret Manager version.
+# The api adds one version per job and destroys it when the job reports back
+# (api-courses gcp-transcoder.adapter). Override the id with
+# LEARNWREN_TRANSCODER_KEY_SECRET on the api if you change KEY_SECRET here.
+KEY_SECRET="${KEY_SECRET:-learnwren-video-keys}"
+gcloud secrets describe "${KEY_SECRET}" --project "${PROJECT_ID}" >/dev/null 2>&1 \
+  || gcloud secrets create "${KEY_SECRET}" --replication-policy=automatic --project "${PROJECT_ID}"
+# secretVersionManager: add a version per job and destroy it afterwards.
+gcloud secrets add-iam-policy-binding "${KEY_SECRET}" --project "${PROJECT_ID}" \
+  --member="serviceAccount:${RUNTIME_SA}" --role=roles/secretmanager.secretVersionManager >/dev/null
+# The Transcoder agent reads the key (documented requirement).
+gcloud secrets add-iam-policy-binding "${KEY_SECRET}" --project "${PROJECT_ID}" \
+  --member="serviceAccount:${TRANSCODER_SA}" --role=roles/secretmanager.secretAccessor >/dev/null
+echo "   ${KEY_SECRET}: runtime SA secretVersionManager + transcoder agent secretAccessor granted"
+
 echo "Done. Buckets: ${PRIVATE_BUCKETS[*]} ${PUBLIC_BUCKETS[*]}"

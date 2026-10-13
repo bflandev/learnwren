@@ -378,3 +378,32 @@ describe('VideoStateBadgeComponent — isStuck threshold boundary (strict >)', (
     expect(fixture.componentInstance.label()).toBe('Upload may have stalled — retry?');
   });
 });
+
+describe('VideoStateBadgeComponent — stall detection over time', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('turns "stalled" on its own as time passes, with no new poll result', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-13T12:00:00.000Z'));
+    const subject = new Subject<Video>(); // polling has gone quiet
+    TestBed.configureTestingModule({
+      imports: [VideoStateBadgeComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: VideoStatePollingService, useValue: { poll: () => subject.asObservable() } },
+      ],
+    });
+    const fixture = TestBed.createComponent(VideoStateBadgeComponent);
+    fixture.componentRef.setInput('video', {
+      ...video('TRANSCODING'),
+      updatedAt: new Date(Date.now() - 29 * 60 * 1000).toISOString() as Video['updatedAt'],
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent as string).not.toContain('may have stalled');
+
+    vi.advanceTimersByTime(2 * 60 * 1000);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent as string).toContain('Transcoding may have stalled');
+  });
+});

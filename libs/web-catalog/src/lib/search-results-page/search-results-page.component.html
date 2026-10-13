@@ -2,7 +2,8 @@
   <h1 class="mb-6 text-2xl text-ink">Search results for "{{ query() }}"</h1>
 
   @if (error()) {
-    <p class="text-sm text-ink-2">Something went wrong with your search. Please try again.</p>
+    <p class="text-sm text-ink-2">Something went wrong with your search.</p>
+    <button hlmBtn variant="secondary" type="button" class="mt-2" data-testid="search-retry" (click)="retry()">Try again</button>
   } @else if (result() === null) {
     <p class="text-sm text-ink-3">Loading…</p>
   } @else if (result()!.items.length === 0) {

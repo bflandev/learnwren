@@ -40,9 +40,10 @@ function makeRepo() {
 function mockPipeline(meta: { width?: number; height?: number }) {
   const jpeg = vi.fn().mockReturnThis();
   const resize = vi.fn().mockReturnThis();
+  const rotate = vi.fn().mockReturnThis();
   const toBuffer = vi.fn(async () => Buffer.from('encoded'));
   const metadata = vi.fn(async () => meta);
-  const pipeline = { metadata, resize, jpeg, toBuffer };
+  const pipeline = { metadata, rotate, resize, jpeg, toBuffer };
   sharpCtor.mockReturnValue(pipeline);
   return { pipeline, jpeg, resize, toBuffer, metadata };
 }
