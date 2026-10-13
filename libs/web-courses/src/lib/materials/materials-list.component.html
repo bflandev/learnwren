@@ -24,7 +24,8 @@
         @if (editingId() === m.id) {
           <input
             hlmInput
-            data-testid="material-rename-input"
+            lwAutofocus
+        data-testid="material-rename-input"
             [attr.maxlength]="materialNameMax"
             type="text"
             class="flex-1"

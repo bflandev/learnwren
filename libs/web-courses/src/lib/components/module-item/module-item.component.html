@@ -3,6 +3,7 @@
     @if (editing()) {
       <input
         hlmInput
+        lwAutofocus
         data-testid="module-rename-input"
         [attr.maxlength]="moduleTitleMax"
         type="text"
@@ -64,7 +65,8 @@
   @if (addingLesson()) {
     <input
       hlmInput
-      data-testid="add-lesson-input"
+      lwAutofocus
+        data-testid="add-lesson-input"
       [attr.maxlength]="lessonTitleMax"
       type="text"
       aria-label="New lesson title"

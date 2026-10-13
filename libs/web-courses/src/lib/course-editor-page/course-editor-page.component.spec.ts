@@ -395,6 +395,35 @@ describe('CourseEditorPageComponent', () => {
       expect(fixture.componentInstance.newModuleTitle()).toBe('');
     });
 
+    it('a double submit creates one module, not two', async () => {
+      const fixture = await initEditor();
+      fixture.componentInstance.startAddModule();
+      fixture.componentInstance.newModuleTitle.set('Module 2');
+      const first = fixture.componentInstance.confirmAddModule();
+      await fixture.componentInstance.confirmAddModule(); // second Enter / double click
+      const posts = http.match('/api/courses/cid-1/modules');
+      expect(posts).toHaveLength(1);
+      posts[0].flush({ id: 'mid-2' });
+      await fixture.whenStable();
+      http.expectOne('/api/courses/cid-1').flush(buildTree());
+      await first;
+      expect(fixture.componentInstance.addingModuleBusy()).toBe(false);
+    });
+
+    it('scrolls a new action error into view (it renders at the top of a long page)', async () => {
+      const fixture = await initEditor();
+      const scroll = vi.fn();
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scroll, configurable: true });
+      try {
+        fixture.componentInstance.error.set('Failed to rename lesson.');
+        fixture.detectChanges();
+        TestBed.tick();
+        expect(scroll).toHaveBeenCalled();
+      } finally {
+        delete (HTMLElement.prototype as unknown as Record<string, unknown>)['scrollIntoView'];
+      }
+    });
+
     it('surfaces an error and keeps the form open when the POST fails', async () => {
       const fixture = await initEditor();
       fixture.componentInstance.startAddModule();

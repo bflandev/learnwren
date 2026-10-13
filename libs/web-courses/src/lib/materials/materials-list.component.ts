@@ -12,7 +12,7 @@ import type {
 } from '@learnwren/shared-data-models';
 import { MATERIAL_NAME_MAX_LENGTH } from '@learnwren/shared-data-models';
 
-import { ConfirmDialogService, HlmButton, HlmInput } from '@learnwren/web-ui';
+import { ConfirmDialogService, HlmButton, HlmInput, LwAutofocusDirective } from '@learnwren/web-ui';
 
 import { MaterialUploadService } from './material-upload.service';
 import { MaterialsService } from './materials.service';
@@ -20,7 +20,7 @@ import { MaterialsService } from './materials.service';
 @Component({
   selector: 'lib-materials-list',
   standalone: true,
-  imports: [FormsModule, HlmButton, HlmInput],
+  imports: [LwAutofocusDirective, FormsModule, HlmButton, HlmInput],
   templateUrl: './materials-list.component.html',
   providers: [MaterialUploadService],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -147,6 +147,7 @@ export class MaterialsListComponent {
   }
 
   async download(m: Material): Promise<void> {
+    this.actionError.set(null);
     try {
       const { downloadUrl } = await firstValueFrom(this.api.getDownloadUrl(m.id));
       this.openDownload(downloadUrl);

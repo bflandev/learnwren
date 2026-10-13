@@ -5,14 +5,14 @@ import { FormsModule } from '@angular/forms';
 import type { CourseId, Lesson, Module, VideoState } from '@learnwren/shared-data-models';
 import { LESSON_TITLE_MAX_LENGTH, MODULE_TITLE_MAX_LENGTH } from '@learnwren/shared-data-models';
 
-import { HlmButton, HlmCard, HlmInput } from '@learnwren/web-ui';
+import { HlmButton, HlmCard, HlmInput, LwAutofocusDirective } from '@learnwren/web-ui';
 
 import { LessonListComponent } from '../lesson-list/lesson-list.component';
 
 @Component({
   selector: 'lib-module-item',
   standalone: true,
-  imports: [DatePipe, FormsModule, LessonListComponent, HlmButton, HlmCard, HlmInput],
+  imports: [LwAutofocusDirective, DatePipe, FormsModule, LessonListComponent, HlmButton, HlmCard, HlmInput],
   templateUrl: './module-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

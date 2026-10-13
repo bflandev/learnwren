@@ -24,7 +24,7 @@ import {
   toCaptionTracks,
 } from '@learnwren/web-video';
 
-import { ConfirmDialogService, HlmButton, HlmInput } from '@learnwren/web-ui';
+import { ConfirmDialogService, HlmButton, HlmInput, LwAutofocusDirective } from '@learnwren/web-ui';
 
 import { CaptionsPanelComponent } from '../../captions/captions-panel.component';
 import { MaterialsListComponent } from '../../materials/materials-list.component';
@@ -32,7 +32,7 @@ import { MaterialsListComponent } from '../../materials/materials-list.component
 @Component({
   selector: 'lib-lesson-item',
   standalone: true,
-  imports: [FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, CaptionsPanelComponent, HlmButton, HlmInput],
+  imports: [LwAutofocusDirective, FormsModule, VideoUploadComponent, VideoStateBadgeComponent, VideoPlayerComponent, MaterialsListComponent, CaptionsPanelComponent, HlmButton, HlmInput],
   templateUrl: './lesson-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
