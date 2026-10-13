@@ -94,7 +94,8 @@ function isNotified(tree: CourseTree, moduleId: string): boolean {
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Page-wide: a file dropped beside (not on) an upload zone would otherwise
   // be opened by the browser, leaving the editor and killing other uploads.
-  host: { '(dragover)': '$event.preventDefault()', '(drop)': '$event.preventDefault()' },
+  // Files only: dragging text into a title or rename field must still work.
+  host: { '(dragover)': 'cancelFileDrop($event)', '(drop)': 'cancelFileDrop($event)' },
 })
 export class CourseEditorPageComponent {
   protected readonly moduleTitleMax = MODULE_TITLE_MAX_LENGTH;
@@ -312,6 +313,10 @@ export class CourseEditorPageComponent {
 
   readonly addingModule = signal(false);
   readonly newModuleTitle = signal('');
+
+  protected cancelFileDrop(event: DragEvent): void {
+    if (event.dataTransfer?.types.includes('Files')) event.preventDefault();
+  }
 
   /** The Add module button, once the form closes (focus otherwise fell to <body>). */
   private refocusAddModule(): void {

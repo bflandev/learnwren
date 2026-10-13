@@ -418,9 +418,16 @@ describe('CourseEditorPageComponent', () => {
     it('cancels a file drop anywhere on the page, so the browser does not open the file', async () => {
       const fixture = await initEditor();
       fixture.detectChanges();
-      const drop = new Event('drop', { cancelable: true, bubbles: true });
-      (fixture.nativeElement as HTMLElement).querySelector('header')!.dispatchEvent(drop);
-      expect(drop.defaultPrevented).toBe(true);
+      const header = (fixture.nativeElement as HTMLElement).querySelector('header')!;
+      const drag = (types: string[]): Event => {
+        const e = new Event('drop', { cancelable: true, bubbles: true });
+        Object.defineProperty(e, 'dataTransfer', { value: { types } });
+        header.dispatchEvent(e);
+        return e;
+      };
+      expect(drag(['Files']).defaultPrevented).toBe(true);
+      // Text dragged into a title field must still drop.
+      expect(drag(['text/plain']).defaultPrevented).toBe(false);
     });
 
     it('a double submit creates one module, not two', async () => {
