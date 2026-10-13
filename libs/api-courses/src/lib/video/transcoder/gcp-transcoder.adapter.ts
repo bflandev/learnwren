@@ -26,6 +26,7 @@ export interface TranscoderClient {
   // stopped and removed. (A `cancelJob` here once compiled behind a cast and
   // threw at runtime on every delete, so jobs ran on, billed.)
   deleteJob(req: { name: string; allowMissing?: boolean }): Promise<[unknown]>;
+  getJob(req: { name: string }): Promise<[{ labels?: Record<string, string> | null }]>;
 }
 
 /** The subset of SecretManagerServiceClient we use (video.module checks each exists). */
@@ -126,6 +127,10 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
   }
 
   async cancelJob(jobName: string): Promise<void> {
+    // A stopped job never reports back, so parseEvent will not destroy its
+    // key version: do it here (billed while active, and it holds the key of a
+    // video being deleted). Best effort — the stop itself matters more.
+    await this.destroyKeyVersionOf(jobName);
     try {
       await this.opts.client.deleteJob({ name: jobName, allowMissing: true });
     } catch (err) {
@@ -153,6 +158,19 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
     });
     if (!version.name) throw new Error('Secret Manager returned no version name.');
     return version.name;
+  }
+
+  private async destroyKeyVersionOf(jobName: string): Promise<void> {
+    let keyVersion: string | undefined;
+    try {
+      const [job] = await this.opts.client.getJob({ name: jobName });
+      keyVersion = job.labels?.['keyversion'];
+    } catch (err) {
+      // Stryker disable next-line StringLiteral: log-only message.
+      this.logger.warn(`reading job ${jobName} for its key version failed: ${(err as Error).message}`);
+      return;
+    }
+    if (keyVersion) await this.destroyKeyVersion(`${this.opts.keySecret}/versions/${keyVersion}`);
   }
 
   private async destroyKeyVersion(name: string): Promise<void> {

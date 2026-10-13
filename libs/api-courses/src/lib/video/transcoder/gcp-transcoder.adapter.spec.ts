@@ -7,6 +7,7 @@ import { GcpTranscoderAdapter } from './gcp-transcoder.adapter';
 interface MockClient {
   createJob: ReturnType<typeof vi.fn>;
   deleteJob: ReturnType<typeof vi.fn>;
+  getJob: ReturnType<typeof vi.fn>;
 }
 interface MockSecrets {
   addSecretVersion: ReturnType<typeof vi.fn>;
@@ -19,6 +20,7 @@ function makeClient(): MockClient {
   return {
     createJob: vi.fn(async () => [{ name: 'projects/proj/locations/us-central1/jobs/abc' }]),
     deleteJob: vi.fn(),
+    getJob: vi.fn(async () => [{ labels: { videoid: 'v1', keyversion: '7' } }]),
   };
 }
 function makeSecrets(): MockSecrets {
@@ -129,7 +131,7 @@ describe('GcpTranscoderAdapter.submitJob', () => {
   it('matches the real SDK clients: every method it calls exists', async () => {
     const { TranscoderServiceClient } = await import('@google-cloud/video-transcoder');
     const { SecretManagerServiceClient } = await import('@google-cloud/secret-manager');
-    for (const m of ['createJob', 'deleteJob']) {
+    for (const m of ['createJob', 'deleteJob', 'getJob']) {
       expect(typeof (TranscoderServiceClient.prototype as unknown as Record<string, unknown>)[m]).toBe('function');
     }
     for (const m of ['addSecretVersion', 'destroySecretVersion']) {
@@ -253,6 +255,24 @@ describe('GcpTranscoderAdapter.cancelJob', () => {
     const adapter = makeAdapter(client);
     await adapter.cancelJob('projects/proj/locations/l/jobs/j1');
     expect(client.deleteJob).toHaveBeenCalledWith({ name: 'projects/proj/locations/l/jobs/j1', allowMissing: true });
+  });
+
+  it('destroys the job\'s key version first: a stopped job never reports back', async () => {
+    const client = makeClient();
+    const secrets = makeSecrets();
+    await makeAdapter(client, secrets).cancelJob('projects/proj/locations/l/jobs/j1');
+    expect(client.getJob).toHaveBeenCalledWith({ name: 'projects/proj/locations/l/jobs/j1' });
+    expect(secrets.destroySecretVersion).toHaveBeenCalledWith({ name: `${SECRET}/versions/7` });
+    expect(client.deleteJob).toHaveBeenCalled();
+  });
+
+  it('still stops the job when its key version cannot be looked up', async () => {
+    const client = makeClient();
+    const secrets = makeSecrets();
+    client.getJob.mockRejectedValue(Object.assign(new Error('not found'), { code: 5 }));
+    await makeAdapter(client, secrets).cancelJob('j');
+    expect(secrets.destroySecretVersion).not.toHaveBeenCalled();
+    expect(client.deleteJob).toHaveBeenCalledWith({ name: 'j', allowMissing: true });
   });
 
   it('swallows NOT_FOUND from the SDK', async () => {

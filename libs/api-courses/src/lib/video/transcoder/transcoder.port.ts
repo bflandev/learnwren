@@ -24,7 +24,7 @@ export type TranscoderEvent =
       jobName: string;
       videoId: VideoId;
       manifestPath: string; // 'videos/{vid}/hls/manifest.m3u8'
-      durationSec: number; // from transcoderClient.getJob output
+      durationSec: number; // ffmpeg probes it; GCP sends 0 (the repository then uses the probed source duration)
     }
   | {
       type: 'JOB_FAILED';
