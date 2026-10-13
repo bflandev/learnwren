@@ -233,11 +233,9 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
   }
 
   async onLessonSelected(nextLessonId: LessonId): Promise<void> {
-    try {
-      await this.saver?.flush();
-    } catch (err) {
-      console.warn('[learn] flushPosition rejected during outline nav', err);
-    }
+    // No await on a flush first: the NavigationStart hook flushes, and waiting
+    // here let fast clicks (B then C) navigate in flush-completion order,
+    // landing the student on B.
     await this.router.navigateByUrl(`/learn/${this.courseId}/${nextLessonId}`);
   }
 
@@ -252,7 +250,10 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     const d = duration ?? this.playerRef?.playerEl?.nativeElement.duration ?? 0;
     const saved = this.lastWatchedSeconds();
     if (!Number.isFinite(d) || d <= 0 || saved <= 0) return;
-    if (saved >= d) {
+    // The saver stores whole seconds and HLS durations are fractional (612 of
+    // 612.48), so a fully watched lesson would otherwise resume 5 s before the
+    // end forever (the stored position never decreases).
+    if (saved >= Math.floor(d)) {
       this.seekVideoTo(0);
       return;
     }
@@ -295,6 +296,7 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
     try {
       const { completedAt } = await this.learn.markLessonComplete(this.courseId, this.lessonId);
       if (token !== this.loadToken) return;
+      const lessonId = this.lessonId;
       this.view.update((v) =>
         v
           ? {
@@ -302,6 +304,13 @@ export class LessonPlayerPageComponent implements OnInit, OnDestroy {
               progress: {
                 completedAt,
                 lastWatchedSeconds: v.progress?.lastWatchedSeconds ?? 0,
+              },
+              // The outline drives the row tick, module tick and course banner.
+              outline: {
+                modules: v.outline.modules.map((m) => ({
+                  ...m,
+                  lessons: m.lessons.map((l) => (l.id === lessonId ? { ...l, completedAt } : l)),
+                })),
               },
             }
           : v,
