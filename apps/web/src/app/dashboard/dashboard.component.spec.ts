@@ -129,5 +129,12 @@ describe('DashboardComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('[data-testid="courses-error"]')).not.toBeNull();
     expect(el.textContent).toContain('could not load your courses');
+
+    (el.querySelector('[data-testid="courses-retry"]') as HTMLButtonElement).click();
+    http.expectOne('/api/courses').flush([]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="courses-error"]')).toBeNull();
+    expect(el.textContent).toContain('No courses yet');
   });
 });

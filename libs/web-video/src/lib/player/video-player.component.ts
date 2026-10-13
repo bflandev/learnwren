@@ -95,6 +95,13 @@ export class VideoPlayerComponent implements AfterViewInit, OnDestroy {
       this.reloadPage();
       return;
     }
+    // dispose() reloads the element, which resets currentTime to 0: put the
+    // student back where playback broke once the new source has metadata.
+    const el = this.playerEl.nativeElement;
+    const resumeAt = el.currentTime;
+    if (resumeAt > 0) {
+      el.addEventListener('loadedmetadata', () => (el.currentTime = resumeAt), { once: true });
+    }
     this.handle?.dispose();
     this.handle = null;
     this.error.set(null);

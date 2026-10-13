@@ -185,6 +185,7 @@ describe('MaterialsListComponent', () => {
     await cmp.download(mat('m1', 'Doc One'));
     expect(cmp.materials()).toHaveLength(1);
     expect(cmp.removedNotice()).toBeNull();
+    expect(cmp.actionError()).toBe('Couldn\'t download "Doc One" — please retry.'); // not a silent dead button
   });
 
   it('openDownload creates an anchor with download="" and rel="noopener", then clicks and removes it', () => {

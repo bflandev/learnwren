@@ -302,6 +302,25 @@ describe('CourseEditorPageComponent', () => {
     await fixture.whenStable();
 
     expect(fixture.componentInstance.error()).toBe('Failed to load course.');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('hlm-skeleton')).toBeNull(); // no endless skeleton
+    expect(el.querySelector('[data-testid="editor-load-error"]')).not.toBeNull();
+
+    (el.querySelector('[data-testid="editor-retry"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('hlm-skeleton')).not.toBeNull(); // retrying
+    http.expectOne('/api/courses/cid-1').flush(buildTree());
+    await fixture.whenStable();
+    expect(fixture.componentInstance.tree()).not.toBeNull();
+  });
+
+  it('says a missing or foreign course is not available, not a generic failure', async () => {
+    const fixture = TestBed.createComponent(CourseEditorPageComponent);
+    fixture.detectChanges();
+    http.expectOne('/api/courses/cid-1').flush({}, { status: 404, statusText: 'Not Found' });
+    await fixture.whenStable();
+    expect(fixture.componentInstance.error()).toBe("This course doesn't exist or isn't one of yours.");
   });
 
   describe('onUpdateCourse', () => {

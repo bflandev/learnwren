@@ -16,6 +16,9 @@
     @if (error()) {
       <hlm-card class="p-8 text-center">
         <p class="text-ink-2" data-testid="courses-error">{{ error() }}</p>
+        <button hlmBtn variant="ghost" type="button" class="mt-3" data-testid="courses-retry" (click)="retryCourses()">
+          Retry
+        </button>
       </hlm-card>
     } @else if (courses() === null) {
       <div class="flex flex-col gap-3">

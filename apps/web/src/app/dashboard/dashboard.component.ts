@@ -46,6 +46,10 @@ export class DashboardComponent {
     });
   }
 
+  retryCourses(): void {
+    void this.loadCourses();
+  }
+
   private async loadCourses(): Promise<void> {
     try {
       this.error.set(null);

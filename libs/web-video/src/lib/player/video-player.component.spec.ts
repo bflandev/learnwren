@@ -263,6 +263,21 @@ describe('VideoPlayerComponent', () => {
     ).toBeNull();
   });
 
+  it('retry resumes where playback broke instead of restarting at 0:00', async () => {
+    const { fixture, stub } = await bootstrap();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    video.currentTime = 1800;
+    stub.handle.dispose.mockImplementation(() => (video.currentTime = 0)); // what el.load() does
+    stub.capturedHooks.onFatalError('Playback interrupted — try again.');
+    fixture.componentInstance.retry();
+    expect(video.currentTime).toBe(0);
+    video.dispatchEvent(new Event('loadedmetadata'));
+    expect(video.currentTime).toBe(1800);
+    video.currentTime = 5;
+    video.dispatchEvent(new Event('loadedmetadata')); // one-shot: a later load is left alone
+    expect(video.currentTime).toBe(5);
+  });
+
   it('does not render the error region while no error is set', async () => {
     const { fixture } = await bootstrap();
     expect(

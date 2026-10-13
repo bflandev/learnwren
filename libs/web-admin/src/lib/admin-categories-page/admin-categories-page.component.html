@@ -69,6 +69,12 @@
               </button>
               <button hlmBtn variant="ghost" type="button" (click)="cancelRowAction()">Cancel</button>
             </div>
+          } @else if (deletingId() === cat.id && reassignOptions().length === 0) {
+            <!-- Nothing to reassign to: say why instead of a disabled Delete. -->
+            <div class="flex flex-wrap items-center gap-2" data-testid="last-category-note">
+              <p class="text-sm text-ink">The last remaining category cannot be deleted.</p>
+              <button hlmBtn variant="ghost" type="button" (click)="cancelRowAction()">OK</button>
+            </div>
           } @else if (deletingId() === cat.id) {
             <div class="flex flex-wrap items-center gap-2">
               <p class="text-sm text-ink">

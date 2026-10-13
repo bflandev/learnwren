@@ -141,6 +141,12 @@ export class CourseEditorPageComponent {
   private loadsInFlight = 0;
 
   /** Re-fetch the tree. Resolves with the tree it fetched (even if a newer load superseded painting it), or null on failure. */
+  /** Retry after a failed first load: back to the skeleton while it runs. */
+  retryLoad(): void {
+    this.error.set(null);
+    void this.refresh();
+  }
+
   async refresh(): Promise<CourseTree | null> {
     const cid = this.cid();
     if (!cid) return null;
@@ -161,10 +167,15 @@ export class CourseEditorPageComponent {
       this.publishSvc.bindToCourse(cid);
       this.publishSvc.refresh();
       return tree;
-    } catch {
+    } catch (err) {
       if (token !== this.loadToken) return null; // superseded by a newer load
       this.notice.set(null);
-      this.error.set('Failed to load course.');
+      const status = err instanceof HttpErrorResponse ? err.status : 0;
+      this.error.set(
+        status === 404 || status === 403
+          ? "This course doesn't exist or isn't one of yours."
+          : 'Failed to load course.',
+      );
       return null;
     } finally {
       this.loadsInFlight--;
