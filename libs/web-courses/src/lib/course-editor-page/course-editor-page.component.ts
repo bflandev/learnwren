@@ -56,13 +56,13 @@ const CONFIRM_COPY: Record<PendingConfirm['kind'], ConfirmDialogConfig> = {
   unpublish: {
     header: 'Unpublish course',
     message:
-      'The course will return to draft. Once a student catalogue exists, the course will no longer be discoverable. Existing enrolled students would retain access.',
+      'The course will return to draft and leave the catalogue. Enrolled students lose access to its lessons, videos and materials until you publish it again.',
     acceptLabel: 'Unpublish',
   },
   archive: {
     header: 'Archive course',
     message:
-      'Archived courses are hidden from the catalogue. You can restore the course to draft at any time.',
+      'Archived courses are hidden from the catalogue, and enrolled students lose access to them. You can restore the course to draft at any time.',
     acceptLabel: 'Archive',
   },
 };
@@ -125,6 +125,9 @@ export class CourseEditorPageComponent {
     this.addingModule.set(false);
     this.newModuleTitle.set('');
   }
+
+  /** Last queued reorder commit; undefined when none is in flight (see runOptimisticReorder). */
+  private reorderTail: Promise<void> | undefined;
 
   async refresh(): Promise<void> {
     const cid = this.cid();
@@ -290,6 +293,20 @@ export class CourseEditorPageComponent {
   }
 
   async onNotifyModule(moduleId: string): Promise<void> {
+    // A send can take up to a minute; a second click would 409
+    // (MODULE_ALREADY_NOTIFIED) and pin an error beside the success notice.
+    if (this.notifyingModules.has(moduleId)) return;
+    this.notifyingModules.add(moduleId);
+    try {
+      await this.notifyModule(moduleId);
+    } finally {
+      this.notifyingModules.delete(moduleId);
+    }
+  }
+
+  private readonly notifyingModules = new Set<string>();
+
+  private async notifyModule(moduleId: string): Promise<void> {
     this.error.set(null);
     this.notice.set(null);
     try {
@@ -349,23 +366,36 @@ export class CourseEditorPageComponent {
    * failure, restore the snapshot, pin a "Reorder failed — reverted." error,
    * and refresh from the server so the UI lines up with the canonical state.
    */
-  private async runOptimisticReorder(
+  private runOptimisticReorder(
     project: (snapshot: CourseTree) => CourseTree,
     commit: () => Promise<unknown>,
   ): Promise<void> {
     const snapshot = this.tree();
-    if (!snapshot) return;
+    if (!snapshot) return Promise.resolve();
+    // A tree load issued before this move (e.g. the refresh after an add)
+    // would paint the old order back over it: supersede it.
+    ++this.loadToken;
     this.error.set(null);
     this.notice.set(null);
     this.tree.set(project(snapshot));
-    try {
-      await commit();
-    } catch {
-      this.tree.set(snapshot);
-      this.notice.set(null);
-      this.error.set('Reorder failed — reverted.');
-      await this.refresh();
-    }
+    // Two quick moves must reach the server in click order, or the earlier
+    // PUT can commit last and leave the intermediate order behind.
+    const go = async (): Promise<void> => {
+      try {
+        await commit();
+      } catch {
+        this.tree.set(snapshot);
+        this.notice.set(null);
+        this.error.set('Reorder failed — reverted.');
+        await this.refresh();
+      }
+    };
+    const run = this.reorderTail ? this.reorderTail.then(go) : go();
+    this.reorderTail = run;
+    void run.finally(() => {
+      if (this.reorderTail === run) this.reorderTail = undefined;
+    });
+    return run;
   }
 
   /**

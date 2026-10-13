@@ -42,7 +42,7 @@ export type TranscodeEventSink = (
 ) => Promise<{ acted: boolean; reason?: string }>;
 
 export interface FfmpegTranscoderAdapterOptions {
-  storage: Pick<VideoStoragePort, 'downloadObject' | 'uploadFile'>;
+  storage: Pick<VideoStoragePort, 'downloadObject' | 'uploadFile' | 'deletePrefix'>;
   runner: FfmpegRunner;
   ffmpegPath: string;
   ffprobePath: string;
@@ -176,8 +176,16 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
       this.lastMasterBody = this.masterBody(renditions);
       await writeFile(join(dir, 'manifest.m3u8'), this.lastMasterBody);
       if (record.cancelled) return;
-      await this.uploadOutput(dir, input.outputUriPrefix);
       const out = parseGsUri(input.outputUriPrefix);
+      await this.uploadOutput(record, dir, out);
+      if (record.cancelled) {
+        // The video was deleted mid-upload: its own prefix delete may have run
+        // before these writes landed, and no one else will ever clean them up.
+        await this.opts.storage.deletePrefix({ bucket: out.bucket, prefix: out.path }).catch((err: Error) => {
+          this.logger.warn(`orphaned output cleanup failed for ${input.videoId}: ${err.message}`);
+        });
+        return;
+      }
       event = {
         type: 'JOB_SUCCEEDED',
         jobName,
@@ -270,9 +278,13 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
     );
   }
 
-  private async uploadOutput(dir: string, outputUriPrefix: string): Promise<void> {
-    const out = parseGsUri(outputUriPrefix);
+  private async uploadOutput(
+    record: JobRecord,
+    dir: string,
+    out: { bucket: string; path: string },
+  ): Promise<void> {
     for (const name of await readdir(dir)) {
+      if (record.cancelled) return;
       const contentType = CONTENT_TYPES[extname(name)];
       if (!contentType) continue; // source.*, key.bin, key.info never leave the box
       await this.opts.storage.uploadFile({

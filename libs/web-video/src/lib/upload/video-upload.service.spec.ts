@@ -465,6 +465,25 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
     expect(svc.state().kind).toBe('failed');
   });
 
+  it('a file the pipeline rejects (200 with a FAILED video) lands in failed, so retry brings the picker back', async () => {
+    api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
+    api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'FAILED', failureReason: 'SOURCE_PROBE_FAILED: internal' }));
+    api.delete.mockReturnValue(of(undefined));
+    const done = svc.start(CTX, sized(8));
+    await drain();
+    xhrs.at(-1)!.status = 200;
+    xhrs.at(-1)!.onload!();
+    await done;
+    expect(svc.state()).toEqual({
+      kind: 'failed',
+      reason: "This video couldn't be processed. Try a different file.",
+      videoId: 'v1',
+    });
+    await svc.retry();
+    expect(api.delete).toHaveBeenCalledWith('v1');
+    expect(svc.state().kind).toBe('idle');
+  });
+
   it('createUploadSession is called with the declared size and content type', async () => {
     api.createUploadSession.mockReturnValue(of({ videoId: 'v1' as never, uploadSessionUri: 'u', expiresAt: 'e' }));
     api.completeUpload.mockReturnValue(of({ id: 'v1', state: 'UPLOADED' }));

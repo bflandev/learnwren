@@ -121,7 +121,18 @@ export class VideoUploadService {
 
     this._state.set({ kind: 'finalizing', videoId });
     try {
-      await firstValueFrom(this.api.completeUpload(videoId));
+      const video = await firstValueFrom(this.api.completeUpload(videoId));
+      // A file the pipeline rejects (probe/submit failure) still answers 200
+      // with a FAILED video and no lesson link: without this the widget showed
+      // 'complete' — a blank box with no way to upload a replacement.
+      if (video.state === 'FAILED') {
+        this._state.set({
+          kind: 'failed',
+          reason: "This video couldn't be processed. Try a different file.",
+          videoId,
+        });
+        return;
+      }
       this._state.set({ kind: 'complete', videoId });
     } catch (err) {
       this._state.set({
