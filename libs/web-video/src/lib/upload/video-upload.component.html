@@ -34,6 +34,13 @@
   @case ('finalizing') {
     <p class="text-sm text-ink-3">Finishing up…</p>
   }
+  @case ('complete') {
+    <!-- Normally replaced at once by the lesson's video; this shows when the
+         server is still finishing (e.g. after a timed-out completion). -->
+    <p class="text-sm text-ink-3" data-testid="upload-complete">
+      Upload received. The video is being processed — reload the page in a moment to see it.
+    </p>
+  }
   @case ('canceling') {
     <p class="text-sm text-ink-3">Cancelling…</p>
   }
