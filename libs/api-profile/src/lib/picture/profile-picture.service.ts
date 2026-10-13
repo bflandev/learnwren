@@ -61,7 +61,10 @@ export class ProfilePictureService {
     // cover upload handles the same case).
     let jpeg: Buffer;
     try {
+      // .rotate() applies the EXIF orientation (the JPEG output drops the tag,
+      // so a phone portrait would otherwise be stored sideways).
       const square = await sharp(body, { failOn: 'truncated' })
+        .rotate()
         .resize(shorterSide, shorterSide, { fit: 'cover', position: 'centre' })
         .png()
         .toBuffer();

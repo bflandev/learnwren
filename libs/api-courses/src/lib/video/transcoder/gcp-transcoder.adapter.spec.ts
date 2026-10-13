@@ -20,7 +20,7 @@ function makeClient(): MockClient {
   return {
     createJob: vi.fn(async () => [{ name: 'projects/proj/locations/us-central1/jobs/abc' }]),
     deleteJob: vi.fn(),
-    getJob: vi.fn(async () => [{ labels: { videoid: 'v1', keyversion: '7' } }]),
+    getJob: vi.fn(async () => [{ labels: { videoid: '7631', keyversion: '7' } }]),
   };
 }
 function makeSecrets(): MockSecrets {
@@ -69,7 +69,7 @@ describe('GcpTranscoderAdapter.submitJob', () => {
     expect(handle.jobName).toBe('projects/proj/locations/us-central1/jobs/abc');
     const [arg] = client.createJob.mock.calls[0]!;
     expect(arg.parent).toBe('projects/proj/locations/us-central1');
-    expect(arg.job.labels).toEqual({ videoid: 'v1', keyversion: '7' });
+    expect(arg.job.labels).toEqual({ videoid: '7631', keyversion: '7' });
     expect(arg.job.config.labels).toBeUndefined();
     expect(arg.job.config.encryptions).toEqual([
       {
@@ -79,6 +79,23 @@ describe('GcpTranscoderAdapter.submitJob', () => {
         secretManagerKeySource: { secretVersion: `${SECRET}/versions/7` },
       },
     ]);
+  });
+
+  it('carries a mixed-case auto-id as a lowercase hex label, and parseEvent decodes it back', async () => {
+    const client = makeClient();
+    const adapter = makeAdapter(client);
+    await adapter.submitJob({ ...baseInput(), videoId: 'kK3iYvEhf4KbYxDH5JuH' as VideoId });
+    const label = client.createJob.mock.calls[0]![0].job.labels.videoid as string;
+    expect(label).toMatch(/^[0-9a-f]+$/);
+    expect(label.length).toBeLessThanOrEqual(63);
+    const ev = await adapter.parseEvent(envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: label } } }));
+    expect(ev.videoId).toBe('kK3iYvEhf4KbYxDH5JuH');
+  });
+
+  it('rejects a videoid label that is not hex (malformed event)', async () => {
+    await expect(
+      makeAdapter().parseEvent(envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'Not-Hex' } } })),
+    ).rejects.toThrow(/not hex-encoded/);
   });
 
   it('survives the real gRPC serializer intact (unknown fields are dropped silently)', async () => {
@@ -99,7 +116,7 @@ describe('GcpTranscoderAdapter.submitJob', () => {
     const sent = T.toObject(T.decode(T.encode(T.fromObject(arg)).finish())) as {
       job: { labels: Record<string, string>; config: { encryptions: Array<Record<string, unknown>> } };
     };
-    expect(sent.job.labels).toEqual({ videoid: 'v1', keyversion: '7' });
+    expect(sent.job.labels).toEqual({ videoid: '7631', keyversion: '7' });
     const enc = sent.job.config.encryptions[0]!;
     expect(enc['aes_128']).toBeDefined();
     expect(enc['drmSystems']).toEqual({ clearkey: {} });
@@ -148,7 +165,7 @@ describe('GcpTranscoderAdapter.parseEvent', () => {
   it('returns JOB_SUCCEEDED (duration left to the probed value) and destroys the key version', async () => {
     const secrets = makeSecrets();
     const ev = await makeAdapter(makeClient(), secrets).parseEvent(
-      envelope({ job: { name: 'j1', state: 'SUCCEEDED', labels: { videoid: 'v1', keyversion: '7' } } }),
+      envelope({ job: { name: 'j1', state: 'SUCCEEDED', labels: { videoid: '7631', keyversion: '7' } } }),
     );
     expect(ev).toEqual({
       type: 'JOB_SUCCEEDED',
@@ -164,7 +181,7 @@ describe('GcpTranscoderAdapter.parseEvent', () => {
     const secrets = makeSecrets();
     const ev = await makeAdapter(makeClient(), secrets).parseEvent(
       envelope({
-        job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1', keyversion: '7' }, error: { message: 'codec failure' } },
+        job: { name: 'j', state: 'FAILED', labels: { videoid: '7631', keyversion: '7' }, error: { message: 'codec failure' } },
       }),
     );
     if (ev.type !== 'JOB_FAILED') throw new Error('expected FAILED');
@@ -176,7 +193,7 @@ describe('GcpTranscoderAdapter.parseEvent', () => {
     const secrets = makeSecrets();
     secrets.destroySecretVersion.mockRejectedValue(new Error('already destroyed'));
     const ev = await makeAdapter(makeClient(), secrets).parseEvent(
-      envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'v1', keyversion: '7' } } }),
+      envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: '7631', keyversion: '7' } } }),
     );
     expect(ev.type).toBe('JOB_SUCCEEDED');
   });
@@ -184,20 +201,20 @@ describe('GcpTranscoderAdapter.parseEvent', () => {
   it('skips the destroy for a job without a keyversion label', async () => {
     const secrets = makeSecrets();
     await makeAdapter(makeClient(), secrets).parseEvent(
-      envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'v1' } } }),
+      envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: '7631' } } }),
     );
     expect(secrets.destroySecretVersion).not.toHaveBeenCalled();
   });
 
   it('defaults jobName to "" and reason to "unknown", and caps the reason at 500 chars', async () => {
     const adapter = makeAdapter();
-    const ok = await adapter.parseEvent(envelope({ job: { state: 'SUCCEEDED', labels: { videoid: 'v1' } } }));
+    const ok = await adapter.parseEvent(envelope({ job: { state: 'SUCCEEDED', labels: { videoid: '7631' } } }));
     expect(ok.jobName).toBe('');
-    const unknown = await adapter.parseEvent(envelope({ job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1' } } }));
+    const unknown = await adapter.parseEvent(envelope({ job: { name: 'j', state: 'FAILED', labels: { videoid: '7631' } } }));
     if (unknown.type !== 'JOB_FAILED') throw new Error('expected FAILED');
     expect(unknown.reason).toBe('unknown');
     const long = await adapter.parseEvent(
-      envelope({ job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1' }, error: { message: 'x'.repeat(900) } } }),
+      envelope({ job: { name: 'j', state: 'FAILED', labels: { videoid: '7631' }, error: { message: 'x'.repeat(900) } } }),
     );
     if (long.type !== 'JOB_FAILED') throw new Error('expected FAILED');
     expect(long.reason).toBe('x'.repeat(500));
@@ -207,7 +224,7 @@ describe('GcpTranscoderAdapter.parseEvent', () => {
     const secrets = makeSecrets();
     await expect(
       makeAdapter(makeClient(), secrets).parseEvent(
-        envelope({ job: { name: 'j', state: 'RUNNING', labels: { videoid: 'v1', keyversion: '7' } } }),
+        envelope({ job: { name: 'j', state: 'RUNNING', labels: { videoid: '7631', keyversion: '7' } } }),
       ),
     ).rejects.toThrow(/Unexpected job\.state: RUNNING/);
     expect(secrets.destroySecretVersion).not.toHaveBeenCalled();

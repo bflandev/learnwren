@@ -78,7 +78,9 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
           config: buildJobConfig(input, secretVersion),
           // On the Job, not its config: JobConfig has no labels field and the
           // gRPC client drops unknown fields silently.
-          labels: { videoid: input.videoId as string, keyversion: versionNumber(secretVersion) },
+          // GCP label values allow only lowercase letters, digits, _ and -;
+          // video ids are mixed-case auto-ids, so carry them hex-encoded.
+          labels: { videoid: toLabel(input.videoId), keyversion: versionNumber(secretVersion) },
         },
       });
       return { jobName: job.name ?? '' };
@@ -95,8 +97,9 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
     const payload = JSON.parse(Buffer.from(dataB64, 'base64').toString('utf-8')) as TranscoderPayload;
     const job = payload.job;
     if (!job) throw new Error('Pub/Sub payload missing job.');
-    const videoId = job.labels?.['videoid'];
-    if (!videoId) throw new Error('Pub/Sub payload missing labels.videoid.');
+    const label = job.labels?.['videoid'];
+    if (!label) throw new Error('Pub/Sub payload missing labels.videoid.');
+    const videoId = fromLabel(label);
     const jobName = job.name ?? '';
 
     if (job.state !== 'SUCCEEDED' && job.state !== 'FAILED') {
@@ -183,6 +186,16 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
       this.logger.warn(`destroying key version ${name} failed: ${(err as Error).message}`);
     }
   }
+}
+
+/** Hex: lowercase and label-safe; a 20-char auto-id becomes 40 chars (limit 63). */
+function toLabel(videoId: string): string {
+  return Buffer.from(videoId, 'utf8').toString('hex');
+}
+
+function fromLabel(label: string): string {
+  if (!/^(?:[0-9a-f]{2})+$/.test(label)) throw new Error(`labels.videoid is not hex-encoded: ${label}`);
+  return Buffer.from(label, 'hex').toString('utf8');
 }
 
 /** `projects/p/secrets/s/versions/7` → `7` (a valid label value). */
