@@ -99,20 +99,20 @@
           We've sent a verification link to {{ pending }}. Click it to finish changing your
           email — your current address stays active until you do.
         </p>
-      } @else {
-        <div>
-          <button
-            hlmBtn
-            variant="ghost"
-            type="button"
-            data-testid="toggle-email-change"
-            [attr.aria-expanded]="emailFormOpen()"
-            (click)="toggleEmailForm()"
-          >
-            Change email
-          </button>
-        </div>
       }
+      <!-- Always reachable, so a mistyped address can be corrected without a reload. -->
+      <div>
+        <button
+          hlmBtn
+          variant="ghost"
+          type="button"
+          data-testid="toggle-email-change"
+          [attr.aria-expanded]="emailFormOpen()"
+          (click)="toggleEmailForm()"
+        >
+          {{ emailStatus() === 'sent' ? 'Use a different address' : 'Change email' }}
+        </button>
+      </div>
 
       @if (emailFormOpen()) {
         <form

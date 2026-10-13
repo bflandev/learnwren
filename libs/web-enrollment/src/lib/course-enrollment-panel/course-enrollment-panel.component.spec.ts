@@ -130,6 +130,23 @@ describe('CourseEnrollmentPanelComponent — authenticated', () => {
     expect(text(fixture)).toContain('Leave course');
   });
 
+  it('re-enrolling in a completed course shows the Completed badge straight away', async () => {
+    configure({ user: { uid: 'u1' } });
+    const { fixture, http } = create();
+    http
+      .expectOne('/api/enrollments/c-1')
+      .flush({ enrollment: { status: 'WITHDRAWN', completedAt: '2026-07-09T00:00:00.000Z' }, isOwner: false });
+    await fixture.whenStable();
+
+    void fixture.componentInstance.enroll();
+    http
+      .expectOne('/api/enrollments')
+      .flush({ id: 'c-1__u1', status: 'ACTIVE', completedAt: '2026-07-09T00:00:00.000Z' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="course-completed-badge"]')).toBeTruthy();
+  });
+
   it('redirects to /catalog when enroll fails with COURSE_NOT_AVAILABLE', async () => {
     const { navigate } = configure({ user: { uid: 'u1' } });
     const { fixture, http } = create();

@@ -25,6 +25,18 @@ function sameName(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 
+/**
+ * Ids are slugs of the name at creation, so distinct names can collide
+ * ("C++"/"C#" → C) and a renamed category keeps its old slug. Only the name
+ * must be unique; a taken id gets the next free numeric suffix.
+ */
+function firstFreeId(id: CategoryId, taken: ReadonlySet<string>): CategoryId {
+  if (!taken.has(id)) return id;
+  let n = 2;
+  while (taken.has(`${id}_${n}`)) n++;
+  return `${id}_${n}` as CategoryId;
+}
+
 @Injectable()
 export class CategoriesRepository {
   constructor(@Inject(DOCUMENT_STORE) private readonly firestore: DocumentStore) {}
@@ -85,12 +97,13 @@ export class CategoriesRepository {
     return runTransactionWithRetry(this.firestore, async (t) => {
       const snap = await t.get(this.col());
       const existing = snap.docs.map((d) => d.data() as CourseCategoryDoc);
-      if (existing.some((c) => c.id === id || sameName(c.name, name))) {
+      if (existing.some((c) => sameName(c.name, name))) {
         throw new CategoryExistsException();
       }
+      const freeId = firstFreeId(id, new Set(existing.map((c) => c.id)));
       const now = nowIso();
-      const doc: CourseCategoryDoc = { id, name, createdAt: now, updatedAt: now };
-      t.set(this.col().doc(id), doc);
+      const doc: CourseCategoryDoc = { id: freeId, name, createdAt: now, updatedAt: now };
+      t.set(this.col().doc(freeId), doc);
       return doc;
     });
   }

@@ -247,6 +247,7 @@ export class ProfilePageComponent implements OnInit {
     try {
       const updated = await this.profileSvc.updateProfile(this.form.getRawValue());
       this.authSvc.setCurrentUser(updated);
+      this.displayName.set(updated.displayName);
       this.status.set('saved');
     } catch (err) {
       this.applyServerError(err);

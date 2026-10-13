@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { provideIcons } from '@ng-icons/core';
 import { lucideSearch } from '@ng-icons/lucide';
 
@@ -40,6 +40,10 @@ const SEARCH_DEBOUNCE_MS = 300;
 })
 export class AdminUsersPageComponent implements OnInit, OnDestroy {
   private readonly svc = inject(AdminUsersService);
+  private readonly router = inject(Router);
+
+  /** The detail page navigates here with `state: { deleted: true }` after a delete. */
+  readonly deletedNotice = signal(this.router.currentNavigation()?.extras.state?.['deleted'] === true);
 
   readonly users = signal<AdminUserListRow[]>([]);
   readonly total = signal(0);

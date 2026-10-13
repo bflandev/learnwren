@@ -103,8 +103,10 @@ export class CourseEnrollmentPanelComponent implements OnInit {
     this.busy.set(true);
     this.actionError.set(null);
     try {
-      await this.enrollments.enroll(this.courseId());
+      const enrollment = await this.enrollments.enroll(this.courseId());
       this.state.set('ENROLLED');
+      // Re-enrolment restores the old record, completion included.
+      this.completed.set(enrollment.completedAt != null);
       this.statusChanged.emit();
     } catch (err) {
       if (

@@ -164,6 +164,22 @@ describe('SearchResultsPageComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Something went wrong');
   });
 
+  it('a page past the end replaces the URL with the last real page', async () => {
+    await router.navigate(['/search'], { queryParams: { q: 'rust', page: 9 } });
+    const fixture = TestBed.createComponent(SearchResultsPageComponent);
+    const spy = vi.spyOn(router, 'navigate');
+    fixture.detectChanges();
+    http
+      .expectOne((r) => r.url === '/api/catalog/search')
+      .flush({ items: [], page: 9, pageSize: 20, total: 25, totalPages: 2 });
+    await fixture.whenStable();
+    expect(spy).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { page: 2 }, replaceUrl: true }));
+    http
+      .match((r) => r.url === '/api/catalog/search')
+      .forEach((req) => req.flush({ items: [], page: 2, pageSize: 20, total: 25, totalPages: 2 }));
+    await fixture.whenStable();
+  });
+
   it('renders the pagination nav and goToPage navigates to the requested page', async () => {
     await router.navigate(['/search'], { queryParams: { q: 'rust' } });
     const fixture = TestBed.createComponent(SearchResultsPageComponent);

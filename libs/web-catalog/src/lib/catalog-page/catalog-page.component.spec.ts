@@ -332,6 +332,31 @@ describe('CatalogPageComponent', () => {
     await fixture.whenStable();
   });
 
+  it('a page past the end (stale bookmark) replaces the URL with the last real page', async () => {
+    await router.navigate(['/catalog'], { queryParams: { page: 5 } });
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    const spy = vi.spyOn(router, 'navigate');
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/catalog').flush(page({ page: 5, total: 21, totalPages: 2 }));
+    await fixture.whenStable();
+
+    expect(spy).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { page: 2 }, replaceUrl: true }));
+    expect(fixture.componentInstance.result()).toBeNull(); // no false "no courses" render
+    http.match((r) => r.url === '/api/catalog').forEach((req) => req.flush(page({ page: 2, total: 21, totalPages: 2 })));
+    await fixture.whenStable();
+  });
+
+  it('an empty catalogue on page 1 does not redirect', async () => {
+    await router.navigate(['/catalog']);
+    const fixture = TestBed.createComponent(CatalogPageComponent);
+    const spy = vi.spyOn(router, 'navigate');
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/catalog').flush(page());
+    await fixture.whenStable();
+    expect(spy).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.result()?.total).toBe(0);
+  });
+
   it('merges query params (not replace) when paginating via goToPage', async () => {
     await router.navigate(['/catalog']);
     const fixture = TestBed.createComponent(CatalogPageComponent);

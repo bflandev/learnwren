@@ -1,3 +1,4 @@
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -52,3 +53,32 @@ describe('CourseSearchBarComponent', () => {
     expect(navigate).toHaveBeenCalledWith(['/catalog']);
   });
 });
+
+describe('CourseSearchBarComponent — follows the URL', () => {
+  @Component({ template: '' })
+  class Blank {}
+
+  async function at(url: string): Promise<CourseSearchBarComponent> {
+    TestBed.configureTestingModule({
+      imports: [CourseSearchBarComponent],
+      providers: [provideRouter([{ path: 'search', component: Blank }, { path: 'catalog', component: Blank }])],
+    });
+    const cmp = TestBed.createComponent(CourseSearchBarComponent).componentInstance;
+    await TestBed.inject(Router).navigateByUrl(url);
+    return cmp;
+  }
+
+  it('shows the q of the search page on screen (Back/Forward, pasted link)', async () => {
+    const cmp = await at('/search?q=angular');
+    expect(cmp.query()).toBe('angular');
+    await TestBed.inject(Router).navigateByUrl('/search?q=nest');
+    expect(cmp.query()).toBe('nest');
+  });
+
+  it('clears when leaving the search page, and ignores q on other pages', async () => {
+    const cmp = await at('/search?q=angular');
+    await TestBed.inject(Router).navigateByUrl('/catalog?q=stray');
+    expect(cmp.query()).toBe('');
+  });
+});
+
