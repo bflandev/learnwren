@@ -418,6 +418,30 @@ describe('VideoService.delete', () => {
     expect(storage.discardUploadSession).toHaveBeenCalledWith('v1');
   });
 
+  it.each([
+    ['a fresh completion claim', 1_000, true],
+    ['a stale (crashed) completion claim', 11 * 60_000, false],
+  ])('with %s, refuses / allows the delete', async (_label, ageMs, refused) => {
+    const repo = makeRepo();
+    const storage = makeStorage();
+    const claimedAt = new Date(Date.now() - ageMs).toISOString();
+    repo.getVideo.mockResolvedValue({ ...baseVideo(), state: 'PENDING_UPLOAD', completeClaimedAt: claimedAt });
+    const svc = new VideoService(
+      repo as unknown as VideoRepository,
+      storage as unknown as VideoStoragePort,
+      cfg,
+      makeTranscoder() as never,
+    );
+    if (refused) {
+      // A completion about to submit a transcode job this delete could not cancel.
+      await expect(svc.delete('v1' as VideoId)).rejects.toMatchObject({ code: 'UPLOAD_COMPLETION_IN_PROGRESS', status: 409 });
+      expect(repo.deleteVideoAndDetach).not.toHaveBeenCalled();
+    } else {
+      await svc.delete('v1' as VideoId);
+      expect(repo.deleteVideoAndDetach).toHaveBeenCalled();
+    }
+  });
+
   it('deletes the object and Firestore docs when state allows', async () => {
     const repo = makeRepo();
     const storage = makeStorage();

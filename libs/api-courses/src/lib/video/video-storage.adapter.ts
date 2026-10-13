@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 
+import { publicUrl } from '@learnwren/api-auth';
 import { OBJECT_STORAGE, type ObjectStorage } from '@learnwren/api-object-storage';
 import type { ISODateString } from '@learnwren/shared-data-models';
 
@@ -126,8 +127,10 @@ export class VideoStorageAdapter implements VideoStoragePort, OnModuleInit {
     // CORS origin on the GCS resumable upload session: scope to the
     // application's own origin so a leaked upload URI cannot be exercised
     // from a third-party domain via a browser. Falls back to the SPA's local
-    // dev URL when the env var is unset (dev-only configuration).
-    const origin = process.env['LEARNWREN_PUBLIC_URL'] ?? 'http://localhost:4200';
+    // dev URL when the env var is unset (dev-only configuration). Via
+    // publicUrl so a trailing slash in the env (trimmed for email links) can't
+    // make the session origin miss the browser's Origin and break uploads.
+    const origin = publicUrl('');
     const uri = await this.storage.createResumableUpload({
       bucket: input.bucket,
       path: input.path,
