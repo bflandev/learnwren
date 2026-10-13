@@ -126,13 +126,18 @@ export class CourseEditorPageComponent {
     this.newModuleTitle.set('');
   }
 
-  /** Last queued reorder commit; undefined when none is in flight (see runOptimisticReorder). */
+  // Reorder queue state — see runOptimisticReorder.
   private reorderTail: Promise<void> | undefined;
+  private reordersQueued = 0;
+  private reorderGeneration = 0;
+  private refreshAfterReorders = false;
+  private loadsInFlight = 0;
 
   async refresh(): Promise<void> {
     const cid = this.cid();
     if (!cid) return;
     const token = ++this.loadToken;
+    this.loadsInFlight++;
     try {
       const tree = await this.service.getCourseTree(cid);
       if (token !== this.loadToken) return; // superseded by a newer load
@@ -143,6 +148,8 @@ export class CourseEditorPageComponent {
       if (token !== this.loadToken) return; // superseded by a newer load
       this.notice.set(null);
       this.error.set('Failed to load course.');
+    } finally {
+      this.loadsInFlight--;
     }
   }
 
@@ -341,7 +348,7 @@ export class CourseEditorPageComponent {
           .map((id) => snapshot.modules.find((n) => n.module.id === id))
           .filter((n): n is { module: Module; lessons: Lesson[] } => Boolean(n)),
       }),
-      () => this.service.reorderModules(this.cid(), ids),
+      (cid) => this.service.reorderModules(cid, ids),
     );
   }
 
@@ -357,37 +364,51 @@ export class CourseEditorPageComponent {
           return { module: n.module, lessons: newLessons };
         }),
       }),
-      () => this.service.reorderLessons(this.cid(), args.moduleId, args.lessonIds),
+      (cid) => this.service.reorderLessons(cid, args.moduleId, args.lessonIds),
     );
   }
 
   /**
-   * Apply an optimistic local tree mutation, then commit it via `commit`. On
-   * failure, restore the snapshot, pin a "Reorder failed — reverted." error,
-   * and refresh from the server so the UI lines up with the canonical state.
+   * Apply an optimistic local tree mutation, then commit it via `commit`.
+   * Moves are queued so they reach the server in click order (an earlier PUT
+   * committing last would leave the intermediate order). A tree load in flight
+   * is superseded — it would paint the old order back — and re-run once the
+   * queue drains. A failed move reverts, pins "Reorder failed — reverted.",
+   * and drops the moves queued behind it (their id lists assume it landed);
+   * the drain refresh then shows the server's order.
    */
   private runOptimisticReorder(
     project: (snapshot: CourseTree) => CourseTree,
-    commit: () => Promise<unknown>,
+    commit: (cid: string) => Promise<unknown>,
   ): Promise<void> {
     const snapshot = this.tree();
     if (!snapshot) return Promise.resolve();
-    // A tree load issued before this move (e.g. the refresh after an add)
-    // would paint the old order back over it: supersede it.
+    const cid = this.cid();
+    const generation = this.reorderGeneration;
+    if (this.loadsInFlight > 0) this.refreshAfterReorders = true;
     ++this.loadToken;
     this.error.set(null);
     this.notice.set(null);
     this.tree.set(project(snapshot));
-    // Two quick moves must reach the server in click order, or the earlier
-    // PUT can commit last and leave the intermediate order behind.
+    this.reordersQueued++;
     const go = async (): Promise<void> => {
       try {
-        await commit();
-      } catch {
-        this.tree.set(snapshot);
-        this.notice.set(null);
-        this.error.set('Reorder failed — reverted.');
-        await this.refresh();
+        // Skip a move queued behind a failure, or one for a course no longer shown.
+        if (generation !== this.reorderGeneration || cid !== this.cid()) return;
+        try {
+          await commit(cid);
+        } catch {
+          this.reorderGeneration++;
+          this.refreshAfterReorders = true;
+          this.tree.set(snapshot);
+          this.notice.set(null);
+          this.error.set('Reorder failed — reverted.');
+        }
+      } finally {
+        if (--this.reordersQueued === 0 && this.refreshAfterReorders) {
+          this.refreshAfterReorders = false;
+          await this.refresh();
+        }
       }
     };
     const run = this.reorderTail ? this.reorderTail.then(go) : go();

@@ -956,7 +956,7 @@ describe('CourseEditorPageComponent', () => {
       await pending;
     });
 
-    it('a tree load already in flight cannot paint the old order back over a reorder', async () => {
+    it('a tree load in flight cannot paint the old order back, and is re-run once the reorder lands', async () => {
       const fixture = await initEditor(buildTreeWithLessons());
       const loading = fixture.componentInstance.refresh(); // e.g. the refresh after an add
       const pending = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
@@ -964,7 +964,27 @@ describe('CourseEditorPageComponent', () => {
       await loading;
       expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual(['mid-2', 'mid-1']);
       http.expectOne('/api/courses/cid-1/modules/order').flush([]);
+      await fixture.whenStable();
+      // The superseded load is re-run so whatever it carried (the added lesson) appears.
+      const server = buildTreeWithLessons() as { modules: unknown[] };
+      server.modules.reverse();
+      http.expectOne('/api/courses/cid-1').flush(server);
       await pending;
+      expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual(['mid-2', 'mid-1']);
+    });
+
+    it('a failed move drops the moves queued behind it and refreshes once', async () => {
+      const fixture = await initEditor(buildTreeWithLessons());
+      const first = fixture.componentInstance.onReorderModules(['mid-2', 'mid-1']);
+      const second = fixture.componentInstance.onReorderModules(['mid-1', 'mid-2']);
+      http.expectOne('/api/courses/cid-1/modules/order').flush('stale', { status: 409, statusText: 'Conflict' });
+      await first;
+      await fixture.whenStable();
+      http.expectNone('/api/courses/cid-1/modules/order'); // the queued move never commits
+      http.expectOne('/api/courses/cid-1').flush(buildTreeWithLessons());
+      await second;
+      expect(fixture.componentInstance.error()).toBe('Reorder failed — reverted.');
+      expect(fixture.componentInstance.tree()?.modules.map((n) => n.module.id)).toEqual(['mid-1', 'mid-2']);
     });
 
     it('two quick reorders reach the server in click order', async () => {

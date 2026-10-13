@@ -177,15 +177,15 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
       await writeFile(join(dir, 'manifest.m3u8'), this.lastMasterBody);
       if (record.cancelled) return;
       const out = parseGsUri(input.outputUriPrefix);
-      await this.uploadOutput(record, dir, out);
-      if (record.cancelled) {
-        // The video was deleted mid-upload: its own prefix delete may have run
-        // before these writes landed, and no one else will ever clean them up.
-        await this.opts.storage.deletePrefix({ bucket: out.bucket, prefix: out.path }).catch((err: Error) => {
-          this.logger.warn(`orphaned output cleanup failed for ${input.videoId}: ${err.message}`);
-        });
-        return;
+      try {
+        await this.uploadOutput(record, dir, out);
+      } finally {
+        // Deleted mid-upload (an upload may even reject because of it): the
+        // video's own prefix delete may have run before these writes landed,
+        // and no one else will ever clean them up.
+        if (record.cancelled) await this.deleteOrphanedOutput(input.videoId, out);
       }
+      if (record.cancelled) return;
       event = {
         type: 'JOB_SUCCEEDED',
         jobName,
@@ -276,6 +276,12 @@ export class FfmpegTranscoderAdapter implements VideoTranscoder {
       '#EXTM3U\n#EXT-X-VERSION:6\n' +
       renditions.map((r) => `${hlsStreamInf(r.name, r.bitrateBps)}\n${hlsVariantPlaylistName(r.name)}\n`).join('')
     );
+  }
+
+  private async deleteOrphanedOutput(videoId: string, out: { bucket: string; path: string }): Promise<void> {
+    await this.opts.storage.deletePrefix({ bucket: out.bucket, prefix: out.path }).catch((err: Error) => {
+      this.logger.warn(`orphaned output cleanup failed for ${videoId}: ${err.message}`);
+    });
   }
 
   private async uploadOutput(

@@ -473,11 +473,14 @@ describe('AdminUsersPageComponent — delete confirmation', () => {
   async function arrive(state?: Record<string, unknown>): Promise<HTMLElement> {
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([{ path: 'admin/users', component: AdminUsersPageComponent }]),
+        provideRouter([
+          { path: 'admin/users', component: AdminUsersPageComponent },
+          { path: 'admin/users/:uid', children: [] }, // stands in for the detail page
+        ]),
         { provide: AdminUsersService, useValue: { list: vi.fn(async () => ({ users: [], total: 0, page: 1, pageSize: 20 })) } },
       ],
     });
-    const harness = await RouterTestingHarness.create();
+    const harness = await RouterTestingHarness.create('/admin/users/u1');
     await TestBed.inject(Router).navigateByUrl('/admin/users', { state });
     harness.detectChanges();
     return harness.routeNativeElement as HTMLElement;
@@ -488,9 +491,13 @@ describe('AdminUsersPageComponent — delete confirmation', () => {
     expect(el.querySelector('[data-testid="user-deleted-notice"]')?.textContent?.trim()).toBe('User deleted.');
   });
 
-  it.each(['popstate', 'hashchange'])(
-    'does not replay the notice on a %s navigation (state restored from history)',
-    (trigger) => {
+  it.each([
+    ['popstate', { previousNavigation: {} }],
+    ['hashchange', { previousNavigation: {} }],
+    ['imperative', { previousNavigation: null }], // a reload: the initial navigation restores history state
+  ])(
+    'does not replay the notice on a %s navigation restoring history state (%j)',
+    (trigger, extra) => {
       TestBed.configureTestingModule({
         imports: [AdminUsersPageComponent],
         providers: [
@@ -500,7 +507,7 @@ describe('AdminUsersPageComponent — delete confirmation', () => {
       });
       const router = TestBed.inject(Router);
       Object.defineProperty(router, 'currentNavigation', {
-        value: () => ({ trigger, extras: { state: { deleted: true } } }),
+        value: () => ({ trigger, ...extra, extras: { state: { deleted: true } } }),
       });
       expect(TestBed.createComponent(AdminUsersPageComponent).componentInstance.deletedNotice()).toBe(false);
     },

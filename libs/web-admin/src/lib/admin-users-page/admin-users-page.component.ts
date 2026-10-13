@@ -44,8 +44,9 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
 
   /**
    * The detail page navigates here with `state: { deleted: true }` after a
-   * delete. Only that imperative navigation counts: the state also lives in
-   * history, and Back/Forward or a reload would replay it.
+   * delete. Only that in-app navigation counts: the state also lives in
+   * history, and Back/Forward (popstate) or a reload (the initial navigation,
+   * which has no predecessor) would replay it.
    */
   readonly deletedNotice = signal(this.isDeleteRedirect());
 
@@ -70,7 +71,11 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
 
   private isDeleteRedirect(): boolean {
     const nav = this.router.currentNavigation();
-    return nav?.trigger === 'imperative' && nav.extras.state?.['deleted'] === true;
+    return (
+      nav?.trigger === 'imperative' &&
+      nav.previousNavigation != null &&
+      nav.extras.state?.['deleted'] === true
+    );
   }
 
   async ngOnInit(): Promise<void> {

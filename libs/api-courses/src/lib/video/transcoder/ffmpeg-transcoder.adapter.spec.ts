@@ -420,6 +420,22 @@ describe('FfmpegTranscoderAdapter — edge paths', () => {
     expect(made.sink).not.toHaveBeenCalled();
   });
 
+  it('still deletes what landed when an upload rejects because the video was deleted', async () => {
+    const made = make();
+    let job = '';
+    let n = 0;
+    made.storage.uploadFile = vi.fn(async () => {
+      if (n++ === 0) return; // first file lands
+      await made.adapter.cancelJob(job);
+      throw new Error('bucket prefix gone');
+    }) as never;
+    const { jobName } = await made.adapter.submitJob(input(360));
+    job = jobName;
+    await made.adapter.whenDone(jobName);
+    expect(made.storage.deletePrefix).toHaveBeenCalledTimes(1);
+    expect(made.sink).not.toHaveBeenCalled();
+  });
+
   it('does not kill anything when cancelled after the job finished', async () => {
     const bits = fakeRunner();
     const { adapter } = make(bits);
