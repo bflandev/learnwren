@@ -149,6 +149,9 @@ export class CourseEditorPageComponent {
     try {
       const tree = await this.service.getCourseTree(cid);
       if (token !== this.loadToken) return tree; // superseded by a newer load
+      // Moves still queued: this tree predates them and would flash the old
+      // order. The drain refresh (owed, see above) paints the final state.
+      if (this.reordersQueued > 0) return tree;
       this.tree.set(tree);
       this.publishSvc.bindToCourse(cid);
       this.publishSvc.refresh();
