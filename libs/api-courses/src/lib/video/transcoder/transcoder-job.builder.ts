@@ -18,14 +18,17 @@ export interface JobConfig {
   elementaryStreams: ElementaryStream[];
   muxStreams: MuxStream[];
   manifests?: { fileName: string; type: 'HLS'; muxStreams: string[] }[];
-  encryptions?: {
+  // Field names are the proto's (`aes_128`): the gRPC client silently DROPS
+  // unknown fields, and `aes128` once vanished in transit — every job then
+  // reached Google with no encryption mode and was rejected. The key itself
+  // can only come from a Secret Manager version (JSON payload, see the adapter).
+  encryptions: {
     id: string;
-    aes128: Record<string, never>;
-    drmSystems?: undefined;
-    secretManagerKeySource?: undefined;
+    aes_128: Record<string, never>;
+    drmSystems: { clearkey: Record<string, never> };
+    secretManagerKeySource: { secretVersion: string };
   }[];
   pubsubDestination?: { topic: string };
-  labels?: Record<string, string>;
 }
 
 interface ElementaryStream {
@@ -49,7 +52,7 @@ interface MuxStream {
   encryptionId?: string;
 }
 
-export function buildJobConfig(input: TranscoderJobInput): JobConfig {
+export function buildJobConfig(input: TranscoderJobInput, keySecretVersion: string): JobConfig {
   const renditions = RENDITIONS.filter((r) => r.height <= input.sourceHeight);
   if (renditions.length === 0) {
     throw new Error(
@@ -98,10 +101,11 @@ export function buildJobConfig(input: TranscoderJobInput): JobConfig {
     encryptions: [
       {
         id: input.encryptionKey.id,
-        aes128: {},
+        aes_128: {},
+        drmSystems: { clearkey: {} },
+        secretManagerKeySource: { secretVersion: keySecretVersion },
       },
     ],
     pubsubDestination: { topic: input.topic },
-    labels: { videoid: input.videoId as string },
   };
 }

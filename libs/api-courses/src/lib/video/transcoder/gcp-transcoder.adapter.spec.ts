@@ -3,21 +3,37 @@ import { describe, expect, it, vi } from 'vitest';
 import type { VideoId, VideoKeyId } from '@learnwren/shared-data-models';
 
 import { GcpTranscoderAdapter } from './gcp-transcoder.adapter';
-import { TranscoderEventLookupError } from './transcoder.port';
 
 interface MockClient {
   createJob: ReturnType<typeof vi.fn>;
-  getJob: ReturnType<typeof vi.fn>;
   deleteJob: ReturnType<typeof vi.fn>;
 }
-
-function makeClient(): MockClient {
-  return { createJob: vi.fn(), getJob: vi.fn(), deleteJob: vi.fn() };
+interface MockSecrets {
+  addSecretVersion: ReturnType<typeof vi.fn>;
+  destroySecretVersion: ReturnType<typeof vi.fn>;
 }
 
-function makeAdapter(client: MockClient): GcpTranscoderAdapter {
+const SECRET = 'projects/proj/secrets/learnwren-video-keys';
+
+function makeClient(): MockClient {
+  return {
+    createJob: vi.fn(async () => [{ name: 'projects/proj/locations/us-central1/jobs/abc' }]),
+    deleteJob: vi.fn(),
+  };
+}
+function makeSecrets(): MockSecrets {
+  return {
+    addSecretVersion: vi.fn(async () => [{ name: `${SECRET}/versions/7` }]),
+    destroySecretVersion: vi.fn(async () => [{}]),
+  };
+}
+
+function makeAdapter(client: MockClient = makeClient(), secrets: MockSecrets = makeSecrets()): GcpTranscoderAdapter {
+  type Opts = ConstructorParameters<typeof GcpTranscoderAdapter>[0];
   return new GcpTranscoderAdapter({
-    client: client as unknown as ConstructorParameters<typeof GcpTranscoderAdapter>[0]['client'],
+    client: client as unknown as Opts['client'],
+    secrets: secrets as unknown as Opts['secrets'],
+    keySecret: SECRET,
     projectId: 'proj',
     location: 'us-central1',
   });
@@ -33,37 +49,92 @@ const baseInput = () => ({
 });
 
 describe('GcpTranscoderAdapter.submitJob', () => {
-  it('passes the built JobConfig + key bytes to the client and returns the job name', async () => {
-    const client = makeClient();
-    client.createJob.mockResolvedValue([
-      { name: 'projects/proj/locations/us-central1/jobs/abc' },
-    ]);
-    const adapter = makeAdapter(client);
-    const handle = await adapter.submitJob(baseInput());
-    expect(handle.jobName).toBe('projects/proj/locations/us-central1/jobs/abc');
-    expect(client.createJob).toHaveBeenCalledTimes(1);
-    const [arg] = client.createJob.mock.calls[0]!;
-    expect(arg.parent).toBe('projects/proj/locations/us-central1');
-    expect(arg.job.config.elementaryStreams.some((s: { videoStream?: unknown }) => s.videoStream)).toBe(true);
-    const enc = arg.job.config.encryptions?.[0];
-    expect(enc?.id).toBe('k1');
-    expect(enc?.aes128?.keyBytes).toEqual(Buffer.from(baseInput().encryptionKey.bytes));
+  it('stores the content key as a secret version in the documented JSON format (hex key)', async () => {
+    const secrets = makeSecrets();
+    await makeAdapter(makeClient(), secrets).submitJob(baseInput());
+    const [req] = secrets.addSecretVersion.mock.calls[0]!;
+    expect(req.parent).toBe(SECRET);
+    const payload = JSON.parse(req.payload.data.toString());
+    expect(payload.encryptionKeys).toHaveLength(1);
+    expect(payload.encryptionKeys[0].key).toBe('07'.repeat(16));
+    expect(payload.encryptionKeys[0].keyId).toMatch(/^[0-9a-f]{32}$/);
+    expect(payload.encryptionKeys[0].keyUri).toMatch(/\/api\/playback\/keys\/v1$/);
   });
 
-  it('propagates createJob errors', async () => {
+  it('references that version with aes_128 + ClearKey, and labels the JOB (not its config)', async () => {
     const client = makeClient();
+    const handle = await makeAdapter(client).submitJob(baseInput());
+    expect(handle.jobName).toBe('projects/proj/locations/us-central1/jobs/abc');
+    const [arg] = client.createJob.mock.calls[0]!;
+    expect(arg.parent).toBe('projects/proj/locations/us-central1');
+    expect(arg.job.labels).toEqual({ videoid: 'v1', keyversion: '7' });
+    expect(arg.job.config.labels).toBeUndefined();
+    expect(arg.job.config.encryptions).toEqual([
+      {
+        id: 'k1',
+        aes_128: {},
+        drmSystems: { clearkey: {} },
+        secretManagerKeySource: { secretVersion: `${SECRET}/versions/7` },
+      },
+    ]);
+  });
+
+  it('survives the real gRPC serializer intact (unknown fields are dropped silently)', async () => {
+    // The bug this pins: `aes128` and config-level `labels` vanished in
+    // transit, so every job reached Google with no encryption and was rejected.
+    const client = makeClient();
+    await makeAdapter(client).submitJob(baseInput());
+    const [arg] = client.createJob.mock.calls[0]!;
+    const protos = (await import('@google-cloud/video-transcoder/build/protos/protos')) as unknown as {
+      google: { cloud: { video: { transcoder: { v1: { CreateJobRequest: {
+        fromObject(o: unknown): unknown;
+        encode(m: unknown): { finish(): Uint8Array };
+        decode(b: Uint8Array): unknown;
+        toObject(m: unknown): Record<string, unknown>;
+      } } } } } };
+    };
+    const T = protos.google.cloud.video.transcoder.v1.CreateJobRequest;
+    const sent = T.toObject(T.decode(T.encode(T.fromObject(arg)).finish())) as {
+      job: { labels: Record<string, string>; config: { encryptions: Array<Record<string, unknown>> } };
+    };
+    expect(sent.job.labels).toEqual({ videoid: 'v1', keyversion: '7' });
+    const enc = sent.job.config.encryptions[0]!;
+    expect(enc['aes_128']).toBeDefined();
+    expect(enc['drmSystems']).toEqual({ clearkey: {} });
+    expect(enc['secretManagerKeySource']).toEqual({ secretVersion: `${SECRET}/versions/7` });
+  });
+
+  it('destroys the key version and rethrows when createJob fails', async () => {
+    const client = makeClient();
+    const secrets = makeSecrets();
     client.createJob.mockRejectedValue(new Error('quota exhausted'));
-    const adapter = makeAdapter(client);
-    await expect(adapter.submitJob(baseInput())).rejects.toThrow(/quota/);
+    await expect(makeAdapter(client, secrets).submitJob(baseInput())).rejects.toThrow(/quota/);
+    expect(secrets.destroySecretVersion).toHaveBeenCalledWith({ name: `${SECRET}/versions/7` });
+  });
+
+  it('refuses to submit when Secret Manager returns no version name', async () => {
+    const client = makeClient();
+    const secrets = makeSecrets();
+    secrets.addSecretVersion.mockResolvedValue([{}]);
+    await expect(makeAdapter(client, secrets).submitJob(baseInput())).rejects.toThrow(/no version name/);
+    expect(client.createJob).not.toHaveBeenCalled();
   });
 
   it('defaults the returned jobName to "" when createJob omits name', async () => {
-    // Defends `job.name ?? ''` in submitJob: a response with no name must yield ''.
     const client = makeClient();
     client.createJob.mockResolvedValue([{}]);
-    const adapter = makeAdapter(client);
-    const handle = await adapter.submitJob(baseInput());
-    expect(handle.jobName).toBe('');
+    expect((await makeAdapter(client).submitJob(baseInput())).jobName).toBe('');
+  });
+
+  it('matches the real SDK clients: every method it calls exists', async () => {
+    const { TranscoderServiceClient } = await import('@google-cloud/video-transcoder');
+    const { SecretManagerServiceClient } = await import('@google-cloud/secret-manager');
+    for (const m of ['createJob', 'deleteJob']) {
+      expect(typeof (TranscoderServiceClient.prototype as unknown as Record<string, unknown>)[m]).toBe('function');
+    }
+    for (const m of ['addSecretVersion', 'destroySecretVersion']) {
+      expect(typeof (SecretManagerServiceClient.prototype as unknown as Record<string, unknown>)[m]).toBe('function');
+    }
   });
 });
 
@@ -71,82 +142,92 @@ function envelope(payload: object): unknown {
   return { message: { data: Buffer.from(JSON.stringify(payload)).toString('base64') } };
 }
 
-describe('GcpTranscoderAdapter.parseEvent — JOB_SUCCEEDED', () => {
-  it('calls getJob to obtain output duration and returns a JOB_SUCCEEDED event', async () => {
-    const client = makeClient();
-    client.getJob.mockResolvedValue([
-      {
-        name: 'projects/proj/locations/l/jobs/j1',
-        output: { uri: 'gs://out/videos/v1/hls/' },
-        outputDurationSec: 123,
-      },
-    ]);
-    const adapter = makeAdapter(client);
-    const ev = await adapter.parseEvent(
-      envelope({
-        job: {
-          name: 'projects/proj/locations/l/jobs/j1',
-          state: 'SUCCEEDED',
-          labels: { videoid: 'v1' },
-          output: { uri: 'gs://out/videos/v1/hls/' },
-        },
-      }),
+describe('GcpTranscoderAdapter.parseEvent', () => {
+  it('returns JOB_SUCCEEDED (duration left to the probed value) and destroys the key version', async () => {
+    const secrets = makeSecrets();
+    const ev = await makeAdapter(makeClient(), secrets).parseEvent(
+      envelope({ job: { name: 'j1', state: 'SUCCEEDED', labels: { videoid: 'v1', keyversion: '7' } } }),
     );
-    if (ev.type !== 'JOB_SUCCEEDED') throw new Error('expected SUCCEEDED');
-    expect(client.getJob).toHaveBeenCalledTimes(1);
-    expect(ev.durationSec).toBe(123);
-    expect(ev.manifestPath).toBe('videos/v1/hls/manifest.m3u8');
-    expect(ev.videoId).toBe('v1');
+    expect(ev).toEqual({
+      type: 'JOB_SUCCEEDED',
+      jobName: 'j1',
+      videoId: 'v1',
+      manifestPath: 'videos/v1/hls/manifest.m3u8',
+      durationSec: 0,
+    });
+    expect(secrets.destroySecretVersion).toHaveBeenCalledWith({ name: `${SECRET}/versions/7` });
   });
 
-  it('wraps getJob failure in TranscoderEventLookupError (webhook returns 5xx so Pub/Sub retries)', async () => {
-    // A structural parse error is acked MALFORMED; an I/O failure enriching a
-    // structurally-valid SUCCEEDED event must be typed so the controller can
-    // route it to the 500/retry path instead of dropping the event.
-    const client = makeClient();
-    client.getJob.mockRejectedValue(new Error('transient'));
-    const adapter = makeAdapter(client);
-    const rejection = adapter.parseEvent(
+  it('returns JOB_FAILED with the reason and destroys the key version too', async () => {
+    const secrets = makeSecrets();
+    const ev = await makeAdapter(makeClient(), secrets).parseEvent(
       envelope({
-        job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'v1' }, output: { uri: 'gs://x/y/' } },
-      }),
-    );
-    await expect(rejection).rejects.toBeInstanceOf(TranscoderEventLookupError);
-    await expect(rejection).rejects.toThrow(/transient/);
-  });
-});
-
-describe('GcpTranscoderAdapter.parseEvent — JOB_FAILED', () => {
-  it('does not call getJob and returns a JOB_FAILED event', async () => {
-    const client = makeClient();
-    const adapter = makeAdapter(client);
-    const ev = await adapter.parseEvent(
-      envelope({
-        job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1' }, error: { code: 3, message: 'codec failure' } },
+        job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1', keyversion: '7' }, error: { message: 'codec failure' } },
       }),
     );
     if (ev.type !== 'JOB_FAILED') throw new Error('expected FAILED');
-    expect(client.getJob).not.toHaveBeenCalled();
-    expect(ev.reason).toContain('codec failure');
+    expect(ev.reason).toBe('codec failure');
+    expect(secrets.destroySecretVersion).toHaveBeenCalledTimes(1);
+  });
+
+  it('still applies the result when destroying the version fails (best effort)', async () => {
+    const secrets = makeSecrets();
+    secrets.destroySecretVersion.mockRejectedValue(new Error('already destroyed'));
+    const ev = await makeAdapter(makeClient(), secrets).parseEvent(
+      envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'v1', keyversion: '7' } } }),
+    );
+    expect(ev.type).toBe('JOB_SUCCEEDED');
+  });
+
+  it('skips the destroy for a job without a keyversion label', async () => {
+    const secrets = makeSecrets();
+    await makeAdapter(makeClient(), secrets).parseEvent(
+      envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'v1' } } }),
+    );
+    expect(secrets.destroySecretVersion).not.toHaveBeenCalled();
+  });
+
+  it('defaults jobName to "" and reason to "unknown", and caps the reason at 500 chars', async () => {
+    const adapter = makeAdapter();
+    const ok = await adapter.parseEvent(envelope({ job: { state: 'SUCCEEDED', labels: { videoid: 'v1' } } }));
+    expect(ok.jobName).toBe('');
+    const unknown = await adapter.parseEvent(envelope({ job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1' } } }));
+    if (unknown.type !== 'JOB_FAILED') throw new Error('expected FAILED');
+    expect(unknown.reason).toBe('unknown');
+    const long = await adapter.parseEvent(
+      envelope({ job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1' }, error: { message: 'x'.repeat(900) } } }),
+    );
+    if (long.type !== 'JOB_FAILED') throw new Error('expected FAILED');
+    expect(long.reason).toBe('x'.repeat(500));
+  });
+
+  it('throws on an unexpected job.state without touching the key', async () => {
+    const secrets = makeSecrets();
+    await expect(
+      makeAdapter(makeClient(), secrets).parseEvent(
+        envelope({ job: { name: 'j', state: 'RUNNING', labels: { videoid: 'v1', keyversion: '7' } } }),
+      ),
+    ).rejects.toThrow(/Unexpected job\.state: RUNNING/);
+    expect(secrets.destroySecretVersion).not.toHaveBeenCalled();
   });
 });
 
 describe('GcpTranscoderAdapter.parseEvent — malformed input', () => {
   it('throws on missing labels.videoid', async () => {
-    const adapter = makeAdapter(makeClient());
+    const adapter = makeAdapter();
     await expect(
       adapter.parseEvent(envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: {} } })),
     ).rejects.toThrow(/videoid/);
   });
   it('throws on missing message.data', async () => {
-    const adapter = makeAdapter(makeClient());
+    const adapter = makeAdapter();
     await expect(adapter.parseEvent({ message: {} })).rejects.toThrow(/data/);
   });
   it('throws the explicit "missing message.data" error when the envelope has no message at all', async () => {
     // Defends `envelope.message?.data`: with no `message` key the optional chain
     // yields undefined → the explicit Error. Removing `?.` would throw a raw
     // TypeError reading `.data` of undefined instead.
-    const adapter = makeAdapter(makeClient());
+    const adapter = makeAdapter();
     await expect(adapter.parseEvent({})).rejects.toThrow(
       'Pub/Sub envelope missing message.data.',
     );
@@ -154,70 +235,14 @@ describe('GcpTranscoderAdapter.parseEvent — malformed input', () => {
   it('throws the explicit "missing labels.videoid" error when job has no labels at all', async () => {
     // Defends `job.labels?.['videoid']`: a job with no `labels` key must surface
     // the explicit Error via the optional chain, not a TypeError.
-    const adapter = makeAdapter(makeClient());
+    const adapter = makeAdapter();
     await expect(
       adapter.parseEvent(envelope({ job: { name: 'j', state: 'SUCCEEDED' } })),
     ).rejects.toThrow('Pub/Sub payload missing labels.videoid.');
   });
   it('throws on payload missing the job field', async () => {
-    const adapter = makeAdapter(makeClient());
+    const adapter = makeAdapter();
     await expect(adapter.parseEvent(envelope({}))).rejects.toThrow(/missing job/);
-  });
-  it('throws on an unexpected job.state (neither SUCCEEDED nor FAILED)', async () => {
-    const adapter = makeAdapter(makeClient());
-    await expect(
-      adapter.parseEvent(
-        envelope({ job: { name: 'j', state: 'RUNNING', labels: { videoid: 'v1' } } }),
-      ),
-    ).rejects.toThrow(/Unexpected job\.state: RUNNING/);
-  });
-});
-
-describe('GcpTranscoderAdapter.parseEvent — optional-field fallbacks', () => {
-  // Pin the right side of each `?? ` operator in parseEvent. Without these,
-  // a mutant that removes the fallback can pass every other test.
-  it('defaults jobName to "" when job.name is absent', async () => {
-    const client = makeClient();
-    client.getJob.mockResolvedValue([{ outputDurationSec: 10 }]);
-    const adapter = makeAdapter(client);
-    const ev = await adapter.parseEvent(
-      envelope({ job: { state: 'SUCCEEDED', labels: { videoid: 'v1' } } }),
-    );
-    expect(ev.jobName).toBe('');
-    // getJob is invoked with the same fallback name — the contract is
-    // tested but the wire call is what matters operationally.
-    expect(client.getJob).toHaveBeenCalledWith({ name: '' });
-  });
-  it('defaults durationSec to 0 when outputDurationSec is missing on SUCCEEDED', async () => {
-    const client = makeClient();
-    client.getJob.mockResolvedValue([{ name: 'j' }]); // no outputDurationSec
-    const adapter = makeAdapter(client);
-    const ev = await adapter.parseEvent(
-      envelope({ job: { name: 'j', state: 'SUCCEEDED', labels: { videoid: 'v1' } } }),
-    );
-    if (ev.type !== 'JOB_SUCCEEDED') throw new Error('expected SUCCEEDED');
-    expect(ev.durationSec).toBe(0);
-  });
-  it('defaults reason to "unknown" on FAILED when error.message is absent', async () => {
-    const adapter = makeAdapter(makeClient());
-    const ev = await adapter.parseEvent(
-      envelope({ job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1' } } }),
-    );
-    if (ev.type !== 'JOB_FAILED') throw new Error('expected FAILED');
-    expect(ev.reason).toBe('unknown');
-  });
-  it('truncates a FAILED reason to 500 characters', async () => {
-    // Defends `.slice(0, 500)`: an over-long error message must be capped at 500.
-    const longMsg = 'x'.repeat(900);
-    const adapter = makeAdapter(makeClient());
-    const ev = await adapter.parseEvent(
-      envelope({
-        job: { name: 'j', state: 'FAILED', labels: { videoid: 'v1' }, error: { message: longMsg } },
-      }),
-    );
-    if (ev.type !== 'JOB_FAILED') throw new Error('expected FAILED');
-    expect(ev.reason).toHaveLength(500);
-    expect(ev.reason).toBe('x'.repeat(500));
   });
 });
 
@@ -230,11 +255,6 @@ describe('GcpTranscoderAdapter.cancelJob', () => {
     expect(client.deleteJob).toHaveBeenCalledWith({ name: 'projects/proj/locations/l/jobs/j1', allowMissing: true });
   });
 
-  it('matches the real SDK client: deleteJob exists and cancelJob does not', async () => {
-    const { TranscoderServiceClient } = await import('@google-cloud/video-transcoder');
-    expect(typeof TranscoderServiceClient.prototype.deleteJob).toBe('function');
-    expect((TranscoderServiceClient.prototype as unknown as Record<string, unknown>)['cancelJob']).toBeUndefined();
-  });
   it('swallows NOT_FOUND from the SDK', async () => {
     const client = makeClient();
     const notFound = Object.assign(new Error('not found'), { code: 5 });

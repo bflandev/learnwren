@@ -27,7 +27,12 @@ export interface VideoConfig {
   transcoderTopic?: string;
   webhookAudience?: string;
   invokerSaEmail?: string;
+  /** `projects/{p}/secrets/{id}` holding per-job content-key versions. */
+  transcoderKeySecret?: string;
 }
+
+/** Default secret id for transcoder content keys (tools/deploy/provision-buckets.sh creates it). */
+export const DEFAULT_TRANSCODER_KEY_SECRET_ID = 'learnwren-video-keys';
 
 function readRequired(env: NodeJS.ProcessEnv, name: string): string {
   const v = env[name];
@@ -143,9 +148,12 @@ export function readVideoConfigFromEnv(env: NodeJS.ProcessEnv): VideoConfig {
 
   if (implRaw !== 'gcp') return base;
 
+  const gcpProjectId = readRequired(env, 'LEARNWREN_GCP_PROJECT_ID');
+  const keySecretId = env['LEARNWREN_TRANSCODER_KEY_SECRET']?.trim() || DEFAULT_TRANSCODER_KEY_SECRET_ID;
   return {
     ...base,
-    gcpProjectId: readRequired(env, 'LEARNWREN_GCP_PROJECT_ID'),
+    gcpProjectId,
+    transcoderKeySecret: `projects/${gcpProjectId}/secrets/${keySecretId}`,
     transcoderLocation: readRequired(env, 'LEARNWREN_TRANSCODER_LOCATION'),
     transcoderTopic: readRequired(env, 'LEARNWREN_TRANSCODER_TOPIC'),
     webhookAudience: readRequired(env, 'LEARNWREN_TRANSCODER_WEBHOOK_AUDIENCE'),

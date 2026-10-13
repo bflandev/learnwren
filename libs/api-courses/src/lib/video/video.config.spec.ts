@@ -128,6 +128,10 @@ describe('readVideoConfigFromEnv — slice B fields', () => {
     expect(cfg.transcoderTopic).toBe('projects/p1/topics/t');
     expect(cfg.webhookAudience).toMatch(/transcoder-events$/);
     expect(cfg.invokerSaEmail).toMatch(/iam\.gserviceaccount\.com$/);
+    // No new required env: the content-key secret defaults to the provisioned id.
+    expect(cfg.transcoderKeySecret).toBe('projects/p1/secrets/learnwren-video-keys');
+    env.LEARNWREN_TRANSCODER_KEY_SECRET = 'custom-keys';
+    expect(readVideoConfigFromEnv(env).transcoderKeySecret).toBe('projects/p1/secrets/custom-keys');
   });
 
   it('rejects transcoderImpl=fake when NODE_ENV=production', () => {

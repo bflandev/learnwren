@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { TranscoderServiceClient } from '@google-cloud/video-transcoder';
 import { OAuth2Client } from 'google-auth-library';
 
@@ -19,6 +20,7 @@ import { FfmpegEventBridge } from './transcoder/ffmpeg-event.bridge';
 import { FfmpegTranscoderAdapter, spawnRunner } from './transcoder/ffmpeg-transcoder.adapter';
 import {
   GcpTranscoderAdapter,
+  type KeySecretClient,
   type TranscoderClient,
 } from './transcoder/gcp-transcoder.adapter';
 import { VIDEO_TRANSCODER, type VideoTranscoder } from './transcoder/transcoder.port';
@@ -58,6 +60,8 @@ function makeTranscoder(cfg: VideoConfig, storage: VideoStorageAdapter): VideoTr
     // exists on the real client (a bare cast once hid a non-existent cancelJob);
     // the cast then narrows the SDK's overloaded, typed signatures.
     client: (new TranscoderServiceClient() satisfies Record<keyof TranscoderClient, unknown>) as unknown as TranscoderClient,
+    secrets: (new SecretManagerServiceClient() satisfies Record<keyof KeySecretClient, unknown>) as unknown as KeySecretClient,
+    keySecret: cfg.transcoderKeySecret!,
     projectId: cfg.gcpProjectId!,
     location: cfg.transcoderLocation!,
   });

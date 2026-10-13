@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 
+import { Injectable, Logger } from '@nestjs/common';
+
+import { publicUrl } from '@learnwren/api-auth';
 import type { VideoId } from '@learnwren/shared-data-models';
 
 import { buildJobConfig } from './transcoder-job.builder';
 import {
-  TranscoderEventLookupError,
   type TranscoderEvent,
   type TranscoderJobHandle,
   type TranscoderJobInput,
@@ -14,16 +16,22 @@ import {
 // Canonical gRPC status code for NOT_FOUND (see google.rpc.Code).
 const GRPC_NOT_FOUND = 5;
 
-// Minimal structural type for the subset of TranscoderServiceClient we use.
+/** The subset of TranscoderServiceClient we use (video.module checks each exists). */
 export interface TranscoderClient {
-  createJob(req: { parent: string; job: { config: unknown } }): Promise<[{ name?: string | null }]>;
-  getJob(req: { name: string }): Promise<
-    [{ name?: string | null; outputDurationSec?: number; output?: { uri?: string } }]
-  >;
+  createJob(req: {
+    parent: string;
+    job: { config: unknown; labels: Record<string, string> };
+  }): Promise<[{ name?: string | null }]>;
   // The Transcoder API has no cancel: deleteJob is how a running job is
   // stopped and removed. (A `cancelJob` here once compiled behind a cast and
   // threw at runtime on every delete, so jobs ran on, billed.)
   deleteJob(req: { name: string; allowMissing?: boolean }): Promise<[unknown]>;
+}
+
+/** The subset of SecretManagerServiceClient we use (video.module checks each exists). */
+export interface KeySecretClient {
+  addSecretVersion(req: { parent: string; payload: { data: Buffer } }): Promise<[{ name?: string | null }]>;
+  destroySecretVersion(req: { name: string }): Promise<[unknown]>;
 }
 
 interface PubSubEnvelope { message?: { data?: string } }
@@ -33,34 +41,50 @@ interface TranscoderPayload {
     name?: string;
     state?: 'SUCCEEDED' | 'FAILED';
     labels?: Record<string, string>;
-    output?: { uri?: string };
     error?: { code?: number; message?: string };
   };
 }
 
 export interface GcpTranscoderAdapterOptions {
   client: TranscoderClient;
+  secrets: KeySecretClient;
+  /** `projects/{p}/secrets/{id}`: each job's content key is one version of it. */
+  keySecret: string;
   projectId: string;
   location: string;
 }
 
 @Injectable()
 export class GcpTranscoderAdapter implements VideoTranscoder {
+  // Stryker disable next-line StringLiteral: Logger label is log-only.
+  private readonly logger = new Logger('GcpTranscoderAdapter');
+
   constructor(private readonly opts: GcpTranscoderAdapterOptions) {}
 
+  /**
+   * The Transcoder API takes an AES-128 key only from a Secret Manager
+   * version holding `{"encryptionKeys":[{keyId,key,keyUri}]}` (hex key). The
+   * key stays in videoKeys for playback; the version only lives until the
+   * job reports back (versions are billed while active).
+   */
   async submitJob(input: TranscoderJobInput): Promise<TranscoderJobHandle> {
-    const cfg = buildJobConfig(input);
-    const sdkConfig = {
-      ...cfg,
-      // Stryker disable next-line OptionalChaining: equivalent — buildJobConfig always returns a non-empty `encryptions` array (the `?` in its return type is for the shared shape only), so cfg.encryptions is never nullish here and `?.map` vs `.map` are identical.
-      encryptions: cfg.encryptions?.map((e) => ({
-        id: e.id,
-        aes128: { keyBytes: Buffer.from(input.encryptionKey.bytes) },
-      })),
-    };
+    const secretVersion = await this.addKeyVersion(input);
     const parent = `projects/${this.opts.projectId}/locations/${this.opts.location}`;
-    const [job] = await this.opts.client.createJob({ parent, job: { config: sdkConfig } });
-    return { jobName: job.name ?? '' };
+    try {
+      const [job] = await this.opts.client.createJob({
+        parent,
+        job: {
+          config: buildJobConfig(input, secretVersion),
+          // On the Job, not its config: JobConfig has no labels field and the
+          // gRPC client drops unknown fields silently.
+          labels: { videoid: input.videoId as string, keyversion: versionNumber(secretVersion) },
+        },
+      });
+      return { jobName: job.name ?? '' };
+    } catch (err) {
+      await this.destroyKeyVersion(secretVersion);
+      throw err;
+    }
   }
 
   async parseEvent(raw: unknown): Promise<TranscoderEvent> {
@@ -74,36 +98,31 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
     if (!videoId) throw new Error('Pub/Sub payload missing labels.videoid.');
     const jobName = job.name ?? '';
 
+    if (job.state !== 'SUCCEEDED' && job.state !== 'FAILED') {
+      throw new Error(`Unexpected job.state: ${String(job.state)}`);
+    }
+    // The job is done with its key either way; a redelivered event re-runs
+    // this harmlessly (an already destroyed version is tolerated).
+    const keyVersion = job.labels?.['keyversion'];
+    if (keyVersion) await this.destroyKeyVersion(`${this.opts.keySecret}/versions/${keyVersion}`);
+
     if (job.state === 'SUCCEEDED') {
-      // Structural parsing is done; getJob is I/O. Wrap its failures in the
-      // typed lookup error so the controller retries (5xx) instead of acking
-      // the event as MALFORMED and dropping it forever.
-      let full: { outputDurationSec?: number };
-      try {
-        [full] = await this.opts.client.getJob({ name: jobName });
-      } catch (err) {
-        throw new TranscoderEventLookupError(
-          `getJob failed for ${jobName}: ${(err as Error).message}`,
-        );
-      }
-      const durationSec = Number(full.outputDurationSec ?? 0);
       return {
         type: 'JOB_SUCCEEDED',
         jobName,
         videoId: videoId as VideoId,
         manifestPath: `videos/${videoId}/hls/manifest.m3u8`,
-        durationSec,
+        // A Job exposes no output duration (there was once a getJob call for
+        // a field that does not exist); the repository uses the probed one.
+        durationSec: 0,
       };
     }
-    if (job.state === 'FAILED') {
-      return {
-        type: 'JOB_FAILED',
-        jobName,
-        videoId: videoId as VideoId,
-        reason: (job.error?.message ?? 'unknown').slice(0, 500),
-      };
-    }
-    throw new Error(`Unexpected job.state: ${String(job.state)}`);
+    return {
+      type: 'JOB_FAILED',
+      jobName,
+      videoId: videoId as VideoId,
+      reason: (job.error?.message ?? 'unknown').slice(0, 500),
+    };
   }
 
   async cancelJob(jobName: string): Promise<void> {
@@ -115,4 +134,40 @@ export class GcpTranscoderAdapter implements VideoTranscoder {
       throw err;
     }
   }
+
+  private async addKeyVersion(input: TranscoderJobInput): Promise<string> {
+    const payload = {
+      encryptionKeys: [
+        {
+          // ClearKey wants a 16-byte hex key id; HLS AES-128 never uses it.
+          keyId: randomBytes(16).toString('hex'),
+          key: Buffer.from(input.encryptionKey.bytes).toString('hex'),
+          // Written into EXT-X-KEY; the playback rewriter replaces it anyway.
+          keyUri: publicUrl(`/api/playback/keys/${input.videoId}`),
+        },
+      ],
+    };
+    const [version] = await this.opts.secrets.addSecretVersion({
+      parent: this.opts.keySecret,
+      payload: { data: Buffer.from(JSON.stringify(payload)) },
+    });
+    if (!version.name) throw new Error('Secret Manager returned no version name.');
+    return version.name;
+  }
+
+  private async destroyKeyVersion(name: string): Promise<void> {
+    try {
+      await this.opts.secrets.destroySecretVersion({ name });
+    } catch (err) {
+      // Best effort: a leaked version costs a few cents a month, and the job
+      // result must still be applied.
+      // Stryker disable next-line StringLiteral: log-only message.
+      this.logger.warn(`destroying key version ${name} failed: ${(err as Error).message}`);
+    }
+  }
+}
+
+/** `projects/p/secrets/s/versions/7` → `7` (a valid label value). */
+function versionNumber(versionName: string): string {
+  return versionName.slice(versionName.lastIndexOf('/') + 1);
 }
