@@ -17,17 +17,24 @@ import { HlmInput } from '@learnwren/web-ui';
 export class CourseSearchBarComponent {
   protected readonly queryMax = CATALOG_SEARCH_MAX_LENGTH;
   private readonly router = inject(Router);
-  readonly query = signal(this.queryInUrl(this.router.url));
+  private urlQuery = this.queryInUrl(this.router.url);
+  readonly query = signal(this.urlQuery);
 
   constructor() {
-    // Follow the URL, so Back/Forward or a pasted /search?q= link shows the
-    // query whose results are on screen (not the last thing typed).
+    // Follow the URL's q, so Back/Forward or a pasted /search?q= link shows the
+    // query whose results are on screen. Only when q itself changed: any other
+    // navigation (redirects, query-param cleanup) must not wipe what is typed.
     this.router.events
       .pipe(
         filter((e): e is NavigationEnd => e instanceof NavigationEnd),
         takeUntilDestroyed(),
       )
-      .subscribe((e) => this.query.set(this.queryInUrl(e.urlAfterRedirects)));
+      .subscribe((e) => {
+        const q = this.queryInUrl(e.urlAfterRedirects);
+        if (q === this.urlQuery) return;
+        this.urlQuery = q;
+        this.query.set(q);
+      });
   }
 
   private queryInUrl(url: string): string {

@@ -488,6 +488,24 @@ describe('AdminUsersPageComponent — delete confirmation', () => {
     expect(el.querySelector('[data-testid="user-deleted-notice"]')?.textContent?.trim()).toBe('User deleted.');
   });
 
+  it.each(['popstate', 'hashchange'])(
+    'does not replay the notice on a %s navigation (state restored from history)',
+    (trigger) => {
+      TestBed.configureTestingModule({
+        imports: [AdminUsersPageComponent],
+        providers: [
+          provideRouter([]),
+          { provide: AdminUsersService, useValue: { list: vi.fn(async () => ({ users: [], total: 0, page: 1, pageSize: 20 })) } },
+        ],
+      });
+      const router = TestBed.inject(Router);
+      Object.defineProperty(router, 'currentNavigation', {
+        value: () => ({ trigger, extras: { state: { deleted: true } } }),
+      });
+      expect(TestBed.createComponent(AdminUsersPageComponent).componentInstance.deletedNotice()).toBe(false);
+    },
+  );
+
   it('shows no notice on an ordinary visit', async () => {
     const el = await arrive();
     expect(el.querySelector('[data-testid="user-deleted-notice"]')).toBeNull();

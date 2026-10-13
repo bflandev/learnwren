@@ -42,8 +42,12 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
   private readonly svc = inject(AdminUsersService);
   private readonly router = inject(Router);
 
-  /** The detail page navigates here with `state: { deleted: true }` after a delete. */
-  readonly deletedNotice = signal(this.router.currentNavigation()?.extras.state?.['deleted'] === true);
+  /**
+   * The detail page navigates here with `state: { deleted: true }` after a
+   * delete. Only that imperative navigation counts: the state also lives in
+   * history, and Back/Forward or a reload would replay it.
+   */
+  readonly deletedNotice = signal(this.isDeleteRedirect());
 
   readonly users = signal<AdminUserListRow[]>([]);
   readonly total = signal(0);
@@ -63,6 +67,11 @@ export class AdminUsersPageComponent implements OnInit, OnDestroy {
    */
   private loadToken = 0;
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+  private isDeleteRedirect(): boolean {
+    const nav = this.router.currentNavigation();
+    return nav?.trigger === 'imperative' && nav.extras.state?.['deleted'] === true;
+  }
 
   async ngOnInit(): Promise<void> {
     await this.reload();

@@ -211,7 +211,7 @@ The API endpoints exposed by US-08-02 (course-category management):
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
 | `GET` | `/api/categories` | **Public.** All categories, alphabetical by display name. Lazily seeds the six defaults on first read. |
-| `POST` | `/api/admin/categories` | ADMIN. Create `{ name }` (≤ 60 chars); id = slugified name. `CATEGORY_EXISTS` → 409 on id or case-insensitive name collision. |
+| `POST` | `/api/admin/categories` | ADMIN. Create `{ name }` (≤ 60 chars); id = slugified name. `CATEGORY_EXISTS` → 409 on a case-insensitive name collision (a taken id gets a numeric suffix). |
 | `PATCH` | `/api/admin/categories/:id` | ADMIN. Rename `{ name }` — display name only, course docs are never rewritten. `CATEGORY_NOT_FOUND` → 404; `CATEGORY_EXISTS` → 409. |
 | `DELETE` | `/api/admin/categories/:id?reassignTo=` | ADMIN. Delete; when courses reference the category, `reassignTo` is required (`CATEGORY_IN_USE` → 409 with `courseCount`) and every referencing course is moved in one transaction. `LAST_CATEGORY` → 409 for the final category. Returns `{ reassignedCourses }`. |
 

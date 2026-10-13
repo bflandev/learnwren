@@ -1044,7 +1044,7 @@ All admin endpoints require a valid session cookie **and** the `ADMIN` role
 
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
-| `POST` | `/api/admin/categories` | Create `{ name }` (≤ 60 chars); id = slugified name. |
+| `POST` | `/api/admin/categories` | Create `{ name }` (≤ 60 chars); id = slugified name (numeric suffix if taken). |
 | `PATCH` | `/api/admin/categories/:id` | Rename `{ name }` — display name only; course docs are never rewritten. |
 | `DELETE` | `/api/admin/categories/:id?reassignTo=` | Delete; `reassignTo` required when courses reference the category. Returns `{ reassignedCourses }`. |
 

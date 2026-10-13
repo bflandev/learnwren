@@ -75,6 +75,13 @@ describe('CourseSearchBarComponent — follows the URL', () => {
     expect(cmp.query()).toBe('nest');
   });
 
+  it('keeps half-typed text across a navigation that does not change q', async () => {
+    const cmp = await at('/catalog');
+    cmp.query.set('half-typ');
+    await TestBed.inject(Router).navigateByUrl('/catalog?page=2');
+    expect(cmp.query()).toBe('half-typ');
+  });
+
   it('clears when leaving the search page, and ignores q on other pages', async () => {
     const cmp = await at('/search?q=angular');
     await TestBed.inject(Router).navigateByUrl('/catalog?q=stray');
