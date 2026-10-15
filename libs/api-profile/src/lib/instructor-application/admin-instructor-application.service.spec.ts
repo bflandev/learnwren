@@ -454,6 +454,28 @@ describe('AdminInstructorApplicationService', () => {
     expect(usersUpdate).toHaveBeenLastCalledWith(expect.objectContaining({ role: 'STUDENT' }));
   });
 
+  it('approve: a failed users-doc revert is logged and the typed INTERNAL error still surfaces', async () => {
+    docs['instructorApplications/u1'] = {
+      get: vi.fn(async () => ({
+        exists: true,
+        data: () => ({ uid: 'u1', statement: 's', expertise: 'e', status: 'PENDING', createdAt: 'c' }),
+      })),
+      update: vi.fn(async () => undefined),
+    };
+    docs['users/u1'] = {
+      get: vi.fn(async () => ({ exists: true, data: () => ({ role: 'STUDENT' }) })),
+      update: vi.fn(async () => {
+        throw new Error('firestore down');
+      }),
+    };
+    const errSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    await expect(svc.approve('u1' as never)).rejects.toBeInstanceOf(AdminInstructorApplicationException);
+
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('approval role revert failed uid=u1'));
+    errSpy.mockRestore();
+  });
+
   // If the revert update ALSO fails, the .catch callback must log and swallow
   // (the original typed INTERNAL error still surfaces, not the revert error).
   it('approve: revert failure after promotion failure is logged and swallowed', async () => {

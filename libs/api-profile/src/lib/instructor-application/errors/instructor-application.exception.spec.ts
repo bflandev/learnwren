@@ -5,6 +5,8 @@ import {
   InstructorApplicationExistsException,
   InstructorApplicationInvalidException,
 } from './instructor-application.exception';
+import * as applicationErrors from './instructor-application.exception';
+import { INSTRUCTOR_APPLICATION_ERROR_CODES } from './instructor-application-error.codes';
 
 describe('instructor-application exceptions', () => {
   it('maps each exception to its code, status, and details', () => {
@@ -26,5 +28,12 @@ describe('instructor-application exceptions', () => {
       code: 'ALREADY_INSTRUCTOR',
       status: 409,
     });
+  });
+});
+
+describe('INSTRUCTOR_APPLICATION_ERROR_CODES', () => {
+  it('lists exactly the codes the instructor-application exceptions carry', () => {
+    const thrown = new Set([new applicationErrors.InstructorApplicationInvalidException('statement'), new applicationErrors.InstructorApplicationExistsException(), new applicationErrors.AlreadyInstructorException()].map((e) => e.code));
+    expect([...INSTRUCTOR_APPLICATION_ERROR_CODES].sort()).toEqual([...thrown].sort());
   });
 });

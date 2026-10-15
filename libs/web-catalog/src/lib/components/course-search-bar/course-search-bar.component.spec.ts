@@ -82,6 +82,12 @@ describe('CourseSearchBarComponent — follows the URL', () => {
     expect(cmp.query()).toBe('half-typ');
   });
 
+  it('clears on a search page whose URL carries no q', async () => {
+    const cmp = await at('/search?q=angular');
+    await TestBed.inject(Router).navigateByUrl('/search');
+    expect(cmp.query()).toBe('');
+  });
+
   it('clears when leaving the search page, and ignores q on other pages', async () => {
     const cmp = await at('/search?q=angular');
     await TestBed.inject(Router).navigateByUrl('/catalog?q=stray');

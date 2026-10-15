@@ -404,6 +404,25 @@ describe('CourseDetailPageComponent', () => {
     expect(getStatusSpy).not.toHaveBeenCalled();
   });
 
+  it('retry() before the route params arrive loads nothing', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [CourseDetailPageComponent],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ActivatedRoute, useValue: { paramMap: new Subject<ParamMap>() } },
+        { provide: AuthService, useValue: { currentUser: signal(null) } },
+        { provide: EnrollmentService, useValue: { getEnrollmentStatus: vi.fn() } },
+      ],
+    });
+    const c = TestBed.createComponent(CourseDetailPageComponent).componentInstance;
+    const load = vi.spyOn(c as unknown as { load: () => Promise<void> }, 'load');
+    c.retry();
+    expect(load).not.toHaveBeenCalled();
+  });
+
   it('DOES fetch enrollment status for an authenticated user', async () => {
     // Drives the true side of the same guard so killing it requires BOTH cases.
     const getStatusSpy = vi.fn(() => Promise.resolve({ enrollment: null, isOwner: false }));

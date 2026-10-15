@@ -7,6 +7,8 @@ import {
   PictureTooLargeException,
   UnsupportedPictureFormatException,
 } from './picture.exception';
+import * as pictureErrors from './picture.exception';
+import { PICTURE_ERROR_CODES } from './picture-error.codes';
 
 describe('PictureException hierarchy', () => {
   it('carries code, message, status, and (optional) details on each subclass', () => {
@@ -33,5 +35,12 @@ describe('PictureException hierarchy', () => {
     expect(new PictureDecodeFailedException()).toBeInstanceOf(PictureException);
     expect(new PictureTooLargeException()).toBeInstanceOf(PictureException);
     expect(new UnsupportedPictureFormatException()).toBeInstanceOf(PictureException);
+  });
+});
+
+describe('PICTURE_ERROR_CODES', () => {
+  it('lists exactly the codes the picture exceptions carry', () => {
+    const thrown = new Set([new pictureErrors.PictureDimensionsTooSmallException({ width: 1, height: 1 }), new pictureErrors.PictureDecodeFailedException(), new pictureErrors.PictureTooLargeException(), new pictureErrors.UnsupportedPictureFormatException()].map((e) => e.code));
+    expect([...PICTURE_ERROR_CODES].sort()).toEqual([...thrown].sort());
   });
 });

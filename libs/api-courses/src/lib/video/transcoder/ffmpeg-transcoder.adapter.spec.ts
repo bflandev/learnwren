@@ -436,6 +436,24 @@ describe('FfmpegTranscoderAdapter — edge paths', () => {
     expect(made.sink).not.toHaveBeenCalled();
   });
 
+  it('logs and swallows a failed cleanup of the orphaned output', async () => {
+    const made = make();
+    let job = '';
+    made.storage.uploadFile = vi.fn(async () => {
+      await made.adapter.cancelJob(job);
+    }) as never;
+    made.storage.deletePrefix = vi.fn(async () => {
+      throw new Error('bucket unreachable');
+    }) as never;
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { jobName } = await made.adapter.submitJob(input(360));
+    job = jobName;
+    await made.adapter.whenDone(jobName);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('orphaned output cleanup failed'));
+    expect(made.sink).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('does not kill anything when cancelled after the job finished', async () => {
     const bits = fakeRunner();
     const { adapter } = make(bits);

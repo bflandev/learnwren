@@ -25,18 +25,19 @@ export const XHR_FACTORY = new InjectionToken<() => XMLHttpRequest>(
 const SUPPORTED_MIME = new Set<SupportedVideoContentType>(SUPPORTED_VIDEO_CONTENT_TYPES);
 // Browsers report '' for .mkv on some platforms and video/x-m4v for .m4v (an
 // MP4 container), so fall back to the extension the picker's accept list offers.
-const CONTENT_TYPE_BY_EXT: Record<string, SupportedVideoContentType> = {
-  mp4: 'video/mp4',
-  m4v: 'video/mp4',
-  mov: 'video/quicktime',
-  mkv: 'video/x-matroska',
-};
+// A Map, not an object literal: `x.constructor` must not resolve to Object.
+const CONTENT_TYPE_BY_EXT = new Map<string, SupportedVideoContentType>([
+  ['mp4', 'video/mp4'],
+  ['m4v', 'video/mp4'],
+  ['mov', 'video/quicktime'],
+  ['mkv', 'video/x-matroska'],
+]);
 
 function contentTypeOf(file: File): SupportedVideoContentType | undefined {
   if (SUPPORTED_MIME.has(file.type as SupportedVideoContentType)) {
     return file.type as SupportedVideoContentType;
   }
-  return CONTENT_TYPE_BY_EXT[file.name.split('.').pop()?.toLowerCase() ?? ''];
+  return CONTENT_TYPE_BY_EXT.get(file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase());
 }
 const MAX_BYTES = 10_000_000_000;
 const CHUNK_BYTES = 8 * 1024 * 1024;

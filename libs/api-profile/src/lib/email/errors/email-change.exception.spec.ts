@@ -7,6 +7,8 @@ import {
   EmailInvalidException,
   EmailUnchangedException,
 } from './email-change.exception';
+import * as emailErrors from './email-change.exception';
+import { EMAIL_CHANGE_ERROR_CODES } from './email-change-error.codes';
 
 describe('email-change exceptions', () => {
   it('maps each exception to its code, status, and field', () => {
@@ -25,5 +27,12 @@ describe('email-change exceptions', () => {
     expect(new EmailChangeFailedException()).toMatchObject({
       code: 'EMAIL_CHANGE_FAILED', status: 500,
     });
+  });
+});
+
+describe('EMAIL_CHANGE_ERROR_CODES', () => {
+  it('lists exactly the codes the email-change exceptions carry', () => {
+    const thrown = new Set([new emailErrors.EmailInvalidException(), new emailErrors.EmailUnchangedException(), new emailErrors.CurrentPasswordInvalidException(), new emailErrors.EmailAlreadyInUseException(), new emailErrors.EmailChangeFailedException()].map((e) => e.code));
+    expect([...EMAIL_CHANGE_ERROR_CODES].sort()).toEqual([...thrown].sort());
   });
 });

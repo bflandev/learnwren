@@ -459,6 +459,13 @@ describe('VideoUploadService — branch coverage (mutation hardening)', () => {
     expect(svc.selectFile(new File([new Uint8Array(1)], 'notes', { type: '' }))).toEqual({ ok: false });
   });
 
+  it.each(['clip.constructor', 'clip.toString', 'clip.__proto__'])(
+    'selectFile rejects %s: an Object.prototype key is not an extension',
+    (name) => {
+      expect(svc.selectFile(new File([new Uint8Array(1)], name, { type: '' }))).toEqual({ ok: false });
+    },
+  );
+
   it('start() does not create a session when the file is invalid', async () => {
     await svc.start(CTX, sized(10, 'text/plain'));
     expect(api.createUploadSession).not.toHaveBeenCalled();

@@ -13,6 +13,7 @@ import { CourseEditorPageComponent } from './course-editor-page.component';
 import { CoursePublishBarComponent } from '../publish/course-publish-bar.component';
 import { PublishEligibilityService } from '../publish/publish-eligibility.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CoursesService } from '../courses.service';
 
 const TS = '2026-05-12T00:00:00.000Z';
 
@@ -331,6 +332,14 @@ describe('CourseEditorPageComponent', () => {
     http.expectOne('/api/courses/cid-1').flush({}, { status: 404, statusText: 'Not Found' });
     await fixture.whenStable();
     expect(fixture.componentInstance.error()).toBe("This course doesn't exist or isn't one of yours.");
+  });
+
+  it('reports a generic load failure for an error that is not an HTTP response', async () => {
+    vi.spyOn(TestBed.inject(CoursesService), 'getCourseTree').mockRejectedValue(new Error('offline'));
+    const fixture = TestBed.createComponent(CourseEditorPageComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.error()).toBe('Failed to load course.');
   });
 
   describe('onUpdateCourse', () => {

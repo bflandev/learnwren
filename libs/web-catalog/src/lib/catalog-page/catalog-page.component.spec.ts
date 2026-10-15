@@ -320,6 +320,23 @@ describe('CatalogPageComponent', () => {
     expect(c.result()).toBeNull();
   });
 
+  it('retry() before any query params arrive loads nothing', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [CatalogPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { queryParamMap: new Subject() } },
+      ],
+    });
+    const c = TestBed.createComponent(CatalogPageComponent).componentInstance;
+    const load = vi.spyOn(c as unknown as { load: () => Promise<void> }, 'load');
+    c.retry();
+    expect(load).not.toHaveBeenCalled();
+  });
+
   it('merges query params (not replace) when changing filters via onFilterChange', async () => {
     await router.navigate(['/catalog'], { queryParams: { sort: 'TITLE_ASC' } });
     const fixture = TestBed.createComponent(CatalogPageComponent);

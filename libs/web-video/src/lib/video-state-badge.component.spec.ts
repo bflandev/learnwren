@@ -58,6 +58,16 @@ describe('VideoStateBadgeComponent — slice B copy', () => {
     expect(fixture.nativeElement.textContent as string).toContain('Transcoding failed');
   });
 
+  it('keeps the last known state when polling gives up with an error', () => {
+    fixture.componentRef.setInput('video', video('TRANSCODING'));
+    fixture.detectChanges();
+    subject.next(video('UPLOADED'));
+    const before = fixture.componentInstance.label();
+    subject.error(new Error('polling exhausted'));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.label()).toBe(before);
+  });
+
   it('updates copy when the polling stream emits a new state', () => {
     fixture.componentRef.setInput('video', video('TRANSCODING'));
     fixture.detectChanges();

@@ -21,5 +21,23 @@ describe('AppController', () => {
       expect(typeof result.serverTime).toBe('string');
       expect(() => new Date(result.serverTime).toISOString()).not.toThrow();
     });
+
+    it('reports version 0.0.0 when npm_package_version is unset', () => {
+      vi.stubEnv('npm_package_version', undefined);
+      try {
+        expect(controller.getHealth().version).toBe('0.0.0');
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it('reports npm_package_version when set', () => {
+      vi.stubEnv('npm_package_version', '9.9.9');
+      try {
+        expect(controller.getHealth().version).toBe('9.9.9');
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
   });
 });
