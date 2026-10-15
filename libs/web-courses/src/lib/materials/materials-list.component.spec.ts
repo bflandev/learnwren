@@ -401,6 +401,24 @@ describe('MaterialsListComponent', () => {
   });
 
   describe('rename editing state', () => {
+    it('Escape in the rename field returns focus to that material name, not <body>', () => {
+      const { fixture } = render(apiMock());
+      document.body.appendChild(fixture.nativeElement);
+      try {
+        const el = fixture.nativeElement as HTMLElement;
+        fixture.componentInstance.startRename(mat('m1', 'Doc One'));
+        fixture.detectChanges();
+        TestBed.tick();
+        const input = el.querySelector('[data-testid="material-rename-input"]') as HTMLInputElement;
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        fixture.detectChanges();
+        TestBed.tick();
+        expect(document.activeElement).toBe(el.querySelector('[data-testid="material-name"]'));
+      } finally {
+        fixture.nativeElement.remove();
+      }
+    });
+
     it('a blur after Escape (input removal) does not save the draft', async () => {
       const api = apiMock();
       const { fixture } = render(api);

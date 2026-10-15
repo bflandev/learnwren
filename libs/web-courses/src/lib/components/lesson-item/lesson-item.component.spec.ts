@@ -144,6 +144,24 @@ describe('LessonItemComponent', () => {
     expect(c.editing()).toBe(false);
   });
 
+  it('Escape in the rename field returns focus to the lesson title, not <body>', () => {
+    const fixture = build();
+    document.body.appendChild(fixture.nativeElement);
+    try {
+      const el = fixture.nativeElement as HTMLElement;
+      fixture.componentInstance.startEdit();
+      fixture.detectChanges();
+      TestBed.tick();
+      const input = el.querySelector('[data-testid="lesson-rename-input"]') as HTMLInputElement;
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      fixture.detectChanges();
+      TestBed.tick();
+      expect(document.activeElement).toBe(el.querySelector('[data-testid="lesson-title"]'));
+    } finally {
+      fixture.nativeElement.remove();
+    }
+  });
+
   it('onVideoUploaded() emits videoChanged', () => {
     const c = build().componentInstance;
     const spy = vi.spyOn(c.videoChanged, 'emit');

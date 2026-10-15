@@ -247,6 +247,25 @@ describe('SearchResultsPageComponent', () => {
     expect(c.result()).toBeNull();
   });
 
+  it('retry() before any query params arrive loads nothing', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [SearchResultsPageComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { queryParamMap: new Subject() } },
+        { provide: AuthService, useValue: authMock },
+        { provide: EnrollmentService, useValue: enrollmentsMock },
+      ],
+    });
+    const c = TestBed.createComponent(SearchResultsPageComponent).componentInstance;
+    const load = vi.spyOn(c as unknown as { load: () => Promise<void> }, 'load');
+    c.retry();
+    expect(load).not.toHaveBeenCalled();
+  });
+
   it('ignores a stale search response that resolves after a newer request', async () => {
     // Race guard: a slow earlier page request must not overwrite the newer one.
     await router.navigate(['/search'], { queryParams: { q: 'rust', page: 1 } });

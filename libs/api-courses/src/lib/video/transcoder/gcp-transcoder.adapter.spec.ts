@@ -292,6 +292,15 @@ describe('GcpTranscoderAdapter.cancelJob', () => {
     expect(client.deleteJob).toHaveBeenCalledWith({ name: 'j', allowMissing: true });
   });
 
+  it('stops a job that carries no keyversion label without destroying anything', async () => {
+    const client = makeClient();
+    const secrets = makeSecrets();
+    client.getJob.mockResolvedValue([{ labels: { videoid: '7631' } }]);
+    await makeAdapter(client, secrets).cancelJob('j');
+    expect(secrets.destroySecretVersion).not.toHaveBeenCalled();
+    expect(client.deleteJob).toHaveBeenCalledWith({ name: 'j', allowMissing: true });
+  });
+
   it('swallows NOT_FOUND from the SDK', async () => {
     const client = makeClient();
     const notFound = Object.assign(new Error('not found'), { code: 5 });

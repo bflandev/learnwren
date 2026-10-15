@@ -75,6 +75,21 @@ describe('AdminUserDetailPageComponent', () => {
     };
   });
 
+  it('retryLoad() on a route without a uid loads nothing', () => {
+    TestBed.configureTestingModule({
+      imports: [AdminUserDetailPageComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AdminUsersService, useValue: svc },
+        { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({})) } },
+      ],
+    });
+    const fixture = TestBed.createComponent(AdminUserDetailPageComponent);
+    fixture.detectChanges();
+    fixture.componentInstance.retryLoad();
+    expect(svc.getDetail).not.toHaveBeenCalled();
+  });
+
   it('loads the user by route param and renders profile + role', async () => {
     const fixture = await setup('u1');
     expect(svc.getDetail).toHaveBeenCalledWith('u1');
